@@ -7,13 +7,11 @@
 // store port (LA-E5-23) can pass the provider itself.
 import type { KeyRing, LocalKeyProvider, Logger } from '@cogniate/shared';
 import {
-  KeyProviderError, LEGACY_KEY_VERSION, bindKeyProvider, createLocalKeyProvider, legacyKeyRing, parseKeyRing, readSecretFile, readSecretSetting,
+  KeyProviderError, LEGACY_KEY_VERSION, legacyKeyRing, parseKeyRing, readSecretFile, readSecretSetting,
 } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
-import { serviceKeyVersions } from '../store/service-keys.ts';
-import { legacyBlobsRefused } from '../store/settings.ts';
+import type { StoreSource as Db } from '../store/index.ts';
+import { storeFor } from '../store/index.ts';
 import { SIGNING_KEY_PUBLISH_LEAD_S, validatePublishLeadSeconds } from '../store/tool-keys.ts';
-import { sealedVersionCounts } from './sealed-columns.ts';
 
 export const DEFAULT_KEYRING_FILE = '/run/secrets/lti/keyring.json';
 
@@ -77,8 +75,8 @@ export function readKeyRing(env: Env = process.env): KeyRing {
 }
 
 /** Every key version that a stored row uses: the sealed blobs and the service-key derivations. */
-export function keyVersionsInUse(db: Db): string[] {
-  return [...new Set([...sealedVersionCounts(db).keys(), ...serviceKeyVersions(db)])].sort();
+export async function keyVersionsInUse(db: Db): Promise<string[]> {
+  return storeFor(db).keyProvider.versionsInUse();
 }
 
 export interface LoadKeyProviderDeps {
@@ -98,11 +96,9 @@ export interface LoadKeyProviderDeps {
  */
 export async function loadKeyProvider(deps: LoadKeyProviderDeps): Promise<LocalKeyProvider> {
   // Detect a damaged policy once at start, before binding a provider. Keep the row value out of the error.
-  try { legacyBlobsRefused(deps.db); }
+  try { await storeFor(deps.db).settings.legacyBlobsRefused(); }
   catch { throw new Error('key_provider_setting_invalid: cannot read the key_provider service setting.'); }
-  const provider = createLocalKeyProvider(deps.ring ?? readKeyRing(deps.env), { referencedVersions: () => keyVersionsInUse(deps.db),
-    legacyBlobsRefused: () => legacyBlobsRefused(deps.db), logger: deps.logger });
-  bindKeyProvider(deps.masterKey, provider);
+  const provider = await storeFor(deps.db).keyProvider.create(deps.masterKey, deps.ring ?? readKeyRing(deps.env), deps.logger);
   try {
     await provider.ready();
   } catch (err) {

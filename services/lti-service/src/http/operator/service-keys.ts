@@ -3,7 +3,7 @@ import { revokeServiceKeyScope, serviceKeyRevokeTarget } from '../routes/service
 import type { OperatorContext } from './index.ts';
 
 export function registerOperatorServiceKeyRoutes(app: FastifyInstance, ctx: OperatorContext): void {
-  app.post<{ Params: { id: string } }>('/operator/v1/accounts/:id/service-keys/revoke', async (req) => ctx.audited(req, {
+  app.post<{ Params: { id: string } }>('/operator/v1/accounts/:id/service-keys/revoke', async (req) => (await ctx.audited(req, {
     action: 'service_key.revoke', toolAccountId: req.params.id, target: serviceKeyRevokeTarget(req.body),
-  }, (audit) => revokeServiceKeyScope(ctx, req.params.id, req.body, audit)));
+  }, (audit) => revokeServiceKeyScope(ctx, req.params.id, req.body, audit))));
 }

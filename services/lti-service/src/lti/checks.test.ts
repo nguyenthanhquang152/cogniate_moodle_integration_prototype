@@ -20,9 +20,9 @@ const platform: Platform = {
 };
 const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null, storageTarget: null, storageOrigin: null };
 
-function expectFail(fn: () => unknown, check: string, code: string) {
+async function expectFail(fn: () => unknown, check: string, code: string) {
   try {
-    fn();
+    await fn();
   } catch (err) {
     expect(err).toBeInstanceOf(LaunchCheckError);
     expect({ check: (err as LaunchCheckError).check, code: (err as LaunchCheckError).code }).toEqual({ check, code });
@@ -42,18 +42,18 @@ describe('checks 1 and 3: state record (single use, same statement)', () => {
     return { db, now };
   };
 
-  it('passes once, then the same state fails (used up)', () => {
+  it('passes once, then the same state fails (used up)', async () => {
     const { db, now } = setup();
-    expect(check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now).nonce).toBe('n');
-    expectFail(() => check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now), '1', 'INVALID_STATE');
+    expect((await check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now)).nonce).toBe('n');
+    (await expectFail(async () => (await check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now)), '1', 'INVALID_STATE'));
   });
 
-  it('fails for a missing, unknown, expired or other-account state', () => {
+  it('fails for a missing, unknown, expired or other-account state', async () => {
     const { db, now } = setup();
-    expectFail(() => check1And3State(db, 'cogniate', undefined, null, now), '1', 'INVALID_STATE');
-    expectFail(() => check1And3State(db, 'cogniate', 'nope', sha256Hex('nope'), now), '1', 'INVALID_STATE');
-    expectFail(() => check1And3State(db, 'other', 's1', sha256Hex('s1'), now), '1', 'INVALID_STATE');
-    expectFail(() => check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now + 600_001), '1', 'INVALID_STATE');
+    (await expectFail(async () => (await check1And3State(db, 'cogniate', undefined, null, now)), '1', 'INVALID_STATE'));
+    (await expectFail(async () => (await check1And3State(db, 'cogniate', 'nope', sha256Hex('nope'), now)), '1', 'INVALID_STATE'));
+    (await expectFail(async () => (await check1And3State(db, 'other', 's1', sha256Hex('s1'), now)), '1', 'INVALID_STATE'));
+    (await expectFail(async () => (await check1And3State(db, 'cogniate', 's1', sha256Hex('s1'), now + 600_001)), '1', 'INVALID_STATE'));
   });
 });
 
@@ -62,8 +62,8 @@ describe('check 2: state cookie', () => {
   const name = stateCookieName(hash);
   it('uses the __Host- name with 8 chars of the state hash', () => expect(name).toBe(`__Host-lti_state_${hash.slice(0, 8)}`));
   it('passes when the cookie equals the state', () => expect(() => check2Cookie(`a=b; ${name}=state-x`, 'state-x', hash)).not.toThrow());
-  it('fails STATE_COOKIE_MISSING without the cookie', () => expectFail(() => check2Cookie('a=b', 'state-x', hash), '2', 'STATE_COOKIE_MISSING'));
-  it('fails INVALID_STATE for another value', () => expectFail(() => check2Cookie(`${name}=state-y`, 'state-x', hash), '2', 'INVALID_STATE'));
+  it('fails STATE_COOKIE_MISSING without the cookie', async () => (await expectFail(() => check2Cookie('a=b', 'state-x', hash), '2', 'STATE_COOKIE_MISSING')));
+  it('fails INVALID_STATE for another value', async () => (await expectFail(() => check2Cookie(`${name}=state-y`, 'state-x', hash), '2', 'INVALID_STATE')));
   it('reads cookies by exact name', () => expect(readCookie(`${name}x=1; ${name}=2`, name)).toBe('2'));
 });
 
@@ -79,7 +79,7 @@ describe('check 4: compact JWS, RS256, kid', async () => {
     ['no kid', `${b64({ alg: 'RS256' })}.${b64({ a: 1 })}.x`],
     ['payload not an object', `${b64({ alg: 'RS256', kid: 'k1' })}.${b64([1])}.x`],
     ['missing', undefined],
-  ])('fails INVALID_ID_TOKEN: %s', (_n, token) => expectFail(() => check4Token(token), '4', 'INVALID_ID_TOKEN'));
+  ])('fails INVALID_ID_TOKEN: %s', async (_n, token) => (await expectFail(() => check4Token(token), '4', 'INVALID_ID_TOKEN')));
 });
 
 describe('check 5: issuer and audience', () => {
@@ -93,19 +93,19 @@ describe('check 5: issuer and audience', () => {
     ['other aud', { iss: ISSUER, aud: 'other' }],
     ['two aud, no azp', { iss: ISSUER, aud: [CLIENT_ID, 'x'] }],
     ['two aud, wrong azp', { iss: ISSUER, aud: [CLIENT_ID, 'x'], azp: 'x' }],
-  ])('fails INVALID_ISSUER_OR_AUDIENCE: %s', (_n, claims) => expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE'));
+  ])('fails INVALID_ISSUER_OR_AUDIENCE: %s', async (_n, claims) => (await expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE')));
 
-  it('allows only exact trusted extras while still requiring the client id and its azp', () => {
+  it('allows only exact trusted extras while still requiring the client id and its azp', async () => {
     const claims = { iss: ISSUER, aud: [CLIENT_ID, 'https://other.test'], azp: CLIENT_ID };
-    expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+    (await expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE'));
     const trusted = { ...platform, trustedAudiences: ['https://other.test', 'opaque-audience'] };
     expect(() => check5IssuerAudience(claims, trusted)).not.toThrow();
     expect(() => check5IssuerAudience({ ...claims, aud: [CLIENT_ID, 'opaque-audience'] }, trusted)).not.toThrow();
     for (const aud of [[CLIENT_ID, 'https://other.test/'], [CLIENT_ID, 'https://other.test', 'untrusted'], ['https://other.test'], []]) {
-      expectFail(() => check5IssuerAudience({ ...claims, aud }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+      (await expectFail(() => check5IssuerAudience({ ...claims, aud }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE'));
     }
     for (const azp of [undefined, 'https://other.test']) {
-      expectFail(() => check5IssuerAudience({ ...claims, azp }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+      (await expectFail(() => check5IssuerAudience({ ...claims, azp }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE'));
     }
   });
 });
@@ -144,22 +144,22 @@ describe('check 7: exp and iat with 60 s skew', () => {
     ['iat 60 s in the future', { iat: s + 60, exp: s + 120 }],
     ['no exp', { iat: s }],
     ['exp not a number', { iat: s, exp: String(s + 60) }],
-  ])('fails TOKEN_EXPIRED: %s', (_n, claims) => expectFail(() => check7Time(claims, now), '7', 'TOKEN_EXPIRED'));
+  ])('fails TOKEN_EXPIRED: %s', async (_n, claims) => (await expectFail(() => check7Time(claims, now), '7', 'TOKEN_EXPIRED')));
 });
 
 describe('check 8: nonce', () => {
   it('passes for the state nonce', () => expect(() => check8Nonce({ nonce: 'nonce-1' }, state)).not.toThrow());
-  it('fails INVALID_NONCE for another or no nonce', () => {
-    expectFail(() => check8Nonce({ nonce: 'nonce-2' }, state), '8', 'INVALID_NONCE');
-    expectFail(() => check8Nonce({}, state), '8', 'INVALID_NONCE');
+  it('fails INVALID_NONCE for another or no nonce', async () => {
+    (await expectFail(() => check8Nonce({ nonce: 'nonce-2' }, state), '8', 'INVALID_NONCE'));
+    (await expectFail(() => check8Nonce({}, state), '8', 'INVALID_NONCE'));
   });
 });
 
 describe('check 9: deployment', () => {
   it('passes for a known deployment', () => expect(check9Deployment({ [CLAIM.deploymentId]: '1' }, platform).deploymentId).toBe('1'));
-  it('fails UNKNOWN_DEPLOYMENT', () => {
-    expectFail(() => check9Deployment({ [CLAIM.deploymentId]: '999' }, platform), '9', 'UNKNOWN_DEPLOYMENT');
-    expectFail(() => check9Deployment({}, platform), '9', 'UNKNOWN_DEPLOYMENT');
+  it('fails UNKNOWN_DEPLOYMENT', async () => {
+    (await expectFail(() => check9Deployment({ [CLAIM.deploymentId]: '999' }, platform), '9', 'UNKNOWN_DEPLOYMENT'));
+    (await expectFail(() => check9Deployment({}, platform), '9', 'UNKNOWN_DEPLOYMENT'));
   });
 });
 
@@ -168,9 +168,9 @@ describe('check 10: version and message type', () => {
     expect(check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiResourceLinkRequest' })).toBe('LtiResourceLinkRequest');
     expect(check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiDeepLinkingRequest' })).toBe('LtiDeepLinkingRequest');
   });
-  it('fails UNSUPPORTED_MESSAGE_TYPE', () => {
-    expectFail(() => check10Message({ [CLAIM.version]: '1.1', [CLAIM.messageType]: 'LtiResourceLinkRequest' }), '10', 'UNSUPPORTED_MESSAGE_TYPE');
-    expectFail(() => check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiSubmissionReviewRequest' }), '10', 'UNSUPPORTED_MESSAGE_TYPE');
+  it('fails UNSUPPORTED_MESSAGE_TYPE', async () => {
+    (await expectFail(() => check10Message({ [CLAIM.version]: '1.1', [CLAIM.messageType]: 'LtiResourceLinkRequest' }), '10', 'UNSUPPORTED_MESSAGE_TYPE'));
+    (await expectFail(() => check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiSubmissionReviewRequest' }), '10', 'UNSUPPORTED_MESSAGE_TYPE'));
   });
 });
 
@@ -184,9 +184,9 @@ describe('check 11: required claims', () => {
     ['no sub', { sub: undefined }], ['no roles', { [CLAIM.roles]: undefined }], ['roles not strings', { [CLAIM.roles]: [1] }],
     ['no target_link_uri', { [CLAIM.targetLinkUri]: '' }], ['no resource_link', { [CLAIM.resourceLink]: undefined }],
     ['resource_link without id', { [CLAIM.resourceLink]: { title: 'x' } }],
-  ])('fails MISSING_CLAIM: %s', (_n, over) => expectFail(() => check11Claims(moodleClaims(over), 'LtiResourceLinkRequest'), '11', 'MISSING_CLAIM'));
-  it('fails MISSING_CLAIM for deep linking without deep_link_return_url', () =>
-    expectFail(() => check11Claims(moodleClaims(), 'LtiDeepLinkingRequest'), '11', 'MISSING_CLAIM'));
+  ])('fails MISSING_CLAIM: %s', async (_n, over) => (await expectFail(() => check11Claims(moodleClaims(over), 'LtiResourceLinkRequest'), '11', 'MISSING_CLAIM')));
+  it('fails MISSING_CLAIM for deep linking without deep_link_return_url', async () =>
+    (await expectFail(() => check11Claims(moodleClaims(), 'LtiDeepLinkingRequest'), '11', 'MISSING_CLAIM')));
 });
 
 describe('check 12: target_link_uri', () => {
@@ -194,10 +194,10 @@ describe('check 12: target_link_uri', () => {
   it.each([
     ['other value than at login', `${LAUNCH}?resource=other`],
     ['other host', 'https://evil.test/lti/launch/cogniate?resource=seed'],
-  ])('fails INVALID_TARGET_LINK_URI: %s', (_n, target) =>
-    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: target }), state, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI'));
-  it('fails when the state record itself holds a foreign target', () =>
-    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}x` }), { ...state, targetLinkUri: `${LAUNCH}x` }, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI'));
+  ])('fails INVALID_TARGET_LINK_URI: %s', async (_n, target) =>
+    (await expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: target }), state, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI')));
+  it('fails when the state record itself holds a foreign target', async () =>
+    (await expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}x` }), { ...state, targetLinkUri: `${LAUNCH}x` }, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI')));
 });
 
 describe('safe detail reasons (contract §5, B-T2a-03)', () => {

@@ -96,7 +96,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
   it('enforces the session cap before fetching, per account, and releases capacity on completion and expiry', async () => {
     const s = await setup();
     try {
-      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({
+      (await rateLimiterFor(s.db, capturingLogger().logger)).replaceSettings({
         registrationSessionsPerAddress: 3, classes: { registration: { ratePerMinute: 100, burst: 100 } },
       });
       const ids: string[] = [];
@@ -125,7 +125,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
   it('A-LA-E5-06-01: parallel starts that wait for a slow configuration fetch open at most the cap sessions', async () => {
     const s = await setup();
     try {
-      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({
+      (await rateLimiterFor(s.db, capturingLogger().logger)).replaceSettings({
         registrationSessionsPerAddress: 3, classes: { registration: { ratePerMinute: 100, burst: 100 } },
       });
       let release!: () => void;
@@ -907,7 +907,7 @@ describe('LA-E3-09: Dynamic Registration with the profile rule (LA-ADR-05 D6, A2
     // The real mixed registry: the admin-value DR profiles (standard, lti-generic) stay loaded next to the profile rules.
     const s = await setup();
     try {
-      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({ registrationSessionsPerAddress: 20, classes: { registration: { ratePerMinute: 100, burst: 100 } } });
+      (await rateLimiterFor(s.db, capturingLogger().logger)).replaceSettings({ registrationSessionsPerAddress: 20, classes: { registration: { ratePerMinute: 100, burst: 100 } } });
       // A reserved issuer host keeps the M1 ISSUER_RESERVED page (contract §9.2); the other hosts get PLATFORM_URL_NOT_IN_PROFILE.
       const refused = {
         [configUrlAt('https://canvas.instructure.com')]: 'issuer_reserved', 'https://blackboard.com/config': 'issuer_reserved', [configUrlAt(SSO)]: 'reserved_host',

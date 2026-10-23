@@ -56,15 +56,15 @@ describe('API key operator transactions', () => {
     const h = await fixture();
     const second = issueApiKey(h.db, 'cogniate', { label: 'custom', scopes: ['admin'], createdBy: 'operator:unit' }, T0);
     const oldIds = listApiKeys(h.db, 'cogniate').map((key) => key.id);
-    const auth = (apiKey: string) => authenticate(h.db, `Bearer ${apiKey}`, ['bearer'], T0, () => {});
-    for (const apiKey of [h.apiKey, second.apiKey]) expect(auth(apiKey).account.id).toBe('cogniate');
+    const auth = async (apiKey: string) => (await authenticate(h.db, `Bearer ${apiKey}`, ['bearer'], T0, () => {}));
+    for (const apiKey of [h.apiKey, second.apiKey]) expect((await auth(apiKey)).account.id).toBe('cogniate');
     const response = await h.post('', { label: 'emergency', scopes: ['launch', 'admin'], revokeOthers: true });
     expect(response.statusCode).toBe(201);
     const created = response.json() as { id: string; apiKey: string };
     for (const id of oldIds) expect(getApiKey(h.db, 'cogniate', id)?.revokedAt).toBe(T0);
-    for (const apiKey of [h.apiKey, second.apiKey]) expect(() => auth(apiKey))
+    for (const apiKey of [h.apiKey, second.apiKey]) await expect(auth(apiKey)).rejects
       .toThrow(expect.objectContaining({ status: 401, code: 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER' }));
-    expect(auth(created.apiKey).actor).toEqual({ type: 'api_key', id: created.id });
+    expect((await auth(created.apiKey)).actor).toEqual({ type: 'api_key', id: created.id });
     expect(listApiKeys(h.db, 'cogniate').filter((key) => key.revokedAt === null).map((key) => key.id)).toEqual([created.id]);
     expect(h.events()).toEqual([expect.objectContaining({ action: 'api_key.issue', result: 'ok',
       actor: { type: 'operator', id: 'unit' }, toolAccountId: 'cogniate', target: { type: 'api_key', id: created.id },

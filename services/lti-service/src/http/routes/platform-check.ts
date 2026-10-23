@@ -9,9 +9,9 @@ import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { createTokenClient } from '../../platform/token-client.ts';
 import { isSharedProfile, profileDefinition } from '../../profiles/index.ts';
-import { withAudit } from '../../store/audit.ts';
+import { storeFor } from '../../store/index.ts';
 import type { Platform } from '../../store/platforms.ts';
-import { findDeployment, getPlatform } from '../../store/platforms.ts';
+import { findDeployment } from '../../store/platforms.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 
@@ -104,14 +104,14 @@ export function registerPlatformCheckRoutes(app: FastifyInstance, ctx: CheckCont
   // The time of the last check per account, platform and deployment. A check drops the entries older than the interval.
   const lastCheck = new Map<string, number>();
   app.post<{ Params: { id: string } }>('/api/platforms/:id/check', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
-    return withAudit(ctx.db, ctx.now, {
+    const caller = await ctx.auth(req, ['bearer']);
+    return storeFor(ctx.db).audit.request(ctx.now, {
       actor: caller.actor, toolAccountId: caller.account.id, traceId: req.traceId, clientIp: req.ip,
       action: 'platform.check', target: { type: 'platform', id: req.params.id },
     }, async (audit) => {
       const parsed = CheckBody.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
-      const platform = getPlatform(ctx.db, caller.account.id, req.params.id);
+      const platform = await storeFor(ctx.db).platforms.getPlatform(caller.account.id, req.params.id);
       if (!platform) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
       // A staged (inactive) platform is never checked: its token endpoint is not proven yet.
       if (!platform.active) throw new ApiError('PLATFORM_NOT_ACTIVE');
@@ -138,7 +138,8 @@ export function registerPlatformCheckRoutes(app: FastifyInstance, ctx: CheckCont
       // The shared redaction hides every field named "token", so the token result is logged as token_result
       // (tokenResult in the audit details). Neither holds a token or an assertion.
       ctx.logger.info('platform_check', { trace_id: req.traceId, platform_id: platform.id, jwks, token_result: token });
-      return audit.change(() => answer, () => ({ details: { deploymentId, jwks, tokenResult: token } }));
+      await audit.recordPlatformCheck({ deploymentId, jwks, tokenResult: token });
+      return answer;
     });
   });
 }

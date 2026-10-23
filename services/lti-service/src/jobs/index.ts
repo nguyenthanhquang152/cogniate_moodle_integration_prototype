@@ -1,6 +1,7 @@
-import type { IntervalJob, JobInstanceRow, JobLeaseRow, JobRunner, JobStore, KeyHandle, Logger } from '@cogniate/shared';
+import type { IntervalJob, JobRunner, JobStore, KeyHandle, Logger } from '@cogniate/shared';
 import { createJobRunner } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
+import type { StoreSource } from '../store/index.ts';
+import { storeFor } from '../store/index.ts';
 import { readSigningKeyPublishLeadSeconds } from '../keys/key-config.ts';
 import { accountPurgeJob, closedAccountRetentionDays } from './account-purge.ts';
 import { apiKeyExpiryJob } from './api-key-expiry.ts';
@@ -11,42 +12,8 @@ import { signingKeyCleanupJob } from './signing-key-cleanup.ts';
 import { signingKeyRotateDays, signingKeyRotationJob } from './signing-key-rotation.ts';
 import { keyRewrapJob } from './key-rewrap.ts';
 
-/** The runner creates no schema. Migration 013 supplies both tables. Every ownership check is one SQL write. */
-export function createLtiJobStore(db: Db): JobStore {
-  return {
-    readInstance(instanceId) {
-      return db.prepare(`SELECT instance_id AS instanceId, boot_id AS bootId, role,
-        started_at AS startedAt, heartbeat_at AS heartbeatAt FROM job_instance WHERE instance_id = ?`)
-        .get(instanceId) as unknown as JobInstanceRow | undefined ?? null;
-    },
-    claimInstance(row, staleBefore) {
-      return Number(db.prepare(`INSERT INTO job_instance (instance_id, boot_id, role, started_at, heartbeat_at) VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(instance_id) DO UPDATE SET boot_id = excluded.boot_id, role = excluded.role,
-          started_at = excluded.started_at, heartbeat_at = excluded.heartbeat_at
-        WHERE job_instance.heartbeat_at <= ?`).run(row.instanceId, row.bootId, row.role, row.now, row.now, staleBefore).changes) === 1;
-    },
-    heartbeat(instanceId, bootId, now) {
-      return Number(db.prepare('UPDATE job_instance SET heartbeat_at = ? WHERE instance_id = ? AND boot_id = ?').run(now, instanceId, bootId).changes) === 1;
-    },
-    removeInstance(instanceId, bootId) {
-      db.prepare('DELETE FROM job_instance WHERE instance_id = ? AND boot_id = ?').run(instanceId, bootId);
-    },
-    readJobLease(name) {
-      return db.prepare(`SELECT name, owner, lease_until AS leaseUntil, last_run_at AS lastRunAt,
-        last_result AS lastResult FROM job_lease WHERE name = ?`).get(name) as unknown as JobLeaseRow | undefined ?? null;
-    },
-    takeJobLease(name, owner, now, until) {
-      return Number(db.prepare(`INSERT INTO job_lease (name, owner, lease_until) VALUES (?, ?, ?)
-        ON CONFLICT(name) DO UPDATE SET owner = excluded.owner, lease_until = excluded.lease_until
-        WHERE job_lease.owner IS NULL OR job_lease.lease_until IS NULL OR job_lease.lease_until <= ?`)
-        .run(name, owner, until, now).changes) === 1;
-    },
-    endJobLease(name, owner, at, result) {
-      db.prepare('UPDATE job_lease SET owner = NULL, lease_until = NULL, last_run_at = ?, last_result = ? WHERE name = ? AND owner = ?')
-        .run(at, result, name, owner);
-    },
-  };
-}
+/** The async store port supplies the runner's lease operations. */
+export function createLtiJobStore(db: StoreSource): JobStore { return storeFor(db).jobs; }
 
 /** The runner and the names and intervals of its jobs (GET /operator/v1/jobs, LA-E5-20). */
 export interface LtiJobRunner extends JobRunner {
@@ -54,7 +21,7 @@ export interface LtiJobRunner extends JobRunner {
 }
 
 /** Keys are required so every LTI runner has the on-demand key-rewrap job. Settings are read before any job starts. */
-export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): LtiJobRunner {
+export function createLtiJobRunner(options: { db: StoreSource; logger: Logger; keys: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): LtiJobRunner {
   const env = options.env ?? process.env;
   const auditDays = auditRetentionDays(env.AUDIT_RETENTION_DAYS);
   const closedDays = closedAccountRetentionDays(env.CLOSED_ACCOUNT_RETENTION_DAYS);

@@ -144,7 +144,7 @@ describe('idempotency on real admin routes (BD-A2-51)', () => {
 
   it('charges one admin token per original or replay and rate-limits before lookup', async () => {
     const h = await fixture();
-    rateLimiterFor(h.db, capturingLogger().logger).replaceSettings({ classes: { admin: { ratePerMinute: 1, burst: 2 } } });
+    (await rateLimiterFor(h.db, capturingLogger().logger)).replaceSettings({ classes: { admin: { ratePerMinute: 1, burst: 2 } } });
     expect((await post(h)).statusCode).toBe(201);
     expect((await post(h)).statusCode).toBe(201);
     const third = await post(h);

@@ -1,8 +1,7 @@
 import { OutboundError } from '@cogniate/shared';
 import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it } from 'vitest';
-import { listAuditEvents } from '../../store/audit.ts';
-import { createPlatform } from '../../store/platforms.ts';
+import { storeFor } from '../../store/index.ts';
 import type { Harness } from '../../testkit.ts';
 import { harness } from '../../testkit.ts';
 
@@ -29,7 +28,7 @@ async function fixture() {
     method: 'POST', url: `/api/platforms/${platformId}/check`,
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, payload: JSON.stringify(payload),
   });
-  const events = () => listAuditEvents(h.db, { limit: 100 }).events.filter((event) => event.action === 'platform.check');
+  const events = async () => (await storeFor(h.db).audit.listAuditEvents({ limit: 100 })).events.filter((event) => event.action === 'platform.check');
   const tokenRequests = () => h.outbound.requests.filter((request) => request.method === 'POST');
   return { ...h, answers, check, events, tokenRequests };
 }
@@ -50,7 +49,7 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     const assertion = sent.get('client_assertion')!;
     expect(decodeJwt(assertion)).toMatchObject({ iss: h.platform.clientId, sub: h.platform.clientId, aud: h.platform.tokenEndpoint });
     // AC-LA-E6-01-08 and -10: no token or assertion value in the answer, the log line or the audit event.
-    const events = h.events();
+    const events = (await h.events());
     expect(events).toEqual([expect.objectContaining({
       actor: { type: 'api_key', id: expect.any(String) }, toolAccountId: 'cogniate', target: { type: 'platform', id: h.platform.id },
       result: 'ok', details: { deploymentId: '1', jwks: answer.jwks, tokenResult: answer.token },
@@ -115,7 +114,7 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     const res = await h.check();
     expect([res.statusCode, res.json().details.message]).toEqual([403, 'PLATFORM_NOT_ACTIVE']);
     expect(h.outbound.requests).toEqual([]);
-    expect(h.events()).toEqual([expect.objectContaining({ result: 'refused', code: 'PLATFORM_NOT_ACTIVE' })]);
+    expect((await h.events())).toEqual([expect.objectContaining({ result: 'refused', code: 'PLATFORM_NOT_ACTIVE' })]);
   });
 
   it('refuses an unknown deployment with 404 and an inactive one with 403 before any outbound call (BD-A2-98)', async () => {
@@ -147,7 +146,7 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     h.clock.now += 30_000;
     expect((await h.check()).headers['retry-after']).toBe('30');
     // Another platform has its own minute.
-    const other = createPlatform(h.db, 'cogniate', {
+    const other = await storeFor(h.db).platforms.createPlatform('cogniate', {
       issuer: 'https://other.test', clientId: 'other', name: 'Other', authEndpoint: 'https://other.test/auth', tokenEndpoint: 'https://other.test/token',
       jwksUrl: 'https://other.test/jwks', deploymentIds: ['7'], active: true,
     });
@@ -155,12 +154,12 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     h.clock.now += 30_000;
     expect((await h.check()).statusCode).toBe(200);
     expect(h.tokenRequests()).toHaveLength(3);
-    expect(h.events().map((event) => event.code).sort()).toEqual(['RATE_LIMITED', 'RATE_LIMITED', null, null, null]);
+    expect((await h.events()).map((event) => event.code).sort()).toEqual(['RATE_LIMITED', 'RATE_LIMITED', null, null, null]);
   });
 
   it('marks a shared platform with limits "shared-application" (AC-LA-E6-01-06)', async () => {
     const h = await fixture();
-    const shared = createPlatform(h.db, 'cogniate', {
+    const shared = await storeFor(h.db).platforms.createPlatform('cogniate', {
       issuer: 'https://blackboard.test', clientId: 'bb-app', name: 'Blackboard', authEndpoint: 'https://blackboard.test/auth',
       tokenEndpoint: 'https://blackboard.test/token', jwksUrl: 'https://blackboard.test/jwks', deploymentIds: ['bb-1'], active: true,
       profile: 'blackboard', shared: true,

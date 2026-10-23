@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import * as shared from '@cogniate/shared';
 import { sha256Hex } from '@cogniate/shared';
 import { CLAIM, stateCookieName } from './checks.ts';
+import type { Db } from '../db/index.ts';
 import type { LaunchDeps } from './launch.ts';
 import { handleLaunch, handleStorageCheck } from './launch.ts';
 import { createPlatformKeys } from './jwks.ts';
@@ -14,7 +15,7 @@ import { capturingLogger, CLIENT_ID, harness, LAUNCH, loginForm, moodleClaims, p
 const close: Array<() => Promise<void>> = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const fn of close.splice(0)) await fn(); });
 // The route resolves the account of the path once per request; these direct calls read it the same way.
-const accountOf = (deps: LaunchDeps, id = 'cogniate') => getAccount(deps.db, id);
+const accountOf = (deps: LaunchDeps & { db: Db }, id = 'cogniate') => getAccount(deps.db, id);
 const parseData = (html: string): Record<string, string> => JSON.parse(html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!) as Record<string, string>;
 
 async function setup(deepLinking = false) {
@@ -57,7 +58,7 @@ it.each([false, true])('prepares minimized claims without an ltik, then complete
   const row = h.db.prepare('SELECT prepared_launch FROM storage_check').get() as { prepared_launch: string };
   expect(row.prepared_launch).not.toContain('private@example.test');
   expect(JSON.parse(row.prepared_launch)).toMatchObject({ platformId: platform.id, bindingGeneration: 0, siteOrigin: 'https://school.example.test' });
-  const result = handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti);
+  const result = (await handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti));
   if (!result.ok || result.kind !== 'redirect') throw new Error('Expected accepted launch');
   const redirect = new URL(result.location);
   expect(result.binding).toBe('storage');
@@ -66,33 +67,33 @@ it.each([false, true])('prepares minimized claims without an ltik, then complete
   expect(redirect.searchParams.get('resource')).toBe('seed');
   expect(redirect.searchParams.get('ltik')).toMatch(/^[A-Za-z0-9_-]{43}$/);
   expect(h.db.prepare('SELECT * FROM launch').all()).toHaveLength(1);
-  expect(handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti)).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
+  expect((await handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti))).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
 });
 
 it('refuses the wrong origin before consumption and consumes a mismatch before a retry', async () => {
   const { h, deps, state, start } = await setup();
   const { check } = await start();
   for (const origin of [undefined, 'null', 'https://evil.test']) {
-    expect(handleStorageCheck(deps, accountOf(deps), { check, value: state }, origin)).toMatchObject({ ok: false, check: 'storage', status: 400, code: 'INVALID_STATE', detail: 'storage_origin' });
+    expect((await handleStorageCheck(deps, accountOf(deps), { check, value: state }, origin))).toMatchObject({ ok: false, check: 'storage', status: 400, code: 'INVALID_STATE', detail: 'storage_origin' });
     expect(h.db.prepare('SELECT used_at FROM storage_check').get()).toEqual({ used_at: null });
   }
-  expect(handleStorageCheck(deps, accountOf(deps), { check, value: 'wrong' }, URLS.lti)).toMatchObject({ ok: false, code: 'INVALID_STATE', detail: 'storage_mismatch' });
-  expect(handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti)).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
+  expect((await handleStorageCheck(deps, accountOf(deps), { check, value: 'wrong' }, URLS.lti))).toMatchObject({ ok: false, code: 'INVALID_STATE', detail: 'storage_mismatch' });
+  expect((await handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti))).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
   expect(h.db.prepare('SELECT * FROM launch').all()).toHaveLength(0);
 });
 
 it('shows the storage help for an empty value and enforces the controlled 121-second expiry', async () => {
   const { h, deps, state, start } = await setup();
   const { check } = await start();
-  expect(handleStorageCheck(deps, accountOf(deps), { check, value: '' }, URLS.lti)).toMatchObject({
+  expect((await handleStorageCheck(deps, accountOf(deps), { check, value: '' }, URLS.lti))).toMatchObject({
     ok: false, status: 400, code: 'STATE_COOKIE_MISSING', help: 'Your browser blocked the Cogniate sign-in in this frame. Open the activity in a new window, or allow cookies for this site.',
   });
   // A new attempt uses its own fresh state and check; the clock can advance without a running stack.
   const next = await setup();
   const pending = await next.start();
   next.h.clock.now += 121_000;
-  expect(handleStorageCheck(next.deps, accountOf(next.deps), { check: pending.check, value: next.state }, URLS.lti)).toMatchObject({ ok: false, status: 400, detail: 'storage_check_unknown_used_or_expired' });
-  expect(handleStorageCheck(deps, accountOf(deps, 'qa-second'), { check, value: state }, URLS.lti)).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
+  expect((await handleStorageCheck(next.deps, accountOf(next.deps), { check: pending.check, value: next.state }, URLS.lti))).toMatchObject({ ok: false, status: 400, detail: 'storage_check_unknown_used_or_expired' });
+  expect((await handleStorageCheck(deps, accountOf(deps, 'qa-second'), { check, value: state }, URLS.lti))).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
   expect(h.db.prepare('SELECT * FROM launch').all()).toHaveLength(0);
 });
 

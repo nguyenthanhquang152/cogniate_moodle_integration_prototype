@@ -164,7 +164,7 @@ describe('loadKeyProvider', () => {
       operation: 'new', existingPlatformId: null, privacyLevel: 'public', passthrough: {}, expiresAt: NOW + 3600_000,
     }, NOW);
     db.prepare('UPDATE registration_session SET registration_token_encrypted = ? WHERE id = ?').run(encrypt(LEGACY, 'reg-token'), session.id);
-    expect(keyVersionsInUse(db)).toEqual(['legacy']);
+    expect((await keyVersionsInUse(db))).toEqual(['legacy']);
 
     const masterKey = Buffer.alloc(32, 7);
     const { logger, lines } = capturingLogger();
@@ -187,7 +187,7 @@ describe('loadKeyProvider', () => {
     bindKeyProvider(earlier, createLocalKeyProvider({ active: 'k1', keys: new Map([['legacy', LEGACY], ['k1', K1]]) }));
     await ensureToolKey(db, earlier, 'cogniate');
     issueServiceKey(db, earlier, { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: '3', agsClaim: null, nrpsClaim: null }, NOW);
-    expect(keyVersionsInUse(db)).toEqual(['k1', 'legacy']);
+    expect((await keyVersionsInUse(db))).toEqual(['k1', 'legacy']);
 
     // The new ring dropped k1: the service starts, but it is not ready.
     const { logger, lines } = capturingLogger();

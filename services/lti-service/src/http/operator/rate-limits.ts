@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
-import { RateLimitPatchSchema, patchRateLimitSettings } from '../../store/settings.ts';
+import { RateLimitPatchSchema } from '../../store/settings.ts';
 import { invalid } from '../validation.ts';
 import type { OperatorContext } from './index.ts';
 
 export function registerRateLimitRoutes(app: FastifyInstance, ctx: OperatorContext): void {
-  app.get('/operator/v1/rate-limits', async () => ctx.limiter.view());
+  app.get('/operator/v1/rate-limits', async () => (await ctx.limiter.view()));
   app.patch('/operator/v1/rate-limits', async (req) => {
-    const settings = await ctx.audited(req, { action: 'settings.rate_limits', target: { type: 'service_setting', id: 'rate_limits' } }, (audit) => {
+    const settings = await ctx.audited(req, { action: 'settings.rate_limits', target: { type: 'service_setting', id: 'rate_limits' } }, async (audit) => {
       const parsed = RateLimitPatchSchema.safeParse(req.body);
       if (!parsed.success) {
         const issue = parsed.error.issues[0];
@@ -18,10 +18,10 @@ export function registerRateLimitRoutes(app: FastifyInstance, ctx: OperatorConte
         ...Object.keys(parsed.data.classes ?? {}).map((name) => `classes.${name}`),
         ...(parsed.data.registrationSessionsPerAddress !== undefined ? ['registrationSessionsPerAddress'] : []),
       ];
-      return audit.change(() => patchRateLimitSettings(ctx.db, parsed.data), () => ({ details: { fields, ...parsed.data } }));
+      return (await audit.patchRateLimits(parsed.data, fields));
     });
     // Publish only after the transaction and its audit event commit. Address hooks do no database reads.
     ctx.limiter.replaceSettings(settings);
-    return ctx.limiter.view();
+    return (await ctx.limiter.view());
   });
 }
