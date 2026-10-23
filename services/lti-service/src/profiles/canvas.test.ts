@@ -23,7 +23,16 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
   expect(real.slice(0, 6).map((p) => p.id)).toEqual(['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard']);
   expect(real.map((p) => p.id)).toContain('lti-generic');
   expect(real.some((p) => p.simulation)).toBe(false);
-  expect(listProfiles({ simulation: true }).slice(-2).map((p) => p.id)).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+  // Open world (N10, BD-A1-95): a new channel may add simulation profiles after the baseline ones. Check membership,
+  // the relative order of the baseline simulations and the LA-ADR-01 D4 rule, not a fixed tail.
+  const all = listProfiles({ simulation: true });
+  const allIds = all.map((p) => p.id);
+  expect(allIds.filter((id) => ['blackboard-sim', 'canvas-sim-cloud'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+  for (let i = 1; i < all.length; i++) {
+    const [before, after] = [all[i - 1]!, all[i]!];
+    const rank = Number(before.simulation) - Number(after.simulation) || before.listOrder - after.listOrder || (before.id < after.id ? -1 : 1);
+    expect(rank, `${before.id} before ${after.id}`).toBeLessThan(0);
+  }
   expect(findProfile('canvas-sim-cloud', { simulation: false })).toBeNull();
   expect(reservedIssuerOrigins({ simulation: false })).toContain('https://canvas.instructure.com');
   expect(reservedIssuerOrigins({ simulation: false })).not.toContain('https://canvas.sim.test');
