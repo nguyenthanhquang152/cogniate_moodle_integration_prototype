@@ -1,5 +1,5 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 2
+Verdict: PASS (K0 + UNIT + K1-SIM AC-02, AC-03, AC-05, AC-06; AC-04 K1-SIM pending next slot after 08:05Z)
+Round: 3
 
 # LA-E4-07 App metrics and readiness listener (Should): QA verification
 
@@ -67,3 +67,19 @@ Independence: QA-3 authored the Round 2 `AC-LA-E4-07-07` boundary test in `tests
   - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
 - **Targeted unit suite (`e4-07-unit-by-ac.log`):** `2` files (`metrics.test.ts`, `worker-main.test.ts`), `30/30` passed (`8.63s`).
 - **Measured time:** `LA-E4-07` K0 + UNIT suite `107.95s` (`3/3` K0 tests passed). `K1-SIM` rows (`AC-02`..`06`) remain `pending: Docker window` (Docker slot 4).
+
+## Round 3 (Slot 4 K1-SIM on `e1e4fab`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `e1e4fabf451276d6b5d2c07cb28024ad8ef6f271` (`e1e4fab`, code `5171f7f`) |
+| Lane and slot | lane R; Slot 4 Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r3`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4-e1e4fab/artifacts/qa3-la-sim-r3-e1e4fabf-2026-10-23T06-35-01-035Z/` (`cmd/10-test-acceptance-LA-E4-07.log`, `container-LA-E4-07/vitest-results.json`, `reports/LA-E4-07.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E4-07-02 | PASS (K1-SIM + UNIT + K0) | `app-metrics.k1sim.test.ts > AC-LA-E4-07-02: GET http://cogniate-app:4210/metrics from e2e container gives OpenMetrics text with all 8 series` | Live `GET http://cogniate-app:4210/metrics` from the `e2e` container returns `200` `application/openmetrics-text; version=1.0.0; charset=utf-8` ending with `# EOF` and containing all 8 families and series (`2.9 ms`). `10-test-acceptance-LA-E4-07.log` |
+| AC-LA-E4-07-03 | PASS (K1-SIM + UNIT) | `app-metrics.k1sim.test.ts > AC-LA-E4-07-03: after one accepted score, app_dispatch_sends_total{reporter="lti-ags",outcome="accepted"} is 1 higher` | After one accepted score on `qa3-la-sim-r3`, `app_dispatch_sends_total{reporter="lti-ags",outcome="accepted"}` increments by `1` (`1,258.0 ms`). `10-test-acceptance-LA-E4-07.log` |
+| AC-LA-E4-07-04 | pending next slot after 08:05Z (UNIT part PASS) | `app-metrics.k1sim.test.ts > AC-LA-E4-07-04` | Updated `app-metrics.k1sim.test.ts` to add an unapproved deployment on an owned `canvasBound()` platform (where `connection.lti_platform_id` is set on the per-tenant platform) so `routeLaunch` classifies the refusal as `deployment_not_approved`; ready to run in the post-08:05Z slot. |
+| AC-LA-E4-07-05 | PASS (K1-SIM + UNIT) | `app-metrics.k1sim.test.ts > AC-LA-E4-07-05: GET http://cogniate-app:4210/readyz answers 200 {status:"ready"} both normally and while lti-service is stopped (BD-A2-88 D3 / BD-A1-100)` | Live `GET http://cogniate-app:4210/readyz` answers `200 {status:"ready"}` both normally and while `lti-service` is stopped via `docker compose stop lti-service` (`7,044.0 ms`). `10-test-acceptance-LA-E4-07.log` |
+| AC-LA-E4-07-06 | PASS (K1-SIM + UNIT) | `app-metrics.k1sim.test.ts > AC-LA-E4-07-06: K-HYG scan of /metrics answer has 0 hits (no library id, user id, learner subject, token or key)` | Live K-HYG scan of `/metrics` has `0` hits (`1.6 ms`). `10-test-acceptance-LA-E4-07.log` |
