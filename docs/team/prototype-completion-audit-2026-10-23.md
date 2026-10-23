@@ -1,6 +1,32 @@
 # Prototype completion audit
 
-Owner: Lead. Updated: 2026-10-23, 16:55 UTC. Overall result: **NOT COMPLETE**.
+Owner: Lead. Updated: 2026-10-23, 17:39 UTC. Overall result: **COMPLETE FOR APPROVED PROTOTYPE SCOPE**.
+
+| Requirement | Final result and evidence |
+| --- | --- |
+| M1 engine/provider behavior; AC-M3-01 | PASS under E-R7: two equal fresh 394-case rounds, plus 94 separate carried C4 rows. Final guides preserve this distinction. |
+| M2 portal/provider flows; AC-M3-03 | PASS under E-R6: actual C8/C6 r7, 64 cases, 13 criteria and seven gates. |
+| Legacy regression; AC-M3-02(b) | Twelve groups accepted with their stated limits: 304 raw PASS entries, per-subrun unique-ID sum 251. |
+| Default-profile Moodle E2E; AC-M3-02(a) | E-R8 C10: all 15 criteria PASS; three cycles of 17 PASS, zero FAIL and one permitted demo skip each. |
+| Operational evidence; AC-M3-04/06/07 | Accepted scan, protected-record comparison and cleanup evidence; final guides preserve the shared-host limits and failed history. |
+| Live matrix; AC-M3-05 | Recorded as required: all 32 rows UNVERIFIED, local Canvas DEFERRED. The criterion permits this without live authorization. |
+| Evidence, claims and source text; AC-M4-01/02/04 | Independent final Docs QA PASS on substantive revision `911219b0`. |
+| English and offline page; AC-M4-03/05 | Measured English, links and offline desktop/mobile checks PASS. Axe has zero violations and one incomplete contrast category per viewport. |
+| Architect conformance; AC-M4-06 | APPROVE, zero open BLOCKER/MAJOR; final QA bindings committed at `253ff824`. |
+| Human decisions; AC-M4-07 | Direct final QA assessment PASS for Q19–Q22 and D-1–D-12 against ADR-011. |
+| Self-hosted Canvas release race; AC-M4-08 | PASS for truthful scope, impact, operator order and enterprise-design deferral. |
+| Final reviews | Both blind Claude reviews APPROVE. Reports and corrected Gemini QA are committed at `524d1c64`. |
+| Guide closure | `206ad2b9`: exact 21 substitutions plus the two-row MINOR block. All nine resulting file hashes match QA and Reviewer-A expectations. |
+| Handover and orchestration | [Final handover](multi-lms-final-handover-2026-10-23.md) completed. All worker attempts settled; obsolete scheduling rows cancelled as superseded. |
+
+No required prototype gate remains open. Two final MINOR findings and other nonblocking follow-ups remain documented.
+The A-SI-05/B-SI-09 follow-up stays pending; final acceptance does not claim its missing old-build evidence.
+All 32 live-LMS rows remain UNVERIFIED. This is not production, certification or enterprise acceptance.
+No push or main merge occurred.
+
+## Historical audit — 2026-10-23, 16:55 UTC
+
+Owner: Lead. Updated: 2026-10-23, 16:55 UTC. Overall result at that time: **NOT COMPLETE**.
 
 The active goal is to complete all remaining tasks. This audit uses the approved M1–M4 criteria and charter. Earlier accepted evidence keeps its exact source, test SHA and scope. A missing final verdict is not a pass.
 

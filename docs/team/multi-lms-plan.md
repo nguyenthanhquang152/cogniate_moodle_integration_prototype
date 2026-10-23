@@ -13,7 +13,18 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 16:55 UTC
+### Current directive — 2026-10-23, 17:39 UTC
+
+The approved prototype phase is complete. M1, M2, legacy and C10 T7 runtime evidence are accepted at their recorded revisions.
+Final Architect conformance is APPROVE. Independent Gemini Docs QA passes all eight criteria at `911219b0`; both blind Claude reviews APPROVE.
+Final review reports are committed at `524d1c64`; the exact reviewed guide closure is `206ad2b9`.
+The [final handover](multi-lms-final-handover-2026-10-23.md) records all outcomes, guides, limits and follow-ups.
+
+No required prototype gate remains open. Keep real-LMS claims UNVERIFIED, local Canvas DEFERRED and all nonblocking deferrals visible.
+Existing sessions are retained. Obsolete planned task rows are cancelled as superseded, without changing historical failures.
+No product or runtime repeat, push or main merge is authorized by this closure.
+
+### Prior directive — 2026-10-23, 16:55 UTC
 
 All runtime gates are accepted, including C10 T7 under E-R8. Final Architect conformance is APPROVE with no open BLOCKER or MAJOR. The narrow prototype storage decision and final QA report bindings are committed.
 Finish the prepared guides in the retained Codex session. Run independent Gemini Docs QA and both blind Claude reviews together on one frozen revision. Then record Lead closure. Preserve all evidence identities, live-LMS limits and deferred work. No further runtime repeat, product change, push or main merge is authorized.

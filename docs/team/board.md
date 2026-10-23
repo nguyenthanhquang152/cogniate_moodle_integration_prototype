@@ -7,7 +7,25 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current status — 2026-10-23, 16:55 UTC
+### Current status — 2026-10-23, 17:39 UTC
+
+**M0–M4 are complete for the approved prototype scope.** Runtime gates, final Architect conformance, independent Gemini Docs QA and both Claude reviews are accepted.
+Final guides: substantive revision `911219b0`; independent reports `524d1c64`; exact reviewed closure `206ad2b9`.
+The Lead checked all nine closure files against the approved expected bytes. Two final MINOR findings are registered; no BLOCKER or MAJOR remains.
+
+| Task | Final outcome | Evidence |
+| --- | --- | --- |
+| M0 | Complete for prototype design | Final Architect APPROVE and recorded design reviews. |
+| M1 | Complete | E-R7: two equal fresh 394-case rounds, plus 94 separate carried C4 rows. |
+| M2 | Complete | E-R6: accepted r7, 64 cases, 13 criteria and seven gates PASS at C8/C6. |
+| M3 | Complete for approved verification scope | Twelve legacy groups accepted; E-R8 C10 T7 passes all 15 criteria and three 17-test cycles. |
+| M4 | Complete | All eight final Docs criteria PASS; both blind reviews APPROVE; reviewed guide closure committed. |
+
+See the [final handover](multi-lms-final-handover-2026-10-23.md) for guides, evidence and follow-ups.
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. This is not enterprise or production acceptance.
+No push or main merge occurred. Existing sessions are retained; obsolete scheduling rows are cancelled as superseded.
+
+### Prior status — 2026-10-23, 16:55 UTC
 
 All runtime gates are accepted. Final Architect conformance is APPROVE, with no open BLOCKER or MAJOR. The narrow prototype ADR status changes are committed at `31f4d0bb`; final QA reports at `351eee07`; final conformance bindings at `253ff824`.
 The same Codex executor is applying the prepared guides. Gemini Docs QA and two blind Claude reviews will check one frozen document revision in parallel. Lead closure follows those results. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
@@ -59,7 +77,7 @@ The Lead requested a newly confirmed 20-minute window in `msg_ed58480e255f`. The
 LA confirmed the planned exclusive T7 slot **07:45–08:05 UTC** (`msg_7dcc7a1394ef`). T7 remains NOT RUN. The host-only preparation reminder is at 07:40 UTC.
 Require the actual LA handoff and fresh start grant before Docker; the existing block lasts until 07:45. Return the host by 08:05. [Remaining work](remaining-work-2026-10-22.md) records the full conditions and final host-only steps.
 
-### Task status — 2026-10-23, 04:38 UTC
+### Historical task status — 2026-10-23, 04:38 UTC
 
 | Task | Status | Evidence and next step |
 | --- | --- | --- |
