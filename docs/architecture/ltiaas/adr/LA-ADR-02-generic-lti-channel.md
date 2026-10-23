@@ -135,6 +135,8 @@ Build rulings BD-A1-84 ([build decisions A1](../build-decisions-A1.md)): the sta
 
 Build ruling BD-A1-87: when `complete` cannot tell whether the platform saved the tool (timeout, used token, `5xx`, malformed `2xx`), the answer stays `PLATFORM_ERROR` with `details.reason` `tool_may_exist`, and its text comes from the channel's `texts.registration.TOOL_MAY_EXIST` (Moodle: today's frozen sentence; other channels: the core default without menu paths, LA-ADR-01 D12).
 
+Build rulings BD-A1-88, BD-A1-89 (Reviewer-A A-LA-E2-02-01, -02): **profile identity** — a registration may update an existing platform only when that platform has the profile chosen at `complete`: on the explicit update path the check runs before the remote request, on the duplicate-client path (B-T3b-02) inside the local write transaction; a mismatch refuses with `REGISTRATION_UPDATE_NOT_ALLOWED` (`details.reason` `profile_mismatch`) and changes nothing. LA never changes the profile of an existing platform (no migration protocol). **Credentials as one set** — an update writes every credential value of the configuration (authentication endpoint, token URL, JWKS URL, client assertion audience, granted scopes); an omitted `authorization_server` clears the stored audience; I-SELF and staging are computed from that exact final record, in the transaction that stores it; a binding ref gives no exemption.
+
 ### D6. Operator grant for admin-value profiles (Must)
 
 - The grant of an admin-value binding binds the M1 values (library, connection, channel, profile, site URL, client id, deployment id, purpose) **and** the bound values: `issuer`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience` (data model: `binding_grant.bound_values`, migration `013`).
