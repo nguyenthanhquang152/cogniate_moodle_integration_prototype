@@ -273,6 +273,28 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(t.lti.platforms.get(platform.id)!.active).toBe(true);
   });
+
+  // A1 BD-A1-106 (4f): skipped until A1 rules on two more app gaps (sent as BD-A1-107). G1: the register page compares
+  // the registration url (the issuer) with the site URL, and the Canvas issuer is the profile issuer, so the real LTI
+  // service answer gives SITE_MISMATCH (the fake below reports the site). G2: a staged connection needs a grant with
+  // bound values (redemption phase 1, check 5), but app:grant issue binds values only for an admin-value channel, so
+  // this PUT answers 422 GRANT_MISMATCH ["connection"] today.
+  it.skip('A1 BD-A1-106 (4f): a staged Canvas dynamic connection takes the staged PUT body { clientId, deploymentId, grantCode }', async () => {
+    const { call, issue, put, creates } = await setup();
+    const site = 'https://school-a.canvas.sim.test';
+    const created = await call('POST', '/app-api/connections', { name: 'Canvas', siteUrl: site, method: 'dynamic', lms: 'canvas', profile: 'canvas-sim-cloud' });
+    expect(created.status, JSON.stringify(created.json)).toBe(201);
+    const c = created.json;
+    const reg = t.lti.addRegistration({ url: site, familyCode: 'canvas', stage: { url: 'https://canvas.sim.test', profile: 'canvas-sim-cloud', siteUrl: site, serviceUrl: site } });
+    const page = await t.app.inject({ method: 'POST', url: '/tool/register', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: TEST_URLS.app },
+      payload: new URLSearchParams({ registrationId: reg, ref: new URL(c.registrationUrl).searchParams.get('ref')! }).toString() });
+    expect(page.body).toContain('data-connection-status="pending"');
+    const dto = (await call('GET', `/app-api/connections/${c.id}`)).json as { platform: { id: string; clientId: string; deploymentIds: string[] } };
+    const code = await issue(c, { clientId: dto.platform.clientId, deploymentId: dto.platform.deploymentIds[0]! });
+    const r = await put(c, { clientId: dto.platform.clientId, deploymentId: dto.platform.deploymentIds[0]!, grantCode: code });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect([r.json.status, t.lti.platforms.get(dto.platform.id)!.active, creates()]).toEqual(['registered', true, []]);
+  });
 });
 
 describe('AC-LA-E2-04-07: suspend and release pick the record kind from the stored target_kind', () => {
