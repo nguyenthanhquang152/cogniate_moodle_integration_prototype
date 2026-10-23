@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LA-E5-19 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -104,3 +104,14 @@ Both services now use `HTTP_DRAIN_MS = 3_000` and the same sequence: stop listen
 Verification shared with LA-E4-02 Round 2: fresh private clone at `93ab0c50`, own dependencies, **70/70** tests in app shutdown/outbox, shared runner and LTI main; changed-file ESLint and both service typechecks passed. This includes the existing job-beyond-3-seconds and fallback tests. Restoring the former LTI `close()` body makes each new BD-A2-109 case time out in an isolated test run: the held request or listener close cannot complete. The private control only adds socket cleanup after assertions; assertions stay unchanged. Shipped source restored cleanly and **19/19** shutdown/main tests passed again. Evidence: `/tmp/we-f4-review-b-h2dpjw6k/{focused,old-lti-idle,old-lti-running,restored}.log`; Vitest cache cleared before each run.
 
 No new findings. QA still owns AC-LA-E5-19-08 and the seven M1-37 re-gate rows; no Docker, stack or commit was used. Blind review maintained; only the two assigned Reviewer-B reports were edited in the integration worktree.
+
+
+## Round 4 (WE-F4 failure paths)
+
+Verdict: **APPROVE**. Counts in this bounded round: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 new NIT**. Reviewed `git diff 8fadb828^1 8fadb828` (author `a2c99731`) against BD-A2-109 and the stop rule checked in Round 3. The earlier deferred B-LA-E5-19-05 NIT is unchanged and outside this fix.
+
+`close()` now checks every settled result, so a public or operator listener failure reaches the shutdown handler and produces exit 1 after the database closes. Both services have the same clear sequence: start all stop steps, wait for all of them, close the database, then throw the first rejected result. The existing 3 s HTTP cutoff and job grace are unchanged. The parameterized test names each listener, runs its real close before injecting failure, and checks exit 1, the retained rejection, each stop step exactly once and database close last. It proves cleanup and failure reporting without depending on which stop step completes first.
+
+Fresh private clone at `8fadb828`, own dependencies: **22/22** app shutdown and LTI main tests passed, including the earlier held-request, job-drain and fallback cases; changed-file ESLint and both service typechecks passed. With the pre-fix product files and unchanged tests, both new LTI cases fail because the handler exits 0; the new app failure-path case also fails. Shipped source restored cleanly and **22/22** passed again. Cache cleared before each run. Logs: `/tmp/we-f4-r2-review-b-3pag23n6/{focused,previous-source,restored}.log`.
+
+No new findings. The diff stays within S1's `main{,.test}.ts`; no forbidden file, LMS name or unrelated behavior is added. Blind review maintained; no Docker, stack or commit. QA still owns the restart re-gate.

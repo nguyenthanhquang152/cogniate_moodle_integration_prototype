@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E4-02 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -84,3 +84,14 @@ Reviewed `git diff 739c51ad^1 739c51ad` (author `549a21b4`) against BD-A2-109, L
 Verification in a fresh `git clone --no-hardlinks` at `93ab0c50`, with its own `npm ci`, under `/tmp/we-f4-review-b-h2dpjw6k/repo`: **70 tests passed in 4 files** (app shutdown and outbox, shared runner, LTI main); changed-file ESLint and both service typechecks passed. A private control using the former runner-first order without an HTTP cut fails both new app cases: the idle request stays open and the running-job case still accepts a connection. Restoring the shipped source gives **19/19** shutdown/main tests passing; caches were cleared before every Vitest run. Logs are in the clone's parent directory.
 
 No new findings. QA's seven M1-37 restart rows and the K1-SIM restart timing remain for the re-gate; no Docker or stack was run. Blind review maintained; only this report and the assigned LA-E5-19 Reviewer-B report were edited in the integration worktree.
+
+
+## Round 3 (WE-F4 failure paths)
+
+Verdict: **APPROVE**. Counts in this bounded round: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 new NIT**. Reviewed `git diff f8d7d7d6^1 f8d7d7d6` (author `cd8f06c9`) against BD-A2-109 and the stop rule checked in Round 2. Earlier record-core findings are outside this round.
+
+The single `Promise.allSettled` now includes each listener and the runner. A failed listener cannot cancel the 3 s cutoff or cause the database to close while another listener still holds a request. The comments explain that reason beside the aggregation. The new test, inside `stop order (BD-A2-109)`, uses a real `ERR_SERVER_NOT_RUNNING` failure and a second real server with a held request; it checks that shutdown and database close wait until the cutoff, then preserve the failure. This matches the LTI sequence: settle all stop steps, close the database, then report failure. The HTTP, runner and fallback timings stay unchanged.
+
+Fresh private clone at `8fadb828`, own `npm ci`: **22/22** app shutdown and LTI main tests passed; changed-file ESLint and both service typechecks passed. Restoring the pre-fix product files with tests unchanged gives the expected **3 failures**: this app case observes an early database close, and both LTI cases observe exit 0. Restoring the shipped files returns **22/22** passing. Cache cleared before each run. Logs: `/tmp/we-f4-r2-review-b-3pag23n6/{focused,previous-source,restored}.log`.
+
+No new findings. Only R-owned `kernel/records/shutdown{,.test}.ts` change; no forbidden file, LMS name or unrelated behavior is added. Blind review maintained; no Docker, stack or commit. QA's restart re-gate remains separate.

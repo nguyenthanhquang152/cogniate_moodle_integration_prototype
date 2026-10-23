@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # LA-E4-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -83,3 +83,13 @@ Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `739c51ad^1..739c51ad` (R `
 - Ownership is wave-dependent: epics §5 gives `kernel/records/**` to R in B2/B3 and K in B4 for LA-E5-22. This is the existing R shutdown helper, within LA-E4-02's explicit directory grant and this Lead-dispatched R fix of BD-A2-109; no K key-provider behavior was edited. The change stays within the specifically authorized fix scope.
 - **48/48 existing focused tests passed** across app shutdown, LTI main and shared jobs. Both app cases (a) and (b) failed when the old runner-first/no-HTTP-cut order was restored privately; all four new app/LTI cases failed under those mutations. The two new error-path probes failed on the submitted code; private controls for both services passed **50/50** checks. No product fix was made in integration.
 - Verification used `/tmp/la-reviewer-a-ctx-63e08b92dff0` at `9f8e990a`, a fresh `--no-hardlinks` clone with its own `npm ci` and a cleared Vitest cache before every run. It is clean after restoring all probes. Logs: `/tmp/la-reviewer-a-ctx-63e08b92dff0-focused.log` and `/tmp/la-reviewer-a-ctx-63e08b92dff0-probes/{error-paths,controls,old-order-mutants}.log`; probe sources are in that directory. No Docker, stack, host stack runner, commit or Reviewer-B file was used. QA's seven frozen M1-37 re-gate rows remain pending.
+
+
+## Round 3 — WE-F4 error-path fix
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `f8d7d7d6^1..f8d7d7d6` (R `cd8f06c9`), against BD-A2-109 and the Round 2 finding. **APPROVE: 0 new findings. A-LA-E4-02-04 is closed.** Prior NITs 02 and 03 remain outside this fix.
+
+- **Finding 04 closed:** `shutdown.ts:22`–`:31` keeps one promise per listener and awaits all listeners and the runner with `allSettled`. An early listener error cannot cancel the held listener's cutoff or close the database early. After all steps settle, the cutoff is cleared, the database closes, and the first failed result is thrown.
+- The new two-listener test and my repeated private probe both pass: a non-listening server reports `ERR_SERVER_NOT_RUNNING`, the other request stays held until the 3 s cutoff, and database close follows that listener. Restoring the prior faulty helper makes both tests fail because the database closes early.
+- **53/53 focused checks passed** across app shutdown, LTI main and shared jobs: 51 committed tests plus the two prior private probes. All five relevant checks fail with the two prior faulty implementations restored. Normal idle/busy shutdown, immediate connection refusal, runner drain and failure exit remain covered. The 3/60/70/75 s bounds, transactions and lease/ref fences are unchanged. Only the authorized R helper and its colocated test changed; no core LMS name or unrelated behavior was added.
+- Verification: fresh `git clone --no-hardlinks` at `9b918a7e`, own `npm ci`, cache cleared before each run; private clone `/tmp/la-reviewer-a-ctx-d2660307debb` restored clean. Evidence: `/tmp/la-reviewer-a-ctx-d2660307debb-probes/focused-and-probes.log`, `prior-error-mutants.log` and saved probe sources. No Docker, stack, host stack runner, commit or Reviewer-B file was used. QA's seven frozen M1-37 re-gate rows remain pending.
