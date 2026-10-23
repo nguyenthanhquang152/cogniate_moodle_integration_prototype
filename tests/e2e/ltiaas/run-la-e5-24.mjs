@@ -393,6 +393,13 @@ await r.main(async () => {
   const appContentDir = path.join(r.CLONE, 'infra', '.data', 'cogniate-app');
 
   try {
+    // Stage the current drill helpers into the clone so the in-container step runs the latest helper code.
+    const cloneE2eDir = path.join(r.CLONE, 'tests', 'e2e', 'ltiaas');
+    fs.mkdirSync(cloneE2eDir, { recursive: true });
+    for (const helperFile of ['la-e5-24-drill.mjs', 'la-e5-24-container-step.mjs']) {
+      fs.copyFileSync(path.join(HERE, helperFile), path.join(cloneE2eDir, helperFile));
+    }
+
     // 1. Setup & initial stack start on acceptance profile.
     assert.equal((await r.npm('root-ci', ['ci', '--no-audit', '--no-fund'], { timeoutMs: 900_000 })).code, 0);
     assert.equal((await r.npm('gen-env', ['run', 'gen-env'])).code, 0);
