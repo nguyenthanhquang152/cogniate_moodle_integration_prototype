@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 ## Round 1
 
@@ -72,3 +72,19 @@ Reviewer: Codex GPT-6-Astra xhigh, lens "Is it right and is it safe?" Date: 2026
 - Removing the panel fails **3** committed tests; removing the active-status warning guard fails **1**. Restored portal tests: **92/92**. Portal and channel-portal typechecks, targeted lint, F1 (**0 hits**) and F5 (**6 rules, 0 hits**) pass.
 
 Private probes are saved under `/tmp/la-reviewer-a-ctx-0594e86b4a7b-probes`; logs use the same prefix. Mutations were restored and probes removed from the clone. I changed only this review file in integration; no Docker, stack, commit or other reviewer's file was used. The explicit-export fix and Round 4 verification remain required; K1-SIM and live regression remain QA work.
+
+## Round 4
+
+Reviewer: Codex GPT-6-Astra xhigh, lens "Is it right and is it safe?" Date: 2026-10-23. Reviewed `4d2a52f5` (merge `dc2a1b5e`) against BD-A2-102, the task spec and A-LA-E6-02-03. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.**
+
+**A-LA-E6-02-03 — CLOSED.** The registered/connected panel no longer mounts the automatic export effect. Opening, closing and both mode switches make no request. Copy and Download each fetch once, using the selected mode and that response's exact bytes; repeated presses fetch fresh bytes. The Round 3 probes now pass (the switch-back probe no longer waits for the removed automatic key-id response). The real connection-page tests keep the stale-key warning visible through opening and mode changes.
+
+Private checks cover all four action/form combinations, export failure and retry, malformed JSON, missing inline key id, duplicate clicks while busy and completion after unmount. Failed exports produce no copy/download or false success; a denied clipboard write retains the manual-copy fallback. The shared download helper preserves the pending wizard's behavior and DOM hashes. No route, API, frozen assertion or LMS-specific core branch changes; all five files remain in P's portal ownership. The recorded key still describes the last artifact exported, not proof that the admin pasted it into the LMS, as BD-A2-102 specifies.
+
+Verification in fresh private clone `/tmp/la-reviewer-a-ctx-2b3ca86757ca` at `a037dee9fa8dae2212a2230db1bd5b4f067de444`, own `npm ci`, Vitest cache cleared before every run:
+
+- **104/104** focused public tests and **12/12** private probes pass.
+- Restoring the old automatic-export panel fails **4** committed tests; ignoring the inline selection fails **1**. Restored Canvas, shell and private probes: **81/81**.
+- Portal and channel-portal typechecks and targeted lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**. The unchanged retention/migration UNIT criteria retain Round 3 evidence.
+
+Probe sources are saved under `/tmp/la-reviewer-a-ctx-2b3ca86757ca-probes`; logs use the same prefix. Mutations were restored and probes removed from the clone. I changed only this review file in integration; no Docker, stack, commit or other reviewer's file was used. All lens-A findings are closed; K1-SIM and live M2/T6 regressions remain QA work.
