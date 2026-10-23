@@ -7,7 +7,7 @@ import { toolContext } from '../kernel/setup/common.ts';
 // is built from the committed target after the commit. The adapters build the target and the S1 body; the engine adds
 // `active: false` and the write-ahead ref, and owns every other step.
 import { fillTemplateValue } from '../kernel/setup/templates.ts';
-import type { LtiClient, LtiProviderProfile } from '../clients/lti-client.ts';
+import type { LtiClient, LtiPlatform, LtiProviderProfile } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { CompleteSnapshot, Connection, ProviderSnapshot } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
@@ -148,6 +148,36 @@ export function sameBoundValue(bound: string | undefined, other: string | undefi
 export function differingBoundFields(bound: AdminValues, other: AdminValues): string[] {
   return BOUND_FIELDS.filter((key) => !sameBoundValue(bound[key], other[key]));
 }
+
+/** The admin values that a platform record holds, or null when it does not hold all of them (a JWKS URL key set). */
+export function platformAdminValues(p: LtiPlatform): AdminValues | null {
+  if (!p.authenticationEndpoint || !p.accesstokenEndpoint || p.authConfig?.method !== 'JWK_SET') return null;
+  return {
+    issuer: p.url, authenticationEndpoint: p.authenticationEndpoint, accessTokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.authConfig.key,
+    ...(p.clientAssertionAud !== null ? { tokenAudience: p.clientAssertionAud } : {}),
+  };
+}
+
+/** The bound values of a grant row as admin values; null for a grant without bound values (or without all of them). */
+export function grantAdminValues(bound: Readonly<Record<string, string>> | null): AdminValues | null {
+  if (bound === null) return null;
+  const { issuer, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience } = bound;
+  if (!issuer || !authenticationEndpoint || !accessTokenEndpoint || !jwksUrl) return null;
+  return { issuer, authenticationEndpoint, accessTokenEndpoint, jwksUrl, ...(tokenAudience !== undefined ? { tokenAudience } : {}) };
+}
+
+/** S2 of an admin-value target: the record holds exactly the bound values (LA-ADR-02 D6; adoption rule A3). */
+export function holdsBoundValues(p: LtiPlatform, bound: AdminValues): boolean {
+  const held = platformAdminValues(p);
+  return held !== null && differingBoundFields(bound, held).length === 0;
+}
+
+/**
+ * A staged Dynamic Registration (LA-ADR-02 D5 item 10): a dynamic connection that switched to operatorGrant and keeps
+ * its staged platform record. Its grant binds the staged values; the redemption adopts the platform (no S1 create).
+ */
+export const stagedRegistration = (c: Pick<Connection, 'method' | 'bindingAuthority' | 'platform'>): boolean =>
+  c.method === 'dynamic' && c.bindingAuthority === 'operatorGrant' && c.platform !== null;
 
 /** The fields whose host is not the issuer host (LA-ADR-02 D6, Reviewer-A A-LAD-23): the operator confirms them. */
 export function foreignHostFields(values: AdminValues): string[] {
