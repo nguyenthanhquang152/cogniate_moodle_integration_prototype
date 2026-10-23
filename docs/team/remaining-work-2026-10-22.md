@@ -2,12 +2,12 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 14:35 UTC
+## Current checkpoint — 2026-10-23, 15:05 UTC
 
 The user set the active goal to complete all remaining tasks. The Lead selects reversible shared-host tool preparation under [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md), without changing Savoy's owner's no-pause instruction. The earlier scheduling choice no longer blocks this preparation. No runtime exception or grant is approved yet.
-The initial candidate failed independent qualification and remains preserved. The same Codex executor (`ctx_980764b0c00c`) completed the full correction batch and froze r2 at 14:28 UTC. All author checks pass. The Lead verified its 42 bindings. Independent Gemini QA (`ctx_ecf89d43aa55`) and Claude review (`ctx_d41f3cb69570`) now qualify r2. Existing product code, tests, accepted checks and original QA tools remain unchanged.
-LA offered a 20-minute handoff near 14:45 UTC, or near 15:30 at its next slot boundary. Neither is reserved. Request the actual handoff only after qualification passes; never shorten checks to meet a slot.
-After tool qualification: approve the exact runtime route, coordinate LA's hold, run T7 once, then final conformance/ADR status, guide updates, independent Docs QA, two blind final reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+The corrected r2 candidate has independent Gemini PASS (55 suite controls and four regressions) and focused Claude APPROVE. The Lead accepts [E-R8](r8-t7-shared-host-verification-2026-10-23.md). Existing product code, tests, accepted checks and original QA tools remain unchanged. Initial failures and QA fixture corrections remain disclosed.
+LA confirmed a planned actual handoff around 15:10 UTC, with at least 20 minutes from handoff. The actual stack-down evidence, fresh external preflight and separate runtime grant are still required. The retained Gemini prepares that one T7 attempt under `ctx_73b31b9cc18d`.
+The same Codex session (`ctx_d0945a6ff5d3`) prepares final guide changes privately. The retained Architect (`ctx_ad74f34fb2d1`) prepares conformance and narrow ADR status updates. Neither may apply final PASS claims before accepted T7 evidence. Then finish independent Docs QA, two blind final reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
 
 ## Historical checkpoint — 2026-10-23, 12:23 UTC
 

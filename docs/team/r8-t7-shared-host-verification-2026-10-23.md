@@ -1,0 +1,51 @@
+# E-R8: bounded shared-host T7 verification
+
+Decision: ACCEPTED FOR THE BOUNDED T7 ROUTE by the Lead, 2026-10-23 15:05 UTC.
+This document selects a verification route; a separate per-attempt grant is still required.
+
+## Qualified inputs
+
+The route follows Claude's failure plan sections 16–17, SHA-256 5253e839118a22e867457005c7735fe23c85a270e675dfb996adb6244a6c257f. It qualifies copied tools only. Product C6 remains 4008afb92fe983d52db33442e060210b929966c8. Runtime source/tests C8 remain 5561e8f72a83de36a68877c6b26ffc8288ade735. C9 dependency equivalence does not relabel a C8 execution.
+
+Candidate r2 manifest: notes/t7-shared-host-implementation/r2/MANIFEST-candidate-r2.sha256, 8,577 bytes, 42 entries, SHA-256 e4f6030009ff02c2f15cd9a79b7eca1e76ff7088b8b9a81fdae12a3706ecb05c. The Lead verified every entry by size, hash and mode.
+Implementation report: 952ba5e0ad7b1fb47c6c99836e2a467949d44b088db2bc9acde044d720bc8c70.
+Independent Gemini QA: PASS, message `msg_08594c4fae3c`, [report](../reviews/M3/t7-shared-host-tools-qa.md). Its final result is 20,238 bytes, SHA-256 `02e03e920aa6238d450e055332b32887316f55c476d894661c4a725393d43a52`; runner SHA-256 `ab1e17d9430c760583924dcc098c8c0bda6268b27d8285b019f6778f798832aa`. All 55 suite controls and four regressions pass with zero sentinel Docker calls.
+Focused Claude review: APPROVE, message `msg_03e9d3665f35`, [report](../reviews/M3/t7-shared-host-focused-review.md), 50,668 bytes, SHA-256 `4d3850783461a14ebe5c9eb17e59354612d533a73cb8759ee0d0cf2d9116b44f`.
+Original tools and manifests remain preserved. The initial candidate failure and excluded unfrozen probe remain disclosed. Gemini's first r2 output was overwritten; its reconstructed record is labeled as such. Final acceptance uses only the bound final execution. Attempts 2–4 remain preserved. Claude accepted the five QA adapters as consistent with the unchanged contract.
+
+Two report NITs are accepted: the private disclosure mislabels the old r4 manifest hash (actual `1b6be474b5a972b5b028e064985486ea6a2f5e43767ce48f2ac63a676af27fef`), and the unsuffixed r2 result is attempt 2. Always use the `-final` result above. The Lead authorized correction of QA's report manifest-size transcription in `msg_cba511d19849`; the actual manifest is 8,577 bytes. All 17 source-table bindings passed the Lead's independent metadata comparison.
+
+## Narrow amendment to E-R6
+
+E-R6 still governs product behavior, runner arguments, deadlines, cleanup, secrets, protected resources, operational closure and separate grants. For T7 alone, the qualified boundary-r2, lane-watch-r5, reconcile-32vol-v2 and wrapper-v3 replace the earlier copies at their held hashes. No other accepted M1, M2 or legacy evidence is reopened.
+
+Savoy's owner will not pause. A global exclusive host window is therefore not claimed. Only foreign resources positively classified by the full section 16 predicates may coexist. Names alone never prove ownership. Excluded and protected resources remain excluded, full 32-volume records remain strict, and unknown metadata blocks acceptance.
+
+Every present foreign container, non-built-in network and extra volume must qualify in each capture. This includes unchanged objects whose dependency records have changed. OUTER W3/W4 and LANE start/end are independent pools from the same invocation. No pool may borrow metadata from preflight, another pool, attempt or invocation. A start-capture vanished object remains UNKNOWN. Only a sufficient earlier same-ID record in that pool permits a not_found end-capture attribution; the SV predicate still applies.
+
+Raw errors, counts and capture-specific attribution remain visible. This route does not observe objects created and removed wholly between captures. It does not prove exclusive access or remove the existing C8 allContainers false-FAIL risk. Such a failure remains FAIL.
+
+## Preflight and invocation
+
+Private preparation root R is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep`. The retained Gemini runtime task is `task_5bccef8e6029` / `ctx_73b31b9cc18d`. Host-only preparation is authorized. LA's planned 15:10 handoff in `msg_abf580342056` is not the actual handoff and is not a preflight grant.
+
+LA must first provide actual stack-down evidence, full 32-volume/network records and a new bounded hold. The Lead then grants a separate external preflight using the qualified new tools. No Docker command, wake or runtime root is authorized before that grant.
+
+The accepted predecessor is R/m2/window-attempt4/w4-end.json: 19,913 bytes, SHA-256 544142a119dedc4c77279e5c0078ceac7c53dd7c520558aeb156a768c13638fd. All 32 complete volume records must remain equal. Strict identity, settings and built-in records must match. Only an explicitly reviewed idle-VM bridge Id/Created replacement before launch is permitted; bridge options, labels and IPAM stay unchanged.
+
+The Lead reviews the fresh hashed preflight before issuing one runtime grant. The grant must bind the expected preflight hash, actual message/delivery IDs, LA hold and both deadlines. No reconciliation after launch is allowed. Runtime W3 must pass the internal guard against that held preflight.
+
+Each invocation uses a new absent direct t7-attempt-* child of R. The atomic root claim gives only the winning process write ownership. A pre-T4 failure after the claim consumes the root and exits 4 with private raw-stage evidence; a pre-path refusal exits 2. No automatic retry, overwritten artifact or reused grant/preflight is authorized. The Lead checks freshness explicitly; automatic historical reuse scanning remains deferred.
+
+Use the unchanged detached launcher with outputs outside the absent attempt root. The byte-identical observer and existing helper create fresh C8 host source and a separate pristine runtime clone. B-TW-03 must pass before READY. No tool edits are permitted during a run.
+
+## Required result and closeout
+
+Use lane qa-e2e-m3-r3, port 8543, subnet 172.31.0.0/16 and unchanged T0–T14 order. Require all 15 criteria; three default runs with 17 PASS each; only the permitted demo-only skip; passing demo within 180 seconds; four confirmation/refusal checks; keep and teardown proof; trigger mapping; B-TW-02 with both lane snapshots; scans; W3/W4, sampler and all 32 full records.
+
+A failed W4 capture retains its failure, stops the sampler and attempts each required comparison report once. The private T13 status keeps every exit code. Any required failure blocks T14 and acceptance. No deadline extension or delayed comparison to obtain PASS is permitted.
+
+Preserve foreign resources. No prune, unrelated stop/removal, pull, account or Docker-setting change is authorized. Private directories use 0700, evidence 0600 and scripts 0700; the approved runner-child 022 remains. Obtain LA's whole-window confirmation and return the host after owned cleanup.
+
+F-01–F-04, Q1–Q4 and M-1 are closed only at the qualified version. Other accepted nonblocking NITs remain documented. Final architecture conformance, guide evidence, independent Docs QA, two blind reviews and Lead closure remain after T7. All 32 live LMS rows stay UNVERIFIED, local Canvas stays DEFERRED, and no enterprise-readiness claim, push or main merge is authorized.
+
