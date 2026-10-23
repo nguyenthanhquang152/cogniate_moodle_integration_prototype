@@ -49,3 +49,17 @@ Preserve foreign resources. No prune, unrelated stop/removal, pull, account or D
 
 F-01–F-04, Q1–Q4 and M-1 are closed only at the qualified version. Other accepted nonblocking NITs remain documented. Final architecture conformance, guide evidence, independent Docs QA, two blind reviews and Lead closure remain after T7. All 32 live LMS rows stay UNVERIFIED, local Canvas stays DEFERRED, and no enterprise-readiness claim, push or main merge is authorized.
 
+## Attempt record: 2026-10-23
+
+LA handed over the host at 15:09:02 UTC (`msg_f6fa96e2f3e6`). The Lead checked the four handoff file hashes. LA later confirmed a hold through 15:50 UTC (`msg_c1c6a9d55c38`). Savoy continued under the qualified attribution rules.
+
+The first external preflight, `notes/t7-external-preflight-r8-20261023T1510Z`, failed. Its shell used the private test home directory. Docker then selected the absent `/var/run/docker.sock`. QA retained every failed record and reported the cause in `msg_1ffd4fb3237e` and `msg_81fda6fc1bb5`. No T7 runtime started in that attempt. The next preflight used a new directory and an explicit grant (`msg_6ead93e7a896`). The qualified tools did not change.
+
+The second external preflight passed at 15:23:41 UTC. Its directory is `notes/t7-external-preflight-r8-20261023T1521Z`. W1, W2, W3, the anonymous-volume check and the qualified 32-volume check all exited 0. W3 is 31,715 bytes, mode 0600, SHA-256 `c10f393829436a3d25dd3bef38c82f8489e7d0bd46339adf5cae0d7e21f07baf`. The Lead independently compared complete identity, Docker info, settings and all 32 protected volume records. They match the accepted M2 predecessor. Two extra volumes and two containers have full SV and SC attribution. There are no foreign networks, vanished records or read failures.
+
+The Lead accepted the preflight in `msg_37daa6076f89`. The bridge differs only in Id and Created, within the permitted idle-VM class. Architect decision `msg_c8673725f23c` also permits one representation difference: the old collector changed null IPAM to `[]`; the new collector preserves null. This applies only to the old predecessor versus new preflight, only to the built-in host and none networks. Every other field must match. Runtime comparisons use the new schema exactly. The raw helper's `full32EqualToPrevW4=false` remains visible: it compares all 34 current volumes with 32 prior volumes. The qualified check and the Lead's check by name prove all 32 protected records equal.
+
+Runtime grant `msg_0de90d08153d` authorizes one invocation, with a hard end at 15:48 UTC. Its root is `t7-attempt-r8-20261023T1510Z`; detached outputs use `notes/t7-runtime-r8-20261023T1510Z`. The worker must record its actual grant delivery ID. This grant does not establish a runtime PASS. Runtime and cleanup results remain pending.
+
+The detached receipt confirms launch at 15:28:20 UTC, supervisor PID 59664, with a new session and no PTY. The wrapper reached the test runner at 15:28:39 UTC after its prelaunch guard and B-TW-03 checks. QA received the runtime grant in `delivery_16d648ba703c`; T0 records that delivery and every grant binding. The runner ID is `qa-e2e-m3-r3-5561e8f7-2026-10-23T15-28-39-798Z`. No final result is claimed.
+

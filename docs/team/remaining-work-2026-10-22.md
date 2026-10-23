@@ -2,7 +2,15 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 15:05 UTC
+## Current checkpoint — 2026-10-23, 15:27 UTC
+
+Tool qualification is complete: independent Gemini PASS and focused Claude APPROVE. LA supplied the actual handoff and holds new starts through 15:50 UTC. The first external preflight failed because its shell used a private test home. The corrected preflight passed in a new directory. The Lead accepted its exact W3 record and the narrow bridge and collector-schema reconciliation in `msg_37daa6076f89`.
+
+One T7 runtime is now authorized by `msg_0de90d08153d`, with completion and cleanup due by 15:48 UTC. A launch or PASS is not inferred from that grant. See [the E-R8 attempt record](r8-t7-shared-host-verification-2026-10-23.md) for the evidence and limits.
+
+The Architect and the same Codex executor have finished private conformance and guide preparation. After accepted T7, they apply final conformance and narrow ADR status updates, then guide evidence updates. Independent Docs QA and two blind reviews run together on the final document revision. Lead closure follows accepted results. M1, M2 and legacy results need no repeat. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:05 UTC
 
 The user set the active goal to complete all remaining tasks. The Lead selects reversible shared-host tool preparation under [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md), without changing Savoy's owner's no-pause instruction. The earlier scheduling choice no longer blocks this preparation. No runtime exception or grant is approved yet.
 The corrected r2 candidate has independent Gemini PASS (55 suite controls and four regressions) and focused Claude APPROVE. The Lead accepts [E-R8](r8-t7-shared-host-verification-2026-10-23.md). Existing product code, tests, accepted checks and original QA tools remain unchanged. Initial failures and QA fixture corrections remain disclosed.
