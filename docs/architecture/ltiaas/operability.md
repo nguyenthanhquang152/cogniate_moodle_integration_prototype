@@ -36,11 +36,20 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
+On the LA compose stack (BD-A2-105): `infra/compose.yaml` gives each service a fixed list of settings and has no `env_file`. A setting that is not in that list does not reach the service, and the service uses its default. So in LA these settings of the table do not reach the services: `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`, `LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `APP_JOB_RUNNER`, `OPERATOR_NAME`, `OPERATORS`, `OPERATORS_FILE`, and, for the app only, `AUDIT_RETENTION_DAYS` and `JOB_INSTANCE_ID`. The two key-ring files work, because their defaults are the mounted paths. `TRUSTED_PROXY_CIDRS` is fixed to `proxy`. On the stack:
+
+- Change a rate limit with the operator API (`PATCH /operator/v1/rate-limits`), not with `LTI_RATE_LIMITS`.
+- Give an app CLI its operator settings for one run: `docker compose exec -e OPERATOR_NAME=… -e OPERATORS=… cogniate-app …`.
+- `npm run stack:restart -- <service> --env` accepts registered test knobs only. It is not a way to set the settings above.
+- `production` does not run. The stack scripts save only `default` or `acceptance`, and compose gives both master keys as environment values, which `production` refuses (`master_key_in_env`, `app_master_key_in_env`). The `production` rules are for a host setup, which milestone LG makes (deferred row "LA-E5-22 note (K)").
+- The separate app worker (`npm run worker`, §3) has no compose service.
+
 Secret files (never in git; mode `0600` or `0400`, no group or world bit; mounted read only). The service checks the mode on the opened file. In `production`, a file with a group or world bit stops the start (`secret_file_mode`); other profiles log `secret_file_mode_open {setting}` (BD-A2-78). A key-ring file alone is enough to start, when it holds the version `legacy` (BD-A2-77):
 
 | File | Holder | Content |
 | --- | --- | --- |
-| `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
+| `infra/.secrets/lti-api-key.<account>` | the host (`npm run seed`, `lti:bootstrap`, the `compat` runner) | tool account API key. `lti:bootstrap` writes it (`0600`). The app does not read this file (BD-A2-105) |
+| `infra/.secrets/app/lti-api-key` | app (`LTI_API_KEY_FILE`; read at each use) | a copy of `infra/.secrets/lti-api-key.cogniate`. `lti:bootstrap` keeps it equal at each run, also when the key does not change (write, then rename; `0600`). The folder `infra/.secrets/app/` (`0700`) is mounted read only at `/run/secrets/app`, so the app container sees only its own key. `stack:reset` deletes the folder (BD-A2-105) |
 | `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
 | `infra/.secrets/lti/lti-operator-key` | LTI service container (CLIs) | a copy of `infra/.secrets/lti-operator-key` that the host wrapper writes atomically at each run (`0600`). A missing original deletes it; `stack:reset` deletes it (BD-A2-34) |
@@ -107,7 +116,7 @@ Rules:
 - The proxy routes only the four public host names. It has no route to `:4110` or `:4210`.
 - In the `acceptance` profile only, the LTI operator listener binds the stack network, so QA's `e2e` container can call it (LA-ADR-06 D3). The `default` profile keeps loopback; `production` refuses any other bind.
 - In the pilot, a collector reads `/metrics` with `docker compose exec lti-service wget -qO- http://127.0.0.1:4110/metrics` (or a sidecar in the same network namespace). LG exposes it on a private network.
-- One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
+- One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The LA compose stack has no worker service and does not pass these two settings (§2, BD-A2-105). The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
 - Stop timing (BD-A2-31): a stop with no job in flight ends in about 1 s. With a job in flight, the service waits up to the job lease (60 s), and exits by itself at 70 s at the latest (`service_exit_forced`, exit code 1). Docker waits 75 s (`stop_grace_period`) before it kills. So `npm run stack:restart` can take up to about 75 s when a long job runs. Every interval job runs once at each start (BD-A2-32).
 - In-memory state (score clock, platform token cache, JWKS cache, rate-limit buckets) is per process. That is safe with one LTI service process only (LA-ADR-06 D13 item 4).
 
@@ -265,11 +274,15 @@ Compromise of the next key (it is published, but it never signed):
 ### 6.2 Tool account API key
 
 1. Issue a second key: `POST /operator/v1/accounts/<id>/api-keys {label, scopes}`. The answer shows the key once.
-2. Put the key into the tool back end. For Cogniate, write it to `infra/.secrets/lti-api-key.cogniate` (mode `0600`). The app reads the file at each use.
+2. Put the key into the tool back end. For Cogniate on the stack (BD-A2-105):
+   1. Write the key to `infra/.secrets/lti-api-key.cogniate` (mode `0600`).
+   2. Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. An active key exists, so it issues no key. It copies the file to `infra/.secrets/app/lti-api-key`.
+
+   The rule: the host keeps `lti-api-key.<account>`; the app reads only its copy (`LTI_API_KEY_FILE=/run/secrets/app/lti-api-key`), at each use. Do not write the copy by hand.
 3. Check that `lastUsedAt` of the new key moves and `lastUsedAt` of the old key stops (`GET …/api-keys`).
 4. Revoke the old key: `POST …/api-keys/<old id>/revoke`.
 
-Emergency (leaked key): `npm run lti:bootstrap -- --account <id> --name <name> --rotate-api-key`. It issues a new key and revokes every other key at once.
+Emergency (leaked key): `npm run lti:bootstrap -w services/lti-service -- --account <id> --name <name> --rotate-api-key`. It issues a new key and revokes every other key at once. It writes the new key to `infra/.secrets/lti-api-key.<id>`, and for `cogniate` also to the app copy.
 
 ### 6.3 Master key (key ring)
 
