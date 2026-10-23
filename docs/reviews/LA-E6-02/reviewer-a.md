@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 2
+Verdict: CHANGES_REQUESTED
+Round: 3
 
 ## Round 1
 
@@ -49,3 +49,26 @@ Reviewed `f9e7961b`, merged as **`52a89e2d`**, against the same task and BD-A2-1
 The backlog help uses the same capability/status condition as `ConnectionCheck`; it names only the displayed connection name and available grade-error code/time, with no trace-id instruction. The added real-route inline export test checks current, stale and cleared artifact-key states after the LA-E6-05 writer landed. These are host checks; live signing-key activation and the remaining K1-SIM/regression gates stay with QA.
 
 Verification: fresh private clone `/tmp/la-review-a-068ab3a02a44` at `52a89e2d`, own install, Vitest cache cleared before every run. **39/39 tests pass** across the three changed test files; both targeted mutants fail for the intended assertions, and private source changes were restored. The four-file diff respects ownership, adds no LMS-specific core branch and changes no frozen assertion. No Docker, stack, other reviewer's file or commit; only this review file changed in integration.
+
+## Round 3
+
+Reviewer: Codex GPT-6-Astra xhigh, lens "Is it right and is it safe?" Date: 2026-10-23. Reviewed `ea47dc56` (merge `e40a6d41`), the earlier lens-A rounds, task spec, LA-ADR-08 D5, BD-A2-101 and the new BD-A2-102 ruling. **CHANGES_REQUESTED: 1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** The coordinator's 12:32Z follow-up requested this review of the dispatched commit; the next fix is not included.
+
+### A-LA-E6-02-03 — BLOCKER — Opening or switching Key JSON records an artifact that the user has not taken
+
+**File:** `packages/channels/canvas/portal/CanvasKeyJson.tsx:14` (mounts the fetching effect in `CanvasConfiguration.tsx:17`).
+
+**Problem:** opening the section immediately exports the default key URL form, and changing the checkbox exports the selected form. This changes the recorded artifact key before either Copy JSON or Download JSON is selected, hiding a real stale-key condition on the next health read. BD-A2-102 explicitly rejects this behavior.
+
+**Evidence:** three private component probes each expect no export and fail with one request: opening calls `/app-api/connections/con_canvas/canvas-configuration`; selecting inline calls the same path with `?jwk=inline`; switching back calls the URL form. None clicks Copy or Download. The passing real-route health test independently confirms that a URL export changes a stale `artifactKeyKid` to `null` and `artifactKeyCurrent` from `false` to `null`. The extension handler records the response's key at `services/cogniate-app/src/kernel/extensions.ts:111`; the health warning appears only on `false`. The committed panel test currently expects the premature request, so it does not protect the new requirement.
+
+**Suggested fix:** implement BD-A2-102 in the registered/connected panel: opening and mode selection make no export request; only Copy or Download fetches the selected artifact and uses that response. Add regressions for both non-export actions and both explicit export actions. Keep the pending wizard unchanged. The remaining distinction between an artifact taken and an artifact pasted into the LMS is the documented design limit.
+
+### Other results and verification
+
+- Registered and connected status handling, and hiding the warning on pending/disabled connections, match BD-A2-102. The new help text matches BD-A2-101. Both Round 1 findings remain closed.
+- The six-file diff stays in P's portal ownership. No forbidden route, API, frozen assertion or LMS-specific core branch changed. The closed panel adds no Copy/Download controls; manual-flow DOM hashes pass. M2/T6 selector inspection finds no collision; live regression remains QA work.
+- Fresh private clone `/tmp/la-reviewer-a-ctx-0594e86b4a7b`, pinned to `95bde90b43078d2e204bbb35f3336a8b87cf38f7`, own `npm ci`, Vitest cache cleared before every run: **113/113 public tests pass** across Canvas, shell, health, events and migration (UNIT AC-06/07/08). All **3 private probes fail** for A-LA-E6-02-03.
+- Removing the panel fails **3** committed tests; removing the active-status warning guard fails **1**. Restored portal tests: **92/92**. Portal and channel-portal typechecks, targeted lint, F1 (**0 hits**) and F5 (**6 rules, 0 hits**) pass.
+
+Private probes are saved under `/tmp/la-reviewer-a-ctx-0594e86b4a7b-probes`; logs use the same prefix. Mutations were restored and probes removed from the clone. I changed only this review file in integration; no Docker, stack, commit or other reviewer's file was used. The explicit-export fix and Round 4 verification remain required; K1-SIM and live regression remain QA work.
