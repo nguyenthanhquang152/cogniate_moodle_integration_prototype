@@ -7,7 +7,7 @@
 const PRODUCT = /^(services|packages|apps)\//;
 const NOT_PRODUCT = /(^|\/)(node_modules|dist|\.data|\.tmp)\/|\.test\.[cm]?[jt]sx?$/;
 /** The only files that may delete audit rows: the retention jobs. */
-export const ALLOWED = ['services/lti-service/src/jobs/audit-retention.ts'];
+export const ALLOWED = ['services/lti-service/src/store/audit-retention.ts'];
 // SQLite accepts single quotes, double quotes, backticks and brackets for table and schema names.
 const PATTERN = /\b(?:DELETE\s+FROM|(?:INSERT\s+OR\s+)?REPLACE\s+INTO)\s+(?:(?:main|"main"|'main'|`main`|\[main\])\s*\.\s*)?(?:audit_event\b|"audit_event"|'audit_event'|`audit_event`|\[audit_event\])/gi;
 
