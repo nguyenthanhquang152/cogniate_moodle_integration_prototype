@@ -12,10 +12,10 @@
     "testChanges": [],
     "frozenTestsTouched": [],
     "scanChecked": [
-      "tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-49",
+      "tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-35",
       "tests/e2e/M2/01-cards.m2.ts:19-48",
       "tests/e2e/M2/02-canvas-wizard.m2.ts:39-145",
-      "tests/e2e/M2/03-blackboard-wizard.m2.ts:37-115",
+      "tests/e2e/M2/03-blackboard-wizard.m2.ts:37-110",
       "tests/e2e/M2/04-detail.m2.ts:17-102",
       "tests/e2e/M2/05-publish-results.m2.ts:10-32",
       "tests/e2e/M2/06-keyboard-axe.m2.ts:40-114",

@@ -1,11 +1,51 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM and MOODLE-LIVE pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E1-09 S7 `{LMS}` texts in the app, the player and tracking; portal route allowlist: QA verification
 
-Tester: QA-3 (Orca task `task_241dc471afe8`, dispatch `ctx_44be6cfd9586`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E1-09.md` (with `BD-A1-30`, `BD-A1-56`, `BD-A1-57`, `LA-IC-19`). Suite: `tests/ltiaas/tasks-core/LA-E1-09/` (QA-3 test-first).
+Tester: QA-3 (Round 1: task `task_241dc471afe8` / `ctx_44be6cfd9586`; Round 2: task `task_ca544d19e96b` / `ctx_fce3d399cb78`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E1-09.md` (with `BD-A1-30`, `BD-A1-56`, `BD-A1-57`, `BD-A1-59`, `BD-A1-62`, `LA-IC-19`). Suite: `tests/ltiaas/tasks-core/LA-E1-09/` (QA-3 test-first).
 
-Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified all K0 and UNIT ACs in an isolated `--no-hardlinks` clone of `836d579`.
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (except `docs/reviews/LA-E1-09/reviewer-b.md` in Round 2 to verify `B-LA-E1-09-01`). QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`836d579` in Round 1; `894406f` in Round 2).
+
+## Round 2
+
+| Item | Value |
+| --- | --- |
+| SHA | `894406f365148378d7089de8c56e619a1dbfe18a` (integration `894406f`; holds `LA-E1-09` follow-ups merge `141ffe3`: `B-LA-E1-09-01` literal names via `fillText`, `BD-A1-62` app `http_request` path = route template or `<unmatched>`, and `BD-A1-59` kernel `texts.registration` with Moodle values) |
+| Lane and slot | lane K; no Docker (HOST-ONLY; K1-SIM and MOODLE-LIVE rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-09/r2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `894406f365148378d7089de8c56e619a1dbfe18a`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-09/r2/` (umask 077): `npm-ci.log`, `k0-vitest.log`, `unit-rows-files.log`, `k0/e1-09-check-clean.log`, `k0/e1-09-ac06-f1-zero.json`, `k0/e1-09-unit-rows.log`, `status-after.txt` |
+
+### Round 2 acceptance criteria and follow-up checks (`141ffe3`)
+
+| AC / Check | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-09-02 (`B-LA-E1-09-01`: literal LMS and tool names via `fillText`) | PASS (UNIT + K0) | `texts.k0.test.ts` + `services/cogniate-app/src/tool-pages/lms-texts.test.ts > AC-LA-E1-09-02: register pages and the connection error texts > B-LA-E1-09-01: the name A$&B / A$$B / A$'B goes literally into the error page and the stored lastError` + `B-LA-E1-09-01: a tool name with $ sequences goes literally into the tool-may-exist text` (4 new tests; 11 total in `lms-texts.test.ts`) | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_BASE_SHA=f38f16d LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E1-09/r2/k0 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E1-09/vitest.config.mts --reporter=verbose` | `withLms` and `toolMayExistText` delegate to `fillText` so channel `names.text` and tool names containing `$&`, `$$`, or `$'` are inserted literally into error pages and stored `lastError` without `String.replaceAll` dollar-sequence substitution. `unit-rows-files.log`, `k0/e1-09-unit-rows.log` |
+| `BD-A1-62` (app `http_request` path = route template or `<unmatched>` + frozen test scan) | PASS (UNIT + K0) | `services/cogniate-app/src/http-request-log.test.ts > the app listener logs "<unmatched>" for a path with no route, and the template for a matched route` + `the content listener logs "<unmatched>" for a path with no route, and the template for a matched route` (2 tests) | `npx --no-install vitest run --reporter=verbose services/cogniate-app/src/http-request-log.test.ts` | Both `app/server.ts` and `content-host/server.ts` log the matched route template (no ids, no query) or `<unmatched>` when no route matches. Frozen test scan (`git grep -n http_request -- tests/acceptance tests/e2e tests/ltiaas/golden`) confirms `0` frozen tests read an unmatched app `http_request.path` (`M1/common/snapshot.ts:29`, `snapshot-oracle.mjs:33`, and `T1/harness.test.ts:135-149` match by `trace_id` or `/healthz`). `unit-rows-files.log`, `k0/e1-09-unit-rows.log` |
+| `BD-A1-59` (kernel `texts.registration` with Moodle values; no page change) | PASS (UNIT + K0) | `packages/channel-kernel/src/manifest.test.ts > BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app register texts byte for byte` + `BD-A1-59: texts.registration is optional, closed to the five keys and to the text placeholders` + `BD-A1-59: a channel without its own sentence gets the core default, which names no menu path` + `services/cogniate-app/src/tool-pages/lms-texts.test.ts > BD-A1-59: the Moodle manifest sentence of UPDATE_NOT_ALLOWED is the register page text of today (LA-E2-04 moves the page to it)` | `npx --no-install vitest run --reporter=verbose packages/channel-kernel/src/manifest.test.ts services/cogniate-app/src/tool-pages/lms-texts.test.ts` | `texts.registration` is optional, closed to the 5 keys (`UNKNOWN_TOOL_ACCOUNT`, `INVALID_REQUEST`, `ISSUER_MISMATCH`, `REGISTRATION_UPDATE_NOT_ALLOWED`, `UPDATE_NOT_ALLOWED`) and `{LMS}`, Moodle manifest sentences match today's LTI and app register texts byte for byte, and channels without their own sentence receive the menu-path-free core default (app page switch deferred to `LA-E2-04`). `unit-rows-files.log`, `k0/e1-09-unit-rows.log` |
+| AC-LA-E1-09-03, -04, -06 (`LA-IC-19`, `BD-A1-56`) | PASS (K0 + UNIT) | `texts.k0.test.ts` (`2/2` passed) | as first row | All 22 task-scope files have `0` F1 hits (`f1-baseline.json` `0`), `BD-A1-56` and `LA-IC-19` checks pass, and tree-wide F1 at `894406f` is `5 files with hits, 13 hits`. `k0/e1-09-ac06-f1-zero.json`, `k0/e1-09-unit-rows.log` |
+| AC-LA-E1-09-01, -05 | pending: Docker window (K1-SIM / MOODLE-LIVE) | `golden.k1sim.test.ts > AC-LA-E1-09-01`, R2-lite (`T7 × 1`, `T4b2`, `T5a`, `T6`) | SIM / Moodle slots | Pending Docker window. |
+
+### R0 `npm run check` counts at `894406f` (`k0/e1-09-check-clean.log`)
+
+| Suite | Round 1 (`836d579`) | Round 2 (`894406f`) |
+| --- | --- | --- |
+| Vitest (`test:unit`) | 169 files; 2,743 passed, 5 skipped | 174 files; 2,803 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 252 pass, 0 fail | 254 pass, 0 fail |
+| K0 (`test:k0`) | 3 files; 121 passed | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | `F1 PASS: 9 files with hits, 29 hits` | `F1 PASS: 5 files with hits, 13 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` |
+
+### Round 2 other checks
+
+- **File scope (`141ffe3^1..141ffe3`):** Touches `packages/channel-kernel/src/{manifest,manifest.test,text}.ts`, `packages/channels/moodle/manifest.ts`, `services/cogniate-app/src/{app/server,content-host/server,http-request-log.test}.ts`, and `services/cogniate-app/src/tool-pages/{lms-texts.test,page,register-texts}.ts`.
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E1-09/r2/clone` is empty after the run (`status-after.txt`, 0 bytes).
+- **Measured time (Round 2):** `texts.k0.test.ts` (2 K0 tests) `120.18s` (`AC-06` `33.48s`, `BD-A1-56/57/59/62 & B-01 & UNIT rows` `1.47s`, `npm run check` in `beforeAll` `85.2s`); standalone 3 Round-2 unit files (17 tests) `2.22s`.
+
+---
+
+## Round 1
 
 | Item | Value |
 | --- | --- |
