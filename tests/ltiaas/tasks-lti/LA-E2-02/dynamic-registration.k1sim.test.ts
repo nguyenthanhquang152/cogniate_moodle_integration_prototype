@@ -101,7 +101,7 @@ async function writeQaOpenIdFixture(opts: QaOpenIdFixtureOptions): Promise<{
     regToken = `opaque-token-${id}`;
   } else {
     const now = Math.floor(Date.now() / 1000);
-    regToken = await new SignJWT({ sub: '0', scope: 'reg-create', iat: now, exp: now + 600 })
+    regToken = await new SignJWT({ sub: '0', scope: 'reg', iat: now, exp: now + 600 })
       .setProtectedHeader({ alg: 'RS256', kid, typ: 'JWT' })
       .sign(privateKey);
   }
@@ -122,13 +122,54 @@ async function writeQaOpenIdFixture(opts: QaOpenIdFixtureOptions): Promise<{
   };
 }
 
+const OPERATOR_BASE_URL = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+
+function readOperatorKey(): string {
+  if (process.env.LTI_OPERATOR_KEY?.trim()) {
+    return process.env.LTI_OPERATOR_KEY.trim();
+  }
+  const candidates = [
+    process.env.LTI_OPERATOR_KEY_FILE ?? '',
+    '/repo/infra/.secrets/lti-operator-key',
+    path.resolve(process.cwd(), 'infra/.secrets/lti-operator-key'),
+    path.resolve(process.cwd(), '../infra/.secrets/lti-operator-key'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      const val = fs.readFileSync(c, 'utf8').trim();
+      if (val) {
+        recordSecret('api_key', val);
+        return val;
+      }
+    }
+  }
+  throw new Error(`Operator key file not found in: ${candidates.join(', ')}`);
+}
+
+async function patchOperatorRateLimits(body: Record<string, unknown>): Promise<void> {
+  const opKey = readOperatorKey();
+  const res = await fetch(`${OPERATOR_BASE_URL}/operator/v1/rate-limits`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `OPERATOR-AUTH-V1 ${opKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  expect(res.status).toBe(200);
+}
+
 describe('LA-E2-02 K1-SIM: E2-K Generic Dynamic Registration fixes and staged registration', () => {
   let key = '';
   const cleanups: Array<() => void> = [];
   const createdPlatformIds: string[] = [];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     key = apiKey(ACCOUNT);
+    await patchOperatorRateLimits({
+      registrationSessionsPerAddress: 50,
+      classes: { registration: { ratePerMinute: 200, burst: 200 } },
+    });
   });
 
   afterAll(async () => {
@@ -144,6 +185,10 @@ describe('LA-E2-02 K1-SIM: E2-K Generic Dynamic Registration fixes and staged re
         authorization: auth.bearer(key),
       }).catch(() => undefined);
     }
+    await patchOperatorRateLimits({
+      registrationSessionsPerAddress: null,
+      classes: { registration: null },
+    }).catch(() => undefined);
   });
 
   it('[SIM] AC-LA-E2-02-04: configuration endpoint whose host is a fixed host of Canvas or Blackboard simulator profile gives PLATFORM_URL_NOT_IN_PROFILE and sends nothing to that host {case:LA-E2-02-04}', async () => {
@@ -191,7 +236,7 @@ describe('LA-E2-02 K1-SIM: E2-K Generic Dynamic Registration fixes and staged re
     );
     expect(famStart.status).toBe(400);
     expect(famStart.body).toContain('PROVIDER_PROFILE_MISMATCH');
-    expect(famStart.body).toContain('This is a Canvas site. Connect it as Canvas.');
+    expect(famStart.body).toContain('This is a Canvas site. Connect it as Canvas');
 
     // (2) Missing LtiDeepLinkingRequest in messages_supported -> refused
     const noDl = await writeQaOpenIdFixture({

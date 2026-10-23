@@ -37,6 +37,9 @@ function sanitizeEnv(rawEnv) {
     if (!ALLOWED_ENV_KEYS.has(k) || typeof v !== 'string' || v.includes('\0') || v.length > 256) return null;
     envFlags.push('-e', `${k}=${v}`);
   }
+  if (rawEnv.STACK_PROFILE === 'production') {
+    envFlags.push('-e', 'LTI_API_URL=');
+  }
   return envFlags;
 }
 

@@ -128,8 +128,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
         method: 'manual',
         siteUrl: badSiteUrl,
       });
-      expect(badRes.status, `siteUrl ${badSiteUrl} refused with 422`).toBe(422);
-      expect(badRes.json?.error?.code ?? badRes.json?.code).toBe('INVALID_SITE_URL');
+      expectStatus(badRes, 422, 'INVALID_SITE_URL');
       const details = badRes.json?.error?.details ?? badRes.json?.details;
       expect(details?.rule, `siteUrl ${badSiteUrl} includes details.rule`).toBeDefined();
     }
@@ -161,7 +160,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
 
     const cfgRes = await app(s, 'GET', `${connPath(conn.json.id)}/tool-configuration`);
     expectStatus(cfgRes, 200);
-    const rows = (cfgRes.json?.rows ?? cfgRes.json?.fields ?? []) as Array<{
+    const rows = (Array.isArray(cfgRes.json) ? cfgRes.json : (cfgRes.json?.rows ?? cfgRes.json?.fields ?? [])) as Array<{
       key: string;
       label: string;
       value: string;

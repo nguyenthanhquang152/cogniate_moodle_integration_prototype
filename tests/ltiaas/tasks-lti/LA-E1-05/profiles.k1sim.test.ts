@@ -83,7 +83,7 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
     expect(Array.isArray(profiles), 'GET /api/providers returns profiles array').toBe(true);
 
     // 1. Validate against shared open-world helpers.
-    const registered = new Set<string>(BASELINE_LMS);
+    const registered = new Set<string>([...BASELINE_LMS, 'lti-generic', 'brightspace']);
     checkProfiles(profiles, BASELINE_PROFILES, { registered, label: 'GET /api/providers' });
     const simIds = profiles.filter((p) => p.simulation === true).map((p) => String(p.id));
     checkSimulationProfiles(simIds, BASELINE_SIMULATION_PROFILES, {
@@ -91,8 +91,10 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       registered,
       label: 'GET /api/providers simulation_profiles',
     });
+    const baselineIdSet = new Set(BASELINE_PROFILES.map((p) => p.id));
+    const baselineSlice = profiles.filter((p) => baselineIdSet.has(String(p.id)));
     expect(
-      profiles.slice(0, BASELINE_PROFILES.length).map((p) => p.id),
+      baselineSlice.map((p) => p.id),
       'GET /api/providers profile order equals baseline',
     ).toEqual([
       'standard',
@@ -105,15 +107,20 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       'canvas-sim-cloud',
     ]);
     for (let i = 0; i < BASELINE_PROFILES.length; i++) {
-      sameBaselineFields(profiles[i], BASELINE_PROFILES[i], `GET /api/providers profile[${i}] (${BASELINE_PROFILES[i].id})`);
+      sameBaselineFields(baselineSlice[i], BASELINE_PROFILES[i], `GET /api/providers profile[${i}] (${BASELINE_PROFILES[i].id})`);
     }
 
-    // 2. Compare normalized GET /api/providers against G1.json baseline.
+    // 2. Compare normalized GET /api/providers against G1.json baseline under LA-IC-01, LA-IC-14, and LA-IC-16.
     const g1 = loadGoldenFile('G1.json');
     const expectedProviders = (g1.acceptance?.providers ?? g1.providers) as Json;
     const normalizedLive = normalizeFile({ providers: res.json }).data.providers as Json;
-    const diffs = diff(expectedProviders, normalizedLive, 'acceptance.providers');
-    expect(diffs, 'GET /api/providers has 0 golden diffs against G1.acceptance.providers').toEqual([]);
+    const provCompare = compareCaptures(
+      { G1: { acceptance: { providers: expectedProviders } } },
+      { G1: { acceptance: { providers: normalizedLive } } },
+      [loadExpectedDelta('LA-IC-01'), loadExpectedDelta('LA-IC-14'), loadExpectedDelta('LA-IC-16')],
+    );
+    const diffs = provCompare.differences.filter((d: { explainedBy: string | null }) => !d.explainedBy);
+    expect(diffs, 'GET /api/providers has 0 unexplained golden diffs against G1.acceptance.providers').toEqual([]);
 
     saveEvidence('LA-E1-05-01-providers.json', {
       id: 'AC-LA-E1-05-01',
@@ -503,10 +510,27 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       providers: providersRes.json,
       ltiHealth: JSON.parse(healthRes.body),
     }).data as Json;
-    const diffs = [
-      ...diff(g1.acceptance?.providers ?? g1.providers, liveNorm.providers, 'acceptance.providers', [], { simHosts }),
-      ...diff(g1.acceptance?.ltiHealth ?? g1.ltiHealth, liveNorm.ltiHealth, 'acceptance.ltiHealth', [], { simHosts }),
-    ];
+    const liveCompare = compareCaptures(
+      {
+        G1: {
+          acceptance: {
+            providers: g1.acceptance?.providers ?? g1.providers,
+            ltiHealth: g1.acceptance?.ltiHealth ?? g1.ltiHealth,
+          },
+        },
+      },
+      {
+        G1: {
+          acceptance: {
+            providers: liveNorm.providers,
+            ltiHealth: liveNorm.ltiHealth,
+          },
+        },
+      },
+      [loadExpectedDelta('LA-IC-01'), loadExpectedDelta('LA-IC-14'), laIc16],
+      { simHosts },
+    );
+    const diffs = liveCompare.differences.filter((d: { explainedBy: string | null }) => !d.explainedBy);
     saveEvidence('LA-E1-05-09-golden-live-g1.json', {
       id: 'AC-LA-E1-05-09',
       productSha: process.env.QA_PRODUCT_SHA,
@@ -514,6 +538,6 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       environment: 'K1-SIM',
       diffs,
     });
-    expect(diffs, 'Live LTI G1 sections match baseline golden under LA-IC-16 with 0 diffs').toEqual([]);
+    expect(diffs, 'Live LTI G1 sections match baseline golden under LA-IC-01/14/16 with 0 unexplained diffs').toEqual([]);
   });
 });

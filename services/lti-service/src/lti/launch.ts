@@ -1,14 +1,13 @@
+import { storeFor } from '../store/index.ts';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import { safeEqual, sha256Hex } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, lmsNameOfFamily } from '../profiles/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import type { Platform } from '../store/platforms.ts';
-import { getPlatform, serviceOriginOf, setProductFamilyCode, siteOriginOf } from '../store/platforms.ts';
-import { createLaunch } from '../store/launches.ts';
+import { serviceOriginOf, siteOriginOf } from '../store/platforms.ts';
 import type { PreparedLaunch } from '../store/storage-checks.ts';
-import { consumeStorageCheck, createStorageCheck } from '../store/storage-checks.ts';
 import { platformLmsName, platformProfile } from './binding.ts';
 import type { Claims } from './checks.ts';
 import {
@@ -83,17 +82,17 @@ export function toolRedirect(toolUrl: string, targetLinkUri: string, ltik: strin
 }
 
 /** Both browser bindings finish through the same launch store and redirect builder. */
-function completeLaunch(deps: LaunchDeps, account: ToolAccount, prepared: PreparedLaunch, stateHash: string, binding: 'cookie' | 'storage', now: number): AcceptedLaunch {
+async function completeLaunch(deps: LaunchDeps, account: ToolAccount, prepared: PreparedLaunch, stateHash: string, binding: 'cookie' | 'storage', now: number): Promise<AcceptedLaunch> {
   const { removedClaims, ...input } = prepared;
-  const { ltik } = createLaunch(deps.db, { ...input, toolAccountId: account.id }, deps.ltikTtlSeconds, now);
+  const { ltik } = (await storeFor(deps.db).launches.createLaunch({ ...input, toolAccountId: account.id }, deps.ltikTtlSeconds, now));
   const toolPlatform = prepared.claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
-  if (toolPlatform && typeof toolPlatform.product_family_code === 'string') setProductFamilyCode(deps.db, prepared.platformId, toolPlatform.product_family_code);
+  if (toolPlatform && typeof toolPlatform.product_family_code === 'string') (await storeFor(deps.db).platforms.setProductFamilyCode(prepared.platformId, toolPlatform.product_family_code));
   const toolUrl = prepared.messageType === 'LtiDeepLinkingRequest' ? account.deepLinkingUrl : account.launchUrl;
   return { ok: true, kind: 'redirect', binding, location: toolRedirect(toolUrl, prepared.claims[CLAIM.targetLinkUri] as string, ltik), clearCookie: clearCookieFor(stateHash), toolAccountId: account.id, platformId: prepared.platformId, messageType: prepared.messageType, removedClaims };
 }
 
 /** Check 2s: first the account and request origin, then the atomic consume, then the state hash compare. */
-export function handleStorageCheck(deps: LaunchDeps, resolved: ToolAccount | null, form: Record<string, unknown>, origin: string | undefined): LaunchResult {
+export async function handleStorageCheck(deps: LaunchDeps, resolved: ToolAccount | null, form: Record<string, unknown>, origin: string | undefined): Promise<LaunchResult> {
   const profiles = deps.profiles ?? { simulation: false };
   let lms = lmsNameOf(null, profiles);
   let logIds = tenantLogIds(resolved);
@@ -106,15 +105,15 @@ export function handleStorageCheck(deps: LaunchDeps, resolved: ToolAccount | nul
   });
   if (origin !== new URL(deps.urls.lti).origin) return failure('INVALID_STATE', 'storage_origin');
   const now = deps.now();
-  const rec = consumeStorageCheck(deps.db, account.id, typeof form.check === 'string' ? form.check : '', now);
+  const rec = (await storeFor(deps.db).storageChecks.consumeStorageCheck(account.id, typeof form.check === 'string' ? form.check : '', now));
   if (!rec) return failure('INVALID_STATE', 'storage_check_unknown_used_or_expired');
-  const platform = getPlatform(deps.db, account.id, rec.prepared.platformId);
+  const platform = (await storeFor(deps.db).platforms.getPlatform(account.id, rec.prepared.platformId));
   lms = platformLmsName(platform, profiles);
   logIds = tenantLogIds(account, platform);
   const value = typeof form.value === 'string' ? form.value : '';
   if (value === '') return failure('STATE_COOKIE_MISSING', 'storage_empty', rec.stateHash, 'Your browser blocked the Cogniate sign-in in this frame. Open the activity in a new window, or allow cookies for this site.');
   if (!safeEqual(sha256Hex(value), rec.stateHash)) return failure('INVALID_STATE', 'storage_mismatch', rec.stateHash);
-  return completeLaunch(deps, account, rec.prepared, rec.stateHash, 'storage', now);
+  return (await completeLaunch(deps, account, rec.prepared, rec.stateHash, 'storage', now));
 }
 
 /** POST /lti/launch/{toolAccountId} (security §2.2). Order: 1+3, 2, 4..12, 13 (M1, not standard), 14 (M1, every profile). */
@@ -132,9 +131,9 @@ export async function handleLaunch(deps: LaunchDeps, resolved: ToolAccount | nul
     const { account } = gate;
     const protocolUrls = deps.resolver.protocolUrls(account);
     // Checks 1 and 3 (state found and used up in one statement).
-    const rec = check1And3State(deps.db, account.id, state, stateHash, now);
+    const rec = (await check1And3State(deps.db, account.id, state, stateHash, now));
     const clearCookie = clearCookieFor(rec.stateHash);
-    const platform = getPlatform(deps.db, account.id, rec.platformId);
+    const platform = (await storeFor(deps.db).platforms.getPlatform(account.id, rec.platformId));
     lms = platformLmsName(platform, profiles);
     logIds = tenantLogIds(account, platform);
     // OIDC error answer (Moodle: invalid_scope, unauthorized_client, access_denied ...): the state is used up.
@@ -185,11 +184,11 @@ export async function handleLaunch(deps: LaunchDeps, resolved: ToolAccount | nul
       siteOrigin: origins.site, serviceOrigin: origins.service, bindingGeneration: deployment.bindingGeneration, removedClaims: removed,
     };
     if (useStorage) {
-      const check = createStorageCheck(deps.db, account.id, { stateHash: rec.stateHash, prepared }, now);
+      const check = (await storeFor(deps.db).storageChecks.createStorageCheck(account.id, { stateHash: rec.stateHash, prepared }, now));
       const page = storageCheckPage({ postUrl: `${protocolUrls.launch}/storage-check`, check, stateHash: rec.stateHash, target: rec.storageTarget!, origin: rec.storageOrigin! });
       return { ok: true, kind: 'storage', page, clearCookie };
     }
-    return completeLaunch(deps, account, prepared, rec.stateHash, 'cookie', now);
+    return (await completeLaunch(deps, account, prepared, rec.stateHash, 'cookie', now));
   } catch (err) {
     if (err instanceof LaunchCheckError) {
       return { ok: false, check: err.check, code: err.code, detail: err.detail, ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}), lms, logIds };

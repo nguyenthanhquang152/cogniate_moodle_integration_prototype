@@ -43,6 +43,8 @@ export const configurationRoute: ExtensionRoute = {
       'content-disposition': 'attachment; filename="cogniate-canvas-lti.json"',
       'cache-control': 'no-store',
       ...(key ? { 'x-cogniate-key-id': key.kid } : {}),
-    } };
+    },
+    // LA-E6-05 (LA-ADR-08 D5): the kid of the embedded key snapshot, or null for the key URL; the kernel records it.
+    artifactKeyKid: key ? key.kid : null };
   },
 };

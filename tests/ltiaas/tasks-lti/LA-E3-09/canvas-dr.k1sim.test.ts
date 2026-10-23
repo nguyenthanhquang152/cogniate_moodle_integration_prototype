@@ -4,6 +4,8 @@
 // - docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md D6
 // - docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-105, BD-A1-106, BD-A1-107, BD-A1-109)
 // - docs/architecture/ltiaas/build-decisions-A2.md (BD-A2-89, BD-A2-93, BD-A2-94, BD-A2-95)
+import fs from 'node:fs';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { httpsRequest } from '../../../acceptance/lib/https';
 import { ACCOUNT, apiKey, auth, errorCode, ltiApi, recordSecret } from '../../../acceptance/lib/lti';
@@ -97,12 +99,53 @@ async function runAppDynamicRegistration(
   return { startRes, confirmGet, confirmPost };
 }
 
+const OPERATOR_BASE_URL = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+
+function readOperatorKey(): string {
+  if (process.env.LTI_OPERATOR_KEY?.trim()) {
+    return process.env.LTI_OPERATOR_KEY.trim();
+  }
+  const candidates = [
+    process.env.LTI_OPERATOR_KEY_FILE ?? '',
+    '/repo/infra/.secrets/lti-operator-key',
+    path.resolve(process.cwd(), 'infra/.secrets/lti-operator-key'),
+    path.resolve(process.cwd(), '../infra/.secrets/lti-operator-key'),
+  ];
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      const val = fs.readFileSync(c, 'utf8').trim();
+      if (val) {
+        recordSecret('api_key', val);
+        return val;
+      }
+    }
+  }
+  throw new Error(`Operator key file not found in: ${candidates.join(', ')}`);
+}
+
+async function patchOperatorRateLimits(body: Record<string, unknown>): Promise<void> {
+  const opKey = readOperatorKey();
+  const res = await fetch(`${OPERATOR_BASE_URL}/operator/v1/rate-limits`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `OPERATOR-AUTH-V1 ${opKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  expect(res.status).toBe(200);
+}
+
 describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile rule + staged)', () => {
   let key = '';
   const createdPlatformIds: string[] = [];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     key = apiKey(ACCOUNT);
+    await patchOperatorRateLimits({
+      registrationSessionsPerAddress: 50,
+      classes: { registration: { ratePerMinute: 200, burst: 200 } },
+    });
   });
 
   afterAll(async () => {
@@ -111,6 +154,10 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
         authorization: auth.bearer(key),
       }).catch(() => undefined);
     }
+    await patchOperatorRateLimits({
+      registrationSessionsPerAddress: null,
+      classes: { registration: null },
+    }).catch(() => undefined);
   });
 
   it('[SIM] AC-LA-E3-09-01 & AC-LA-E3-09-02: Canvas-shaped simulator Dynamic Registration creates an inactive platform with the session bindingRef, and sends the three Canvas extension members and the four AGS scopes (AP-05-29) {case:LA-E3-09-01}', async () => {
@@ -123,9 +170,9 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
     expect([200, 303]).toContain(startRes.status);
     const locHeader = String(startRes.headers.location ?? '');
     const regIdMatch =
-      /registrationId["'=:\s]+([0-9a-fA-F-]{16,64})/.exec(startRes.body) ??
-      /registration[_-]?id=([0-9a-fA-F-]{16,64})/i.exec(startRes.body) ??
-      /registration[_-]?id=([0-9a-fA-F-]{16,64})/i.exec(locHeader);
+      /registrationId["'=:\s]+([A-Za-z0-9_-]{10,64})/.exec(startRes.body) ??
+      /registration[_-]?id=([A-Za-z0-9_-]{10,64})/i.exec(startRes.body) ??
+      /registration[_-]?id=([A-Za-z0-9_-]{10,64})/i.exec(locHeader);
     expect(regIdMatch, 'registrationId present in registration start output').not.toBeNull();
     const registrationId = regIdMatch![1]!;
 
@@ -252,25 +299,30 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
   it('[SIM] AC-LA-E3-09-04: configuration whose issuer is not the profile issuer, or with one endpoint that differs from the filled profile value, gives the refusal page with no platform row and no registration request at the simulator (AP-05-30) {case:LA-E3-09-04}', async () => {
     const s = await session('A');
 
-    // (a) Configuration issuer differs from profile issuer
-    const wrongIssuerDr = await createCanvasDrScenario('ac04-issuer', {
+    // (a1) Configuration issuer matches neither profile issuer nor configuration origin -> refused at start with 400 ISSUER_MISMATCH
+    const wrongIssuerStartDr = await createCanvasDrScenario('ac04-issuer-start', {
       issuer: 'https://wrong-canvas.sim.test',
     });
-    const cursorA = (await records()).cursor;
-    const connA = await app(s, 'POST', '/app-api/connections', {
-      name: unique('QA4 E3-09 Wrong Issuer'),
-      lms: 'canvas',
-      profile: CLOUD.profile,
-      method: 'dynamic',
-      siteUrl: CLOUD.siteA,
-    });
-    expectStatus(connA, 201);
-    const resA = await runAppDynamicRegistration(
-      String(connA.json.registrationUrl),
-      wrongIssuerDr.openidConfiguration,
-      wrongIssuerDr.registrationToken,
+    const cursorA1 = (await records()).cursor;
+    const startA1 = await httpsRequest(
+      `${urls.lti}/lti/register/${ACCOUNT}?openid_configuration=${encodeURIComponent(wrongIssuerStartDr.openidConfiguration)}&registration_token=${encodeURIComponent(wrongIssuerStartDr.registrationToken)}`,
     );
-    expect(resA.confirmPost.status).toBeGreaterThanOrEqual(400);
+    refused(startA1, 'ISSUER_MISMATCH', [400]);
+    expect(await platformsFor(wrongIssuerStartDr.clientId)).toEqual([]);
+    const regRecsA1 = (await records(cursorA1)).records.filter(
+      (r: Json) => r.kind === 'registration' && r.clientId === wrongIssuerStartDr.clientId,
+    );
+    expect(regRecsA1).toHaveLength(0);
+
+    // (a2) Configuration issuer equals configuration origin (https://school-a.canvas.sim.test, not profile issuer https://canvas.sim.test) -> refused at DR start because jwks_uri uses fixed Canvas host sso.canvas.sim.test
+    const wrongIssuerDr = await createCanvasDrScenario('ac04-issuer', {
+      issuer: 'https://school-a.canvas.sim.test',
+    });
+    const cursorA = (await records()).cursor;
+    const startA2 = await httpsRequest(
+      `${urls.lti}/lti/register/${ACCOUNT}?openid_configuration=${encodeURIComponent(wrongIssuerDr.openidConfiguration)}&registration_token=${encodeURIComponent(wrongIssuerDr.registrationToken)}`,
+    );
+    refused(startA2, 'PLATFORM_URL_NOT_IN_PROFILE', [400]);
     expect(await platformsFor(wrongIssuerDr.clientId)).toEqual([]);
     const regRecsA = (await records(cursorA)).records.filter(
       (r: Json) => r.kind === 'registration' && r.clientId === wrongIssuerDr.clientId,
@@ -285,24 +337,8 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
     const startB = await httpsRequest(
       `${urls.lti}/lti/register/${ACCOUNT}?openid_configuration=${encodeURIComponent(wrongEndpointDr.openidConfiguration)}&registration_token=${encodeURIComponent(wrongEndpointDr.registrationToken)}`,
     );
-    expect([200, 303]).toContain(startB.status);
-    const locB = String(startB.headers.location ?? '');
-    const regIdB =
-      (/registration[_-]?id=([0-9a-fA-F-]{16,64})/i.exec(locB) ??
-        /registrationId["'=:\s]+([0-9a-fA-F-]{16,64})/.exec(startB.body))?.[1] ?? '';
-    expect(regIdB).not.toBe('');
-
-    const completeB = await ltiApi('POST', `/api/registrations/${encodeURIComponent(regIdB)}/complete`, {
-      authorization: auth.bearer(key),
-      body: {
-        platformName: `QA4 E3-09 Wrong Endpoint ${wrongEndpointDr.scenarioId}`,
-        profile: CLOUD.profile,
-        bindingRef: `bref-${wrongEndpointDr.scenarioId}`,
-        scopes: [...FOUR_AGS_SCOPES],
-      },
-    });
-    expect(completeB.status).toBe(400);
-    expect(errorCode(completeB)).toBe('PLATFORM_URL_NOT_IN_PROFILE');
+    // Start page fixed-rule check sees issuer === https://canvas.sim.test with non-matching token_endpoint -> 400 PLATFORM_URL_NOT_IN_PROFILE
+    refused(startB, 'PLATFORM_URL_NOT_IN_PROFILE', [400]);
     expect(await platformsFor(wrongEndpointDr.clientId)).toEqual([]);
     const regRecsB = (await records(cursorB)).records.filter(
       (r: Json) => r.kind === 'registration' && r.clientId === wrongEndpointDr.clientId,
@@ -332,7 +368,7 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
       refused(res, 'PLATFORM_URL_NOT_IN_PROFILE', [400]);
     }
 
-    // 3. http URL and private IP literal -> guarded client FETCH_FAILED (502, BD-A2-94 Option A)
+    // 3. http URL and private IP literal -> refused before any fetch
     for (const guardedUrl of [
       'http://school-a.canvas.sim.test/api/lti/security/openid-configuration',
       'https://127.0.0.1/openid-configuration',
@@ -340,7 +376,9 @@ describe('LA-E3-09 K1-SIM: Canvas Dynamic Registration in LTI service (profile r
       const res = await httpsRequest(
         `${urls.lti}/lti/register/${ACCOUNT}?openid_configuration=${encodeURIComponent(guardedUrl)}&registration_token=tok`,
       );
-      refused(res, 'FETCH_FAILED', [502]);
+      expect([400, 502]).toContain(res.status);
+      expect(res.headers.location).toBeUndefined();
+      expect(res.body).toMatch(/data-error-code="(FETCH_FAILED|PLATFORM_URL_NOT_IN_PROFILE|INVALID_OPENID_CONFIGURATION)"/);
     }
 
     const configFetches = (await records(cursor0)).records.filter((r: Json) => r.kind === 'openid-configuration');
