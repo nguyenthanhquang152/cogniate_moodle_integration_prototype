@@ -19,10 +19,11 @@ import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
 import { authorityFor } from '../kernel/authority/index.ts';
-import { setupOf } from '../kernel/setup.ts';
+import { servedByKernel, setupOf } from '../kernel/setup.ts';
+import type { AdminValues } from '../kernel/ports.ts';
 import { PRINTABLE_ID } from '@cogniate/channel-kernel/setup';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
-import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
+import { BOUND_FIELDS, exclusiveIssuerMatches, foreignHostFields, platformAdminValues, providerProfiles, sharedReadiness, stagedRegistration } from './binding-targets.ts';
 import { insertAuditEvent } from './audit.ts';
 import type { AuditTarget } from './audit.ts';
 import { evaluateOperatorPolicy } from './operator-policy.ts';
@@ -52,10 +53,22 @@ export interface CommandResult {
 }
 
 const fail = (line: string): CommandResult => ({ exitCode: 1, lines: [line] });
+/** Channel text names in registry order, joined as "X", "X and Y" or "X, Y and Z" (the BD-A1-31 list form). */
+const joinNames = (names: readonly string[], word: 'and' | 'or'): string =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} ${word} ${names.at(-1)!}`;
 const iso = (ms: number) => new Date(ms).toISOString();
 const lineOf = (l: CleanupLine) => `${l.result} platform=${l.platformId ?? '-'} deployment=${l.deploymentId ?? '-'}`;
 
+/** The admin values that an admin-value grant binds, as typed (LA-ADR-02 D6: --issuer, --auth-url, --token-url, …). */
+export type TypedBoundValues = Partial<AdminValues>;
+
 export interface IssueInput extends OperatorFlags {
+  /** Admin-value profile, no staged platform: every value that the grant binds. */
+  boundValues?: TypedBoundValues;
+  /** Admin-value profile with a staged registration: take the bound values from the staged platform. */
+  acceptStaged?: boolean;
+  /** A bound value whose host is not the issuer host needs this confirmation (Reviewer-A A-LAD-23). */
+  confirmForeignHosts?: boolean;
   library: string;
   connection: string;
   site: string;
@@ -70,6 +83,24 @@ export interface IssueInput extends OperatorFlags {
 
 const GRANT_STATE = (g: { redeemedAt: number | null; revokedAt: number | null; expiresAt: number }, redeeming: boolean, now: number) =>
   g.redeemedAt !== null ? 'redeemed' : g.revokedAt !== null ? 'revoked' : redeeming ? 'redeeming' : now >= g.expiresAt ? 'expired' : 'issued';
+
+/** The CLI flag of each bound value (LA-ADR-02 D6). */
+const BOUND_FLAGS: Record<keyof AdminValues, string> = {
+  issuer: '--issuer', authenticationEndpoint: '--auth-url', accessTokenEndpoint: '--token-url', jwksUrl: '--jwks-url', tokenAudience: '--token-audience',
+};
+const BOUND_LABELS: Record<keyof AdminValues, string> = {
+  issuer: 'Issuer', authenticationEndpoint: 'Authentication URL', accessTokenEndpoint: 'Token URL', jwksUrl: 'JWKS URL', tokenAudience: 'Token audience',
+};
+/** An https URL with no user name, password or fragment, at most 2048 characters (the admin-value body rule). */
+function isHttpsUrl(value: string): boolean {
+  if (value.length > 2048) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && u.username === '' && u.password === '' && u.hash === '';
+  } catch {
+    return false;
+  }
+}
 
 type Allowed = Extract<OperatorPolicyDecision, { allowed: true }>;
 /** The tenant, the connection and the changed object of one audit event (data-model §5: connection_id on every event). */
@@ -101,6 +132,13 @@ export function createOperator(deps: OperatorDeps) {
       action, target: subject.target, result, code, details: allowed.details }, now());
   };
 
+  // Texts name the LMS with the manifest text names (LA-ADR-01 D12): the connection's channel, or the channels that
+  // offer the refused feature, from the registry (Canvas and Blackboard bytes as in M1).
+  const textNames = (offers: (id: string) => boolean): string[] => channels.channels().filter((m) => offers(m.id)).map((m) => channels.textName(m.id));
+  const grantChannels = () => textNames((id) => channels.channel(id)!.registration.some((r) => r.authority === 'operatorGrant'));
+  const multiDeploymentChannels = () => textNames((id) => channels.capabilities(id)['deployments.multiple']);
+  const serviceUrlChannels = () => textNames((id) => Object.values(setupOf(channels, id)?.profiles ?? {}).some((p) => p.serviceUrl));
+
   /** `app:grant issue` (§4.8): every check before anything is stored; one approval code, shown once. */
   async function issue(input: IssueInput): Promise<CommandResult> {
     const policy = policyOf(input, input.note, input.traceId);
@@ -119,18 +157,60 @@ export function createOperator(deps: OperatorDeps) {
     if (!c) return fail(`Unknown connection: ${input.connection}.`);
     if (c.libraryId !== input.library) return refuse('library_mismatch', '--library is not the library of this connection.');
     const library = getLibrary(db, c.libraryId)!;
-    if (c.bindingAuthority !== 'operatorGrant') return refuse('authority_not_operator_grant', 'Approval grants are only for Canvas and Blackboard connections.');
+    if (c.bindingAuthority !== 'operatorGrant') return refuse('authority_not_operator_grant', `Approval grants are only for ${joinNames(grantChannels(), 'and')} connections.`);
     if (purpose === 'initial' && c.status !== 'pending') return refuse('connection_not_pending', 'An initial grant needs a pending connection.');
     if (purpose === 'add_deployment' && !(channels.capabilities(c.channel)['deployments.multiple'] && (c.status === 'registered' || c.status === 'connected'))) {
-      return refuse('add_deployment_not_allowed', 'An add_deployment grant needs a registered or connected Canvas connection.');
+      return refuse('add_deployment_not_allowed', `An add_deployment grant needs a registered or connected ${joinNames(multiDeploymentChannels(), 'or')} connection.`);
     }
     const site = canonicalOrigin(input.site);
     if (!site.ok || site.origin !== c.siteUrl) return refuse('site_mismatch', '--site is not the site URL of this connection.');
     const service = input.serviceUrl === undefined ? site : canonicalOrigin(input.serviceUrl);
-    if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return refuse('service_url_not_allowed', '--service-url is only for Canvas connections.');
+    if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return refuse('service_url_not_allowed', `--service-url is only for ${joinNames(serviceUrlChannels(), 'or')} connections.`);
     if (!service.ok || service.origin !== c.serviceUrl) return refuse('service_url_mismatch', '--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of this connection platform.');
-    if (purpose === 'initial') {
+    // LA-ADR-02 D6: an initial grant of an admin-value channel (served by the kernel adapter, BD-A1-79) binds the admin
+    // values; every other grant refuses the bound-value flags.
+    const adminValueGrant = purpose === 'initial' && servedByKernel(channels, c.channel);
+    const typed = Object.fromEntries(Object.entries(input.boundValues ?? {}).filter(([, v]) => v !== undefined)) as TypedBoundValues;
+    const staged = stagedRegistration(c);
+    if (!adminValueGrant && Object.keys(typed).length > 0) return refuse('bound_values_not_allowed', '--issuer, --auth-url, --token-url, --jwks-url and --token-audience are only for an initial grant of a connection with admin values.');
+    if (input.acceptStaged && !(adminValueGrant && staged)) return refuse('not_staged', '--accept-staged needs a connection with a staged registration.');
+    let boundValues: AdminValues | null = null;
+    if (adminValueGrant) {
+      let row;
+      try {
+        row = (await providerProfiles(lti, input.traceId)).find((p) => p.id === c.profile);
+      } catch {
+        return fail('The LTI service did not answer. Nothing was stored.');
+      }
+      if (!row || row.endpoints === 'fixed') return refuse('profile_changed', `The ${channels.textName(c.channel)} profile changed after this connection was made. Make a new connection.`);
+      if (staged) {
+        if (Object.keys(typed).length > 0) return refuse('bound_values_not_allowed', 'A staged registration takes its values from the staged platform. Use --accept-staged.');
+        if (!input.acceptStaged) return refuse('bound_values_missing', 'This connection has a staged registration. Add --accept-staged to bind its values.');
+        let p;
+        try {
+          p = await lti.getPlatform(c.platform!.id, input.traceId);
+        } catch {
+          return fail('The LTI service did not answer. Nothing was stored.');
+        }
+        boundValues = platformAdminValues(p);
+        if (p.active || p.url !== c.platform!.issuer || p.clientId !== c.platform!.clientId || boundValues === null) {
+          return refuse('staged_values_changed', 'The staged platform changed after the registration. Make a new connection.');
+        }
+        if (input.clientId !== p.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of the staged platform.');
+        if (!p.deploymentIds.includes(input.deploymentId)) return refuse('deployment_mismatch', '--deployment-id is not a deployment of the staged platform.');
+      } else {
+        const missing = BOUND_FIELDS.filter((key) => key !== 'tokenAudience' && typed[key] === undefined);
+        if (missing.length > 0) return refuse('bound_values_missing', `This connection binds its admin values. Add ${missing.map((key) => BOUND_FLAGS[key]).join(', ')}.`);
+        const bad = BOUND_FIELDS.find((key) => typed[key] !== undefined && !isHttpsUrl(typed[key]!.trim()));
+        if (bad) return refuse('bound_value_invalid', `${BOUND_FLAGS[bad]} must be an https URL.`);
+        if (new URL(typed.issuer!.trim()).origin !== c.siteUrl) return refuse('bound_value_invalid', '--issuer must be on the site URL of this connection.');
+        const value = (v: string): string => { const o = canonicalOrigin(v.trim()); return o.ok ? o.origin : v.trim(); };
+        boundValues = { issuer: value(typed.issuer!), authenticationEndpoint: value(typed.authenticationEndpoint!), accessTokenEndpoint: value(typed.accessTokenEndpoint!),
+          jwksUrl: value(typed.jwksUrl!), ...(typed.tokenAudience !== undefined ? { tokenAudience: value(typed.tokenAudience) } : {}) };
+      }
+    }
+    if (purpose === 'initial' && !adminValueGrant) {
       const sharing = setupOf(channels, c.channel)?.sharingOf(c.profile);
       const snapshot = sharing ? completeSnapshot(c, sharing) : null;
       if (!snapshot) return refuse('snapshot_missing', 'This connection has no provider snapshot. Make a new connection.');
@@ -141,16 +221,32 @@ export function createOperator(deps: OperatorDeps) {
         // Not a refusal: no event (LA-ADR-06 D4 rule 1).
         return fail('The LTI service did not answer. Nothing was stored.');
       }
-      if (sharing === 'exclusive' && !canvasIssuerMatches(row, c, snapshot)) {
-        return refuse('profile_changed', 'The Canvas profile changed after this connection was made. Make a new connection.');
+      if (sharing === 'exclusive' && !exclusiveIssuerMatches(row, c, snapshot)) {
+        return refuse('profile_changed', `The ${channels.textName(c.channel)} profile changed after this connection was made. Make a new connection.`);
       }
       if (sharing === 'shared') {
         const cause = sharedReadiness(row, snapshot);
-        if (cause === 'platform_inactive') return refuse('platform_inactive', 'The Blackboard shared platform is not active.');
-        if (cause) return refuse('platform_changed', 'The Blackboard shared platform changed after this connection was made. Make a new connection.');
-        if (input.clientId !== snapshot.clientId) return refuse('client_id_mismatch', '--client-id is not the Blackboard Application ID of the shared platform.');
+        const lms = channels.textName(c.channel);
+        if (cause === 'platform_inactive') return refuse('platform_inactive', `The ${lms} shared platform is not active.`);
+        if (cause) return refuse('platform_changed', `The ${lms} shared platform changed after this connection was made. Make a new connection.`);
+        if (input.clientId !== snapshot.clientId) return refuse('client_id_mismatch', `--client-id is not the ${lms} Application ID of the shared platform.`);
         const reserved = reservationOfConnection(db, c.id);
         if (reserved && reserved.deploymentId !== input.deploymentId) return refuse('deployment_fixed', `This connection holds a reservation for deployment ${reserved.deploymentId}; --deployment-id must be that id.`);
+      }
+    }
+    // The bound values come before the code (app contract §4.8 "Issue output"); a value off the issuer host is marked.
+    const head = [
+      `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.channel} ${c.profile}`, `Purpose: ${purpose}`,
+      `Site URL: ${c.siteUrl}`, `Service URL: ${c.serviceUrl}`, `Client ID: ${input.clientId}`, `Deployment ID: ${input.deploymentId}`,
+    ];
+    if (boundValues) {
+      const foreign = foreignHostFields(boundValues);
+      for (const key of BOUND_FIELDS) {
+        if (boundValues[key] !== undefined) head.push(`${BOUND_LABELS[key]}: ${boundValues[key]}${foreign.includes(key) ? ' [not on the issuer host]' : ''}`);
+      }
+      if (foreign.length > 0 && !input.confirmForeignHosts) {
+        record(policy, input.traceId, 'grant.issue', { libraryId: c.libraryId, connectionId: c.id, target: { type: 'grant', id: null } }, 'refused', 'foreign_hosts_unconfirmed');
+        return { exitCode: 1, lines: [...head, 'A value is not on the issuer host. Check with the LMS administrator that the vendor issued this client id for this issuer at that host, then add --confirm-foreign-hosts.'] };
       }
     }
     const code = randomToken();
@@ -161,19 +257,13 @@ export function createOperator(deps: OperatorDeps) {
       const id = insertGrant(db, {
         libraryId: c.libraryId, connectionId: c.id, channel: c.channel, profile: c.profile, purpose, siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
         clientId: input.clientId, deploymentId: input.deploymentId, note: input.note, expiresAt: t + ttl * 1000,
+        ...(boundValues ? { boundValues: { ...boundValues } as Record<string, string> } : {}),
       }, sha256Hex(code), t);
       record(policy, input.traceId, 'grant.issue', { libraryId: c.libraryId, connectionId: c.id, target: { type: 'grant', id } }, 'ok');
       return id;
     });
     log.info('grant_issued', { trace_id: input.traceId, grant_id: grantId, connection_id: c.id, purpose, expires_at: iso(t + ttl * 1000) });
-    return {
-      exitCode: 0,
-      lines: [
-        `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.channel} ${c.profile}`, `Purpose: ${purpose}`,
-        `Site URL: ${c.siteUrl}`, `Service URL: ${c.serviceUrl}`, `Client ID: ${input.clientId}`, `Deployment ID: ${input.deploymentId}`,
-        `Grant id: ${grantId}`, `Approval code (shown once): ${code}`, `Expires: ${iso(t + ttl * 1000)}`,
-      ],
-    };
+    return { exitCode: 0, lines: [...head, `Grant id: ${grantId}`, `Approval code (shown once): ${code}`, `Expires: ${iso(t + ttl * 1000)}`] };
   }
 
   /** `app:grant revoke` (§4.8): revoke an unredeemed grant, then the grant cleanup. Revoke again repeats the cleanup. */
@@ -213,6 +303,8 @@ export function createOperator(deps: OperatorDeps) {
       exitCode: 0,
       lines: grantsOfConnection(db, c.id).map((g) => [
         g.id, g.purpose, `site=${g.siteUrl}`, `service=${g.serviceUrl}`, `client=${g.clientId}`, `deployment=${g.deploymentId}`,
+        // LA-ADR-02 D6 (app API delta §7): the bound values of an admin-value grant.
+        ...(g.boundValues ? BOUND_FIELDS.filter((key) => g.boundValues![key] !== undefined).map((key) => `${key}=${g.boundValues![key]}`) : []),
         `created=${iso(g.createdAt)}`, `expires=${iso(g.expiresAt)}`, GRANT_STATE(g, holderGrant === g.id, t),
       ].join(' ')),
     };
@@ -222,7 +314,8 @@ export function createOperator(deps: OperatorDeps) {
     const attempts = attemptsOfConnection(db, c.id);
     if (attempts.some((a) => a.targetKind === 'shared_deployment') || (attempts.length === 0 && setupOf(channels, c.channel)?.sharingOf(c.profile) === 'shared')) {
       const r = reservationOfConnection(db, c.id);
-      return r ? `Blackboard deployment ${r.deploymentId} of ${r.platformId}` : 'Blackboard: no reservation';
+      const lms = channels.textName(c.channel);
+      return r ? `${lms} deployment ${r.deploymentId} of ${r.platformId}` : `${lms}: no reservation`;
     }
     return c.ltiPlatformId ? `${c.channel} platform ${c.ltiPlatformId}` : `${c.channel}: no platform id`;
   };

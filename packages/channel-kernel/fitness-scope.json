@@ -24,8 +24,7 @@
     },
     "sharedBuild": {
       "description": "Shared build files (core for F2)",
-      "globs": ["package.json", "package-lock.json", "tsconfig*.json", "eslint.config.js", "vitest.config.ts", "infra/**"],
-      "except": "files under infra/** that the simulator host manifest generates"
+      "globs": ["package.json", "package-lock.json", "tsconfig*.json", "eslint.config.js", "vitest.config.ts", "infra/**"]
     },
     "notCore": {
       "description": "Not core",

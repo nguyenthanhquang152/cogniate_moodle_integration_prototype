@@ -159,7 +159,7 @@ describe('AC-LA-E1-09-02: register pages and the connection error texts', () => 
     expect(page).toContain("textContent = 'Connecting to O\\u0027Brien \\u003cLMS\\u003e. This can take up to 15 seconds. Do not close this window.';");
   });
 
-  it.each(['A$&B', 'A$$B', "A$'B"])('B-LA-E1-09-01: the name %s goes literally into the error page and the stored lastError', async (name) => {
+  it.each(['A$&B', 'A$$B', "A$'B", 'A<tool>B'])('B-LA-E1-09-01, -02: the name %s goes literally into the error page and the stored lastError', async (name) => {
     t = await testApp({ channels: withTextChannel(name) });
     const cookie = await t.login(THANH);
     const p = await pending(cookie, 'https://other.test');
@@ -175,9 +175,13 @@ describe('AC-LA-E1-09-02: register pages and the connection error texts', () => 
     expect(registrationText(TEST_CHANNELS.channel('moodle'), 'UPDATE_NOT_ALLOWED')).toBe(REGISTER_ERRORS.UPDATE_NOT_ALLOWED.action);
   });
 
-  it('B-LA-E1-09-01: a tool name with $ sequences goes literally into the tool-may-exist text', () => {
-    expect(registerErrorText('MOODLE_TOOL_MAY_EXIST', 'Cogniate (Lib $& $$)', 'Moodle')!.action)
-      .toBe("Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Lib $& $$)', then connect again.");
+  it('B-LA-E1-09-01, -02: a tool name with $ sequences or {LMS} goes literally into the tool-may-exist text', () => {
+    const named = withTextChannel('A<tool>B');
+    // The test channel copies the Moodle manifest, so it has the Moodle sentence with its own {LMS} (BD-A1-87).
+    expect(registerErrorText('MOODLE_TOOL_MAY_EXIST', 'Cogniate (Lib $& $$ {LMS})', named, TEXT_CHANNEL)!.action)
+      .toBe("A<tool>B may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Lib $& $$ {LMS})', then connect again.");
+    expect(registerErrorText('SITE_MISMATCH', 'Cogniate (Lib)', named, TEXT_CHANNEL)!.action)
+      .toBe('This registration link is for another A<tool>B site. Use the link on the A<tool>B site that the Cogniate connection names.');
   });
 
   it('error pages and the stored lastError texts fill {LMS}; a page with no connection uses the no-context name', async () => {

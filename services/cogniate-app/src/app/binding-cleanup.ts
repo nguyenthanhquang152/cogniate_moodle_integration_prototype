@@ -204,8 +204,8 @@ export function createBindingCleanup(deps: CleanupDeps) {
     const records: RecordKey[] = c.bindingAuthority === 'self'
       ? (c.ltiPlatformId ? [{ kind: 'platform', platformId: c.ltiPlatformId, deploymentId: null }] : [])
       : fenceRecords(db, c);
-    const moodleOwned = (): boolean => true; // a Moodle connection owns its lti_platform_id (no refs)
-    const isOwned = (s: ReadState) => (c.bindingAuthority === 'self' ? moodleOwned() : owned(c, s.ref));
+    // A `self` connection owns its lti_platform_id (no refs).
+    const isOwned = (s: ReadState) => (c.bindingAuthority === 'self' ? true : owned(c, s.ref));
     const reads = new Map<string, ReadState | null>();
     for (const r of records) {
       let s: ReadState | null;

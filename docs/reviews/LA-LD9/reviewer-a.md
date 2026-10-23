@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -172,3 +172,74 @@ G4's `status-conflict` responses have no `lastError`. T6's exact Moodle suffix r
 - **LA-IC-16 scan record confirmed.** The new `scanChecked` and `scanResult` identify the health/capture readers. Reading the named files and searching the frozen acceptance/e2e suites confirms that none asserts `outbound_allowlist` contents. The only golden allowance remains `G1.acceptance.ltiHealth.outbound_allowlist`.
 - **A-LA-LD9-03 closed.** LA-IC-17 now describes the pending Moodle connections at `capture.golden.ts:194-200` and direct QA platform registration at `qa-platform.ts:43`; the two summary tables match.
 - **A-LA-LD9-04 remains partly open (NIT).** Both LA-IC-18 table rows are present. However, `tests/ltiaas/golden/expected/LA-IC-18.json:15` still cites `00-blackboard-not-ready.m2.ts:10-49` (35 lines), and `:18` still cites `03-blackboard-wizard.m2.ts:37-115` (110 lines). Use `10-35` and `37-110`, or name the whole files. The delta list stays approved.
+
+
+## Round 3
+
+## LA-IC-19
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Date: 2026-10-23. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 new NIT (A-LA-LD9-07).** Earlier lists and their finding statuses are unchanged by this review.
+
+Reviewed `04af91d` and its expected-delta record against BD-A1-57, LA-ADR-01 D12, LA-ADR-04 D8 and plan §6.1 LD-9. The product implementation is the LA-E1-09 channel-aware expired-session text. Source and stored-capture verification used private clone `/tmp/la-reviewer-a-ctx-e1c7d3f9bf5b` at `ce2a3ba`; no Docker, stack or browser acceptance runner ran. No other reviewer's file was opened; approval-path checks tested existence only.
+
+### Zero golden and frozen-test changes confirmed
+
+- `goldenFields: []`, `frozenTestsTouched: []` and `changes: []` are correct. The capture script exercises active runtime sessions to create outcomes, but does not store an expired content-host response in G1–G4. The stored captures contain no `RUNTIME_EXPIRED` value. Existing 410 tool-page responses are separate errors, not this runtime response.
+- The only frozen test explicitly triggering `RUNTIME_EXPIRED` is `tests/acceptance/T5a/6-negative.spec.ts:75-84` (AC-T5-15). It launches a Moodle activity, waits past the TTL and checks only status 410 and the error code. The Moodle description also remains byte-for-byte equal. M1/M2 helpers complete active sessions; the cited browser checks do not assert an expired Canvas/Blackboard response.
+- I checked the cited source ranges and searched `tests/acceptance`, `tests/e2e`, `tests/host`, `tests/fixtures` and the golden tree. All listed ranges exist. No stored G-BASE or frozen acceptance/e2e/host file changes in `04af91d`; only the LD-9 record, the two summary tables and the comparator unit test change.
+- The coordinator's earlier scope clarification still applies: LA K2 (`tests/e2e/ltiaas/`) has not yet landed. This approval covers the existing frozen suites, including M1/M2 and T1–T8/U1–U2; it is not evidence from an unlanded K2 suite or a new live capture.
+
+### Verification
+
+- `node --test tests/ltiaas/golden/golden.k0.test.mjs`: **12/12 pass**, including IC-19 metadata and the combined expected-delta comparison.
+- **Five private comparison probes pass**: G-BASE self-comparison with IC-19 succeeds, while an extra field in each of G1, G2, G3 and G4 independently fails. The empty delta cannot allow a golden difference.
+- `lms-texts.test.ts` passes in the shared **239-test** focused run. Its runtime case pins exact Moodle/custom-channel descriptions for expired state requests, the custom-channel expired commit description, unknown-token 404 and expired runtime-page 404. This supports the unchanged Moodle assertion used by the scan.
+
+### Finding
+
+**A-LA-LD9-07 (NIT): IC-19 overstates the tested channel cases and includes a route that returns 404.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-19.json:13,21,34`; `tests/ltiaas/TEST-STRATEGY.md:455`.
+- Evidence: the runtime case at `services/cogniate-app/src/tool-pages/lms-texts.test.ts:101-125` tests Moodle and the custom `your LMS` channel, not separate Canvas and Blackboard expired responses. `content-host/server.ts:189-191` returns HTML 404 for an expired `GET /rt/:token`; only `/state` and `/commit` use the 410 error at `:185-187,200-208`. The strategy row incorrectly includes the runtime page among the 410 routes. Also, the golden script uses active runtime responses to drive the scenario; it does not capture those response bodies as the `scanChecked` wording suggests.
+- Suggested fix: describe the actual Moodle/custom cases, list only the state and commit routes for the 410 change, and say that golden setup uses active runtime sessions without capturing expired responses. Keep the empty golden/frozen change lists. This is evidence-text cleanup and does not require a product change or a frozen-test edit.
+
+Only this review file was changed for this item.
+
+## Round 4
+
+## LA-IC-20
+
+Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed the IC-20 record in `b3807f4`, product merge `2877245` and the IC-18 split in `1babba9`, against BD-A1-63/69, LA-ADR-04 D8, LA-E1-12 and plan §6.1 LD-9. Blind review; no Reviewer-B file read.
+
+**Verdict: APPROVE. This list has 0 BLOCKER, 0 MAJOR, 0 MINOR and 1 NIT (A-LA-LD9-08).** Earlier lists retain their recorded status except A-LA-LD9-04, closed below.
+
+### Channel and key changes confirmed
+
+Compared the five original strings in `8e061ce^:apps/portal/src/connect/provider-errors.tsx` with the current manifest values and generic fallback. “Same” below means the original bytes, after filling `{LMS}`; “generic” means the exact fallback recorded in IC-20.
+
+| Key | Moodle | Canvas | Blackboard | No channel / channel without own text |
+| --- | --- | --- | --- | --- |
+| `SITE_RULE_1` | Same | Same | Same | Generic |
+| `SITE_RULE_5` | Generic | Same | Generic | Generic |
+| `PLATFORM_IN_USE` | Generic | Same | Generic | Generic |
+| `DEPLOYMENT_IN_USE` | Generic | Generic | Same | Generic |
+| `DEPLOYMENT_FIXED` | Generic | Generic | Same | Generic |
+
+The core receives the route's manifest through `ChannelScope` for both create and manage routes. The record correctly distinguishes a channel's own text from its fallback; it does not claim all five texts stay unchanged on every baseline channel. The other site rules and server-side `LEGACY_APP_ERROR_TEXT` stay unchanged.
+
+### Frozen readers and golden scope
+
+- M2's exact text assertions are Canvas site rules 1/5 and `PLATFORM_IN_USE`, plus Blackboard `DEPLOYMENT_IN_USE`. All use the owning channel, so their strings remain equal. The additional Blackboard assertion at line 106 is an API error-code check. No frozen browser assertion checks `DEPLOYMENT_FIXED` or a generic fallback case.
+- T6 AC-T6-05 checks inline error presence for invalid Moodle platform fields. T4b1 adoption and the M1 refusals check API status/codes, not portal notice strings. U1/U2 connect successfully. Searches across the frozen acceptance/e2e/host suites confirm no further reader of the five changed portal texts.
+- G1–G4 capture API DTOs, simulator records, tool pages and player responses; they never render the portal error component. Thus `goldenFields: []`, `frozenTestsTouched: []` and `changes: []` are correct. No stored G-BASE or frozen acceptance/e2e/host file changes in the reviewed record/product commits. This is a source and stored-capture review, not a new live capture or browser run; `tests/e2e/ltiaas/` is not present at the reviewed SHA.
+
+### IC-18 split and earlier finding
+
+**A-LA-LD9-04 closed.** The two ranges now end at the real file boundaries (`10-35`, `37-110`), and both human-readable tables have the IC-18 row. The split separately describes (a) LMS names in the publish result/checkbox, (b) Blackboard's Connect logo changing red to blue, and (c) the aria-hidden logo title. Each has a before/after and its zero-change reason. Moodle's visible text stays the same; M2 Canvas/Blackboard cannot enter the course-shell result view; no frozen selector, colour assertion or screenshot comparison reads the other two changes. The empty golden and frozen-change lists remain correct.
+
+### Verification and finding
+
+- Private clone `/tmp/la-review-a-e702-ic20.ewzZy1/` at `d768eec`: **100/100 tests in the seven named Author test files pass**, including channel/key parity, generic/custom contexts and create/manage route wiring. Golden K0: **12/12 pass**. Ten private comparator probes pass: each of IC-18 and IC-20 accepts a G-BASE self-compare but rejects an added field independently in G1, G2, G3 and G4. Neither empty record permits a golden difference.
+- **A-LA-LD9-08 (NIT): the IC-20 inline-error helper reference points to unrelated code.** Where: `tests/ltiaas/golden/expected/LA-IC-20.json:34`, copied into golden README §5 (`:138`) and TEST-STRATEGY §4.7 (`:456`). The cited `tests/acceptance/lib/portal.ts:89-99` contains the card-grid return and colour helpers; `hasInlineError` is at `:176-181`. The actual helper does check only invalid-field/alert presence, so the zero-change conclusion is right. Update the three references to `176-181` or the function name; no frozen assertion or product change is needed.
+
+Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used.

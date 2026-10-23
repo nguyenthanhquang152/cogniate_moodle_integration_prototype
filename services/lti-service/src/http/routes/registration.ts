@@ -2,7 +2,9 @@
 //   GET  /lti/register/:account               Moodle opens it in the registration frame (HTML errors, 303 to the app)
 //   GET  /api/registrations/:id               Bearer: the platform data, operation, existingPlatformId
 //   POST /api/registrations/:id/complete      Bearer: send the registration to the platform, store the platform
-import { pendingToolText } from '@cogniate/channel-kernel';
+import type { RegistrationTextKey } from '@cogniate/channel-kernel';
+import { REGISTRATION_TEXT_KEYS, STANDARD_PROFILE_ID, familyGuardVerdict, fillText, registrationText } from '@cogniate/channel-kernel';
+import { originHost } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
@@ -12,15 +14,18 @@ import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import { statusGate } from '../../lti/account-status.ts';
-import type { OpenIdConfiguration } from '../../lti/registration.ts';
+import { BINDING_REF, checkAudienceHost } from '../../lti/platform-rules.ts';
+import type { AnyHttpsRules } from '../../lti/platform-rules.ts';
+import type { ConfigurationProblem, ConfigurationRule, OpenIdConfiguration } from '../../lti/registration.ts';
 import {
-  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
+  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, endpointsOnIssuerOrigin, grantedScopesOf, operationFromToken,
+  parseOpenIdConfiguration, parseRegistrationResponse, registrationView, supportsDeepLinking,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
 import { withAudit } from '../../store/audit.ts';
 import type { Platform } from '../../store/platforms.ts';
 import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
-import type { PrivacyLevel, RegistrationOperation, RegistrationSession } from '../../store/registrations.ts';
+import type { PrivacyLevel, RegistrationOperation, RegistrationSession, RegistrationTokenKind } from '../../store/registrations.ts';
 import {
   claimRegistrationSession, completeRegistrationSession, createRegistrationSession, getRegistrationSession, releaseRegistrationSession,
 } from '../../store/registrations.ts';
@@ -28,31 +33,34 @@ import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
-import { lmsNameOf, lmsNameOfFamily, reservedIssuerOrigins } from '../../profiles/index.ts';
+import type { ProviderProfile } from '../../profiles/index.ts';
+import { allFixedHosts, channelRegistry, findProfile, listProfiles, lmsNameOf, reservedIssuerOrigins } from '../../profiles/index.ts';
 import { OutboundError } from '@cogniate/shared';
+import { decodeProtectedHeader } from 'jose';
 
 const HEADING = 'The registration did not work';
 
 /**
- * B-T3b-01: the registration frame is read by the Moodle ADMIN who pasted the URL, so these pages have their own
- * action line (one data-error-action each), not the launch texts written for learners and teachers.
+ * B-T3b-01: the registration frame is read by the ADMIN who pasted the URL, so these pages have their own action line
+ * (one data-error-action each), not the launch texts written for learners and teachers. The sentences that name LMS
+ * menu paths come from the channel manifest texts.registration (A1 BD-A1-59, BD-A1-68); these core sentences name none.
  */
-export const REGISTRATION_HELP: Partial<Record<ProtocolErrorCode, string>> = {
-  UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > {LMS} > Connect) and paste it in {LMS} (Manage tools > Add LTI Advantage).',
-  INVALID_REQUEST: 'Start the registration again from {LMS} (Site administration > Plugins > Activity modules > External tool > Manage tools).',
+const CORE_HELP: Partial<Record<ProtocolErrorCode, string>> = {
   FETCH_FAILED: 'Cogniate cannot reach this {LMS} site. The site must be reachable from the internet over https (port 443). Check the firewall, then start the registration again.',
-  INVALID_OPENID_CONFIGURATION: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
-  ISSUER_MISMATCH: 'The platform configuration is not from this {LMS} site. Start the registration again from Manage tools on the site itself.',
   // M1 (contract §9.2): the start page refuses a hosted LMS issuer and a Canvas or Blackboard platform configuration.
   ISSUER_RESERVED: 'This address belongs to a hosted LMS. Connect it as {LMS} in the Cogniate portal.',
 };
+const isRegistrationTextKey = (code: string): code is RegistrationTextKey => (REGISTRATION_TEXT_KEYS as readonly string[]).includes(code);
+/** A token that does not parse as a JWS needs no JWKS fetch to know that it is not a registration JWT. */
+const isJws = (token: string): boolean => {
+  try { decodeProtectedHeader(token); return true; } catch { return false; }
+};
+/** LA-ADR-02 D5 item 5: Cogniate adds content with Deep Linking. No {LMS}: the start page does not know the channel. */
+const NO_DEEP_LINKING_HELP = 'The platform does not offer Deep Linking to this tool, and Cogniate needs it to add content. Ask the platform admin to allow Deep Linking for external tools, then start the registration again.';
 
 /** M1 (contract §9.2): `This is a {LMS} site. Connect it as {LMS} in the Cogniate portal.` */
 const familyHelp = (lms: string) => `This is a ${lms} site. Connect it as ${lms} in the Cogniate portal.`;
 
-/** A-T3b-01: the registration may have reached Moodle, but the result is unknown. No automatic clean-up. */
-// The same clean-up text as the app page MOODLE_TOOL_MAY_EXIST (B-T4b1-02), with the tool name that was sent to Moodle.
-const toolMayExist = (toolName: string) => new ApiError('PLATFORM_ERROR', pendingToolText(toolName), { details: { reason: 'tool_may_exist' } });
 const SESSION_MAX_MS = 3600 * 1000; // contract §2.4: expires with the token, at most 1 h
 const CLOCK_SKEW_S = 60;
 const RESERVED_QUERY = new Set(['openid_configuration', 'registration_token', 'privacyLevel']);
@@ -77,10 +85,23 @@ const CompleteBody = z.object({
   })).max(10).optional(),
   privacyLevel: Privacy.optional(),
   updatePlatformId: z.string().min(1).max(64).optional(),
+  // E2 (contract delta §4.5): the profile of the connection's channel (absent = standard) and its binding ref.
+  profile: z.string().min(1).max(64).optional(),
+  bindingRef: z.string().regex(BINDING_REF, '1 to 64 characters [A-Za-z0-9_-]').optional(),
 });
 
-/** Read and check the platform configuration URL (security §2.4); a problem is a page code with a safe detail. */
-async function fetchConfiguration(ctx: RouteContext, url: string, token: string | undefined, traceId: string): Promise<OpenIdConfiguration | { code: ProtocolErrorCode; detail: string }> {
+/** A configuration that breaks the exact rule of the chosen profile, as an API error; nothing is sent (D5). */
+function profileRuleError(problem: ConfigurationProblem, profileId: string): ApiError {
+  if (problem.code === 'ISSUER_RESERVED') return new ApiError('ISSUER_RESERVED');
+  if (problem.code === 'PLATFORM_URL_NOT_IN_PROFILE') return new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `The platform configuration breaks the rules of profile ${profileId} (${problem.detail}).`);
+  if (problem.detail.startsWith('not_on_issuer_origin=')) return new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `The platform configuration of profile ${profileId} has ${problem.detail.slice(21)} off the issuer origin.`);
+  return new ApiError('INVALID_REQUEST', `Invalid field: profile. The platform configuration does not follow the Dynamic Registration rule of profile ${profileId} (${problem.detail}).`,
+    { details: { field: 'profile', reason: problem.detail } });
+}
+
+/** Read and check the platform configuration URL (security §2.4) with a rule; a problem is a page code with a safe detail. */
+async function fetchConfiguration(ctx: RouteContext, url: string, token: string | undefined, traceId: string, rule: ConfigurationRule)
+  : Promise<OpenIdConfiguration | { code: ProtocolErrorCode; detail: string }> {
   let res;
   try {
     res = await ctx.outbound.request(url, { traceId, headers: { accept: 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } });
@@ -94,7 +115,7 @@ async function fetchConfiguration(ctx: RouteContext, url: string, token: string 
   } catch {
     return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_json' };
   }
-  return parseOpenIdConfiguration(url, body);
+  return parseOpenIdConfiguration(url, body, rule);
 }
 
 /** The operation from the registration token, verified with the platform JWKS (security §2.5). */
@@ -120,14 +141,37 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
   const lms = lmsNameOf(null, ctx.profiles);
   const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
   const limiter = rateLimiterFor(ctx.db, log, ctx.now);
+  const channels = channelRegistry(ctx.profiles);
+  // The start page does not know the connection's channel: the no-context channel's sentences apply (BD-A1-59).
+  const noContextChannel = channels.channel(channels.channelOfProfile(STANDARD_PROFILE_ID) ?? '');
+  const helpOf = (code: ProtocolErrorCode, channel: typeof noContextChannel): string | undefined =>
+    (isRegistrationTextKey(code) ? registrationText(channel, code) : CORE_HELP[code]);
+  // LA-ADR-02 D5: the profiles that a channel offers for Dynamic Registration (trait and manifest, as the app capability).
+  const dynamicProfiles = listProfiles(ctx.profiles).filter((p) => p.dynamicRegistration !== null && channels.capabilities(p.channel, p)['registration.dynamic']);
+  const hosts: AnyHttpsRules = {
+    ownHosts: [ctx.urls.lti, ctx.urls.app, ctx.urls.content].map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles),
+  };
+  const ruleOf = (profiles: readonly ProviderProfile[]): ConfigurationRule => ({
+    issuerRules: profiles.map((p) => p.dynamicRegistration!),
+    endpointOrigins: profiles.some((p) => p.endpointOrigins === 'any-https') ? 'any-https' : 'issuer',
+    hosts,
+  });
+  // The start page applies the loosest rule of every DR profile; complete applies the exact rule of the chosen one.
+  const startRule = ruleOf(dynamicProfiles);
+  const acceptsOpaqueToken = dynamicProfiles.some((p) => p.dynamicRegistration!.registrationToken === 'opaque-bearer');
+  /** Registration-phase family guard (BD-A1-54, BD-A1-55): refuse when no allowed channel may own the family. */
+  const familyRefusal = (family: string, profileChannels: ReadonlyArray<string | null>) => {
+    const verdicts = profileChannels.map((channel) => familyGuardVerdict(channels, family, channel, 'registration'));
+    const first = verdicts[0];
+    return first?.kind === 'refuse' && verdicts.every((v) => v.kind === 'refuse') ? first : null;
+  };
 
   // ---------------------------------------------------------------- GET /lti/register/:account (contract §2.4)
   app.get<{ Params: { account: string } }>('/lti/register/:account', async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
     const now = ctx.now();
-    const page = (code: ProtocolErrorCode, detail: string) => {
+    const page = (code: ProtocolErrorCode, detail: string, sentence = helpOf(code, noContextChannel)) => {
       log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
-      const template = REGISTRATION_HELP[code];
-      const help = template ? withLms(template, lmsNameFor(code, lms, ctx.profiles)) : undefined;
+      const help = sentence ? withLms(sentence, lmsNameFor(code, lms, ctx.profiles)) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
     const gate = statusGate(resolver.resolveAccount(req));
@@ -139,23 +183,30 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
-    const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId);
+    const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId, startRule);
     if ('code' in config) return page(config.code, config.detail);
-    // M1: a reserved issuer or a Canvas or Blackboard product family; nothing is stored and no session starts.
+    // M1: a reserved issuer or a guarded product family; nothing is stored and no session starts.
     if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) return page('ISSUER_RESERVED', 'issuer_reserved');
-    const family = lmsNameOfFamily(config.productFamilyCode, ctx.profiles);
-    if (family) {
-      log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${config.productFamilyCode.toLowerCase()}` });
+    const guard = familyRefusal(config.productFamilyCode, dynamicProfiles.length ? dynamicProfiles.map((p) => p.channel) : [null]);
+    if (guard) {
+      const family = channels.textName(guard.guardChannel);
+      log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${guard.family}` });
       return ctx.errorPage(reply, req, 'PROVIDER_PROFILE_MISMATCH', { heading: HEADING, help: familyHelp(family), lms: family });
     }
+    if (!supportsDeepLinking(config)) return page('INVALID_OPENID_CONFIGURATION', 'deep_linking_not_supported', NO_DEEP_LINKING_HELP);
 
     let operation: RegistrationOperation = 'new';
     let existingPlatformId: string | null = null;
     let expiresAt = now + SESSION_MAX_MS;
-    if (token) {
+    let tokenKind: RegistrationTokenKind | null = null;
+    if (token && acceptsOpaqueToken && !isJws(token)) {
+      tokenKind = 'opaque-bearer'; // D5 item 3: only sent back as the Bearer token; operation new
+    } else if (token) {
+      // A-LA-E2-02-05, BD-A1-84: a JWT-shaped token is never an opaque token; it keeps its verification failure.
       const t = await readToken(ctx, token, config, account.id, req.traceId, now);
       if ('code' in t) return page(t.code, t.detail);
       ({ operation, existingPlatformId, expiresAt } = t);
+      tokenKind = 'scope-jwt';
     }
     // Pass-through parameters (for example ref): strings only, never the token or the configuration URL.
     const passthrough = Object.fromEntries(Object.entries(q.data)
@@ -166,7 +217,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       if (!checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, ctx.now()).allowed) return null;
       return createRegistrationSession(ctx.db, ctx.masterKey, {
         toolAccountId: account.id, clientKey: cap.clientKey, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
-        platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt,
+        platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt, tokenKind,
       }, now);
     });
     if (!session) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
@@ -182,8 +233,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if (!session) throw new ApiError('REGISTRATION_NOT_FOUND');
     return session;
   };
+  /** The stored configuration, read with the start rule that accepted it. */
   const configOf = (session: RegistrationSession): OpenIdConfiguration => {
-    const config = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration);
+    const rule = { ...startRule, issuerRules: [...startRule.issuerRules, { issuerRule: 'origin' as const }], hosts: undefined };
+    const config = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration, rule);
     if ('code' in config) throw new ApiError('REGISTRATION_NOT_FOUND'); // checked at start; cannot happen
     return config;
   };
@@ -213,11 +266,43 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         log.warn('registration_rejected', { trace_id: req.traceId, code: err.code, detail: String(err.details.reason ?? err.code.toLowerCase()) });
         throw err;
       };
-      // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to Moodle otherwise.
-      if (session.operation === 'update') {
-        const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
-          && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
-        if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', withLms('This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.', lms)));
+      // D5 item 6: the profile of the connection; complete applies its exact rules before it sends anything.
+      const profile = findProfile(body.data.profile ?? STANDARD_PROFILE_ID, ctx.profiles);
+      if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${body.data.profile}.`);
+      if (!dynamicProfiles.includes(profile)) throw new ApiError('INVALID_REQUEST', 'Invalid field: profile. This profile has no Dynamic Registration.', { details: { field: 'profile' } });
+      const rule = profile.dynamicRegistration!;
+      const profileChannel = channels.channel(profile.channel);
+      const profileLms = channels.textName(profile.channel);
+      /**
+       * A-T3b-01: the registration may have reached the platform, but the result is unknown; no automatic clean-up.
+       * BD-A1-87: the channel's recovery sentence (Moodle: today's text, the same as the app page MOODLE_TOOL_MAY_EXIST)
+       * with the tool name that was sent; the code and reason do not change.
+       */
+      const toolMayExist = (toolName: string) => new ApiError('PLATFORM_ERROR',
+        fillText(registrationText(profileChannel, 'TOOL_MAY_EXIST'), { LMS: profileLms, tool: toolName }), { details: { reason: 'tool_may_exist' } });
+      // D5 item 3: an opaque token is only sent back, so the operation is always "new".
+      const operation0: RegistrationOperation = rule.registrationToken === 'opaque-bearer' ? 'new' : session.operation;
+      const updateNotAllowed = (reason?: string) => new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED',
+        withLms(registrationText(profileChannel, 'REGISTRATION_UPDATE_NOT_ALLOWED'), profileLms), reason ? { details: { reason } } : {});
+      /**
+       * The update of an existing platform (the explicit update, or the duplicate client of B-T3b-02). BD-A1-88: the
+       * platform keeps its profile, so the chosen profile must be the stored one. A-LA-E2-02-04 (BD-A1-84): a platform
+       * that another connection holds (another non-null binding ref) is never changed. Nothing is written on a refusal.
+       */
+      const updateProblem = (existing: Platform): ApiError | null => {
+        if (existing.profile !== profile.id) return updateNotAllowed('profile_mismatch');
+        if (body.data.bindingRef !== undefined && existing.bindingRef !== null && existing.bindingRef !== body.data.bindingRef) {
+          return new ApiError('BINDING_REF_MISMATCH', 'This platform belongs to another connection (another binding ref). Nothing changed.',
+            { details: { reason: 'platform_of_other_connection' } });
+        }
+        return null;
+      };
+      // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to the platform otherwise.
+      if (operation0 === 'update') {
+        const target = session.existingPlatformId === null ? null : getPlatform(ctx.db, account.id, session.existingPlatformId);
+        if (target === null || body.data.updatePlatformId !== session.existingPlatformId) reject(updateNotAllowed());
+        const problem = updateProblem(target!);
+        if (problem) reject(problem);
       }
       // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
       for (const m of body.data.messages ?? []) {
@@ -226,6 +311,22 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         }
       }
       const config = configOf(session);
+      const exact = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration, ruleOf([profile]));
+      if ('code' in exact) reject(profileRuleError(exact, profile.id));
+      // A token that the start page did not verify as a registration JWT does not fit a scope-jwt profile. NULL with a
+      // token is a session from before LTI migration 021 (verified then). Any other stored kind is refused (fail closed).
+      const tokenKind: string | null = session.registrationToken === null ? null : session.tokenKind ?? 'scope-jwt';
+      const allowedKinds: ReadonlyArray<string | null> = rule.registrationToken === 'scope-jwt' ? [null, 'scope-jwt'] : [null, 'scope-jwt', 'opaque-bearer'];
+      if (!allowedKinds.includes(tokenKind)) {
+        reject(new ApiError('INVALID_REQUEST', `Invalid field: profile. The registration token does not have the form that profile ${profile.id} needs.`,
+          { details: { field: 'profile', reason: 'registration_token_kind' } }));
+      }
+      // D5 item 5: a family that another channel guards (BD-A1-54: phase registration, the only call site, BD-A1-55).
+      const guard = familyRefusal(config.productFamilyCode, [profile.channel]);
+      if (guard) {
+        const name = channels.textName(guard.guardChannel);
+        reject(new ApiError('INVALID_REQUEST', `Invalid field: profile. ${familyHelp(name)}`, { details: { field: 'profile', reason: `family=${guard.family}` } }));
+      }
       // An absent list keeps the legacy five-scope request; only an explicit list checks platform support.
       const scopes = body.data.scopes ?? REGISTRATION_SCOPES;
       const unsupported = body.data.scopes?.filter((scope) => !config.scopesSupported.includes(scope)) ?? [];
@@ -236,6 +337,17 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       }
       // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
       if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
+      // D5 items 4 and 10 (I-SELF, D2a): only a {platformValue} profile stores authorization_server as its audience. When
+      // a value is off the issuer origin, the platform is staged: inactive, with the connection's binding ref.
+      const platformAud = profile.clientAssertionAud.value === '{platformValue}' ? config.authorizationServer : null;
+      // BD-A2-84 (A-LA-E2-02-08): the audience that a staged or active registration stores obeys rule 2, before anything is sent.
+      if (platformAud !== null) {
+        try { checkAudienceHost(platformAud, hosts, 'authorization_server'); } catch (err) { if (err instanceof ApiError) reject(err); throw err; }
+      }
+      const staged = !endpointsOnIssuerOrigin({ ...config, authorizationServer: platformAud });
+      if (profile.endpointOrigins === 'any-https' && body.data.bindingRef === undefined) {
+        throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).', { details: { field: 'bindingRef' } });
+      }
       if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
       try {
         const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
@@ -265,21 +377,37 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         }
         const reg = parseRegistrationResponse(answer);
         if (!reg) throw toolMayExist(clientName);
+        const bindingRef = staged ? body.data.bindingRef ?? null : null;
+        // BD-A1-89: every credential value of the configuration is written as one set (an omitted authorization_server
+        // clears the stored audience), so I-SELF above was decided on exactly the values that are stored.
         const values = {
           clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
-          active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
+          active: staged ? false : body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
+          grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef,
+        };
+        /**
+         * The update of an existing platform, checked again in the write transaction (the record can change meanwhile).
+         * A1 BD-A1-93 (LA-IC-21): it sets active = false when it stages, else it keeps the stored value, so no registration
+         * switches on a platform that an operator or the app switched off. autoActivate applies only to a new platform.
+         */
+        const update = (existing: Platform | null): Platform | null => {
+          if (!existing) return null;
+          const problem = updateProblem(existing);
+          if (problem) throw problem;
+          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active: staged ? false : existing.active });
         };
         // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
         const { platform, operation } = audit.change(() => {
           let platform: Platform | null;
-          let operation: RegistrationOperation = session.operation;
-          if (session.operation === 'update') {
-            platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
+          let operation: RegistrationOperation = operation0;
+          if (operation0 === 'update') {
+            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!));
           } else {
             try {
               platform = createPlatform(ctx.db, account.id, {
                 issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
                 jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
+                profile: profile.id, bindingRef, clientAssertionAud: platformAud, grantedScopes: values.grantedScopes,
               });
             } catch (err) {
               if (!(err instanceof PlatformExistsError)) throw err;
@@ -289,8 +417,9 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
               // log operation "update".
               // A-T4b1-03: keep the stored `active` value. A platform that was switched off (for example an orphan that the
               // app deactivated) is never switched on again by this path.
+              // A staged registration never leaves the platform active (I-SELF).
               const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-              platform = applyRegistrationUpdate(ctx.db, account.id, same.id, { ...values, active: same.active });
+              platform = update(same);
               operation = 'update';
             }
           }
@@ -298,8 +427,8 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
           return { platform, operation };
         }, ({ platform, operation }) => ({ details: { platformId: platform.id, operation } }));
-        log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation });
-        return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id };
+        log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation, ...(staged ? { staged: true } : {}) });
+        return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id, active: platform.active };
       } catch (err) {
         releaseRegistrationSession(ctx.db, account.id, session.id);
         if (err instanceof ApiError) reject(err);

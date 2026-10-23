@@ -11,7 +11,7 @@ import { issueServiceKey } from '../store/service-keys.ts';
 import { legacyBlobsRefused, refuseLegacyBlobs } from '../store/settings.ts';
 import { activePrivateJwk, ensureToolKey } from '../store/tool-keys.ts';
 import { URLS, capturingLogger } from '../testkit.ts';
-import { DEFAULT_KEYRING_FILE, keyVersionsInUse, loadKeyProvider, readKeyRing, readSigningKeyPublishLeadSeconds } from './key-config.ts';
+import { DEFAULT_KEYRING_FILE, keyVersionsInUse, loadKeyProvider, readKeyRing, readSigningKeyPublishLeadSeconds, readStartupKeys } from './key-config.ts';
 
 // Fixture keys (test values, not secrets).
 const LEGACY = Buffer.alloc(32, 7);
@@ -69,9 +69,36 @@ describe('key-ring settings (LTI_KEYRING_FILE, LTI_MASTER_KEY, LTI_MASTER_KEY_FI
     }
   });
 
-  it('a key-ring file wins over LTI_MASTER_KEY', () => {
-    const ring = readKeyRing({ LTI_KEYRING_FILE: ringFile('k2', { legacy: LEGACY, k2: K2 }), LTI_MASTER_KEY: hex(K1) });
-    expect([ring.active, [...ring.keys.keys()]]).toEqual(['k2', ['legacy', 'k2']]);
+  it('a key-ring file is the ring; a master key next to it must be its legacy version (BD-A2-77, BD-A2-80)', () => {
+    const file = ringFile('k2', { legacy: LEGACY, k2: K2 });
+    for (const env of [{ LTI_KEYRING_FILE: file }, { LTI_KEYRING_FILE: file, LTI_MASTER_KEY: hex(LEGACY).toUpperCase() },
+      { LTI_KEYRING_FILE: file, LTI_MASTER_KEY_FILE: writeSecret('master', hex(LEGACY)) }]) {
+      const { ring, handle } = readStartupKeys(env);
+      expect([ring.active, [...ring.keys.keys()], handle]).toEqual(['k2', ['legacy', 'k2'], LEGACY]);
+    }
+    for (const env of [{ LTI_KEYRING_FILE: file, LTI_MASTER_KEY: hex(K1) }, { LTI_KEYRING_FILE: file, LTI_MASTER_KEY_FILE: writeSecret('master', hex(K1)) }]) {
+      expect(() => readStartupKeys(env)).toThrow(expect.objectContaining({ code: 'key_ring_invalid', message: 'The master key and the key-ring legacy version differ.' }));
+    }
+    expect(() => readStartupKeys({ LTI_KEYRING_FILE: ringFile('k2', { k2: K2 }) }))
+      .toThrow(expect.objectContaining({ code: 'key_ring_invalid', message: 'The key ring has no legacy version.' }));
+  });
+
+  it('no key-ring file: the master key is the handle; upper- and lower-case hex are the same key (BD-A2-80)', () => {
+    for (const STACK_PROFILE of ['default', 'acceptance']) {
+      const { ring, handle } = readStartupKeys({ STACK_PROFILE, LTI_KEYRING_FILE: noFile(), LTI_MASTER_KEY: hex(LEGACY).toUpperCase(),
+        LTI_MASTER_KEY_FILE: writeSecret('master', `${hex(LEGACY)}\n`) });
+      expect([ring.active, handle]).toEqual(['legacy', LEGACY]);
+    }
+  });
+
+  it('BD-A2-78: the key-ring file follows the secret-file mode rule', () => {
+    const file = ringFile('legacy', { legacy: LEGACY });
+    chmodSync(file, 0o644);
+    expect(() => readStartupKeys({ STACK_PROFILE: 'production', LTI_KEYRING_FILE: file }))
+      .toThrow(expect.objectContaining({ name: 'ConfigRefusedError', reason: 'secret_file_mode', setting: 'LTI_KEYRING_FILE' }));
+    const warned: unknown[] = [];
+    expect(readStartupKeys({ STACK_PROFILE: 'acceptance', LTI_KEYRING_FILE: file }, { warn: (...line) => { warned.push(line); } }).handle).toEqual(LEGACY);
+    expect(warned).toEqual([['secret_file_mode_open', { setting: 'LTI_KEYRING_FILE' }]]);
   });
 
   it('fails closed: no key at all, two different master keys, a bad file, an unreadable file', () => {
@@ -168,11 +195,9 @@ describe('loadKeyProvider', () => {
     expect(lines.filter((l) => l.event === 'key_provider_not_ready')).toEqual([expect.objectContaining({ level: 'error', version: 'k1' })]);
     await expect(provider.ready()).rejects.toMatchObject({ name: 'KeyProviderError', code: 'key_version_missing', versions: ['k1'] });
 
-    // A ring without "legacy" also fails: the existing service keys are derived with it.
-    const second = capturingLogger();
-    const noLegacy = await loadKeyProvider({ db, masterKey: Buffer.alloc(32, 7), logger: second.logger, env: { LTI_KEYRING_FILE: ringFile('k1', { k1: K1 }) } });
-    expect(second.lines.filter((l) => l.event === 'key_provider_not_ready').map((l) => l.version)).toEqual(['legacy']);
-    await expect(noLegacy.ready()).rejects.toMatchObject({ versions: ['legacy'] });
+    // A ring without "legacy" stops the start before the provider (BD-A2-77): the service keys are derived with it.
+    await expect(loadKeyProvider({ db, masterKey: Buffer.alloc(32, 7), env: { LTI_KEYRING_FILE: ringFile('k1', { k1: K1 }) } }))
+      .rejects.toMatchObject({ name: 'KeyProviderError', code: 'key_ring_invalid', message: 'The key ring has no legacy version.' });
 
     // A ring with every version in use is ready.
     const full = await loadKeyProvider({ db, masterKey: Buffer.alloc(32, 7), env: { LTI_KEYRING_FILE: ringFile('k2', { legacy: LEGACY, k1: K1, k2: K2 }) } });

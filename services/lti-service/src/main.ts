@@ -1,7 +1,7 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
 import { join } from 'node:path';
 import type { JobRunner, Logger } from '@cogniate/shared';
-import { JOB_LEASE_MS, createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
+import { ConfigRefusedError, JOB_LEASE_MS, createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
 import type { LtiConfig } from './config.ts';
 import { hostPort, loadConfig } from './config.ts';
@@ -10,7 +10,8 @@ import { openDb } from './db/index.ts';
 import { buildApp, simulationProfileIds } from './http/app.ts';
 import { buildOperatorApp } from './http/operator/index.ts';
 import { metricsFor } from './http/metrics.ts';
-import { loadKeyProvider } from './keys/key-config.ts';
+import type { StartupKeys } from './keys/key-config.ts';
+import { loadKeyProvider, readStartupKeys } from './keys/key-config.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
 import { createNrpsClient } from './platform/nrps.ts';
@@ -22,6 +23,8 @@ const SERVICE = 'lti-service';
 
 export interface LtiService {
   config: LtiConfig;
+  /** The key handle of the store callers, bound to the loaded key ring (readStartupKeys, BD-A2-77). */
+  masterKey: Buffer;
   db: Db;
   logger: Logger;
   app: FastifyInstance;
@@ -33,31 +36,44 @@ export interface LtiService {
 
 /** Start the service (unit tests call it with their own logger; the entry point below adds the signal handlers). */
 export async function startLtiService(options: { logger?: Logger } = {}): Promise<LtiService> {
-  const config = loadConfig();
   const sink = options.logger ?? createLogger({ service: SERVICE });
+  let config: LtiConfig;
+  let startup: StartupKeys;
+  try {
+    config = loadConfig();
+    // BD-A2-77: one read of the key settings gives the ring and the key handle (a key-ring file alone is enough).
+    startup = readStartupKeys(process.env, sink);
+  } catch (err) {
+    // LA-ADR-06 D12: one config_refused line before any file or port is opened. The entry point exits with code 1.
+    if (err instanceof ConfigRefusedError) {
+      sink.error('config_refused', { reason: err.reason, message: err.message, ...(err.setting ? { setting: err.setting } : {}) });
+    }
+    throw err;
+  }
   const db = openDb(join(config.dataDir, 'lti.db'));
   const metrics = metricsFor(db);
   const logger = metrics.logger(sink);
   const { active: knobs } = readServiceKnobs(SERVICE);
   for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
 
-  // LA-ADR-06 D6: bind the key ring to config.masterKey before the first store call. Every store caller below gets
-  // this Buffer, so it seals with the active ring version.
-  await loadKeyProvider({ db, logger, masterKey: config.masterKey });
+  // LA-ADR-06 D6: bind the key ring to the key handle before the first store call. Every store caller below gets this
+  // Buffer, so it seals with the active ring version.
+  const masterKey = startup.handle;
+  await loadKeyProvider({ db, logger, masterKey, ring: startup.ring });
   const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowlist });
   // T3a: platform tokens (in memory, contract §4) and the score clock (in memory, floor = start + 2 s).
   // BD-A2-52, BD-A2-54: the token client and the JWKS cache report to the metrics; the cache age is read at scrape time.
-  const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger, onTokenResult: metrics.tokenResult });
+  const tokens = createTokenClient({ db, masterKey, outbound, logger, onTokenResult: metrics.tokenResult });
   const keys = createPlatformKeys(outbound, Date.now, metrics.jwksFetch);
   metrics.readJwksAges(keys);
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(), logger });
   const app = await buildApp({
-    db, urls: config.urls, logger, keys, ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound,
+    db, urls: config.urls, logger, keys, ltikTtlSeconds: config.ltikTtlSeconds, masterKey, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound,
     profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).
-  const jobs = createLtiJobRunner({ db, logger, keys: config.masterKey });
-  const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey, jobs, urls: config.urls, simulationProfiles: config.simulationProfiles });
+  const jobs = createLtiJobRunner({ db, logger, keys: masterKey });
+  const operatorApp = await buildOperatorApp({ db, logger, keys: masterKey, jobs, urls: config.urls, simulationProfiles: config.simulationProfiles });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   await operatorApp.listen({ port: config.operatorPort, host: config.operatorHost });
   logger.info('service_started', {
@@ -73,7 +89,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
     await Promise.allSettled([app.close(), operatorApp.close()]);
     db.close();
   })();
-  return { config, db, logger, app, operatorApp, jobs, close };
+  return { config, masterKey, db, logger, app, operatorApp, jobs, close };
 }
 
 // BD-A2-31: allow the runner's longest lease, then ten seconds for listeners and database close.
@@ -94,8 +110,14 @@ export function createShutdownHandler(service: Pick<LtiService, 'close' | 'logge
 }
 
 if (import.meta.main) {
-  const service = await startLtiService();
-  const stop = createShutdownHandler(service);
-  process.once('SIGTERM', () => stop('SIGTERM'));
-  process.once('SIGINT', () => stop('SIGINT'));
+  try {
+    const service = await startLtiService();
+    const stop = createShutdownHandler(service);
+    process.once('SIGTERM', () => stop('SIGTERM'));
+    process.once('SIGINT', () => stop('SIGINT'));
+  } catch (err) {
+    // The config_refused line is already written; a stack trace would add a second line.
+    if (!(err instanceof ConfigRefusedError)) throw err;
+    process.exitCode = 1;
+  }
 }

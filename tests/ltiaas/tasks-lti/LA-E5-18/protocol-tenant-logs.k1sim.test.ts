@@ -31,7 +31,7 @@ describe('LA-E5-18 Tenant ids in protocol log lines (K1-SIM)', () => {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        iss: target.issuer,
+        iss: String(target.platform?.url ?? 'https://canvas.sim.test'),
         login_hint: 'user-e5-18',
         target_link_uri: `${urls.lti}/lti/launch/zz-unknown-acc-e5-18`,
         client_id: target.clientId,

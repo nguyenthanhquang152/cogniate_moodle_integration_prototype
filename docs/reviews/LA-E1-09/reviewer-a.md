@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-09 review: Reviewer-A
 
@@ -38,3 +38,29 @@ All **8 mutants** fail at the expected test assertions. All scratch changes were
 - **161 tests in 2 files passed:** existing `app/connect.test.ts` and `app/redemption.test.ts` registration and baseline channel regressions.
 - App and player typechecks passed. F1 passed; the task's touched core files have zero counts, with frozen names kept in `legacy-wire.ts`.
 - Golden G4, Moodle R2-lite and wave-end R1 were not run. They remain QA gates; the host checks above do not replace them.
+
+
+## Round 2
+
+- Reviewer: Codex GPT-6-Astra, Reviewer-A, lens A. Date: 2026-10-23.
+- Diff: merge `141ffe3`, commits `9ff963c`, `4c7c060`, `a31005a`. References: LA-E1-09, LA-ADR-01 D12, BD-A1-59 and BD-A1-62, app API delta §8, plan §6.1.
+- **Verdict: APPROVE. Findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+- Read the diff in the integration worktree; ran host tests and mutants in private clone `/tmp/la-reviewer-a-ctx-49dc7112367a`, pinned to `141ffe3`. No Docker, stack, commit or other reviewer's file. Only this review file changed in the integration worktree.
+
+### Findings and checks
+
+| Change | Reviewer-A result |
+| --- | --- |
+| Literal names (`9ff963c`) | The named replacement-string defect is fixed. `withLms` uses the kernel callback formatter, and the tool-name replacement also uses a callback. `$&`, `$$` and `$'` remain literal in rendered text and stored `lastError`; HTML escaping still happens at rendering. The existing hostile-name/script tests pass. Restoring the old LMS formatter fails all three new name cases; restoring the old tool replacement fails its new case. |
+| Request-log paths (`4c7c060`) | Both listeners use `req.routeOptions.url ?? '<unmatched>'`. Path parameters, raw/encoded personal values and query strings do not enter the `http_request.path` field. The matched-route tests pin `/play/:playId/embedded` and `/rt/:token/state`; unknown routes pin `<unmatched>`. Restoring either listener's old fallback fails that listener's privacy test. Response bodies, trace-id handling and `/healthz` log level are unchanged. The frozen T1 H7 test finds unknown-path requests by the returned trace id, so it does not need a raw path. |
+| Closed registration keys (`a31005a`) | The optional nested `z.strictObject` accepts only the five specified codes. Extra probes reject `FETCH_FAILED`, `constructor`, `__proto__`, `prototype`, `toString`, unknown keys and invalid value types; all five allowed keys accept a partial override. The shared text schema rejects unknown placeholders and empty text. Replacing the strict object with a stripping object fails the new test. |
+| Defaults and Moodle bytes | `registrationText` selects the channel sentence, then the frozen generic default. Defaults contain no LMS menu path. Direct source comparison with `141ffe3^1` confirms all five Moodle sentences are byte-identical to their previous LTI/app templates; the tests also pin their filled Moodle values. A one-byte Moodle mutation and a helper that ignores channel overrides both fail. The no-context caller contract is explicit: pass the standard-profile channel when it is known through the registry. |
+| Scope and wire preservation | No page uses the new helper yet, as dispatched. The new manifest text member is not included in the existing `/lms-providers` DTO projection. No QA test, LTI service source, portal source, R-owned file or tracking outcome/index file changes. The two server files and kernel/Moodle additions are explicitly assigned to K by BD-A1-62 and BD-A1-59. There is no new LMS-specific core branch or closed LMS-name union. |
+
+### Validation
+
+- **286/286 tests pass in 13 files:** kernel, tool pages, request logs, portal routes, connection registration and redemption.
+- **25 additional schema/value/literal-fill probes pass.** These include prototype-like unknown keys, each valid registration key and replacement-token-like names.
+- **7/7 mutants are rejected at assertions:** old LMS replacement, old tool replacement, each old logging fallback, permissive registration keys, changed Moodle text and ignored channel override. Scratch edits were restored; the private clone has no tracked changes.
+- Kernel and app typechecks pass. F1 passes; no new LMS-name hit is introduced by these commits.
+- No review fix remains. LA-E2-02/LA-E2-04 page wiring and live golden/Moodle regression runs remain their scheduled tasks and QA gates.

@@ -118,6 +118,24 @@ it('stores settings and audits status transitions separately from field updates;
   }
 });
 
+it('BD-A2-65: autoRotate is a stored account setting, false by default, changed by PATCH with one account.update event', async () => {
+  const h = await fixture();
+  expect((await h.create('one')).json().autoRotate).toBe(false);
+  const response = await h.patch('one', { autoRotate: true });
+  expect(response.statusCode).toBe(200);
+  expect(response.json().autoRotate).toBe(true);
+  expect(getAccount(h.db, 'one')?.autoRotate).toBe(true);
+  expect(h.events().filter((e) => e.action === 'account.update')).toEqual([
+    expect.objectContaining({ result: 'ok', details: { fields: ['autoRotate'] }, target: { type: 'account', id: 'one' } }),
+  ]);
+  expect((await h.patch('one', { name: 'Renamed' })).json().autoRotate).toBe(true);
+  expect((await h.patch('one', { autoRotate: 'yes' })).json().details).toMatchObject({ message: 'INVALID_REQUEST', field: 'autoRotate', rule: 'Use true or false.' });
+  expect((await h.patch('one', { status: 'closed' })).statusCode).toBe(200);
+  const closed = await h.patch('one', { autoRotate: false });
+  expect([closed.statusCode, closed.json().details.message]).toEqual([409, 'ACCOUNT_CLOSED']);
+  expect(getAccount(h.db, 'one')?.autoRotate).toBe(true);
+});
+
 describe('account field validation is atomic', () => {
   for (const field of ['launchUrl', 'deepLinkingUrl', 'registrationUrl']) {
     it.each(['http://x.test', 'https://u:p@x.test/a', 'https://x.test/a#f', 'https://x.test/a#', URLS.content, `${URLS.lti}:8443/a`, 'https://content.cogniate-content.test./a'])(`rejects ${field}=%s without a change`, async (url) => {

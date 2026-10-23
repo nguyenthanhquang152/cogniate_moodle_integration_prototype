@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E4-04 — Reviewer-B
 
@@ -32,3 +32,19 @@ Execution used a private `git clone --no-hardlinks` at `380d6e4`, with copied de
 ### Scope and remaining work
 
 The diff changes only lane R's `domain/attempts.ts`, `kernel/records/records.ts` and their adjacent records/throttling tests. No migration, K/L file, QA test, new LMS name or new reporter is added. The times stay in storage; the driver and score body are unchanged. Resolve B-01 and add its regression before approval. K1-SIM AC-02/04, golden comparison and score-area stack regressions remain QA work; no Docker, stack or stack-starting host runner was used.
+
+## Round 2
+
+Verdict: **APPROVE**. **B-LA-E4-04-01 closed; 0 new findings.** Reviewed `4479534` (merge `ce2a3ba`) against BD-A1-66, LA-ADR-03 D3 and the added UNIT AC-05. Same Reviewer-B lens; no Reviewer-A file was opened.
+
+The approximate meaning is documented where a report/reporter author can find it: LA-ADR-03 D3 puts the legacy rule immediately after the learning-record fields, and `kernel/records/records.ts:98-102` repeats it beside the fallback. The value is the attempt's **pre-commit `updated_at`, at or after the true submission**, not an exact historical submission time. The new record keeps that value in `occurred_at` and `submitted_at`, while `created_at` is the present commit time. The reporter port's `LearningRecordView` already points readers to D3; this change does not add those times to the AGS payload.
+
+`applyCommit` reads `updated_at` before updating the attempt and passes the prior outcome/score with it. The first post-upgrade commit writes one backfilled `submitted` record even when progress and score are unchanged, so that commit cannot erase the only historical time. Later commits use the persisted value. The backfill has the prior score/outcome, creates no dispatch, and does not rewrite an old record.
+
+Verification used a private `git clone --no-hardlinks` at `deef75e`, which contains the reviewed merge, with copied dependencies:
+
+- **159 tests passed in 11 files** across `kernel/records`, `domain/attempts.test.ts`, `drivers/lti-ags` and `packages/tracking/src`. The two AC-05 tests cover the 100/500/2000 example, a later improved commit, and the first commit with no progress or score change. Existing tests cover normal SCORM/HTML times, copied legacy final records, previews and exact AGS payloads.
+- Restoring only pre-`4479534` `domain/attempts.ts` and `kernel/records/records.ts` makes **both AC-05 tests fail**. Both files were restored afterward; the private clone is clean.
+- App TypeScript passes. F1 passes (5 files with existing hits, 13 hits; one baseline-lowering notice), and F5 passes (6 rules, 0 hits).
+
+The fix changes only the two R-owned sources and their adjacent records test. No migration, immutable old row, new LMS name, K/L file or QA test changes. The previous K1-SIM/golden/score-area live verification boundary remains; no Docker, stack, host stack runner or commit was used.

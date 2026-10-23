@@ -127,11 +127,23 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 | Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
 | Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
 
-## Wave B1/B2/B3 progress (2026-10-22 18:55Z)
+## Wave B1/B2/B3 progress (2026-10-23 03:30Z)
 
 "Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
 
 Lead outages (session limit; resumed on another Claude profile each time): about 10:35-13:53Z and 15:45-18:02Z. Workers that needed an answer waited (lane K ended one dispatch 'failed' on an unanswered design ask); no work was lost; the run coordinator was re-bound with `run-use` after each restart. The other run asked LA to confirm its host-only hold for 16:38-17:23Z: confirmed (no LA Docker command; all LA reports say no Docker use).
+- 2026-10-22 20:13Z: the Blackboard and Canvas run released its standing host-only hold on LA (msg_8451370d9f2a): no LTI runtime or host reservation is active; all 32 protected volume records unchanged; do not infer ownership of or remove their resources; future windows are coordinated explicitly. LA Docker use starts by Lead grant (charter-LA §0): one QA stack at a time. Third Lead outage: about 19:31Z to 01:33Z (session restart); workers that finished waited; S1 resumed on its own.
+- 2026-10-23 01:36Z: LA Docker slot 1 granted to QA-2 (K1-SIM). 01:38Z the other run asked for an exclusive window (about 35 minutes, M2 then T7). LA paused at once: QA-2 brought its qa2-la-sim-r1 stack down at 01:41Z (volumes byte-identical, 32 records); the Lead confirmed to the other run at 01:42Z. LA resumes after the other run returns the window.
+- 2026-10-23 02:34Z: the other run returned the window (its M2 ran 02:19:58-02:23:54Z; LA started nothing). LA slot 1 resumed for QA-2 02:33Z-04:33Z on 7a60016.
+- 2026-10-23 02:46Z: the other run asked for a second exclusive window (two M1 rounds, M2 rerun, T7; about 75 minutes). QA-2 was inside its LA-E5-08 batch and read the pause only after three notices and a terminal prompt; its stack had been down since 02:45Z. Window confirmed 03:07Z-04:22Z. QA-2 done so far: LA-E5-01 (batch 1a) PASS; left: batches 1b-4.
+- 2026-10-23 03:44Z: the other run's window extended to 04:35Z (M1 round 2, M2 rerun, T7); then LA has an uninterrupted Docker block until 07:35Z at the latest (GATE-RUN-PLAN slots).
+- 2026-10-23 04:03Z: on the other run's measured R2 start (03:55:11Z) the final return boundary is 04:45:00Z; the other run confirmed no Docker requests in the LA block 04:45-07:45Z (msg_966dbe5f15a5).
+
+LA Docker block 04:45-07:45Z (Lead process call; one stack at a time; each slot starts only after the previous owner reports its stack down): 1. QA-2 slot 1 rest (batches 1b-4, about 45 min); 2. slot 2 lead QA G-BASE on 1b17261 (28 min); 3. slot 3A lead QA candidate capture and compare (14 min); 4. slot 4 QA-3 (20 min); 5. slot 5 QA-4 (52 min); 6. slot 6 part 1 QA-E2E LA-E7-09 (15 min) if time is left. "Current SHA" slots use the newest green integration SHA at slot start. Next block (wave end, to agree with the other run): slot 3B (81 min), slot 6 part 2, slot 7 (105 min), slot 8 (65 min).
+- 2026-10-23 02:37Z: the Codex Reviewer-A session CXA1 stopped during the LA-E2-01 review (its provider's content filter flagged a security probe). On the product owner's request it is replaced by a Claude Code Opus 5.5 xhigh Reviewer-A (dispatch ctx_96cc43902d89). Security-heavy reviews may go to Claude reviewers.
+- 2026-10-23 02:40Z: integration red at ddfd4c6 (3 lane L unit tests): lane K's lti-generic opaque-capable profile, merged after lane L's LA-E2-02, loosens the DR start rule (Codex Reviewer-A A-LA-E2-02-05, and the profile boundary). Both lanes were green alone; the interaction shows only on the merged tree. Fix forward: lane L does it first in its fix round. Green again at 4d6eec9 for the three lane L tests; BUT two lane P portal card-count tests (multi-lms.test.ts, portal.test.ts) were red since ddfd4c6 and the Lead's checks hid them: a stale node_modules/.vitest-cache served the old import.meta.glob result (found at 02:55Z by a fresh-clone run after lane L reported it). Lane P makes the tests open-world now. Lead checks now delete node_modules/.vitest-cache and .vite first.
+- 2026-10-23 02:00Z: integration red on F1 at b33c178: the Lead merged lane L's LA-E2-01 (48284a7) before L's report; the trait value 'moodle-scope-jwt' names an LMS in two core files. Fix forward: L renames it to 'scope-jwt' (provisional, A1 ratifies). Lead rule (again): merge only after the lane's status message with a green check.
+- 2026-10-23 02:03Z: node_modules of the integration worktree was found empty (the Lead's check failed with 'eslint: command not found'); other ignored paths were intact, so most likely an npm ci started there by another session and stopped. The Lead ran npm ci again; check green at ac1c339 (2923 unit, F1 0). Codex reviewer intros now forbid npm ci, npm install, git clean, checkout and reset in the integration worktree.
 
 Docker: host-only. The other run's legacy invocation ran 14:21-15:1xZ; an owner-requested Savoy Docker job follows (40-60 min); then its SIM and M2/T7 windows. The LA window is not confirmed. Protected baseline: 32 volume records.
 
@@ -139,37 +151,30 @@ Model plan (product owner, 18:25Z; charter-LA §0): reviews on Codex GPT-6-Astra
 
 | Task | Lane | State | Evidence |
 | --- | --- | --- | --- |
-| LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
-| LA-E1-01..06, LA-E1-10 | K, P, L | **done** (Docker / golden ACs pending) | QA PASS; A and B APPROVE |
-| LA-E4-01, LA-E4-02, LA-E7-10, LA-E7-01, LA-E7-03, LA-E7-04 | R, QA, S1 | **done** (K1-SIM pending where listed) | QA PASS; A and B APPROVE |
-| LA-E5-03, -04, -05, -07, -09, -10, -19 | S1, S2 | **done** except K1-SIM (LA-E5-09 r3 trace-join check running) | A and B APPROVE (last rounds); QA-2 PASS |
-| LA-E3-01, -02, -04, -06 | L | **done** except K1-SIM | A and B APPROVE |
-| LA-E1-11 | P | A and B APPROVE r2; fix round 2 merged 5b5b3a2 (A-06, A-04); A r3 and QA-3 R3 running | |
-| LD-9 lists LA-IC-12, -16, -17, -18 | QA | 12/16/17 approved by A and B; 18: B APPROVE, A running | |
-| LA-E5-01, -02, -08, -14 | S1, S2, L | reviews APPROVE; K1-SIM pending Docker | |
-| LA-E1-07, LA-E1-08 | K | fix rounds merged 6270d43; Codex A and B r2 APPROVE (A-LA-E1-07-03 MINOR for the QA-3 fixture); QA-3 R2 running | |
-| LA-E4-03 | R | fix round 1 merged 5f9fd55 (Claude R); Codex A, B r2 running | QA-3 R1 PASS |
-| LA-E4-05 | R | Codex A and B r1 APPROVE (0 findings); QA-3 R1 running | |
-| LA-E5-06 | L | A, B APPROVE r1; fix round running (Claude L: cap race, F5 rule, NITs; RQ-2 L2 files) | |
-| LA-E5-11 | S1 | A, B APPROVE; fix round running (Claude S1) | QA-2 PASS |
-| LA-E5-15 | S2 | **done** except K1-SIM (r2 A, B APPROVE; QA-2 R2 PASS) | |
-| LA-E5-16 | S1 | A CHANGES_REQUESTED (BLOCKER fingerprint target, MAJOR 429; A2 BD-A2-56/57), B APPROVE; fix round running (Claude S1) | QA-2 PASS |
-| LA-E5-17 | S1, L | Codex A CHANGES_REQUESTED (BLOCKER raw path in logs, MAJOR audit count), B CHANGES_REQUESTED (MAJOR); A2 BD-A2-60/61; fix in the S1 round; QA-2 R1 PASS | |
-| LA-E3-11 | L | Codex A, B r1 APPROVE (1 NIT to the L round); QA-4 next | |
-| LA-E3-12 | L | merged a2dfc04; Codex A, B r1 APPROVE (B: 1 MINOR docs follow-up); LA-IC-13 list with the lead QA; QA-4 next | |
-| LA-E1-09, LA-E5-12 | K | LA-E1-09 merged e770ff2 (F1 now 29 hits in 9 files; LA-IC-19); Codex A, B r1 running; LA-E5-12 Author running (Claude K) | |
-| LA-E4-04 | R | after the LA-E4-03 fix round (Claude R) | |
-| LA-E3-13, LA-E5-18 | L2 | merged 84d5679, 1e65040; Codex A and B r1 APPROVE both (0 findings); QA-4 next | |
-| LA-E5-20, LA-E5-21 | S1 | after the S1 fix rounds | |
-| LA-E7-02, LA-E7-05 | QA-E2E | B APPROVE; A r3 / r2 running; QA-E2E to align tests/sim/core/loading.test.mjs with BD-A1-53 (2 tests) | |
-| LA-E0-02/03/04 | QA | LA-E0-03 K0 PASS, K1-SIM pending Docker; LA-E0-04 waits for both reviewers on the LD-1 list | |
+| E0: LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
+| E1: LA-E1-01..12 | K, P, L | **done** (E1-done SHA b216f86; F1 0 hits; Docker / golden ACs pending) | QA PASS; A and B APPROVE (last rounds) |
+| E3: LA-E3-01..04, -06, -11, -12, -13 | L, L2 | **done** except K1-SIM | A and B APPROVE; QA-4 PASS |
+| E4: LA-E4-01..05 | R | **done** except K1-SIM | A and B APPROVE; QA PASS |
+| E5: LA-E5-01..12, -14..21 | S1, S2, L, L2, K | **done** except K1-SIM (LA-E5-20/21 r2 APPROVE; QA-2 R1 PASS) | A and B APPROVE (last rounds) |
+| E7: LA-E7-01..05, -10 | QA, S1, R | **done** (K1-SIM pending where listed) | A and B APPROVE |
+| LD-9 lists LA-IC-12, -13, -15..-20 | QA | **approved** by A and B; LA-IC-03 record and LA-IC-20 update, LA-IC-21 with the lead QA | |
+| LA-E2-01 | L | A r3, B r2 APPROVE; QA-4 R1 PASS; follow-ups (BD-A2-83/84, AC-09 test) in 678eb72; QA-4 R2 running (run 12) | E2-K |
+| LA-E2-02 | L | A r3, B r3 APPROVE; QA-4 R1 PASS, R2 running (run 12); flag removal (BD-A1-75/83) with L now (K0 kit ready in 4d08fc1) | |
+| LA-E2-03 | K | A, B r2 APPROVE; QA-3 R1 PASS | E2-K |
+| LA-E2-04 | K | r2: A and B APPROVE (both closed all r1 findings; 1 MINOR each, same item: gone staged platform PLATFORM_IN_USE text, BD-A1-97; deferred.md, K next dispatch); QA-3 R2 running | QA-3 R1 PASS (host) |
+| E2-K follow-ups | K, L | e82808e: A and B CHANGES_REQUESTED (1 MAJOR: a simulation-only extension breaks two core tests, A-LA-E2-03-03); L fix 1c60d42 + d58061f merged 053e5c7; L flag removal (LA-E2-02, BD-A1-75/83) 1cbae3e + c240a6e merged 78ffce1; r2 reviews (CXA2, CXB1; flag removal also RA-C1) running | **E2-K-done SHA = 78ffce1** (04:18Z; full check green, caches cleared: 3055 unit, 254 infra, 149 K0, F1 0, F5 6). First E2-K-done 678eb72 stays the LA-E2-05 F2 proof base |
+| LA-E2-05 (brightspace) | K | channel folder only; F2 core = 0 against 678eb72 (Lead and QA-3); A r1 APPROVE; B r1 CHANGES_REQUESTED (MAJOR: tool rows hidden until K switches toolConfiguration to 'channel', BD-A1-85; K-ADAPTER kit merged 4d08fc1, K told); QA-3 R1 PASS (host-only) | **E2-N gate: a new LTI channel with zero core change** |
+| LA-E3-03 | L2 | A, B r1 APPROVE; QA-4 R1 PASS | **done** except K1-SIM |
+| LA-E3-05 | L2 | merged 176e823 (app migration 018 picker_pick); A2 BD-A2-87, A1 BD-A1-98; r1: A APPROVE (1 NIT, deferred), B APPROVE (1 MINOR: retry test); L2 fix round 1 running; QA-4 R1 running | |
+| LA-E3-15, LA-E2-06 | K | running (ctx_d4e9065f02d6); L's LA-E3-09 waits for LA-E3-15 | |
+| Docker | QA | slot 1 (QA-2) ran LA-E5-01 PASS; paused for the other run's windows; final return boundary 04:45Z; LA block 04:45-07:45Z (order below) | |
 | Waiting for a human decision | — | LA-E3-10 (LA-H4), LA-E4-08 and LA-E3-08 (LA-H22) | plan §6.2 |
 
-LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, platform storage state); 015 L (LA-E3-02, storage_check); 016 S2 (LA-E5-15 service_key epoch); 017 S1 (LA-E5-16 idempotency); 018 L (LA-E3-12 trusted audiences); 019 S1 (LA-E5-20 tool_account.auto_rotate, A2 BD-A2-65). App migrations: 013 K, 014 R, 015 S1, 016 reserved for P (LA-E6-02, data-model §5a); 017 R (LA-E4-03 fix round 2, partition pause, if R chooses a migration).
+LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, platform storage state); 015 L (LA-E3-02, storage_check); 016 S2 (LA-E5-15 service_key epoch); 017 S1 (LA-E5-16 idempotency); 018 L (LA-E3-12 trusted audiences); 019 S1 (LA-E5-20 tool_account.auto_rotate, A2 BD-A2-65); 020 L (LA-E2-01 platform client_assertion_aud, granted_scopes); 021 L (LA-E2-02 registration_session.token_kind). App migrations: 013 K, 014 R, 015 S1, 016 reserved for P (LA-E6-02, data-model §5a); 017 R (LA-E4-03 fix round 2, record_dispatch_pause); 018 L2 (LA-E3-05 picker_pick).
 
 Incident 2026-10-22 10:20Z: integration red on F1 at `b5069f6` (app migration 013 frozen LMS strings); A1 BD-A1-19, lane P fix `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA and tells all lanes about a known red line.
 
 
 Incident 2026-10-22 14:1xZ: an early merge of lane K's types-only ports.ts turned K0 red (the kit switched baseline adapter cases on when the file existed); the Lead removed that local merge commit within minutes (no other branch had it). Also, the Lead stopped its own check with a name-pattern pkill that may have stopped other agents' vitest runs on the shared host; rule now: stop only your own job by id.
 
-Integration branch: `5f9fd55`+; last full check green at `e770ff2` (2700 unit, 252 infra, 121 K0, F1 29 hits in 9 files, F5 6 rules). RQ-2 records: P commit 6894c86 holds one K line in vitest.config.ts (fileURLToPath); S2 LA-E5-09 store/registrations.ts key-provider lines (S2 in B1-B2); L commit c521136 changes one line of lti/service-keys.ts (L2 file in B3; Lead-authorized B-LA-E5-15-05 item while L2 had no session); L commit a6ea71e changes one fixture line of lti/idtoken.test.ts (L2 file, Lead-granted). Flake: infra sqlite-lock-probe (other run's ADR-012 code) failed once each for lanes K and P today; passes on rerun.
+Integration branch: `78ffce1`+; last full check green (caches cleared) at `78ffce1` (3055 unit, 254 infra, 149 K0, F1 0 hits, F5 6 rules). Host load reached about 135 at 19:14Z (many parallel checks); the sqlite-lock-probe flake rises with load. RQ-2 records: P commit 6894c86 holds one K line in vitest.config.ts (fileURLToPath); S2 LA-E5-09 store/registrations.ts key-provider lines (S2 in B1-B2); L commit c521136 changes one line of lti/service-keys.ts (L2 file in B3; Lead-authorized B-LA-E5-15-05 item while L2 had no session); L commit a6ea71e changes one fixture line of lti/idtoken.test.ts (L2 file, Lead-granted). Flake: infra sqlite-lock-probe (other run's ADR-012 code) failed once each for lanes K and P today; passes on rerun.

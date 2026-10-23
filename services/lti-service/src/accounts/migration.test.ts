@@ -23,7 +23,7 @@ it('AC-LA-E5-04-11: migrates M1 accounts without changing tool URLs, credentials
     db = openDb(join(dir, 'lti.db'));
     expect(getAccount(db, 'cogniate')).toEqual({ id: 'cogniate', name: 'Cogniate', launchUrl: 'https://app.test/tool/launch',
       deepLinkingUrl: 'https://app.test/tool/deep-link', registrationUrl: 'https://app.test/tool/register', createdAt: 1234,
-      status: 'active', statusChangedAt: 1234, publicBaseUrl: null, limits: null, claimPolicy: null, serviceKeyWriteScope: 'context' });
+      status: 'active', statusChangedAt: 1234, publicBaseUrl: null, limits: null, claimPolicy: null, serviceKeyWriteScope: 'context', autoRotate: false });
     expect(useApiKey(db, apiKey, Date.now())?.toolAccountId).toBe('cogniate');
   } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
 });

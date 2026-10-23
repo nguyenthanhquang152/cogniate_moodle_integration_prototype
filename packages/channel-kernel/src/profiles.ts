@@ -10,8 +10,6 @@ export type SiteUrlOn = 'platform' | 'deployment' | null;
 export interface ProfileFlags {
   /** Deep Linking response JWT has `sub` = client id (F-BB-8). */
   readonly deepLinkingResponseSub: boolean;
-  /** Client assertion `aud` = `[token endpoint]` (F-BB-5). */
-  readonly clientAssertionAudArray: boolean;
   /** Launch check 13: service URL claims on the service origin, DL return URL on the site origin. */
   readonly serviceOriginCheck: boolean;
 }
@@ -29,6 +27,22 @@ export interface ProfileSource {
     readonly targetFrame: string;
     /** authOrigin uses the authentication endpoint origin; otherwise a canonical https origin without a path. */
     readonly origin: string;
+  } | null;
+  /** LA-ADR-02 D2: `fixed` = one vendor issuer for every tenant; `per-tenant` = a `{siteUrl}` template or an admin value. */
+  readonly issuerKind?: 'per-tenant' | 'fixed';
+  /** LA-ADR-02 D2: where admin endpoints may be; `null` for fixed endpoints. */
+  readonly endpointOrigins?: 'issuer' | 'any-https' | null;
+  /** LA-ADR-02 D2: the client assertion `aud`: the token URL or the stored platform value, as a string or a one-item array. */
+  readonly clientAssertionAud?: { readonly value: '{tokenEndpoint}' | '{platformValue}'; readonly form: 'string' | 'array' };
+  /** LA-ADR-02 D2: add the `deployment_id` claim to the client assertion (R1 C-18). */
+  readonly assertionDeploymentId?: boolean;
+  /** LA-ADR-02 D2: the Dynamic Registration rule; `null` = no Dynamic Registration. */
+  readonly dynamicRegistration?: {
+    readonly issuerRule: 'origin' | 'path-prefix' | 'profile';
+    /** The configuration URL must equal the issuer plus this path. */
+    readonly configurationPath?: string;
+    /** `scope-jwt`: a JWT with the scope claim `reg` or `reg-update`, verified with the platform JWKS; `opaque-bearer`: only sent back. */
+    readonly registrationToken: 'scope-jwt' | 'opaque-bearer';
   } | null;
   /** Frozen compatibility value, allowed only on the baseline profiles. */
   readonly wireLms?: string | null;

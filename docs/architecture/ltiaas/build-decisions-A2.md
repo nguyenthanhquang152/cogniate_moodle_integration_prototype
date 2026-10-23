@@ -437,3 +437,62 @@ Changes for the Lead to route:
 - **L:** the `preflightCreateLineItem` export (RQ-1 for LA-E5-16); the `trustedAudiences` bound (LA-E3-12 follow-up).
 - **S1:** the preflight call before the claim, with the two unit tests; the stale cap comment.
 - **Docs:** the troubleshooting guide entry.
+
+## 36. Round 35: raw outer transactions, the no-context fingerprint, revoke by empty context, 2026-10-23
+
+Routed in dispatch `ctx_448b587c3245`. The item 1 answer went to the Lead first (`msg_48ebe238e32a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-74 | A-LA-E5-17-03 (MAJOR): the commit hook treats an empty helper scope as autocommit even when `db.isTransaction` is true, so an audit count inside a raw outer transaction publishes at once and survives the outer rollback. | **Rule (a): a loud error.** Transactions open only through `transaction()`. With `db.isTransaction` true and no helper scope, `afterCommit()` and the nested `transaction()` path throw a `TypeError` before any write; both "run now" branches for that case go. Autocommit still runs at once. Four tests for S1. Optional Should: an F5 rule (lane P) against raw transaction statements outside `migrations.ts`. | LA-ADR-06 D4 T0; LA-E5-17 design notes | Checked: no product file opens a raw transaction (only `migrations.ts`; the app hits are comments, and `worker-main.ts` uses the helper). So production does not change, and the app (same helper) is not affected. As with the T2 guard, misuse becomes a failing test, not a silently wrong counter. |
+| BD-A2-75 | (Provisional.) The fingerprint target uses `contextId: ""` for a launch without a context, in both schemes. | **Ratified.** | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | One activity, one fingerprint (LA-ADR-05 D2: no context = `""`). |
+| BD-A2-76 | L2 (LA-E3-03): the service-key revoke body has `contextId` `min(1)`, so no revoke by the empty context. Acceptable, or accept `""`? | **Changed (a later small S2 item, not a gate):** `contextId: ""` = only the keys of launches without a context; absent = no context filter. Until then, the workaround is to revoke by `resourceLinkId`. | LA-ADR-06 D8 "Revoke"; contract delta (both revoke rows); LA-E5-15 design notes | `""` is a real context value in the data model, and BD-A2-47 made `contextId` a filter. |
+
+Changes for the Lead to route: **S1** (next LA-E5-17 round): the guard and its four tests; the `""` target (LA-E5-16). **S2** (later): `contextId: ""` in the revoke schema. **P** (optional): the F5 raw-transaction rule.
+
+## 37. Round 36: LA-E5-21 key and secret rules, the job runbook, LA-E5-20 choices (lane S1), 2026-10-23
+
+Routed in dispatch `ctx_e03f42d6f8fe`. Items 1–4 went to the Lead first (`msg_5bc1f924ba16`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-77 | A-LA-E5-21-02 = B-LA-E5-21-01 (MAJOR): startup always needs the master key, so a production stack with only a complete key-ring file does not start. | **Ring-only start is allowed.** One reader `readStartupKeys(env)` in `keys/key-config.ts` (S1 with RQ-2) gives the ring and the handle. The ring must hold `legacy`; handle = its bytes; a master-key setting next to a ring must equal it; `config.ts` drops the master-key read; `loadKeyProvider` reuses the ring. No ring: the legacy fallback stays. | LA-ADR-06 D6, D12; operability §2; LA-E5-21 notes | Every service key derives with `legacy` (D6), and the store callers use its bytes as the handle, so the ring must hold it. |
+| BD-A2-78 | A-LA-E5-21-01 (MAJOR): a secret file of any mode passes. | **No group or world bit** (`mode & 0o077 === 0`; `0600`, `0400` pass), regular file, checked with `fstat` on the opened descriptor, read from the same descriptor; no owner check. `production`: `config_refused {reason: secret_file_mode, setting}`; other profiles: a `secret_file_mode_open {setting}` warning. One shared reader for `*_FILE` and the ring. | LA-ADR-06 D12; operability §2; contract delta §6; LA-E5-21 notes | Checking the descriptor avoids a race. A readable file with no group or world bit belongs to the service user (or root), so an owner check adds nothing. |
+| BD-A2-79 | B-LA-E5-21-02: the refusal lines give only a code. | One fixed message per code (seven, with `secret_file_mode`), naming the setting and the change, never a value. | operability §2 "Production refusals"; LA-ADR-06 D12 | Same style as LA-ADR-07 D4. |
+| BD-A2-80 | B-LA-E5-21-03: upper- and lower-case hex of one master key count as different values. | **Hex keys compare case-insensitively** (as bytes): `readSecretSetting(..., { hexKey: true })` for every master-key read; other secrets compare exactly. | LA-ADR-06 D12 | One rule in one reader. |
+| BD-A2-81 | B-LA-E5-20-01: no general on-demand job procedure. | **Written:** operability §8a (list, run, keep the trace id, read `job_run`, handle `503`/`409`/`404`/`failed`/`skipped_lease`, re-wrap pointer, purge evidence and the tombstone); `JobStale` links to it. | operability §8a, §5 | — |
+| BD-A2-82 | S1's choices: `account.purge` `details.counts` as a list `[{table, rows}]` (redaction hides object keys that end in `key`); the log line `job_run_request_failed` when `runNow` rejects. | **Ratified.** | LA-ADR-06 D2, D11; contract delta §5, §6; LA-E5-20 notes | A good catch: an object key `api_key` would be redacted. |
+
+Changes for the Lead to route: **S1** (LA-E5-21 fix round): BD-A2-77 to BD-A2-80 with the unit tests in the notes (RQ-2 for the `keys/key-config.ts` lines). **A1 FYI:** the app's `APP_MASTER_KEY_FILE` (LA-E5-22) goes through the same shared `readSecretFile` and `hexKey` rule.
+
+## 38. Round 37: granted scopes before the claim, reserved-host audience, runbook (LA-E2-01/02 lane L, LA-E5-20), 2026-10-23
+
+Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`msg_eaceb1e6109f`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-83 | A-LA-E2-01-02: with `platform.grantedScopes`, a scope that the platform did not grant gives `403` from the token client after the idempotency claim (so it is stored), and `needScope` can pick a scope that was not granted while a granted one would work. | **Yes, before the claim.** `needScope` picks the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). The preflight's step 4 checks both; else `403 SERVICE_NOT_AVAILABLE` with a fixed text for the claim or the grant. The token-client filter stays as a backstop. | LA-ADR-06 D9; contract delta §4.9; LA-E2-01 and LA-E5-16 notes | A refusal of the current grant is never stored, and a call never asks for an ungranted scope. |
+| BD-A2-84 | A-LA-E2-01-01: a staged admin create accepts `clientAssertionAud` on a reserved host, because the staged exception (A1 BD-A1-82) skips the audience check. | **The reserved-host rule applies to the audience always, staged or active:** rule 2 (https, site rules 2 and 3, not a reserved host), else `400 PLATFORM_URL_NOT_IN_PROFILE`. The staged exception covers only the issuer-origin rule (I-SELF, and "audience = token URL" for active platforms). | LA-ADR-07 A6; security-delta §2.4; contract delta §4.6; LA-E2-01 and LA-E2-02 notes | We sign the client assertion with our key. An audience on a hosted LMS host (for example a Canvas token URL with a client id of ours) would let the holder of a staged platform replay our assertion there; a grant does not make that safe. A1's BD-A1-82 stays as is. |
+| BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
+
+Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
+
+## 39. Round 38: the `autoActivate` line of `complete` (A1 BD-A1-93, LA-E2-02), 2026-10-23
+
+Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
+
+Changes for the Lead to route: none (contract text only).
+
+## 40. Round 39: L2's LA-E3-05 local choices (Deep Linking completeness), 2026-10-23
+
+Routed in dispatch `ctx_bf9df1eb1c35`. All five are ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-87 | (Provisional, L2's choices.) (1) `PLACEMENT_NOT_GRADED` = a `/tool/*` error page with status `403`, log `picker_rejected {reason: placement_not_graded}`. (2) The picker GET and POST read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken`. (3) The POST also refuses with `PLACEMENT_NOT_GRADED`, with no Deep Linking call. (4) A duplicate id in a multi-select POST gives `400 PUBLICATION_NOT_AVAILABLE`. (5) Items go in the picker list order. | **All five ratified.** (1) Matches the other picker refusals. (2) The server reads the shaped token and never trusts a form field. (3) The POST re-checks, never relying on the GET page. (4) The page never sends duplicates, so a duplicate is a broken or forged request, with the same code as 21 ids. (5) Is D3b. | LA-ADR-05 D3 "Build notes"; security-delta §5 (page row); LA-E3-05 notes | Process calls checked: app migration `018` = `picker_pick`, and the retention rule (keep a session with an unmatched `picker_pick` row) matches data model §5b. A1 to note the number `018` in §5b (A1's file). A1 FYI: `picker_rejected` reason `placement_not_graded` joins the app log names. |
+
+Changes for the Lead to route: **A1:** the migration number `018` in data model §5b, and the new `picker_rejected` reason in the app log list. Nothing for L2.
