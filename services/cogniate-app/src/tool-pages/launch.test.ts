@@ -408,6 +408,13 @@ describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event 
       }, 'picker_rejected', { reason: 'return_url_mismatch' }],
       ['PUBLICATION_WITHDRAWN', async () => { await json('POST', `/app-api/publications/${w.scorm}/withdraw`, w.thanh); return (await launch(w.a.platformId, w.scorm)).res; }, 'launch_rejected', { reason: 'publication_withdrawn' }],
       ['PICKER_EXPIRED', async () => { const id = await deepLink(w.a.platformId); t.clock.now += 23_000; return picker(id, w.html); }, 'picker_rejected', { reason: 'expired' }],
+      ['PLACEMENT_NOT_GRADED', async () => {
+        // LA-E3-05 (LA-ADR-05 D3c): acceptLineItem false on a channel with content.ungraded false (Moodle).
+        const token = launchToken({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest', roles: [INSTRUCTOR] });
+        token.launch.deepLinkingSettings = { acceptLineItem: false };
+        const dl = await get(`/tool/deep-link?ltik=${t.lti.addLaunch(token)}`);
+        return get(new URL(String(dl.headers.location)).pathname);
+      }, 'picker_rejected', { reason: 'placement_not_graded' }],
     ];
     const seen = new Set<string>();
     for (const [code, run, event, fields] of cases) {
