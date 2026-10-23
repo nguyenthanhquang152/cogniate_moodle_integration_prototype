@@ -37,8 +37,9 @@ const manifest = {
     'records.readBack': true,
   },
   // LA-ADR-02 D1: new Dynamic Registrations of the D2L family must use this channel; existing lti-generic connections
-  // of a D2L site keep working (registration level; UNVERIFIED family, R2-2).
-  lti: { guardedFamilies: [{ family: 'desire2learn', level: 'registration' }], toolConfiguration: 'none' },
+  // of a D2L site keep working (registration level; UNVERIFIED family, R2-2). 'channel': without app.ts, the kernel
+  // admin-value adapter gives the D2L tool rows below (A1 BD-A1-85).
+  lti: { guardedFamilies: [{ family: 'desire2learn', level: 'registration' }], toolConfiguration: 'channel' },
   setup: {
     createFields: [{ key: 'siteUrl', label: 'Brightspace URL', kind: 'origin', required: true }],
     // The strict body of the kernel admin-value adapter (app API delta §3.4). The issuer is the site URL. The D2L
