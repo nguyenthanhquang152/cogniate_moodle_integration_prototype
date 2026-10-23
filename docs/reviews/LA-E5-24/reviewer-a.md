@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-24 Reviewer A (lens: is it right and is it safe?)
 
@@ -43,7 +43,7 @@ The drill proves ACs 01-06. Private evidence is owner-only. The drill touches on
 - Suggested fix: Parse the `.json` files and add the string leaves under `password`, `token`, `secret` or `key` names. Add `PASS` to the env filter.
 
 **A-LA-E5-24-03 (NIT): The raw `playId` capability is in logs, evidence and git.**
-- File: `tests/e2e/ltiaas/la-e5-24-container-step.mjs:439-446` and `:544`; `run-la-e5-24.mjs:569`; `qa.md` AC-05 rows (`ply_x1h--mMDfTIq3vpfDXp-5Q`).
+- File: `tests/e2e/ltiaas/la-e5-24-container-step.mjs:439-446` and `:544`; `run-la-e5-24.mjs:569`; `qa.md` AC-05 rows (`ply_…`, sha256 prefix `6a303e6cdf1a`; raw value removed in Round 2, see there).
 - Problem: The step sends `GET /play/<playId>` with no cookie, and the response gives the runtime URL and token (container-step:441-445). So the `playId` alone opens the player. The step treats the runtime token as a secret (`rememberSecret('runtime_token')`, line 446), but it writes the `playId` that gives that token in clear text. The clone state files are also 0644, but they are inside 0700 folders.
 - Evidence: The value is dead because the drill project is removed (TEARDOWN PASS). The risk is low and applies only to test data.
 - Suggested fix: Call `rememberSecret('play_id', playId)` and record only a short hash or a `ply_…` prefix in the AC-05 note and in `la-e5-24-post-restore.json`.
@@ -57,3 +57,46 @@ The drill proves ACs 01-06. Private evidence is owner-only. The drill touches on
 ### Note for A2 and Lead (no finding)
 
 The backup record lists only the LTI key ring (`GET /operator/v1/key-provider`). It does not list the app key ring from LA-E5-22. `operability.md` §7.2 step 5 and AC-02 name only the LTI endpoint, so the drill meets the spec. If the pilot runbook must restore both rings, the architect should add the app ring to §7.2. Also, `r2/dry-run-check/` is 0755 and 0644, but it is inside the 0700 `r2/` folder and holds only synthetic dry-run data.
+
+## Round 2
+
+Scope: `git diff 29636fae ce5a01b7 -- tests/e2e/ltiaas docs/reviews/LA-E5-24` (QA-E2E fix round 1, la-qa 57d58bfb), plus `qa.md` Round 3. I also read `tests/host/core.mjs` and `tests/host/lib.mjs` (`Redactor`, `exec`, `saveText`, `record`, `finalRedaction`, `timings`) at ce5a01b7. I did not open `reviewer-b.md`. I did not start Docker or the drill, and I did not run the dry-run.
+
+### Summary
+
+All 4 of my Round 1 findings are closed. I found 2 new NITs and 0 BLOCKER, MAJOR or MINOR. The verdict stays APPROVE.
+
+### Round 1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-24-01 | Closed | `stageDrillHelpers` (`la-e5-24-drill.mjs:627-654`) copies the helpers and records the sha256 of all 4 drill files, `runnerHeadSha` and `runnerDirty`. The runner writes this to `staged-helpers.json` and to `r.timings.stagedHelpers` (`run-la-e5-24.mjs:387-397`). `core.mjs` writes `timings` into `summary.json`. The hash table in `qa.md` Round 3 §2 matches the git blobs at 56038618, 29636fae and ce5a01b7 (12 of 12, my check). |
+| A-LA-E5-24-02 | Closed | `collectCloneSecretCandidates` reads the `.json` leaves under `pass/token/secret/key/cookie` names, and the env filter now has `PASS`. The AC-02 scan uses this list (`run-la-e5-24.mjs:457`). Mutation check: when I disable the `.json` branch, the new self-test fails (6 pass, 1 fail). |
+| A-LA-E5-24-03 | Closed (code) | The step remembers the `playId` before its first use (`container-step:454`). It writes only `ply_[REDACTED]` and a 12-hex hash prefix (`:547`). The assertion and timeout texts no longer hold the `playId` or the runtime token (`:155`, `:457`; `sanitizeUrlForError`). `stdout` and the top-level error stack go through `scrubRememberedSecrets`. No assertion text in the step holds a token. The r2 evidence tree now has 0 raw `playId` hits. See A-LA-E5-24-06 for the copies that remain in git. |
+| A-LA-E5-24-04 | Closed | The self-test and the dry-run take `ids` from `fs.statSync(root)`. Fresh private clone at ce5a01b7, Node 24.21.0: the self-test gives 7/7 with `$TMPDIR` (group `staff`) and 7/7 with `TMPDIR=/tmp/…` (group `wheel`). 0 temp files remain. `--artifacts-dir` files are now 0600 in a 0700 folder, and `r2/dry-run-check` is 0700/0600. |
+
+### What I checked for new defects
+
+- **Hook on the shared `Redactor`:** `installLiveSecretRedaction` replaces `apply` on the runner's instance. `core.mjs` calls `redact.apply` through the same object in `log`, `record`, `saveText` and `finalRedaction`, so the hook is active on all of these paths. `syncSecrets` is guarded against re-entry, and the disk scrub uses the original `apply`. The AC-02 candidate list is therefore complete.
+- **Disk scrub of step inputs:** `scrubDisk` rewrites the clone's `tests/acceptance/artifacts/*.json` between steps, and the next step reads `la-e5-24-state.json`. The state holds ids only (`connectionId`, `clientId`, `deploymentId`, `publicationId`, key-provider status, account ids). The runner reads only numbers, booleans and account ids from `la-e5-24-post-restore.json`. A collision with a secret of 8 characters or more is not credible, so I found no defect.
+- **Backup and project scope:** The scrub does not touch `drillBackupRoot`, so `manifest.json` stays valid. `finalizeDrillRun` still removes the backup folder in `finally`, also when the scrub fails. No new Docker call, no `stack:reset`, and no change to the teardown.
+- **CLI:** `--help` exits before `createRunner`. The new `--sha`/`--checkout` guard has the same rule as `core.mjs:80`. The top-level `parseArgs` is `strict: false`, so the core options in the help text (`--workdir`, `--tests-from`, `--replace-tests`) still reach `createRunner`.
+- **Not exercised live:** The redaction hook, the scrub, `stageDrillHelpers` and the container-step changes did not run on a stack. `qa.md` Round 3 §3 says this correctly.
+
+### Findings
+
+**A-LA-E5-24-05 (NIT): The redaction self-test does not pin each layer.**
+- File: `tests/e2e/ltiaas/la-e5-24-drill.selftest.mjs:421-558`; `tests/e2e/ltiaas/la-e5-24-drill.mjs:592` (the `apply` hook), `:601` (step scrub) and `:607` (final scrub).
+- Problem: The test says that redaction runs "before any output reaches logs, artifacts or terminal". But it passes when any one of the three layers works. The test writes terminal lines only after the step `finally` has synced the secrets, so the `apply` hook is never the only defence in it. The hook is the only layer that protects a terminal line that is written while a step is still running.
+- Evidence: Mutation runs in my private clone gave these results. Hook removed: 7/7. Step scrub removed: 7/7. Final scrub removed: 7/7. Hook and step scrub removed: 7/7. Only with all three removed does the test fail (6/7: "Runtime token must NOT appear in cmd/16-e524-post-restore-verify.log on exit-1 path").
+- Suggested fix: Add one assertion for each layer. (1) Append a token to `captured-secrets.jsonl`, then call `redact.apply` directly before any sync, and expect the placeholder. (2) Write a raw file inside `stepFn`, and check it right after `runStepWithRedaction` returns, before `finalizeDrillRun`.
+
+**A-LA-E5-24-06 (NIT): The raw r2 `playId` is still in git.**
+- File: `docs/reviews/LA-E5-24/qa.md:29` (the A-03 row that says the value "was scrubbed from qa.md" names the raw value); `tests/e2e/ltiaas/la-e5-24-drill.selftest.mjs:580` and `:584` (used as a test fixture).
+- Problem: The value is the real capability from the r2 stack. It is dead because the r2 project was removed, so the risk is very low. But the files contradict the A-03 fix, and a later copy-paste can carry the pattern into a live run.
+- Evidence: `git grep` at ce5a01b7 finds the raw value in these 3 places. A 4th copy was in my own Round 1 text (A-LA-E5-24-03). That was my slip: I replaced it with the hash prefix in this round, but git history at ce5a01b7 still has it.
+- Suggested fix: In the self-test, use a synthetic `ply_…` value and compute its hash prefix in the test. In `qa.md`, write `ply_…` (sha256 `6a303e6cdf1a`).
+
+### Note for Lead (no finding)
+
+QA rewrote 4 held r2 evidence files at 2026-10-23T21:00:48Z, after the run and after my Round 1 scan: `summary.json`, `drill-post-restore-verify.json`, `cmd/16-e524-post-restore-verify.log` and `run-la-e5-24-r2-stdout.log`. Each file now shows `ply_[REDACTED]` in place of the value, and both JSON files still parse. `qa.md` discloses the change only as "the r2 artifact files on disk". It would be better to name the 4 files and the time.
