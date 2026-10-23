@@ -54,12 +54,17 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
 
   const profileOf = (platform: Platform) => profileDefinition(platform.profile, deps.profiles);
 
-  async function fetchToken(platform: Platform, scopes: string[], key: string, traceId: string, deploymentId: string | undefined): Promise<string> {
-    // LA-ADR-02 D2 trait clientAssertionAud: the token URL, or the stored platform value ({platformValue}; default the
-    // token URL), as a string or as a one-item array (Blackboard, F-BB-5).
+  /**
+   * LA-ADR-02 D2 trait clientAssertionAud: the token URL, or the stored platform value ({platformValue}; default the
+   * token URL), as a string or as a one-item array (Blackboard, F-BB-5).
+   */
+  function audienceOf(platform: Platform): string | string[] {
     const rule = profileOf(platform)?.clientAssertionAud ?? TOKEN_URL_STRING;
     const value = rule.value === '{platformValue}' ? platform.clientAssertionAud ?? platform.tokenEndpoint : platform.tokenEndpoint;
-    const aud = rule.form === 'array' ? [value] : value;
+    return rule.form === 'array' ? [value] : value;
+  }
+
+  async function fetchToken(platform: Platform, scopes: string[], key: string, traceId: string, deploymentId: string | undefined, aud: string | string[]): Promise<string> {
     const claims = { iss: platform.clientId, sub: platform.clientId, aud, jti: randomToken(), ...(deploymentId !== undefined ? { [CLAIM.deploymentId]: deploymentId } : {}) };
     const assertion = await signToolJwt(deps.db, deps.masterKey, platform.toolAccountId, claims, now());
     const body = new URLSearchParams({ grant_type: 'client_credentials', client_assertion_type: ASSERTION_TYPE, client_assertion: assertion, scope: scopes.join(' ') }).toString();
@@ -96,7 +101,11 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
       if (sorted.length === 0) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The platform did not grant the scope for this call.');
       // The trait assertionDeploymentId (default off) adds the deployment claim, so the token is per deployment.
       const deploymentId = profileOf(platform)?.assertionDeploymentId && options.deploymentId ? options.deploymentId : undefined;
-      const key = JSON.stringify(deploymentId === undefined ? [platform.id, sorted] : [platform.id, sorted, deploymentId]);
+      // A-LA-E2-02-03: a token belongs to the exact credential set that asked for it. A registration update that changes
+      // the token URL, the client id or the audience gets a new entry; a request in flight for the old set fills only
+      // the old entry, so it never serves the new set.
+      const aud = audienceOf(platform);
+      const key = JSON.stringify([platform.id, platform.tokenEndpoint, platform.clientId, aud, sorted, ...(deploymentId === undefined ? [] : [deploymentId])]);
       const hit = cache.get(key);
       if (hit && hit.expiresAt - TOKEN_EARLY_EXPIRY_MS > now()) {
         deps.logger.info('platform_token', { trace_id: traceId, platform_id: platform.id, cache: 'hit' });
@@ -105,7 +114,7 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
       // One request per key at a time: parallel callers share it.
       let pending = inFlight.get(key);
       if (!pending) {
-        pending = fetchToken(platform, sorted, key, traceId, deploymentId).then(
+        pending = fetchToken(platform, sorted, key, traceId, deploymentId, aud).then(
           (token) => { observe(platform.id, true); return token; },
           (error: unknown) => { observe(platform.id, false); throw error; },
         ).finally(() => inFlight.delete(key));
