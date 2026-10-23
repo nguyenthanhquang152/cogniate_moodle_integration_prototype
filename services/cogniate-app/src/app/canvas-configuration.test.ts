@@ -128,4 +128,38 @@ describe('Canvas configuration export (app contract §4.6)', () => {
       expect(answer.body).not.toContain('upstream details');
     }
   });
+
+  it('LA-E6-05: an inline export records the kid of the first key; a URL export records NULL; the JSON does not change; a foreign export writes nothing', async () => {
+    const c = connection();
+    const other = connection('canvas', QA_B.library);
+    const kid = (id: string) => t.db.prepare('SELECT artifact_key_kid FROM connection WHERE id = ?').get(id)!.artifact_key_kid;
+    const first: LtiToolKey = { kty: 'RSA', kid: 'key-active', alg: 'RS256', use: 'sig', n: 'modulus', e: 'AQAB' };
+    vi.spyOn(t.lti.client, 'getToolKeys').mockResolvedValue([first, { ...first, kid: 'key-next' }]);
+    t.db.prepare("UPDATE connection SET artifact_key_kid = 'kid-other-library' WHERE id = ?").run(other.id);
+    expect([kid(c.id), kid(other.id)]).toEqual([null, 'kid-other-library']);
+    // AC-LA-E6-05-01
+    const inline = await get(`${pathOf(c.id)}?jwk=inline`);
+    expect(inline.statusCode).toBe(200);
+    expect(kid(c.id)).toBe('key-active');
+    // The answer has no new member and no header beyond the frozen ones.
+    const { public_jwk: publicJwk, ...rest } = inline.json<Record<string, unknown>>();
+    expect(publicJwk).toEqual(first);
+    const base = expectedExport() as Record<string, unknown>;
+    delete base.public_jwk_url;
+    expect(rest).toEqual(base);
+    expect(inline.body).not.toContain('artifactKeyKid');
+    // AC-LA-E6-05-02
+    const url = await get(`${pathOf(c.id)}?jwk=url`);
+    expect([url.statusCode, url.json()]).toEqual([200, expectedExport()]);
+    expect(kid(c.id)).toBeNull();
+    // AC-LA-E6-05-04 (unit part): another library's connection gives 404 and writes nothing.
+    const foreign = await get(`${pathOf(other.id)}?jwk=inline`);
+    expect(foreign.statusCode).toBe(404);
+    expect(kid(other.id)).toBe('kid-other-library');
+    // A refused export (no key) writes nothing either.
+    await get(`${pathOf(c.id)}?jwk=inline`);
+    vi.spyOn(t.lti.client, 'getToolKeys').mockResolvedValueOnce([]);
+    expect((await get(`${pathOf(c.id)}?jwk=inline`)).statusCode).toBe(502);
+    expect(kid(c.id)).toBe('key-active');
+  });
 });
