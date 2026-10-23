@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # LA-E6-02 — Reviewer-B
 
@@ -74,3 +74,13 @@ The other choices pass review: both registered and connected connections have a 
 Verification used a fresh private clone at **`e40a6d4153f611e7d9005e2e261234676b874d1f`**, its own `npm ci`, and a cleared `node_modules/.vitest-cache` before each run. **116/116 focused tests across seven files passed**, including the AC-06 retention, AC-07 migration and AC-08 warning coverage. Restoring the pre-change module registration and health component made **five shipped tests fail** for the new panel, status rule and help text. After restoration, the three UI suites plus audit compatibility passed **105/105**. Lint and typecheck pass. The two private BD-A2-102 probes fail as described above; there are no other findings.
 
 Evidence: `/tmp/la-e6-02-r3-review-b-2y3v3rct/{focused,old-behavior,restored-and-audit,ui-probe,lint,typecheck,fitness-names,fitness-rules}.log`, with probe source in `ui-probe.txt`. The private clone is restored and clean. No Docker, stack, host stack runner or commit; only this review file changed in integration. The BD-A2-102 fix and QA's SIM/browser acceptance remain.
+
+## Round 4
+
+**Verdict: APPROVE.** Reviewed `4d2a52f5`, merged by `dc2a1b5e`, against BD-A2-102, the task spec, LA-ADR-08 D5 and plan §6.1. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Blind review; no Reviewer-A file opened.
+
+**B-LA-E6-02-03 — closed.** `CanvasKeyJson.tsx:22-44` fetches only from an explicit Copy or Download action. Opening, closing and switching either way between URL and inline make no request. The round-3 probes now pass for registered and connected connections: the stale warning remains after inspection and a health refresh. Extended probes test both actions in both forms, checking exactly one request per action, the selected URL, exact clipboard/download bytes and the resulting health state after refresh. They use the same stateful API stub as round 3; the real export-to-health route test also passes. The accepted limit still applies: the record shows the artifact taken, not proof of a paste into Canvas.
+
+The shared download helper preserves the pending wizard's download behavior, filename and cleanup. Its existing byte/copy test and manual create/pending DOM hashes pass unchanged. The new panel disables its controls while busy and offers the fetched JSON in a selectable text box when copying fails; the added test covers that recovery. Only P's Canvas portal files and adjacent portal tests change. No prohibited backend file, API, frozen QA assertion or production LMS name in core changes; prior selector checks still apply.
+
+Verification: fresh private clone at **`dc2a1b5ef06d1446aaa8225bfcff100248ed070a`**, own `npm ci`, Vitest cache removed before each run. **115/115 focused tests across six files**, the **two extended private probes**, lint, typecheck, F1 and F5 pass. Replacing only the panel with its pre-fix version fails **four shipped tests and both probes**. Restoring it gives **69/69** in the two affected UI suites; the clone is clean. Evidence: `/tmp/la-e6-02-r4-review-b-wwy67zh3/{focused,ui-probe,old-panel,restored,lint,typecheck,fitness-names,fitness-rules}.log`, with probe source in `ui-probe.txt`. No Docker, stack, host stack runner or commit; only this review file changed in integration. QA's SIM/browser acceptance remains separate.
