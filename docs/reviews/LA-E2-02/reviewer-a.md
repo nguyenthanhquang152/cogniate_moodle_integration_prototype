@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -72,3 +72,63 @@ BD-A1-77, the task notes and data-model §4.2 require `TEXT NULL CHECK (token_ki
 - AC-01 has new rule-table and route coverage. Its committed complete-time family test is masked by an earlier issuer/configuration-path refusal: disabling just that family check leaves the committed test passing, while the independent valid-URL control fails. Add that focused case when repairing the registration boundary tests. The Moodle manifest byte assertions and existing launch-check tests pass unchanged; LA-IC-03 has positive and negative path tests.
 - The reviewed changes respect lane ownership: the K/Moodle text edits are the explicit RQ-2 commit, migration 021 is the assigned migration, and `checks.ts` changes only check 14. No app/bootstrap files or QA-owned tests changed. No new LMS-id dispatch was added to core code. The separately gated legacy-flag removal is outside these four commits.
 - No Docker, stack, host stack runner, commit, or other reviewer's file was used. Only this review file changed in the integration worktree. K1-SIM, Moodle-live/G4 and the LD-9 QA assertion list remain for their authorized verification runs; these unit results do not close those rows.
+
+## Round 2
+
+- Reviewer-A: Claude Code Opus 5.5 xhigh. It replaces the Codex Reviewer-A of round 1, which its provider's content filter stopped. Same lens.
+- Diff:
+  - `git diff 66d1a04 4d6eec9` (urgent fix `ddf3771`);
+  - `git diff 2de8b78 3b3dadf` (fix round 1: RQ-2 `734de51`, `82a3321`, `e07ab16`, `87ac6cd`, `80e31d7`; the merge also holds LA-E2-01 `d6a0b82`).
+- References: task notes (BD-A1-84, -87, -88, -89); A2 BD-A2-84 (build-decisions-A2.md:475); contract delta §4.5, §4.6.1; `packages/shared/src/migrations.ts:1-3`.
+- I ran these in a private clone at `3b3dadf` (no Docker, no stack):
+  - Vitest on `services/lti-service` and `packages/channel-kernel`: 98 files, 1303 tests pass.
+  - `npm run test:k0`: 134 tests pass.
+  - F1 PASS (0 hits); `npm run typecheck`: exit 0. ESLint on the product packages: clean.
+  - The round 1 probe file: I copied it unchanged from the round 1 clone. Its 10 tests now pass: 7 that failed in round 1, plus the 3 controls.
+  - My new probes: three edge cases of the fix, and a comparison of the start page with the M1 baseline (`865c3d0^1`, `4b0f003`).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 2): 0 BLOCKER, 0 MAJOR, 2 MINOR (new), 1 NIT (new). All six round 1 findings are closed.**
+
+### Round 1 findings: re-run
+
+| Finding | Status | Fix and evidence at `3b3dadf` |
+| --- | --- | --- |
+| A-LA-E2-02-01 (BLOCKER): profile boundary | **Closed** | `updateProblem` (`http/routes/registration.ts:292`) refuses a different stored profile with `409 REGISTRATION_UPDATE_NOT_ALLOWED`, `details.reason` `profile_mismatch` (BD-A1-88). Explicit update: the check runs before the remote POST (`:301-306`). Duplicate client: it runs again inside the write transaction (`update`, `:396`, `:414`). Probe 1 (duplicate, stored `standard`): `409`, the record is unchanged. Probe 4 (verified `reg-update` with `profile: standard` on a staged generic record): `409`, the record is still inactive with `pending-grant` and its audience. Committed tests BD-A1-88 (a) and (b) check no remote POST and an unchanged row. |
+| A-LA-E2-02-02 (BLOCKER): audience checked but not stored | **Closed** | `applyRegistrationUpdate` writes `client_assertion_aud` and `granted_scopes` with no `COALESCE` (BD-A1-89). I-SELF (`:342-343`) is decided on the exact `platformAud` that is stored. Probe 3: the update is active, and the stored audience is `null`. A real token-client call now sends `aud` = the issuer-origin token URL to that same URL. Before, the foreign audience went to the new host. Committed test: audience removal on both update paths. |
+| A-LA-E2-02-03 (MAJOR): old-endpoint token reused | **Closed** | The cache and in-flight key now hold `platform.id`, `tokenEndpoint`, `clientId`, the effective `aud`, the scopes and the optional deployment (`platform/token-client.ts`). Probe 10: after the update, the token client asks the new endpoint and returns the new token. Committed tests cover a cache hit and an old request in flight that must not fill the new set. The M1 token requests do not change; only the internal key does. `platform/token-client.ts` is a lane L file outside this task's may-edit list; the round 1 fix suggestion asked for it, and the Lead's merge names it. |
+| A-LA-E2-02-04 (MAJOR): staged collision overwrites another binding | **Closed** | `updateProblem` refuses a stored non-null `bindingRef` that differs from the request's, with `409 BINDING_REF_MISMATCH` and reason `platform_of_other_connection`, in the same transaction as the write. Probe 2: `409`, the record is unchanged. Committed tests: an active owner, a staged owner, a same-owner retry, and a rotation before `complete`. Note: the check runs only when the request has a `bindingRef`. It is required for every `any-https` profile. For `standard`, the M1 duplicate-client rule (B-T3b-02) does not change. |
+| A-LA-E2-02-05 (MAJOR): JWT downgraded to opaque | **Closed** | `ddf3771`: only a token that does not parse as a JWS can be `opaque-bearer`. A JWS keeps its verification failure. Probe 5 (expired JWT, generic profile loaded): `400 INVALID_OPENID_CONFIGURATION`, no session. The JWKS-failure control still gives `FETCH_FAILED`. The committed test runs a bad signature, an expired token and a wrong scope with the product registry (where `lti-generic` is loaded) and with a baseline registry. |
+| A-LA-E2-02-06 (MINOR): migration 021 CHECK | **Closed** | `CHECK (token_kind IN ('scope-jwt', 'opaque-bearer'))`. Probe 6 and the store test: an unknown value fails with a CHECK error. `complete` now refuses any stored kind outside the allowed list (fail closed). Follow-up: A-LA-E2-02-09. |
+| Round 1 note: the AC-01 family test was masked | **Closed** | `e07ab16` adds the focused case: a standard-compatible configuration where only the family differs gives `400`, `family=zzdr`, no registration request, and the session stays open. The round 1 control passes too. |
+
+### Other checks
+
+| Check | Result |
+| --- | --- |
+| TOOL_MAY_EXIST (BD-A1-87) | Codes and reason do not change (`502 PLATFORM_ERROR`, `tool_may_exist`). The Moodle sentence filled with the tool name equals `pendingToolText` byte for byte (kernel test). Other channels get the neutral default (test for all four uncertain outcomes). The kernel key and the Moodle value come from the RQ-2 commit `734de51`, which the task note allows. |
+| Start page, §4.6.1 order (`ddf3771`) | It follows rule 5 (rule 2, then 3, then 1) and AC-04. Comparison with M1 (`865c3d0^1`), nothing fetched in any case. With an `any-https` DR profile loaded (the product registry now loads `lti-generic`), a Blackboard configuration with every endpoint on `blackboard.com` gives `PLATFORM_URL_NOT_IN_PROFILE`. M1 gave `ISSUER_RESERVED` with "Connect it as Canvas or Blackboard". The realistic Canvas and Blackboard configurations (endpoints on `sso.canvaslms.com` or `developer.blackboard.com`) gave `INVALID_OPENID_CONFIGURATION` in M1 and now give `PLATFORM_URL_NOT_IN_PROFILE`. This matches AC-04 and D2a, so I record no finding. I found no frozen test with a DR `ISSUER_RESERVED` page in `tests/`; QA's G4 run decides. |
+| Must-not-edit list | `http/app.ts`, `config.ts`, `main.ts` and app code are not changed. Channel-folder and kernel edits come only from RQ-2 `734de51`. |
+
+### Findings (round 2)
+
+- **A-LA-E2-02-07 (MINOR): the explicit update path activates a staged platform when the new configuration meets I-SELF.**
+  - Where: `services/lti-service/src/http/routes/registration.ts:381` (`active: staged ? false : body.data.autoActivate ?? true`) and `:396` (the explicit path passes `values.active`). The duplicate path keeps the stored value (`:414`).
+  - Problem: the BD-A1-89 task note says "staged = inactive, I-SELF = stored `active` kept". On the explicit path, a stored staged platform (inactive, waiting for a grant) becomes active, and its pending `bindingRef` is kept. Contract §4.5 says that for a staged registration "only the grant redemption activates the platform".
+  - Evidence: my probe with a test `scope-jwt` `any-https` profile. Seed: inactive, `bindingRef: pending-grant`, foreign token URL and audience. Then a verified `reg-update` with an I-SELF configuration and the same `bindingRef`. Result: `200`, `active: true`, `bindingRef: pending-grant`, audience `null`. The same seed on the duplicate path stays inactive.
+  - Why MINOR: no product profile reaches this path today. An explicit update needs a scope-JWT token. The only scope-JWT DR profile is `standard`, which is never staged, and `lti-generic` takes opaque tokens, so its operation is always `new`. Also, after the update every value is on the issuer origin, so I-SELF holds. The app still gates launches by the connection's authority.
+  - Suggested fix: ask A1 whether "stored `active` kept" also covers the explicit path. If yes, keep the stored value when the stored platform is staged (inactive with a binding ref). Keep the M1 `autoActivate` rule for the Moodle explicit update, so T3b does not change. Add one test.
+
+- **A-LA-E2-02-08 (MINOR): a staged `complete` stores an `authorization_server` on a reserved host.**
+  - Where: `services/lti-service/src/http/routes/registration.ts:342` (`platformAud` is taken from the configuration with no host rule); `lti/registration.ts:135`.
+  - Evidence: probe with a configuration whose token URL is `https://auth.idp.test/token` and whose `authorization_server` is the Blackboard gateway token URL. Start `303`, then `complete` `200`, `active: false`, and the audience is stored.
+  - Problem: this is the Dynamic Registration twin of A-LA-E2-01-01. A2 BD-A2-84 (and the A2 note being added to this task) requires rule 2 for the audience in every create, staged too.
+  - Suggested fix: apply `endpointHostProblem` to a URL-shaped `authorization_server`, in `parseOpenIdConfiguration` or before the staged decision. Refuse with `PLATFORM_URL_NOT_IN_PROFILE` before anything is sent. Add the test that the note names.
+
+- **A-LA-E2-02-09 (NIT): migration `021` was changed after it was merged.**
+  - Where: `services/lti-service/src/db/migrations/021_registration_token_kind.sql:4` (`82a3321`). The shared runner stores each applied file's SHA-256 and stops the start when an applied file changes (`packages/shared/src/migrations.ts:1-3`, "never edit an applied migration").
+  - Impact: any LA database that applied the old `021` (integration SHAs `865c3d0` to before `3b3dadf`) now stops at start. Authors work host-only, and the Docker window was held, so probably no such database exists.
+  - Suggested fix: the Lead confirms that no persistent LA database applied the old file, or recreates that database, and writes one line in the board. The alternative (a new `022` that rebuilds the table) costs more than it gives before release.
+
+### Verdict (round 2)
+
+APPROVE for lens A. All round 1 BLOCKER and MAJOR findings are closed: each has a committed test, and the round 1 probes pass unchanged. A-07 waits for an A1 answer and A-08 implements the A2 ruling BD-A2-84; both are MINOR and can land with the lane L change for BD-A2-83/84. My reproduction files are in `/tmp/ra-e201/` (private clone; not committed).
