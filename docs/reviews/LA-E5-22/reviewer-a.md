@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-22 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -53,3 +53,31 @@ Round: 1
 ### Verdict
 
 APPROVE for lens A. Key material stays out of logs, the production environment and the e2e container. New blobs are bound to their row, column and library. Legacy blobs and the runtime token keep working. The re-wrap is compare-and-set safe. An unbound handle or a missing version fails closed. The two MINOR findings go to `deferred.md`, or to K's next commit on these files.
+
+## Round 2
+
+- Reviewer: Claude Code Opus 5.5 xhigh (same session as round 1).
+- Diff: `git diff 760b4e77^1 760b4e77` (lane K fix round 1, `051ae4c8`). References: A2 BD-A2-97 (ratified); BD-A2-91; LA-ADR-06 D6; operability §6.3.
+- I ran these in the private clone at `760b4e77`. I deleted the Vitest cache before each run. No Docker.
+  - `npm run test:unit`: 3159 tests pass, 5 skipped.
+  - `npm run test:k0`: 145 tests pass.
+  - F1 PASS; `npm run typecheck`: exit 0; ESLint on `services/cogniate-app`: clean.
+  - My round 1 probes, run unchanged: P1 swaps refused, P2 colliding blob re-sealed, P3 production ring mode and missing version.
+  - One mutation check (below).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 2): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Finding | Status | Evidence at `760b4e77` |
+| --- | --- | --- |
+| A-LA-E5-22-01 (MINOR): the colliding-legacy re-wrap test is missing | **Closed** | `sealing-start.test.ts` adds the case. A legacy blob has an IV of `"cgk1" + 0x02 + "k2" + 0x00 0x3c + 3 bytes`, so its structural version is `k2` and the authenticated metadata says `legacy`. The re-wrap with the active `k2` re-seals it with the same value, and a second run does nothing. Mutation check: I added a structural early skip (`if (blobKeyVersion(row.blob) === active) continue;`) before the open in `rewrapAppBlobs`. The new test then fails (1 failed, 3 passed). I restored the file. |
+| A-LA-E5-22-02 (MINOR): a missing key version fails dispatches for good | **Closed** (BD-A2-97) | The new `keyVersionUnavailable(handle, blob, err)` (`app/sealing.ts`) is true only for `key_provider_not_bound`, or for `key_open_failed` when the blob's header version is not in the ring. A legacy blob always reads as `legacy`, which the ring must hold, so a legacy blob with a failed tag stays loud.<br>**AGS `deliver`:** that case gives `{kind: 'retryable', uncertain: false}` and sends nothing (`beginSend` is not called). The outbox retries with backoff inside the 24 h window (`dispatchResult`), and `auth_failed` stays `local_failure` (test: an unknown-version key gives retryable; a legacy blob of another key gives local_failure).<br>**Connection list and detail:** only that row loses `registrationUrl` and its expiry (`200`). "Get registration URL" makes a new ref with the running ring. A copy moved from another row (`auth_failed`) still gives `500` (test).<br>**Order text:** "write the new key ring, restart the app and check /readyz = 200, then run app:keys rewrap" is in the file header, the usage output and the re-wrap output (tests updated). |
+
+Lens A notes on the fix:
+- The retryable class depends only on whether the ring lacks a version. That is an operator state, and `/readyz` reports it as `key_version_missing`.
+- A blob copied verbatim from another row keeps a header version that the ring has, so it fails with `auth_failed`. Moved data therefore stays a loud failure (`500` / `local_failure`). It is not silently retried.
+- Only a writer that also forges a header with an unknown version can make a failure "retryable". That writer already has database write access, and the value still never opens.
+- No key material and no plaintext appear in the new texts.
+
+### Verdict (round 2)
+
+APPROVE for lens A. Both round 1 MINORs are closed with tests that fail on the old code. The round 1 checks still hold at `760b4e77`.

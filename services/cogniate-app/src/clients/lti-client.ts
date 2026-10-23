@@ -51,6 +51,15 @@ const Platform = z.object({
 });
 export type LtiPlatform = z.infer<typeof Platform>;
 const PlatformList = z.object({ platforms: z.array(Platform) });
+/** The connection check answer (contract delta §2.6, LA-ADR-08 D4). It never holds a token. */
+const PlatformCheck = z.object({
+  checkedAt: z.string(),
+  jwks: z.object({ ok: z.boolean(), keys: z.number().optional(), detail: z.string().optional() }),
+  token: z.object({ ok: z.boolean(), scope: z.string().optional(), detail: z.string().optional() }),
+  platform: z.object({ active: z.boolean(), deploymentActive: z.boolean() }),
+  limits: z.enum(['shared-application']).nullable(),
+});
+export type LtiPlatformCheck = z.infer<typeof PlatformCheck>;
 
 // E2 (contract delta §4.5): `active` is false for a staged registration; absent in an older answer.
 const Completed = z.object({ platformId: z.string().min(1), html: z.string(), active: z.boolean().optional() });
@@ -276,6 +285,8 @@ export function createLtiClient(deps: LtiClientDeps) {
     getPlatform: (platformId: string, traceId: string, options?: LtiReadOptions) =>
       call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId, undefined, undefined, undefined, readOptions(options)),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string } & Partial<RefChange>, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    /** Connection check (contract delta §2.6): the platform JWKS and one token request; no token in the answer. */
+    checkPlatform: (platformId: string, body: { deploymentId?: string }, traceId: string) => call(PlatformCheck, 'POST', `/api/platforms/${id(platformId)}/check`, traceId, body),
     // M1 (LTI contract §9.4 to §9.6, §9.15): provider platforms, deployments and conditional changes.
     createProviderPlatform: (body: NewProviderPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     createAdminProfilePlatform: (body: NewAdminProfilePlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),

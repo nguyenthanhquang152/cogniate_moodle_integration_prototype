@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 5
+Round: 6
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -232,3 +232,66 @@ The stated API change matches BD-A1-93/BD-A2-86 and the shared update helper: a 
 - **Nine independent comparator checks passed:** each of the three empty records accepts the stored capture and rejects changes to an existing G1 issuer and G4 page text. No comparator rule or frozen assertion changes in this dispatch.
 - The query probe had **one expected failure and one passing control**; it was removed before the clean author-suite run. Logs: `/tmp/reviewer-b-ld9r5-{golden,author,query-probe}.log`. Independent frozen-source scans confirmed the cited T3b update and mismatch cases.
 - No Docker, stack, browser acceptance or live capture was run. The private clone was restored, checked clean and removed. Only this review file changed in integration; no commit was made. Lead QA should correct the affected-fixture inventory and request the next list review; SIM/live validation remains separate.
+
+## Round 6
+
+Reviewed the five records at **`b40c789`**, including merges `d41b8d2` and `b40c789`, against plan §6.1 LD-9, LA-ADR-04 D8, the cited design decisions, product code and affected fixture sources. Same Reviewer-B ownership lens, Codex GPT-6-Astra xhigh; blind review. **CHANGES_REQUESTED: 1 new MAJOR, 1 new MINOR and 1 new NIT; no new BLOCKER.** Only this review file was edited in integration.
+
+| Record | Verdict | Findings / previous-round status |
+| --- | --- | --- |
+| LA-IC-03 | **APPROVE** | B-LD9-08 closed at the impact-list level; fixture correction still pending at this pin |
+| LA-IC-04 | **APPROVE** | B-LD9-11 MINOR: correct the coverage and source descriptions |
+| LA-IC-14 | **APPROVE** | Exact 13-field delta and three affected frozen cases confirmed |
+| LA-IC-12 | **APPROVE** | B-LD9-12 NIT: update the stale future-work summary |
+| LA-IC-01 | **CHANGES_REQUESTED** | B-LD9-10 MAJOR: type-only rules accept incorrect channel values |
+
+### LA-IC-03 — APPROVE
+
+**B-LD9-08 closed:** the record and both indexes now identify the query-bearing LA-E5-06 fixture, its QA-4 owner and the required query-free configuration URL. The start/complete distinction is correct: another loaded DR profile may accept start, while completion with `standard` enforces the full URL. The zero golden/frozen-change conclusion remains supported by the scanned T3b, T4b1, U1 and capture paths.
+
+This closes the inventory defect, **not the simulator fixture repair**. At `b40c789`, `tests/ltiaas/tasks-lti/LA-E5-06/protocol-wiring.k1sim.test.ts:161-163` still takes `reg.openidConfiguration` or the query-bearing fallback. The JSON correctly marks that work pending. I did not verify a later QA-4 correction or run SIM.
+
+The LA-IC-03 part of **B-LD9-09** is also corrected: its range now distinguishes start/view, completion refusals and direct platform setup. The separate incorrect completion claim in `LA-IC-21.json:31` remains outside this dispatch and retains its round-5 MINOR status.
+
+### LA-IC-04 — APPROVE with 1 MINOR
+
+The three exact changes are correct: remove the fifth scope from each Canvas JSON form, and replace Moodle manual row 13 with `Do not use this service`. The other fifteen Moodle rows and the four AGS scopes stay pinned. The three affected frozen files are correctly identified: M1 Canvas JSON assertions, M1 Moodle's full row-value assertion, and T4b1's full row tuples. T6, U2 and M2 copy/read live values; direct service registration keeps its separate five-scope fallback. No additional frozen change was found in the scanned acceptance/e2e sources.
+
+#### B-LD9-11 — MINOR — The record claims simulator assertions that the cited file does not contain
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-04.json:26`; related descriptions at lines 20, 36, 43 and 51; repeated M1 citation in TEST-STRATEGY §4.7 and golden README §5.
+- **Problem:** The exact delta is safe, but a maintainer following the coverage inventory will mistake a placeholder for implemented verification.
+- **Evidence:** `tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts:12-18` only asserts `LA_DOCKER_WINDOW === '1'`; it performs no G1 comparison, configuration request, row check or DR scope assertion. The cited Moodle Author test checks row 13, not `registration.scopes`. LA-E2-02's completion calls are negative cases, not evidence of successful five-scope fallback. M1's full Moodle row assertion is at `common/00-profiles.test.ts:115-130`, not `93-108`.
+- **Suggested fix:** Mark the simulator file as a placeholder/pending implementation and name the actual unit or LA-E3-06 assertions that support scope behavior. Correct the Moodle Author-test description and M1 range in the record and both indexes. Keep the three golden changes and affected frozen-file list unchanged; a source scan is not a SIM result.
+
+### LA-IC-14 — APPROVE
+
+The record precisely lists **12 G1 changes and one G3 change**: the three Canvas provider projections each gain the dynamic method and true legacy flag; six G1 Canvas connection DTOs and the G3 Canvas connection flip that flag. The exact values reject another channel's flag change and a reordered methods array. D8 and the Canvas DR decisions authorize these changes; the current manifest/registry and staged-registration tests agree.
+
+The three M1 cases at `canvas/11-canvas-platforms.test.ts:218-265` are the affected frozen assertions: connection capabilities, the old dynamic-create refusal, and provider methods/capabilities. Updating the refusal case also requires changing its “stores nothing” expectation to the accepted pending connection behavior. The record names this case and its new 201/registration-URL outcome. The shared K0 oracle is updated; the task-specific LA-E1-02 oracle at `registry.k0.test.ts:80-87,181-203` is still old at this pin and is explicitly listed as affected. This list approval does not claim that old fixture or the frozen M1 suite now passes. Their QA updates and live validation remain follow-up work.
+
+### LA-IC-12 — APPROVE with 1 NIT
+
+Both full G4 strings equal the stored baseline text plus ` Cancel`, and match the normalized slot-3A capture. The add button remains first, followed by a separate Cancel form; the frozen helpers select the first submit button or the exact `Add to Moodle` name. The inspected service tests do not assert the old empty-list rejection or whole-token equality. No frozen assertion change is needed.
+
+#### B-LD9-12 — NIT — The summary still says the two shipped picker changes are future work
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-12.json:34-36`; `tests/ltiaas/golden/README.md:133`.
+- **Problem/evidence:** `goldenFields` and `changes` now contain two G4 replacements, but the scan text still says “when it lands” / “will add”; the README still describes `changes: []`. A later reader gets different current counts from the JSON and its index.
+- **Suggested fix:** State that LA-E3-05 contributes the two listed picker replacements, retain the separate zero-change statement for the service part, and add the picker source/test citation. Update the README to two golden changes and zero frozen changes.
+
+### LA-IC-01 — CHANGES_REQUESTED
+
+#### B-LD9-10 — MAJOR — Type-only wildcard rules silently approve wrong channel data
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-01.json:7-23`, `:417-438`, `:925-951` (with matching rules in the other provider/connection views).
+- **Problem:** LD-9 requires the intended values to be reviewable; TEST-STRATEGY §4.7 specifically requires each new baseline-channel field and its value. `string`, `object`, `array` and `present` rules only check type/presence. They therefore waive incorrect identity, authority, endpoint policy and capabilities, even when the recorded comparison says EQUAL. A team cannot use this record as the stated regression gate.
+- **Evidence:** I replayed the actual normalized slot-3A capture against G-BASE with its eleven expected records: **EQUAL, 264 differences, zero missing**. Independently changing each of the following still produced EQUAL with **zero unexplained and zero missing changes**: Moodle provider `channel = 'wrong-channel'`; its `channelCapabilities = {}`; Canvas connected DTO `bindingAuthority = 'self'`; first default profile `endpointOrigins = 42`; Moodle provider `registration = []`. These are single-field mutations of the real capture, not synthetic replacement baselines. The new real IC-01 record is absent from the combined golden K0 case, so the twelve passing tests do not reject these defects.
+- **Suggested fix:** Pin exact values per captured channel/profile, or use narrow semantic rules that enforce those values and the permitted additions. Preserve IC-14's Canvas dynamic-registration interaction explicitly. Add negative controls for the five incorrect values and include the real IC-01 record in combined comparison coverage. Give IC-01 the same design, exact-field and affected-fixture/scan metadata as the other LD-9 records so another team can reproduce its 97-entry list without reverse-engineering the capture. Keep baseline fields strict.
+
+### Round-6 verification and limits
+
+- Fresh private `git clone --no-hardlinks` at `b40c789`, own `npm ci`; Vitest cache removed before the run. **12/12 golden K0 tests** and **100/100 Author tests in six files** passed: Canvas configuration, Moodle tool rows, app Canvas export, app connection/DR, kernel registry and staged registration.
+- **18 independent comparator checks passed** for IC-04, IC-12 and IC-14: exact deltas accepted; missing expected changes, omitted records, extra fields, wrong values/order and nearby unauthorized changes rejected. The five IC-01 invalid-value probes exposed the MAJOR above. Logs and probe sources: `/tmp/reviewer-b-ld9r6-{golden,author,controls,comparator}.log`, `/tmp/reviewer-b-ld9r6-controls.mjs`, `/tmp/reviewer-b-ld9r6-ic01-probe.mjs`.
+- Slot-3A replay used the stored `golden-cand-port9443` artifacts from the LA-E7-08 QA run. That capture predates IC-04/IC-14; their checks here use explicit expected-delta fixtures, not a later live capture. The wave-end live comparison remains pending.
+- No Docker, stack, host stack runner, browser suite, frozen-test edit or commit. Reviewed changes stay in QA-owned files and introduce no product-core LMS branch. No tracked source mutation was needed; the private clone was checked clean and removed. Earlier findings not explicitly closed above retain their prior status.
