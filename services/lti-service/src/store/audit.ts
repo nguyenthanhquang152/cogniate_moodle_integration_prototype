@@ -69,13 +69,19 @@ export function auditDetailsText(details: Record<string, unknown> | null | undef
   return Buffer.byteLength(text, 'utf8') <= AUDIT_DETAILS_MAX_BYTES ? text : JSON.stringify({ truncated: true });
 }
 
+/**
+ * One insert and its count in one transaction() scope: the count runs after the outermost commit (BD-A2-60). Inside a
+ * transaction opened outside transaction(), the scope throws before the insert (BD-A2-74).
+ */
 export function insertAuditEvent(db: Db, input: AuditEventInput, now: number): string {
   const id = randomId('aud_');
-  db.prepare(`INSERT INTO audit_event (id, ts, actor_type, actor_id, tool_account_id, action, target_type, target_id, result, code,
-                trace_id, client_ip, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, now, input.actor.type, input.actor.id, input.toolAccountId, input.action, input.target.type, input.target.id, input.result,
-      input.code ?? null, input.traceId, input.clientIp, auditDetailsText(input.details));
-  afterCommit(db, () => observers.get(db)?.(input.action, input.result));
+  transaction(db, () => {
+    db.prepare(`INSERT INTO audit_event (id, ts, actor_type, actor_id, tool_account_id, action, target_type, target_id, result, code,
+                  trace_id, client_ip, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, now, input.actor.type, input.actor.id, input.toolAccountId, input.action, input.target.type, input.target.id, input.result,
+        input.code ?? null, input.traceId, input.clientIp, auditDetailsText(input.details));
+    afterCommit(db, () => observers.get(db)?.(input.action, input.result));
+  });
   return id;
 }
 
