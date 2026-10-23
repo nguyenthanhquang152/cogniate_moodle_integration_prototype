@@ -294,9 +294,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const exact = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration, ruleOf([profile]));
       if ('code' in exact) reject(profileRuleError(exact, profile.id));
       // A token that the start page did not verify as a registration JWT does not fit a scope-jwt profile. NULL with a
-      // token is a session from before LTI migration 021 (verified then).
-      const tokenKind = session.registrationToken === null ? null : session.tokenKind ?? 'scope-jwt';
-      if (rule.registrationToken === 'scope-jwt' && tokenKind === 'opaque-bearer') {
+      // token is a session from before LTI migration 021 (verified then). Any other stored kind is refused (fail closed).
+      const tokenKind: string | null = session.registrationToken === null ? null : session.tokenKind ?? 'scope-jwt';
+      const allowedKinds: ReadonlyArray<string | null> = rule.registrationToken === 'scope-jwt' ? [null, 'scope-jwt'] : [null, 'scope-jwt', 'opaque-bearer'];
+      if (!allowedKinds.includes(tokenKind)) {
         reject(new ApiError('INVALID_REQUEST', `Invalid field: profile. The registration token does not have the form that profile ${profile.id} needs.`,
           { details: { field: 'profile', reason: 'registration_token_kind' } }));
       }

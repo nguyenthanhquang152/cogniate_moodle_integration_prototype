@@ -39,6 +39,10 @@ describe('registration token kind (LA-ADR-02 D5 item 3, LTI migration 021)', () 
     const jwt = s.create('cogniate', 'jwt-token', undefined, 'scope-jwt');
     expect(getRegistrationSession(s.db, s.handle, 'cogniate', jwt.id, NOW)?.tokenKind).toBe('scope-jwt');
     expect(getRegistrationSession(s.db, s.handle, 'cogniate', s.create('cogniate', null).id, NOW)?.tokenKind).toBeNull();
+    // A-LA-E2-02-06 (BD-A1-77): the column takes only the two kinds or NULL.
+    expect(() => s.db.prepare("UPDATE registration_session SET token_kind = 'unknown-kind' WHERE id = ?").run(jwt.id)).toThrow(/CHECK constraint failed/);
+    expect(() => s.db.prepare("UPDATE registration_session SET token_kind = 'opaque-bearre' WHERE id = ?").run(jwt.id)).toThrow(/CHECK constraint failed/);
+    expect(getRegistrationSession(s.db, s.handle, 'cogniate', jwt.id, NOW)?.tokenKind).toBe('scope-jwt');
   });
 
   it('gives a session row from before migration 021 a NULL kind and keeps its other columns', () => {
