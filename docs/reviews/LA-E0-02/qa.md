@@ -1,0 +1,140 @@
+Verdict: PASS
+Round: 1
+
+# LA-E0-02 Baseline regression record: QA
+
+- **Tester:** Lead QA (`task_6aae0ea0cac1` / `ctx_d1f5887e528a`), 2026-10-23
+- **Spec:** `docs/architecture/ltiaas/tasks/LA-E0-02.md`
+- **Product SHA (`--sha`):** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`LA-E0-01` base intake on `G-BASE` `bd368ff`, product `9f8ac62`)
+- **Test SHA (`--test-sha`):** `357d17997b4d36dbfb6bde7568a4d36dbfb6bde7568a4d87c0e3a14fc` (`357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261`: `1b17261` + the 8 `LD-1` open-world files of `f0a7b306` + the `qalead-la` prefix guard)
+- **Slot 7 Window:** `2026-10-23T18:26:37Z` to `2026-10-23T19:14:40Z` (`48.1 min`, one LA stack at a time):
+  - **Run 7A (SIM lane, `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16`):** `qalead-la-16` (`M1 --phase sim --provider all`), `qalead-la-17` (`M2`), `qalead-la-18` (`M1 --phase migration --provider all`), `qalead-la-19` (`M1 --phase snapshot-upgrade --provider all`)
+  - **Run 7B (Moodle 5.2 lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`, started after Run 7A was 100% down):** `qalead-la-20` (`T7 × 3` via `run-t7.mjs --runs 3`; no legacy `T1–T8` per Slot 7 plan)
+- **Engine Facts (`LD-3`, recorded fact, not a gate):** macOS `27.0.1` (`arm64`), Docker Engine `29.9.1`, Docker Compose `5.6.0`, VM memory `7.75 GiB`, `12` CPUs (`g1-client-identity.json` matched)
+- **Artifacts & Baseline JSON Records (`umask 077`):**
+  - Run folder: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT7/` (`artifacts/`, `logs/`, `docker-records/`)
+  - Baseline JSON records: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT7/baseline/1b17261be97c4701b928fa9dc2fa74c6d23028f6/{m1-sim.json,m2.json,m1-migration.json,m1-snapshot-upgrade.json,t7.json,rate-peaks.json}`
+
+---
+
+## 1. Acceptance Criteria Summary
+
+| AC | Result | Test ID / Scope | Command | Artifact |
+| --- | --- | --- | --- | --- |
+| `AC-LA-E0-02-01` | **PASS** | `M1 --phase sim --provider all` (`394/394` manifest rows `PASS`, `0` missing; `23.8 min` wall time) | `COMPOSE_PROJECT_NAME=qalead-la-16 PUBLIC_PORT=9643 STACK_SUBNET=172.22.0.0/16 node tests/host/run-m1.mjs --phase sim --provider all --sha 1b17261be97c4701b928fa9dc2fa74c6d23028f6 --test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc --source /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` | `SLOT7/artifacts/qalead-la-16-1b17261b-2026-10-23T18-27-46-137Z/m1-case-results.json`, `SLOT7/baseline/1b17261be97c4701b928fa9dc2fa74c6d23028f6/m1-sim.json` |
+| `AC-LA-E0-02-02` | **PASS** | `M2` browser suite (`64/64` manifest cases `PASS`, `0` missing; `3.3 min` wall time) | `COMPOSE_PROJECT_NAME=qalead-la-17 PUBLIC_PORT=9643 STACK_SUBNET=172.22.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures node tests/e2e/host/run-m2.mjs --sha 1b17261be97c4701b928fa9dc2fa74c6d23028f6 --test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc --source /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` | `SLOT7/artifacts/qalead-la-17-1b17261b-2026-10-23T18-52-05-778Z/m2-case-results.json`, `SLOT7/baseline/1b17261be97c4701b928fa9dc2fa74c6d23028f6/m2.json` |
+| `AC-LA-E0-02-03` | **PASS** | `M1 --phase migration` (`12/12` manifest rows `PASS`, `5.2 min`) and `M1 --phase snapshot-upgrade` (`6/6` manifest rows `PASS`, including `M1-41.common.j-snapshot`, `2.5 min`) | `COMPOSE_PROJECT_NAME=qalead-la-18 ... node tests/host/run-m1.mjs --phase migration --provider all ...` and `COMPOSE_PROJECT_NAME=qalead-la-19 ... node tests/host/run-m1.mjs --phase snapshot-upgrade --provider all ...` | `SLOT7/artifacts/qalead-la-18-1b17261b-2026-10-23T18-55-39-609Z/m1-case-results.json`, `SLOT7/artifacts/qalead-la-19-1b17261b-2026-10-23T19-01-20-155Z/m1-case-results.json` |
+| `AC-LA-E0-02-04` | **PASS** | `T7 × 3`: `3` consecutive runs × `17 PASS, 0 FAIL, 1 SKIP` (`DEMO AC-T7-15` skipped without `--demo`; `205 s`, `194 s`, `189 s`; `10.0 min` total). Legacy `T2a–T8` omitted per Slot 7 plan (`GATE-RUN-PLAN.md` §4). | `COMPOSE_PROJECT_NAME=qalead-la-20 PUBLIC_PORT=9543 STACK_SUBNET=172.21.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures node tests/e2e/host/run-t7.mjs --sha 1b17261be97c4701b928fa9dc2fa74c6d23028f6 --runs 3` | `SLOT7/artifacts/qalead-la-20-1b17261b-2026-10-23T19-04-24-184Z/summary.json`, `SLOT7/baseline/1b17261be97c4701b928fa9dc2fa74c6d23028f6/t7.json` |
+| `AC-LA-E0-02-05` | **PASS** | App edge `/tool/launch` & `/tool/deep-link` peaks for `M1 sim` (`26/min`, `18/10s`; `11/min`, `9/10s`) and `M2` (`3/min`, `1/10s`; `2/min`, `1/10s`) — all well below `600/min` and `200/10s` (`appOverDefault: []`). | `node tests/ltiaas/baseline/rate-peaks.mjs --logs <service-logs> --suite m1-sim|m2` | `SLOT7/logs/qalead-la-16-rate-peaks.json`, `SLOT7/logs/qalead-la-17-rate-peaks.json`, §4 below |
+| `AC-LA-E0-02-06` | **PASS** | App edge `/tool/launch` & `/tool/deep-link` peaks for `T7` (`3/min`, `1/10s`; `2/min`, `2/10s`) — well below `600/min` and `200/10s` (`appOverDefault: []`). | `node tests/ltiaas/baseline/rate-peaks.mjs --logs <service-logs> --suite t7-run1|t7-all3runs` | `SLOT7/logs/qalead-la-20-run1-rate-peaks.json`, `SLOT7/logs/qalead-la-20-all3runs-rate-peaks.json`, §4 below |
+| `AC-LA-E0-02-07` | **PASS** | `lti-service` request rates per class (`protocol`, `protocol_account`, `registration`, `registration_account`, `keys`, `api`, `admin`, `auth_failure`) and open registration sessions per `(address, account)` for `M1 sim`, `M2`, and `T7`. Class `admin` in `M1 sim` peaked at **`398/min` and `292/10s`** (exceeding old `{limit: 600, burst: 200}` burst and initial `LA-E5-03` `{limit: 300, burst: 60}`, but within `BD-A2-108` `ecc19bbc` `{limit: 1200, burst: 600}`). | `node tests/ltiaas/baseline/rate-peaks.mjs --logs <service-logs> --suite <name>` | `SLOT7/baseline/1b17261be97c4701b928fa9dc2fa74c6d23028f6/rate-peaks.json`, §4 below |
+| `AC-LA-E0-02-08` | **PASS** | Engine facts recorded once (`macOS 27.0.1 arm64`, `Docker 29.9.1`, `Compose 5.6.0`, `VM 7.75 GiB`, `12 CPUs`). Peak `docker stats --no-stream` memory: SIM lane `1,689.5 MiB` (`1.65 GiB`, `qalead-la-18`) / `1,471.5 MiB` (`1.44 GiB`, `qalead-la-16`); MOODLE lane `1,573.1 MiB` (`1.54 GiB`, `qalead-la-20`). Combined two-lane peak = **`3.19 GiB <= 6.5 GiB`**. | `docker stats --no-stream` 5 s sampler across `qalead-la-16..20` | `SLOT7/logs/slot7-docker-stats.jsonl`, §5 below |
+| `AC-LA-E0-02-09` | **PASS** | `0` product/test baseline `FAIL` rows across all 5 runs (`394/394` `M1 sim` `PASS`, `64/64` `M2` `PASS`, `12/12` `M1 migration` `PASS`, `6/6` `M1 snapshot-upgrade` `PASS`, `3 × 17/17` `T7` `PASS` + `1` expected `DEMO AC-T7-15` `SKIP`). All 3 `M3` global-state host rows (`qalead-la-17` `M3-06-M2`, `qalead-la-18` `M3-ISOLATION`, `qalead-la-19` `M3-ISOLATION`) are listed with exact notes and foreign `sto-*` causes in §2 and §6. | `summary.json` and `m1-case-results.json` / `m2-case-results.json` accounting | §2, §3, and §6 below |
+
+---
+
+## 2. Exact `summary.json` `results` and Manifest Accounting (`qalead-la-16..20`)
+
+1. **`qalead-la-16` (`M1 --phase sim --provider all`, `qalead-la-16-1b17261b-2026-10-23T18-27-46-137Z/summary.json`, `23.8 min`):**
+   - **Counts:** `400` total in `summary.json` `results` (`400 PASS`, `0 FAIL`): `394/394` `sim` manifest rows `PASS` + `6/6` host rows `PASS` (`G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION`, `TEARDOWN`).
+   - **Missing Manifest IDs:** **`0` manifest IDs missing** (`394/394` in `m1-case-results.json`).
+   - **Non-PASS IDs:** **`0`** (`[]`).
+2. **`qalead-la-17` (`M2` browser suite, `qalead-la-17-1b17261b-2026-10-23T18-52-05-778Z/summary.json`, `3.3 min`):**
+   - **Counts:** `71` total in `summary.json` `results` (`70 PASS`, `1 FAIL`): `64/64` `M2` manifest cases `PASS` + `6` host rows `PASS` (`PRE`, `CLONE`, `H1`, `M2-STACK`, `M3-07-M2`, `TEARDOWN`) = `70 PASS`.
+   - **Missing Manifest IDs:** **`0` manifest IDs missing** (`64/64` in `m2-case-results.json`).
+   - **Non-PASS IDs (`1`):**
+     - `M3-06-M2` (`FAIL`): `"volumes 35 → 34; containers 3 → 2"` (foreign `sto-*` Savoy containers; see §6).
+3. **`qalead-la-18` (`M1 --phase migration --provider all`, `qalead-la-18-1b17261b-2026-10-23T18-55-39-609Z/summary.json`, `5.2 min`):**
+   - **Counts:** `11` total in `summary.json` `results` (`10 PASS`, `1 FAIL`): `4` `common` migration rows recorded via `r.record` (`M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`) + `6` host rows `PASS` (`G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `MIGRATION`, `TEARDOWN`) = `10 PASS`.
+   - **Manifest Case Results (`m1-case-results.json`):** **`12/12` `PASS`, `0` manifest IDs missing** (`M1-23.common.{baseline,backup,backup-running,upgrade}`, `M1-30.common.{postwrite,reject-bytes,reject-missing,reject-backup-id,reject-project,restore,rollback}`, `M1-41.common.j-migration`).
+   - **Non-PASS IDs in `summary.json` (`1`):**
+     - `M3-ISOLATION` (`FAIL`): `"containers changed: 2; volumes changed: 6702b0c6c1490f082b1a1313956a723043b64de43bf4fbfb0f0d831acd692b8e, 6b2821607459eec2a4d50920f62062cc3a6f91659cc53942d909c66e4546d0ec"` (foreign `/sto-proj-93c5c9a82d9d` and `/sto-it-mq-3f527021b8d2`; see §6).
+4. **`qalead-la-19` (`M1 --phase snapshot-upgrade --provider all`, `qalead-la-19-1b17261b-2026-10-23T19-01-20-155Z/summary.json`, `2.5 min`):**
+   - **Counts:** `11` total in `summary.json` `results` (`10 PASS`, `1 FAIL`): `5` `M1-38.common.h1..h5` rows `PASS` + `5` host rows `PASS` (`G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `TEARDOWN`) = `10 PASS`.
+   - **Manifest Case Results (`m1-case-results.json`):** **`6/6` `PASS`, `0` manifest IDs missing** (`M1-38.common.h1` `4,791.9 ms`, `M1-38.common.h2` `5,506.7 ms`, `M1-38.common.h3` `1,723.5 ms`, `M1-38.common.h4` `1,083.8 ms`, `M1-38.common.h5` `9,764.2 ms`, and host qualification row `M1-41.common.j-snapshot` `PASS`).
+   - **Non-PASS IDs in `summary.json` (`1`):**
+     - `M3-ISOLATION` (`FAIL`): `"containers changed: 1; volumes changed: da4cd6c823417d73bdaad4c968be053dbb28a6323f7913c349d4c58fe6c3b8d2"` (foreign `/sto-it-mq-102cb0c0184e`; see §6).
+5. **`qalead-la-20` (`T7 × 3`, `qalead-la-20-1b17261b-2026-10-23T19-04-24-184Z/summary.json`, `10.0 min`):**
+   - **Steps:** `8/8` `OK` (`preflight`, `clone`, `course zips`, `npm ci, gen-env, compose project name`, `run 1`, `run 2`, `run 3`, `teardown`).
+   - **Per-Run Counts:**
+     - **Run 1 (`205 s`, `e2e:reset 57 s`):** `17 PASS`, `0 FAIL`, `1 SKIP` (`DEMO AC-T7-15 after demo:prepare, cg_student opens both activities in COGNIATE-DEV-101 and reaches the player` — `skip: runs only in the demo pass (QA_E2E_DEMO=1)`).
+     - **Run 2 (`194 s`, `e2e:reset 46 s`):** `17 PASS`, `0 FAIL`, `1 SKIP` (`DEMO AC-T7-15`).
+     - **Run 3 (`189 s`, `e2e:reset 46 s`):** `17 PASS`, `0 FAIL`, `1 SKIP` (`DEMO AC-T7-15`).
+
+---
+
+## 3. `WE-F4` Baseline Comparison: The 18 Slot 3B Non-PASS IDs on `1b17261` (`qalead-la-16`) vs `80133d6b` (`qalead-la-14`)
+
+- **Concurrent `sto-*` Activity During `qalead-la-16`'s `M1-37` Window (`18:39:08Z–18:46:50Z`):** Our read-only `docker events` watcher (`SLOT7/docker-records/docker-events-watch.log`) recorded **`40` `sto-*` container creates** during the 7.7-minute `M1-37` window (`176` `sto-*` container creates across `qalead-la-16` as a whole, and `561` across Slot 7).
+- **`m1-restart cogniate-app` Wall-Time Comparison (`host-actions/m1-*.json`):**
+  - On `1b17261` (`qalead-la-16`), normal `m1-restart cogniate-app` calls (without a hanging dead handler) took **`6,183–6,701 ms`**, and the **7 `M1-37` `m1-restart cogniate-app` calls** (with an in-flight hanging dead handler) took **`8,226–8,437 ms` (`8.2–8.4 s`)** — leaving `~51.6 s` of the `60 s` lease window for the post-restart assertions, so **all 7 `M1-37` cases passed**.
+  - On `80133d6b` (`qalead-la-14` in Slot 3B), normal `m1-restart cogniate-app` calls (without a hanging dead handler) also took **`6,213–6,402 ms`**, whereas all **7 `M1-37` `m1-restart cogniate-app` calls** (with an in-flight hanging dead handler) took **`76,318–76,853 ms` (`76.3–76.9 s`)**!
+  - **Root Cause Implication for `WE-F4`:** `WE-F4` is **not** a host-load flake; on `80133d6b`, stopping/restarting `cogniate-app` while an `M1-37` handler is hanging waits an extra `~68.1 s` (`76.4 s` vs `8.3 s` on `1b17261`), exceeding the `60 s` dead-handler lease window before `stack:restart` returns.
+
+| # | Case ID (`7` `M1-37` rows first) | `1b17261` (`qalead-la-16`) Result | `1b17261` Case Duration (`ms`) | `1b17261` `m1-restart cogniate-app` Wall Time (`ms`, artifact) | `80133d6b` (`qalead-la-14`) Result | `80133d6b` Case Duration (`ms`) | `80133d6b` `m1-restart cogniate-app` Wall Time (`ms`, artifact) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `M1-37.blackboard.d` | **PASS** | `62,998.7 ms` | **`8,392 ms`** (`m1-d5a4ddc14586.json`, `18:39:38.930Z`) | `FAIL` | `77,003.5 ms` | **`76,429 ms`** (`m1-9a190ef0d726.json`, `17:28:04.061Z`) |
+| 2 | `M1-37.blackboard.o` | **PASS** | `63,067.4 ms` | **`8,294 ms`** (`m1-2cfabeb0fe08.json`, `18:41:00.732Z`) | `FAIL` | `77,492.7 ms` | **`76,351 ms`** (`m1-6d371ad44e68.json`, `17:29:42.179Z`) |
+| 3 | `M1-37.blackboard.v5` | **PASS** | `10,788.8 ms` | **`8,371 ms`** (`m1-534d19bfe5be.json`, `18:42:17.566Z`) | `FAIL` (`BLOCKED`) | `77,449.9 ms` | **`76,853 ms`** (`m1-4b36a29d522d.json`, `17:31:13.298Z`) |
+| 4 | `M1-37.canvas.d` | **PASS** | `63,061.1 ms` | **`8,226 ms`** (`m1-532fa86964a5.json`, `18:44:06.334Z`) | `FAIL` (`BLOCKED`) | `77,387.7 ms` | **`76,437 ms`** (`m1-ba7ac967cb00.json`, `17:33:16.947Z`) |
+| 5 | `M1-37.canvas.s-dead` | **PASS** | `62,996.4 ms` | **`8,437 ms`** (`m1-e3dbfb6533a8.json`, `18:45:29.754Z`) | `FAIL` (`BLOCKED`) | `77,704.9 ms` | **`76,512 ms`** (`m1-56e59cc651d4.json`, `17:34:55.397Z`) |
+| 6 | `M1-37.canvas.v4` | **PASS** | `10,259.5 ms` | **`8,341 ms`** (`m1-03be2999f957.json`, `18:45:40.535Z`) | `FAIL` (`BLOCKED`) | `77,691.3 ms` | **`76,318 ms`** (`m1-abd93a536c38.json`, `17:36:13.513Z`) |
+| 7 | `M1-37.canvas.v6` | **PASS** | `10,780.4 ms` | **`8,420 ms`** (`m1-6736bebf8e84.json`, `18:46:34.777Z`) | `FAIL` (`BLOCKED`) | `77,883.3 ms` | **`76,454 ms`** (`m1-c03690f0cf0d.json`, `17:38:12.626Z`) |
+| 8 | `M1-13.blackboard.inactive` | **PASS** | `75.7 ms` | N/A (no restart in case) | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `14.1 ms` | N/A |
+| 9 | `M1-25.blackboard.site-metadata` | **PASS** | `22.5 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `7.1 ms` | N/A |
+| 10 | `M1-14.blackboard.claims` | **PASS** | `22.0 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `5.8 ms` | N/A |
+| 11 | `M1-36.blackboard.origin` | **PASS** | `44.0 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `4.5 ms` | N/A |
+| 12 | `M1-36.blackboard.path` | **PASS** | `32.0 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `4.1 ms` | N/A |
+| 13 | `M1-36.blackboard.query` | **PASS** | `38.2 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `4.8 ms` | N/A |
+| 14 | `M1-36.blackboard.encoded-dot` | **PASS** | `33.0 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `4.3 ms` | N/A |
+| 15 | `M1-36.blackboard.encoded-slash` | **PASS** | `29.4 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `4.2 ms` | N/A |
+| 16 | `M1-15.canvas.dynamic-refused` | **PASS** | `32.3 ms` | N/A | `FAIL` (`WE-F3`) | `31.8 ms` | N/A |
+| 17 | `M1-08.canvas.login-redirect` | **PASS** | `28.3 ms` | N/A | `FAIL` (`429 RATE_LIMITED`, `WE-F1`) | `16.4 ms` | N/A |
+| 18 | `M1-24.common.event-shapes` | **PASS** | `12.1 ms` | N/A | `FAIL` (`WE-F2`) | `19.2 ms` | N/A |
+
+---
+
+## 4. Request-Rate Peaks (`AC-LA-E0-02-05`, `AC-LA-E0-02-06`, `AC-LA-E0-02-07`)
+
+Measured by `node tests/ltiaas/baseline/rate-peaks.mjs` on `service-logs/{cogniate-app,lti-service}.jsonl`:
+
+| Route / Class | Key | `M1 sim` (`qalead-la-16`) Total / Peak `60s` / Peak `10s` | `M2` (`qalead-la-17`) Total / Peak `60s` / Peak `10s` | `T7` Run 1 (`qalead-la-20`) Total / Peak `60s` / Peak `10s` | `T7` All 3 Runs (`qalead-la-20`) Total / Peak `60s` / Peak `10s` | Default Limit (`perMinute` / `burst`) | Over Default? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| App `GET /tool/launch` | `e2e` address | `120` / **`26/min`** / **`18/10s`** | `3` / **`3/min`** / **`1/10s`** | `4` / **`3/min`** / **`1/10s`** | `4` / **`3/min`** / **`1/10s`** | `600/min`, burst `200` | **No** (`0` suites) |
+| App `GET /tool/deep-link` | `e2e` address | `26` / **`11/min`** / **`9/10s`** | `2` / **`2/min`** / **`1/10s`** | `4` / **`2/min`** / **`2/10s`** | `4` / **`2/min`** / **`2/10s`** | `600/min`, burst `200` | **No** (`0` suites) |
+| LTI `protocol` | client address | `541` / **`184/min`** / **`181/10s`** | `10` / **`10/min`** / **`4/10s`** | `18` / **`10/min`** / **`6/10s`** | `18` / **`10/min`** / **`6/10s`** | `600/min`, burst `200` | **No** |
+| LTI `protocol_account` (`cogniate`) | tool account (soft) | `541` / **`184/min`** / **`181/10s`** | `10` / **`10/min`** / **`4/10s`** | `18` / **`10/min`** / **`6/10s`** | `18` / **`10/min`** / **`6/10s`** | `6000/min`, burst `1000` | **No** |
+| LTI `registration` | client address | `0` / **`0/min`** / **`0/10s`** | `0` / **`0/min`** / **`0/10s`** | `1` / **`1/min`** / **`1/10s`** | `1` / **`1/min`** / **`1/10s`** | `10/min`, burst `5` | **No** |
+| LTI `registration_account` (`cogniate`) | tool account (soft) | `0` / **`0/min`** / **`0/10s`** | `0` / **`0/min`** / **`0/10s`** | `1` / **`1/min`** / **`1/10s`** | `1` / **`1/min`** / **`1/10s`** | `1/min`, burst `20` | **No** |
+| LTI `keys` | client address | `55` / **`8/min`** / **`8/10s`** | `7` / **`5/min`** / **`2/10s`** | `2` / **`1/min`** / **`1/10s`** | `2` / **`1/min`** / **`1/10s`** | `300/min`, burst `100` | **No** |
+| LTI `api` | API key id | `414` / **`69/min`** / **`60/10s`** | `12` / **`12/min`** / **`5/10s`** | `26` / **`16/min`** / **`9/10s`** | `26` / **`16/min`** / **`9/10s`** | `1200/min`, burst `300` | **No** |
+| LTI **`admin`** | API key id | `1919` / **`398/min`** / **`292/10s`** | `382` / **`286/min`** / **`77/10s`** | `14` / **`8/min`** / **`5/10s`** | `14` / **`8/min`** / **`6/10s`** | Old `rate-peaks.mjs`: `600/min`, burst `200`<br>`BD-A2-108` (`ecc19bbc`): **`1200/min`, burst `600`** | **Against `600/200`:** **Yes** in `M1 sim` (`292/10s > 200` burst; and `398/min > 300/min` initial `LA-E5-03` default, causing `WE-F1`).<br>**Against `1200/600` (`BD-A2-108`, `ecc19bbc`):** **No** (`398 <= 1200`, `292 <= 600`). |
+| LTI `auth_failure` | client address | `10` / **`4/min`** / **`4/10s`** | `0` / **`0/min`** / **`0/10s`** | `0` / **`0/min`** / **`0/10s`** | `0` / **`0/min`** / **`0/10s`** | `120/min`, burst `120` | **No** |
+| Open registration sessions (`GET /lti/register/<account>` per `10 min`) | `(address, cogniate)` | `0` | `0` | `1` total (`1` / `10 min`) | `1` total (`1` / `10 min`) | `5` concurrent open sessions | **No** |
+
+---
+
+## 5. Engine Facts & `docker stats --no-stream` Memory Peaks (`AC-LA-E0-02-08`)
+
+- **Engine Facts (`LD-3`):** macOS `27.0.1` (`arm64`), Docker Engine `29.9.1`, Docker Compose `5.6.0`, VM memory `7.75 GiB`, `12` CPUs.
+- **Per-Run Stack Memory Peaks (`SLOT7/logs/slot7-docker-stats.jsonl`, sampled every `5 s`):**
+  - `qalead-la-16` (`M1 --phase sim --provider all`, SIM lane): **`1,471.5 MiB` (`1.44 GiB`)** at `2026-10-23T18:51:02Z`
+  - `qalead-la-17` (`M2`, SIM lane): **`993.2 MiB` (`0.97 GiB`)** at `2026-10-23T18:54:47Z`
+  - `qalead-la-18` (`M1 --phase migration`, SIM/Moodle lane): **`1,689.5 MiB` (`1.65 GiB`)** at `2026-10-23T18:58:06Z`
+  - `qalead-la-19` (`M1 --phase snapshot-upgrade`, SIM lane): **`761.1 MiB` (`0.74 GiB`)** at `2026-10-23T19:02:25Z`
+  - `qalead-la-20` (`T7 × 3`, MOODLE lane): **`1,573.1 MiB` (`1.54 GiB`)** at `2026-10-23T19:13:40Z`
+- **Two-Lane Peak Sum (`TEST-STRATEGY.md` §5.1):** Peak SIM lane (`1.65 GiB` with Moodle migration, or `1.44 GiB` pure SIM) + Peak MOODLE lane (`1.54 GiB`) = **`3.19 GiB` (`2.98 GiB` pure SIM + MOODLE) <= `6.5 GiB` threshold**. (Even so, per Slot 7 rules, LA runs one stack at a time.)
+
+---
+
+## 6. `M3` Global-State Environment Notes (`TEST-STRATEGY.md` §5.4) & Protected Volume Boundary
+
+- **External `sto-*` (Savoy) Activity:** Our read-only `docker events` watcher (`SLOT7/docker-records/docker-events-watch.log`) recorded **`561` `sto-*` container creates** during Slot 7 (`18:26:37Z–19:14:40Z`), **100% of them `sto-*` containers** (`sto-it-pg-*`, `sto-it-mq-*`, `sto-it-ops-*`, `sto-proj-*`), each mounting an ephemeral 64-hex anonymous volume. QA never touched any `sto-*` container or volume.
+- **Per-Run `M3` Global-State Rows Explained by `sto-*`:**
+  1. `qalead-la-16` `M3-ISOLATION`: **`PASS`**.
+  2. `qalead-la-17` `M3-06-M2` (`FAIL`): `"volumes 35 → 34; containers 3 → 2"` — caused by `213` `sto-*` container create/destroy events between `18:52:06Z` and `18:55:22Z` (`sto-it-pg-*`, `sto-proj-*`).
+  3. `qalead-la-18` `M3-ISOLATION` (`FAIL`): `"containers changed: 2; volumes changed: 6702b0c6c1490f082b1a1313956a723043b64de43bf4fbfb0f0d831acd692b8e, 6b2821607459eec2a4d50920f62062cc3a6f91659cc53942d909c66e4546d0ec"` — caused by `/sto-proj-93c5c9a82d9d` and `/sto-it-mq-3f527021b8d2` and their 2 anonymous volumes stopping during `qalead-la-18`.
+  4. `qalead-la-19` `M3-ISOLATION` (`FAIL`): `"containers changed: 1; volumes changed: da4cd6c823417d73bdaad4c968be053dbb28a6323f7913c349d4c58fe6c3b8d2"` — caused by `/sto-it-mq-102cb0c0184e` and its anonymous volume stopping during `qalead-la-19`.
+- **32 Protected Persistent Volume `inspect` Verification (`SLOT7/docker-records/before-volumes-inspect.json` vs `after-volumes-inspect.json`):**
+  - All **32 protected persistent volumes** present before Slot 7 (`18:26:37Z`) are present after Slot 7 (`19:14:40Z`) and are **100% byte-identical in `docker volume inspect` JSON** (`0` missing, `0` changed).
+  - **`0` `qalead-la-*` containers, volumes, or networks remained** after teardown.
