@@ -445,14 +445,19 @@ async function stepPostRestoreVerify(runId) {
   const runtimeToken = new URL(runtimeUrl).pathname.split('/')[2];
   rememberSecret('runtime_token', runtimeToken);
 
-  // Verify the restored course package content page loads in the player runtime (200).
-  const packageHtmlRes = await rawRequest(runtimeUrl);
-  assert.equal(packageHtmlRes.status, 200, 'Restored course package index.html loads in player runtime');
-  assert.ok(packageHtmlRes.body.includes('data-cog-quiz="q0"'), 'Restored course HTML contains quiz questions');
+  // Verify the runtime page (/rt/:token), runtime state (/rt/:token/state), and restored course package content page (/pkg/:pkgId/index.html) load in the player runtime (200).
+  const runtimePageRes = await rawRequest(runtimeUrl);
+  assert.equal(runtimePageRes.status, 200, 'Player runtime page /rt/:token loads (200)');
+  assert.ok(runtimePageRes.body.includes('id="cogniate-package"'), 'Runtime page contains package iframe');
 
   const rtStateRes = await rawRequest(`${PUBLIC_CONTENT_URL}/rt/${runtimeToken}/state`);
   assert.equal(rtStateRes.status, 200, 'GET /rt/:token/state status 200');
   const rtState = rtStateRes.json;
+
+  const packageEntryUrl = `${PUBLIC_CONTENT_URL}${rtState.packageBaseUrl}${rtState.launchPath}`;
+  const packageHtmlRes = await rawRequest(packageEntryUrl);
+  assert.equal(packageHtmlRes.status, 200, 'Restored course package index.html loads in player runtime');
+  assert.ok(packageHtmlRes.body.includes('data-cog-quiz="q0"'), 'Restored course HTML contains quiz questions');
 
   // Commit 9/10 correct answers (score 90 / 100, Completed).
   const commitBody = {
