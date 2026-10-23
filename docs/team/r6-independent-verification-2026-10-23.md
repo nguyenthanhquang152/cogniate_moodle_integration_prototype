@@ -136,3 +136,39 @@ All other E-R6 controls stay in force. No runtime is authorized by this repair d
 The corrected failed-run closure is `notes/m2-attempt3-capture-and-closure-report-v2.json`, 34,569 bytes, SHA-256 `b6042aca77df856e56daa8aa6a4c7393fbc8b4b9d50a1a6faa02f8084901051a`.
 The Lead verified all 59 nested file bindings. It discloses overwritten intermediate derived reports, the corrected metadata and the inferred cause.
 The original runtime files are unchanged. No reconstructed report is called an original.
+
+## Repaired monitor approval and invocation amendment — 2026-10-23, 03:27 UTC
+
+The Lead accepts the focused Claude review at `b84b53e`, `docs/reviews/M3/lane-monitor-review.md`.
+The review approves the bounded repair and invocation scripts, with no open BLOCKER or MAJOR. LW-R-01 is resolved.
+It is the private-tool review gate only. M2 attempt 3 remains NOT ACCEPTED; T7 has not run.
+
+Frozen files under the C8 preparation root:
+
+| Input | Bytes | SHA-256 |
+| --- | --- | --- |
+| `tools/lane-watch-r4/lane-watch-core.mjs` | 24,297 | `d7b962b6e6ebefc5eb6f2ac9212f0368c556c233cff56cbf7174937414847561` |
+| `tools/lane-watch-r4/lane-watch-selftest.mjs` | 45,940 | `e7064c25ad7e54557eb5c11377ca20982fa08b7cd699da3509c04f09a88dc40d` |
+| `notes/lane-watch-r4-selftest.stdout.json` | 9,143 | `031681396f997f0df695223724df5c8e2a64749ca13a3127921ddc4439d425af` |
+| `notes/scripts/run-m2-window-attempt4-v5.sh` | 21,280 | `b8bda7964aad3e9aa7f1a130036238b0a396f3ca12cb034a8049dd77fc509689` |
+| `notes/scripts/run-t7-window-v2.sh` | 20,605 | `1c884fdfec60a849c6f57410f7b62b28bdd37fc0d29c89510c40e4910e73d48f` |
+| `notes/MANIFEST-lane-watch-r4-v2.sha256` | 1,071 | `1b6be474b5a972b5b028e064985486ea6a2f5e43767ce48f2ac63a676af27fef` |
+
+The selftest records 39 passing checks across 54 scenarios. The reviewer checked the source and recorded result; it did not rerun the tests.
+The original 37 tools, 84-entry manifest, product, C8/C9 and `storage-docker.mjs` remain unchanged.
+
+For the one future M2 invocation, replace lane `qa-e2e-sim-r6` with unused `qa-e2e-sim-r7` everywhere.
+Port 8643 and subnet `172.27.0.0/16` stay unchanged. Use fresh `m2/window-attempt4`, `m2/attempt4/*`, `m2-stack-attempt4`, observer/stop files and the unique r7 artifact selection.
+The grant must set `PREV_W4` to the immediately preceding accepted operational W4, and set an absent `BASE32` file with a matching provenance name.
+T7 keeps lane `qa-e2e-m3-r3`, port 8543 and subnet `172.31.0.0/16`, with its own fresh paths and separate grant.
+Before either launch, QA rechecks the six-entry repaired-tool manifest and the original 84-entry manifest, confirms `PREV_W4` exists and `BASE32` is absent, and records the actual grant message and delivery IDs.
+These are launch conditions; this amendment itself grants no runtime.
+
+Nonblocking review dispositions: N1's missing selftest hash binding is disclosed; N2's three synthetic scratch folders are retained and disclosed; N3's possible short private JSON-error excerpt is disclosed.
+N4 is covered by the explicit grant-time path checks. N5 is covered by the matching `BASE32` name.
+N6's new r7 E2E image tag is recorded as an owned host footprint. No image cleanup or other-project mutation is added.
+For N7, if any `listing_vanish` occurs, QA binds the private error file's bytes and SHA-256 without publishing its content, checks every condition (a)–(d), and records the destroy event as corroboration.
+Do not reopen passing code for these NITs. Final QA retains the disclosed pre-freeze intermediate-file history.
+
+All operational checks, no-retry rules, role boundaries, final conformance and review gates remain in force.
+All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
