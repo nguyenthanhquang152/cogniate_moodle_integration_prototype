@@ -183,6 +183,8 @@ services:
       LTI_API_KEY_FILE: /run/secrets/app/lti-api-key
       # M1, acceptance only: the app's /api/* calls go through the transport gate (M3 §3.3). Empty = PUBLIC_LTI_URL.
       LTI_API_URL: ${ACCEPTANCE_LTI_API_URL:-}
+      OPERATOR_HOST: ${ACCEPTANCE_OPERATOR_HOST:-127.0.0.1}   # LA-E4-07: /metrics, /readyz; acceptance binds 0.0.0.0 for e2e
+      OPERATOR_PORT: "4210"                                   # http://cogniate-app:4210; no host port, no proxy route
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro

@@ -10,8 +10,6 @@ export type SiteUrlOn = 'platform' | 'deployment' | null;
 export interface ProfileFlags {
   /** Deep Linking response JWT has `sub` = client id (F-BB-8). */
   readonly deepLinkingResponseSub: boolean;
-  /** Client assertion `aud` = `[token endpoint]` (F-BB-5). */
-  readonly clientAssertionAudArray: boolean;
   /** Launch check 13: service URL claims on the service origin, DL return URL on the site origin. */
   readonly serviceOriginCheck: boolean;
 }

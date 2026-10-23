@@ -26,7 +26,8 @@ describe('profile registry', () => {
       authenticationEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oidcauth',
       accesstokenEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken',
       jwksUrl: 'https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json',
-      flags: { deepLinkingResponseSub: true, clientAssertionAudArray: true, serviceOriginCheck: true },
+      flags: { deepLinkingResponseSub: true, serviceOriginCheck: true },
+      clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' }, dynamicRegistration: null,
     });
     expect(profileEndpoints(bb, { clientId: 'a/b c' }).jwksUrl).toBe('https://developer.blackboard.com/api/v1/management/applications/a%2Fb%20c/jwks.json');
     expect(profileFixedHosts(bb)).toEqual(['blackboard.com', 'developer.blackboard.com']);

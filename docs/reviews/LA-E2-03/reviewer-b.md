@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 ## Round 1
 
@@ -57,3 +57,47 @@ QA retains K1-SIM AC-03/04/05/07, the F2 report and R1. Request changes for B-01
 Verification in `/tmp/la-e2-04-review-b-p0ltlhei/repo`: the clean merge passed **277 focused tests in 12 files**, including both changed test files and the portal shell, and **134 K0 tests**. Full lint, type checks, F1 and F5 passed. As a negative control, restoring only `admin-value.ts` from `3777e7c^` made all **three** new parser/default/API regressions fail; the fixed parser was then restored. The extra real wizard-to-parser probe passed with the fix. No portal or LTI-service production file changed in this fix; no Docker, stack, commit or push was run.
 
 This approval closes the two dispatched E2-03 findings. The separate staged-form and finalized-repeat gaps introduced or exposed by E2-04 are recorded in that task's Round 1 report.
+
+
+## Follow-ups (E2-K)
+
+**Verdict: CHANGES_REQUESTED.** Reviewer-B: Codex GPT-6-Astra xhigh. Round 3, 2026-10-23. Reviewed `9d52c24`, `b01794f`, `6776bbd`, `afaf9ff` and `a176489` in merge `e82808e`, against LA-E2-03, BD-A1-78/94/95, README §4 N10 and plan §6.1. Verification used a private clone at `667bcf875102865884c0d30b8c4f04e8dc20ae4b`, which also contains the new Brightspace folder. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT.** B-LA-E2-03-03 is closed; B-LA-E2-03-04 is new.
+
+### B-LA-E2-03-04 — MAJOR — The open-world rewrite still rejects new simulation entries
+
+- **Files:** `services/lti-service/src/profiles/canvas.test.ts:26`; `packages/channel-kernel/src/registry.test.ts:163`.
+- **Problem:** the Canvas test still requires the last two loaded profiles to be exactly the two baseline simulation profiles. The kernel test compares simulations-off with simulations-on after removing only its own `zz-sim` fixture, so it assumes that the product root has no simulation-only channel. Both tests read the real product root. A team can add a valid channel folder and then must edit core tests to make the build pass, contrary to N10 and BD-A1-95.
+- **Evidence:** in the private clone, added only `packages/channels/zz-review-new/{manifest.ts,lti-profiles.ts}`: a manual operator-grant channel using the generic admin-value shape, `card.order: 90`, one real profile (`listOrder: 100`) and one simulation profile (`listOrder: 101`). Discovery and profile validation succeeded; the nine rewritten test files produced **240 passes and one failure**, at `canvas.test.ts:26`, whose actual tail was `canvas-sim-cloud, zz-review-new-sim`. Replaced that folder with `zz-review-simonly`, `availability: 'simulation-only'`, one valid simulation profile, and reran the same files: **239 passes and two failures**, at the two cited lines. The additional kernel failure is the new channel remaining in the simulations-on comparison. No core code or test was changed for either probe.
+- **Suggested fix:** assert membership and the relative order of the baseline simulation profiles after filtering to the profiles under test, or use a registry made only from fixtures. In the kernel comparison, filter all simulation-only manifests by their declared availability, while retaining the explicit on/off assertions for `zz-sim`. Include both a normal channel with a simulation profile and a simulation-only channel in the add-folder check. Keep this fix in E2-K before naming its final base SHA, as BD-A1-94 requires.
+
+### Resolved finding and maintainability
+
+**B-LA-E2-03-03 — CLOSED.** `admin-value.ts` returns the typed `issuerOrigin` reason, and `authority/common.ts` gives the issuer-specific repair sentence. The older `origin` and malformed-value sentences remain unchanged. The API test checks the exact new sentence while allowing a token endpoint on another HTTPS host; restoring the old reason makes that test fail.
+
+`setup.toolRows` is a small, usable data contract. The exported type and placeholder list, ADR D2/D5 and adapter test explain row order, the generic fallback, and which context values are available. The schema rejects unknown row properties, invalid or duplicate keys, an empty list, empty labels/values and unsupported placeholders. Filling is one pass, so inserted library text containing braces or `$&` stays literal. The adapter uses the supplied tool URLs and scope set. Disabling the custom-row branch makes the new rendering test fail. No additional usability finding is needed for this field.
+
+N10 clearly distinguishes tests of the product registry from tests of a fixed fixture registry. The rewrites generally show a useful pattern: preserve the frozen baseline values, select the entry under test by id, and derive the allowed ordering from manifest/profile data. The two remaining simulation assumptions above are an incomplete application of that rule.
+
+The staged-registration follow-up adds the dynamic client/deployment/grant fields and preserves the staged deployment ids in the pending DTO so the form can pre-fill them. Its regression uses those manifest fields and the fetched DTO to redeem the grant; removing just the DTO exception makes it fail with an empty deployment list. This checks `9d52c24` only and is not a new verdict on LA-E2-04's separate fix round.
+
+### Verification and ownership
+
+- The clean candidate passed **329 focused tests in 13 files**, including all changed test files and the LA-E2-02 route suite reviewed alongside this item. Root type checks, full lint, F1 (0 hits) and F5 (six rules, 0 hits) passed.
+- The two added-folder probes failed only as described in B-04. The custom-row, issuer-reason and staged-DTO negative controls each caused their intended regression test to fail. Temporary folders and source mutations were removed; all 329 focused tests passed again after restoration.
+- `a176489` is the declared RQ-2 for L's three test files; the other E2-K changes remain in K's manifest, kernel and app files. No `tests/**`, service wiring or portal production file changed in these commits. No LMS branch was added to core.
+- Logs are `/tmp/reviewer-b-e2k-{focused,restored,canary-real-sim,canary-simonly}.log` and `/tmp/reviewer-b-e2k-mutant-{rows,issuer,staged-dto}.log`. QA retains the E2-N add-channel/F2 gate and stack-backed ACs. No Docker, stack, commit or push was run.
+
+
+## Follow-ups (E2-K) round 2
+
+**Verdict: APPROVE.** Reviewer-B: Codex GPT-6-Astra xhigh. Round 4, 2026-10-23. Reviewed `1c60d42` and RQ-2 `d58061f` in merge `053e5c7`, against B-LA-E2-03-04, BD-A1-94/95, N10 and LA-ADR-01 D4. Verification used a private clone at `823bb268fbaf2399f95c8d5b5300ad98d186beff`, with its own `npm ci`; the Vitest cache was deleted before each run. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No new findings.
+
+**B-LA-E2-03-04 — CLOSED.** The Canvas test now selects the baseline simulation profiles by membership and checks their relative order, then checks the full discovered list against the D4 ordering rule. The kernel comparison removes every manifest whose availability is `simulation-only`; the explicit hidden/shown checks for its own fixture remain. The added ordering fixture covers both forms of simulation support. The storage test preserves the named profiles' values while allowing other valid storage traits, and the LA-IC-03 baseline helper now selects baseline channels positively rather than excluding just `lti-generic`.
+
+Repeated both original folder probes without changing core: a normal `zz-review-new` channel with real and simulation profiles, then a `zz-review-simonly` channel with one simulation profile. **Each passed the full unit suite: 190 files, 3,056 tests passed, 5 skipped.** The clean candidate passed 3,055 tests with the same five skips. This also exercises the two additional closed-world spots found by L. All temporary folders were removed. K0 passed **149 tests**; root type checks, lint, F1 and F5 passed.
+
+These changes give the next team clear examples of membership, relative-order and availability checks. The diff changes only L's four unit-test files and K's registry test under the declared RQ-2; no production behavior or QA-owned test changed. Evidence is in `/tmp/reviewer-b-e2k2-{unit,canary-real-sim,canary-simonly,k0}.log`. QA retains the formal E2-N/F2 gate. No Docker, stack, commit or push was run.

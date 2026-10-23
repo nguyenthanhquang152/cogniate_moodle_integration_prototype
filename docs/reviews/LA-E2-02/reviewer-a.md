@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 ## Round 1
 
@@ -132,3 +132,52 @@ BD-A1-77, the task notes and data-model §4.2 require `TEXT NULL CHECK (token_ki
 ### Verdict (round 2)
 
 APPROVE for lens A. All round 1 BLOCKER and MAJOR findings are closed: each has a committed test, and the round 1 probes pass unchanged. A-07 waits for an A1 answer and A-08 implements the A2 ruling BD-A2-84; both are MINOR and can land with the lane L change for BD-A2-83/84. My reproduction files are in `/tmp/ra-e201/` (private clone; not committed).
+
+## Round 3
+
+- Reviewer-A: Claude Code Opus 5.5 xhigh (the same session as round 2).
+- Diff: `git show f8fa4ff` (A1 BD-A1-93, LA-IC-21) and the LA-E2-02 part of `git show 4dfd87d` (A2 BD-A2-84), merged by `678eb72`.
+- I ran these in the private clone at `678eb72` (no Docker, no stack):
+  - Vitest on `services/lti-service` and `packages/channel-kernel`: 98 files, 1313 tests pass.
+  - `npm run test:k0`: 134 tests pass.
+  - F1 PASS (0 hits); `npm run typecheck`: exit 0. ESLint on the product packages: clean.
+  - Probes: the round 1 probe file (10 tests) and my three round 2 edge probes, re-run unchanged. All pass.
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 3): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Finding | Status | Evidence at `678eb72` |
+| --- | --- | --- |
+| A-LA-E2-02-07 (MINOR): the explicit update activates a staged platform | **Closed** (BD-A1-93) | `update()` now writes `active: staged ? false : existing.active` on both paths. `existing` is read inside the write transaction. `autoActivate` applies only to a new platform. My edge probe (explicit update of an inactive `pending-grant` platform with an I-SELF configuration): `200`, `active: false`, the ref is kept. The duplicate path still keeps the stored value. The committed test also checks that `autoActivate: true` has no effect on an update, and that a new platform still takes `autoActivate`. It fails on the old rule. The Moodle effect is recorded as LA-IC-21. The app never sends `updatePlatformId`, and AC-T3-26 updates an active platform, so no frozen answer changes. |
+| A-LA-E2-02-08 (MINOR): a staged `complete` stores a reserved-host `authorization_server` | **Closed** (BD-A2-84) | `checkAudienceHost(platformAud, hosts, 'authorization_server')` runs before the staged decision, before `claimRegistrationSession` and before the remote POST, and its refusal goes through `reject`. My edge probe: start `303`, then `complete` gives `400 PLATFORM_URL_NOT_IN_PROFILE`, "authorization_server is on a reserved host of a hosted LMS profile." The committed test checks that nothing is sent. A non-https `authorization_server` is now `400 INVALID_REQUEST` (the ruling's https part). A `{tokenEndpoint}` profile (`standard`) stores no audience, so Moodle does not change. |
+| A-LA-E2-02-09 (NIT): `021` changed after merge | **Closed** (Lead) | The Lead confirms that no persistent database applied the old file. The only one was QA-2's K1-SIM stack, which has been removed. |
+
+### Verdict (round 3)
+
+APPROVE for lens A. Every lens A finding of rounds 1 to 3 is closed. The K1-SIM, MOODLE-LIVE and G4 rows stay with QA.
+
+## Round 4
+
+- Reviewer-A: Claude Code Opus 5.5 xhigh (the same session as rounds 2 and 3).
+- Diff: `git diff 78ffce1^1 78ffce1`. It holds `1cbae3e` (the kernel `ProfileFlags` line as RQ-2, the LTI schema, registry, types and tests, and the Moodle, Canvas and Blackboard profiles) and `c240a6e` (RQ-2: the `lti-generic` and `brightspace` flag lines and one stale comment).
+- References: A1 BD-A1-75 (the flag goes after the lead QA's K0 and canary change, `19da95e`, merged by `4d08fc1`); A1 BD-A1-83; LA-ADR-02 D2.
+- I ran these in the private clone at `78ffce1`. I deleted the Vitest cache before each run. No Docker, no stack.
+  - `npm run test:unit` (all workspaces): 190 files, 3055 tests pass, 5 skipped.
+  - `npm run test:k0`: 149 tests pass.
+  - F1 PASS; `npm run typecheck` (all workspaces): exit 0; ESLint on `services/lti-service` and `packages`: clean.
+  - A dump of every normalized profile at `78ffce1^1` and at `78ffce1`, compared.
+- Blind review: I did not open the other reviewer's file.
+- **Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Check | Result |
+| --- | --- |
+| Check 7 and the default form come only from `clientAssertionAud` | Yes. The rule that compared the form with the flag is gone (`profiles/schema.ts`). `flags` is a `strictObject` with two keys, so a profile file that still has `clientAssertionAudArray` stops the start as an unknown key at check 7 (new test case in `traits.test.ts`). The registry default is now `{ value: '{tokenEndpoint}', form: 'string' }` with no flag input (`profiles/registry.ts`). This is the D2 default. The test "the aud form comes only from clientAssertionAud" would fail on the old code, which took `array` from the Blackboard flag. |
+| No reader of the flag is left | `git grep clientAssertionAudArray` in `services`, `packages`, `apps` and `infra` finds only the new refusal test. The token client has read only `clientAssertionAud` since LA-E2-01. The kernel `ProfileFlags` type no longer has the field, so a stale reader would fail `typecheck` (exit 0). |
+| Baseline wire values | No change. The dump of all ten loaded profiles (simulations on) is identical before and after, except for the removed flag key. `clientAssertionAud` is `string` for `standard`, the five Canvas profiles, `lti-generic` and `brightspace`, and `array` for `blackboard` and `blackboard-sim`. `assertionDeploymentId` is `false` everywhere. The other flags (`deepLinkingResponseSub`, `serviceOriginCheck`) are unchanged. So the G2 client assertions do not change. |
+| Explicit `dynamicRegistration: null` (BD-A1-83) | No behaviour change. The LTI registry already turned absent into `null` (the dump shows `null` before and after). In the kernel capability rule (`capabilities.ts:101-104`), `registration.dynamic` needs a `dynamic` manifest method first. The Canvas and Blackboard manifests have none, so the capability stays `false` and the frozen `dynamicRegistration` wire field (`legacy-wire.ts`) does not change. |
+| Ownership and merge rule | The kernel, `lti-generic` and `brightspace` lines are RQ-2 commits, as BD-A1-75 and the brief allow. L's note is right: the two commits must land together, because either one alone leaves a profile file that disagrees with the schema. The merge `78ffce1` has both. F1 PASS. |
+
+Note for the lead QA (not a finding on this diff): the transitional shim `buildProfileRegistryCompat` in `tests/ltiaas/k0/contract.test.ts:685-702` is now dead code. The canaries omit the flag, and the schema no longer asks for it. It can go in a later K0 batch.
+
+### Verdict (round 4)
+
+APPROVE for lens A. The legacy flag is gone. Check 7 and the default read only `clientAssertionAud`. Every baseline profile keeps its wire values.

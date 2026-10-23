@@ -146,9 +146,13 @@ describe('new profile listOrder', () => {
   it('orders new real profiles after the baseline, by listOrder and id, before every simulation', () => {
     const a = extraChannel('aa');
     const z = extraChannel('zz');
+    // A normal channel with a simulation profile, and a simulation-only channel (open world, N10).
     const simulation = extraChannel('xx');
     firstProfile(simulation).simulation = true;
-    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, a]);
+    const simulationOnly = extraChannel('yy');
+    (simulationOnly.manifest as { availability: string }).availability = 'simulation-only';
+    Object.assign(firstProfile(simulationOnly), { simulation: true, listOrder: 90 });
+    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, simulationOnly, a]);
     const list = listProfiles({ registry, simulation: true });
     const ids = list.map((p) => p.id);
     // Open world: the product root may hold more new channels; the rule is checked, not a written-out list.
@@ -158,8 +162,10 @@ describe('new profile listOrder', () => {
     expect(added.map((p) => p.id)).toEqual(byListOrder.map((p) => p.id));
     expect(added.map((p) => p.id)).toEqual(expect.arrayContaining(['lti-generic', 'aa-platform', 'zz-platform']));
     expect(list.slice(6 + added.length).every((p) => p.simulation)).toBe(true);
-    expect(ids.filter((id) => ['blackboard-sim', 'canvas-sim-cloud', 'xx-platform'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud', 'xx-platform']);
+    expect(ids.filter((id) => ['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform']);
     expect(findProfile('xx-platform', { registry, simulation: false })).toBeNull();
+    expect(findProfile('yy-platform', { registry, simulation: false })).toBeNull();
+    expect(listProfiles({ registry, simulation: false }).map((p) => p.id)).not.toContain('yy-platform');
   });
 
   it('derives the boundary from loaded baseline data', () => {

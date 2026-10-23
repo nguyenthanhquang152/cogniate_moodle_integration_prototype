@@ -56,6 +56,7 @@ const manifest = {
       SITE_RULE_5: 'This is an Instructure-hosted address. Choose an Instructure-hosted {LMS} type.',
       PLATFORM_IN_USE: 'This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library.',
     },
+    registration: { PLATFORM_IN_USE: 'This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.' }, // BD-A1-101: the grant collision (409) description
     // The administrator steps of the portal (apps/portal/src/connect/canvas/canvas-steps.json).
     adminSteps: [
       'You need a {LMS} administrator to complete the connection.',

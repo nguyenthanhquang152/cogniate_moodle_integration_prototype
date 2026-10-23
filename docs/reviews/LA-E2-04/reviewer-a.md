@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 4
 
 # LA-E2-04 review: Reviewer-A
 
@@ -44,3 +44,64 @@ Reviewed `3b2cdeb`, `064f4fa`, `32e27bd`, `63a51c1`, `1537882`, `da9a663` and `e
 - Temporary diagnostic changes to render the staged IDs and compare finalized manual values make both failing probes and the related public suites pass (**181/181**). All diagnostic product changes were restored. The five affected public suites then pass (**75/75**), and the private clone is clean.
 
 Probe sources are saved at `/tmp/la-reviewer-a-ctx-88ca8c796cc6-probes`; logs use that prefix in `/tmp`. No Docker, stack, stack-starting runner or commit was used, and no other reviewer's file was opened. K1-SIM AC-03/-04/-08, learner launch/score and the specified R1/Moodle regression remain QA gates; these in-memory tests do not claim those results. Only the two assigned Reviewer-A reports were written in the integration worktree for this dispatch.
+
+
+## Round 2
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.**
+
+Reviewed `71da381` and `16085aa` (merge `67e5ab0`), the staged-form fix `9d52c24`, and the BD-A1-96/-97 contract changes in `0ad9807`. Product tests ran at `67e5ab0` in fresh private clone `/tmp/la-reviewer-a-ctx-5531550d7cc2`, with its own `npm ci`. `node_modules/.vitest-cache` was deleted before every Vitest run.
+
+### Round 1 findings
+
+- **A-LA-E2-04-01 (MAJOR): CLOSED.** `9d52c24` adds the three dynamic-method binding fields to the generic manifest and preserves the staged deployment IDs in the pending connection DTO. The original private `/integrations/lti-generic/con_shell` route probe now submits exactly `{ clientId, deploymentId, grantCode }`; the public DTO/form-body chain redeems it. The new RQ-2 P test also pins the three prefilled inputs and preserves the longer manual form. The shared wizard needs no product change. `9d52c24` was not in Round 1's `0e6bace` snapshot, so this is a later fix, not a withdrawal of the original reproduction.
+- **A-LA-E2-04-02 (MAJOR): CLOSED.** The repeat path compares admin values with the committed approval's grant before returning. Changed issuer/endpoints and added, removed or changed audience give `422 GRANT_MISMATCH`, ordered `details.fields`, and `grant_rejected` / `mismatch`; the platform stays unchanged and no LTI call runs. Identical values, canonical-equivalent origins, fixed-profile bodies and short staged bodies retain the no-op path. The original changed-JWKS probe passes. A further probe confirms that an expired original grant and a different well-formed submitted code do not affect an identical finalized repeat, while a changed bound value is still refused.
+
+### New finding
+
+**A-LA-E2-04-03 (MINOR): a gone staged platform still gets the developer-key collision description.**
+
+- Where: `services/cogniate-app/src/app/redemption.ts:319`, through `:222`–`:226`; requirement: app API delta §3.4, BD-A1-97.
+- Problem: the missing staged-platform branch uses the generic `inUse()` response, which says the developer key is already connected and asks for a new developer key. BD-A1-97 requires the description to explain that the staged registration is gone and to make a new connection.
+- Evidence: a private app-route probe stages a platform, issues a valid grant, deletes that platform from the fake LTI service, and submits the short body. The status/code are correctly `409 PLATFORM_IN_USE`, but the description is: “This your LMS developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.” The connection remains pending, its lease is cleared, the grant stays unredeemed, and no activation runs. Only the cause/recovery text is wrong; no safety or data-loss failure was found, so this is safe to defer.
+- Suggested fix: give the missing staged-platform branch its own description while preserving the existing code, cancellation cleanup and collision descriptions for other cases. Add an assertion for the cause and new-connection instruction beside the staged redemption tests.
+
+### Ratified cases and verification
+
+- **BD-A1-96:** the changed refused-event rows match the implemented branches, including `deployment_mismatch`, staged `client_id_mismatch`, missing `--accept-staged`, and the checks before printing staged values. Every literal `refuse` code in `operator.ts` has a catalogue row. The existing operator bound-value tests pass.
+- **BD-A1-97:** changed staged values give `422` with the differing fields and mismatch log. Private checks confirm that disconnect, or suspend followed by release, of a never-redeemed staged connection leaves the inactive platform unchanged. The gone-platform state/status behavior is correct; finding -03 covers its description.
+- Focused public redemption, operator, connection, registration and portal suites: **202/202 tests in 7 files**. Private probes: **7 pass, 1 fails**, with the sole failure establishing -03.
+- Three old-code negative controls are detected: restoring the pre-`71da381` engine fails **4** repeat checks; restoring the pre-`9d52c24` manifest fails **2** wizard checks; restoring its old DTO fails the staged prefill/redemption test. All product files were restored; the two changed public suites then pass **15/15**.
+- K0: **149/149**. App and portal typechecks and full lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**. The private clone is clean; probe sources and logs are saved under `/tmp/la-reviewer-a-ctx-5531550d7cc2-probes` and the same `/tmp` prefix.
+
+The fix stays within the engine/adjacent-test scope and the explicit P test handover; the earlier manifest/DTO fix supplies the staged form without a shared-wizard edit. No frozen acceptance, LTI-service, migration or unrelated product file changes. No Docker, stack, stack-starting runner or commit was used. No other reviewer's file was opened, and only this review file was edited in the integration worktree. K1-SIM, R1 and live/browser gates remain QA work.
+
+
+## Round 3
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `da423f9` (merge `77df44e`) against the task spec, app API delta §3.4 and BD-A1-97.
+
+**A-LA-E2-04-03 (MINOR): CLOSED.** The missing staged-platform lookup now returns `409 PLATFORM_IN_USE` with the cause and new-connection instruction. The optional description is supplied only for that staged branch. The developer-key collision sentence and shared-deployment error remain unchanged, as does the common attempt-cancellation and lease-cleanup block. The new public test and the original Round 2 probe both pass: no create or activation, the grant remains unredeemed, and the direct route leaves the connection pending with no lease. This text fix does not change status transitions.
+
+Verification in fresh private clone `/tmp/la-reviewer-a-ctx-50efa367f558` at `77df44e`, with its own `npm ci` and `node_modules/.vitest-cache` removed before each Vitest run: **21/21** admin-redemption/public and original private checks pass, plus **3/3** selected existing redemption regressions covering collision behavior. Restoring the pre-fix engine makes both gone-platform text tests fail; restoring the reviewed engine makes both pass. App typecheck and lint of both changed files pass.
+
+Only the authorized K engine file and adjacent test changed under the dispatched L2 RQ-2 handover; no LMS name or unrelated behavior was added. The private clone is clean; probes/logs use `/tmp/la-reviewer-a-ctx-50efa367f558-probes` and the same `/tmp` prefix. No Docker, stack, commit or other reviewer's file was used. Only this review file was edited in the integration worktree. No Reviewer-A findings remain; QA's remaining gates are unchanged.
+
+
+## Round 4
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `00d17d3` (merge `2434c26`) against BD-A1-101, the task notes, app API delta §3.4, LA-ADR-01 D2/D12 and plan §6.1. No new findings; the earlier findings remain closed.
+
+The exclusive-platform collision reads `texts.registration.PLATFORM_IN_USE`, fills `{LMS}`, and falls back to the exact ratified core sentence. Canvas supplies the existing bytes; the frozen assertion in `redemption.test.ts:378` is unchanged and passes. Moodle keeps its self-authority path and frozen collision text. The staged-gone override, `DEPLOYMENT_IN_USE`, cancellation, lease cleanup and grant handling are unchanged. The kernel's key map stays closed, and only this core default is exempt from the test requirement to contain `{LMS}`. Portal notices remain separate.
+
+Verification in fresh private clone `/tmp/la-reviewer-a-ctx-071f8c50cc95`, pinned at `2434c26`, with its own `npm ci` and `node_modules/.vitest-cache` removed before every Vitest run:
+
+- Focused kernel, legacy-wire, redemption and connection suites: **162/162**. After restoring all mutations, the kernel/admin-redemption suites and the Moodle manual-connect regressions pass **60/60**.
+- Three negative controls each fail the intended assertion: the pre-fix engine returns the old generic wording; removing the new kernel key makes the Canvas manifest invalid; removing `{LMS}` from `INVALID_REQUEST` violates the unchanged rule for other defaults.
+- App and channel Node typechecks and lint of all five changed files pass. F1: **0 hits**. The private clone is clean; logs use the same `/tmp` prefix.
+
+All five changed files fit the explicit L2 RQ-2 handover in K files. No frozen assertion, forbidden file or unrelated behavior changed. No Docker, stack, commit or other reviewer's file was used. Only this review file was edited in the integration worktree. Existing QA runtime gates remain unchanged.

@@ -297,8 +297,8 @@ export function createLtiClient(deps: LtiClientDeps) {
     /** The launch behind a ltik (T4b2 handoff). */
     getIdToken: (ltik: string, traceId: string) => call(IdToken, 'GET', '/api/idtoken', traceId, undefined, ltik),
     /** The signed Deep Linking response for one content item (flows §6b). */
-    deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string) =>
-      call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, { contentItems }, ltik),
+    deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string, options?: { message?: string }) =>
+      call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, options ? { contentItems, options } : { contentItems }, ltik),
     /** One AGS score (app contract §10), SERVICE-AUTH-V1: works after the ltik expired. 204 on success. */
     postScore: (serviceKey: string, lineItemId: string, body: object, traceId: string) =>
       call(NoContent, 'POST', `/api/lineitems/${id(lineItemId)}/scores`, traceId, body, undefined, serviceKey),

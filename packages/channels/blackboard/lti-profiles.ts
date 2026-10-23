@@ -4,14 +4,14 @@ import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const BLACKBOARD_FLAGS = {
   deepLinkingResponseSub: true, // F-BB-8: Learn needs sub = client id in the Deep Linking response
-  clientAssertionAudArray: true, // F-BB-5: aud = [token endpoint]
   serviceOriginCheck: true, // ADR-011 §5
 };
 
-// LA-ADR-02 D2: one vendor issuer, fixed endpoints, aud = [token endpoint] (F-BB-5). dynamicRegistration is omitted:
-// the LTI registry gives null (no Dynamic Registration).
+// LA-ADR-02 D2: one vendor issuer, fixed endpoints, aud = [token endpoint] (F-BB-5), no Dynamic Registration
+// (BD-A1-83: explicit null).
 const BLACKBOARD_TRAITS = {
   issuerKind: 'fixed', endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' }, assertionDeploymentId: false,
+  dynamicRegistration: null,
 } as const;
 
 const profiles = [

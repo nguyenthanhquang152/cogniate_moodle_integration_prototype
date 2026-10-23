@@ -52,7 +52,7 @@ New rows:
 | LTI service login page (platform storage) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'` | `no-referrer` | Must |
 | LTI service storage-check page | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self'; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
 | `POST /tool/picker/{id}/cancel` auto-submit | as `POST /tool/picker/{id}` auto-submit | `same-origin` | Must |
-| `PLACEMENT_NOT_GRADED` page | as the other `/tool/*` error pages | `same-origin` | Must |
+| `PLACEMENT_NOT_GRADED` page (status `403`, also on the picker POST; BD-A2-87) | as the other `/tool/*` error pages | `same-origin` | Must |
 | Admin code page (Could) | as `GET /tool/picker/{id}`, with `form-action 'none'` | `same-origin` | Could |
 
 The two LTI service pages have no form fields that a framing page can read and no button, like the error pages. `frame-ancestors https:` is needed because the platform is known but its page origin is not proven before the launch.

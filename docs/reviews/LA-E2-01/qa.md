@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM and MOODLE-LIVE pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E2-01 E2-K Profile traits, the self invariant I-SELF and the admin-value platform rules: QA verification
 
@@ -38,3 +38,31 @@ Independence: QA-4 authored `tests/ltiaas/tasks-lti/LA-E2-01/` from the task spe
 ## Regression and time
 
 R0: PASS (`12.36s` `LA-E2-01` K0 Vitest suite, 4/4 tests; `11.51s` verbose unit & migration run across 76 test files, 1074/1074 tests). `K1-SIM` (`AC-LA-E2-01-03`, `08`) and `MOODLE-LIVE` (`AC-LA-E2-01-10`) are `pending: Docker window`.
+
+## Round 2
+
+Tester: QA-4 (Orca task `task_1400ed757bff`, dispatch `ctx_1c3f075aac12`), 2026-10-23. Spec & decisions: `docs/architecture/ltiaas/tasks/LA-E2-01.md` with `BD-A2-83` (granted scopes in `needScope` and `preflightCreateLineItem` before the idempotency claim), `BD-A2-84` (audience rule 2 enforced on every create, staged or active; non-URL `clientAssertionAud` refused), `AC-LA-E2-01-09` old-row HTTP answer test (`A-LA-E2-01-03`), and load check 7 refusing `{platformValue}` on fixed endpoints (`A-LA-E2-01-04`). Suite: `tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts` (updated for `BD-A2-83`, `BD-A2-84`, and `profiles/schema.ts` F1/F5 checks).
+
+Independence: QA-4 updated `tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts` from `build-decisions-A2.md` (`BD-A2-83`, `BD-A2-84`) and `tasks/LA-E2-01.md` without reading product source files (`services/**`, `packages/**`, `apps/**`) or reviewer files, and verified all `K0` and `UNIT` checks in an isolated `--no-hardlinks` clone of `4db030d` with `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run.
+
+| Item | Value |
+| --- | --- |
+| SHA | `4db030df8691b0923e80d6b2007047097f42b49b` (integration `4db030d`, code `176e823`; holds lane L merge `678eb72`: `2c92e3f`, `4dfd87d`, `6e2a289`) |
+| Lane and slot | lane L; no Docker (`HOST-ONLY`; `K1-SIM` and `MOODLE-LIVE` rows stay `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/r12-4db030d/clone`: `git clone --no-hardlinks --no-checkout`, detached at `4db030df8691b0923e80d6b2007047097f42b49b`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/r12-4db030d/logs/` (umask 077): `tsc.log`, `LA-E2-01-k0-vitest.log`, `unit-lti-verbose.log`, `head-sha.txt`, `status-before.txt`, `status-after.txt` |
+
+### Round 2 verification
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `BD-A2-83` (`A-LA-E2-01-02`): `needScope` and `preflightCreateLineItem` check launch claim AND platform `grantedScopes` before idempotency claim | PASS (UNIT + K0) | `services/lti-service/src/platform/platform.test.ts > AGS client (contract §3.5, §3.6) > BD-A2-83: needScope takes the first scope in the launch claim AND the platform grant; fixed refusal texts` + `services/lti-service/src/http/routes/compat.test.ts > T3c compat routes with real API authorization > BD-A2-83: the scope choice and the create preflight use the platform grant; a grant refusal is not stored for the key` + `profile-traits.k0.test.ts` | `needScope` selects the first wanted scope present in both the launch claim and `platform.grantedScopes` (`null` = no limit), and `preflightCreateLineItem` checks both before the idempotency claim; a missing platform grant returns `403 SERVICE_NOT_AVAILABLE` (`"The platform did not grant the scope for this call."`) and is never stored for the idempotency key. `unit-lti-verbose.log`, `LA-E2-01-k0-vitest.log` |
+| `BD-A2-84` (`A-LA-E2-01-01`): `clientAssertionAud` obeys audience rule 2 on every create (staged or active) | PASS (UNIT + K0) | `services/lti-service/src/http/routes/platforms.test.ts > the audience obeys rule 2 on every create, staged or active (A-LA-E2-01-01, A2 BD-A2-84) > any-https: a reserved, own or non-https audience is refused also when staged` + `{platformValue} with endpointOrigins omitted: a reserved, own or non-https audience is refused also when staged` | Both active and staged platform creates enforce rule 2 (`https`, site rules 2 and 3, not a reserved host) on `clientAssertionAud`: non-URL `clientAssertionAud` returns `400 INVALID_REQUEST`, and reserved/own/non-https hosts return `400 PLATFORM_URL_NOT_IN_PROFILE`. `unit-lti-verbose.log` |
+| `AC-LA-E2-01-09` (`A-LA-E2-01-03`): HTTP platform answer of a pre-020 row | PASS (UNIT + K0) | `services/lti-service/src/http/routes/platforms.test.ts > AC-LA-E2-01-09: the platform answer of a row from before LTI migration 020 (A-LA-E2-01-03) > keeps every old field and gives null for clientAssertionAud and grantedScopes` | A platform row inserted before migration `020_platform_traits.sql` returns `clientAssertionAud: null` and `grantedScopes: null` on the HTTP platform view while keeping every pre-020 field unchanged. `unit-lti-verbose.log` |
+| `AC-LA-E2-01-02` (`A-LA-E2-01-04`): load check 7 refuses `{platformValue}` on fixed endpoints | PASS (UNIT + K0) | `services/lti-service/src/profiles/traits.test.ts > load check 7 for the E2 traits (AC-LA-E2-01-02)` (11 tests) + `profile-traits.k0.test.ts` | Load check 7 rejects `clientAssertionAud.value: '{platformValue}'` when `endpoints === 'fixed'` in both `packages/channel-kernel/src/profiles.ts` and `services/lti-service/src/profiles/schema.ts`. `unit-lti-verbose.log` |
+| F1, F5 and clone cleanliness | PASS (K0) | `profile-traits.k0.test.ts > F1 (lms-names) and F5 (rules) checks pass on LA-E2-01 core files` | `platform-rules.ts`, `http/routes/platforms.ts`, `http/validation.ts`, `store/platforms.ts`, `platform/token-client.ts`, `platform/ags.ts`, `profiles/schema.ts`, `packages/channel-kernel/src/profiles.ts`, and `020_platform_traits.sql` pass F1 (`0` hits) and F5 (`0` violations). `status-before.txt` and `status-after.txt` are `0` bytes. |
+
+### Round 2 regression and time
+
+R0: PASS (`18.05s` `LA-E2-01` K0 Vitest suite, 4/4 tests; `11.64s` verbose LTI unit & migration run across 76 test files, 1084/1084 tests). `K1-SIM` (`AC-LA-E2-01-03`, `08`) and `MOODLE-LIVE` (`AC-LA-E2-01-10`) remain `pending: Docker window`.

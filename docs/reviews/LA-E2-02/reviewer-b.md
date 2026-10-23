@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 4
 
 # LA-E2-02 review, Reviewer-B
 
@@ -77,3 +77,40 @@ The update checks are centralized in `updateProblem` and repeated inside the loc
 - K1-SIM, Moodle, goldens and R1/R2-lite remain QA gates. The app-side use of the new recovery key belongs to LA-E2-04. The deferred flag-removal/null-trait follow-up is outside these commits.
 
 Only the assigned Reviewer-B reports were changed in the integration worktree. No commit was made.
+
+
+## Round 3
+
+**Verdict: APPROVE.** Reviewer-B: Codex GPT-6-Astra xhigh. Date: 2026-10-23. Reviewed `f8fa4ff` in merge `678eb72` against B-LA-E2-02-04, BD-A1-93, LA-IC-21, the task notes and the `complete` contract in lti-service-api-delta §4.5. Verification used a private clone at `667bcf875102865884c0d30b8c4f04e8dc20ae4b`. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No new findings.
+
+**B-LA-E2-02-04 — CLOSED.** `services/lti-service/src/http/routes/registration.ts:393` now puts the activation rule in the shared existing-platform update helper: staged updates set `active: false`; all other updates keep `existing.active`. Both the explicit-id and duplicate-client paths read the existing record inside the write transaction and call that helper. `autoActivate` remains on the create path only. The comment, task, contract and LA-IC-21 agree, so the operator's disabled state has one clear rule.
+
+The regression at `registration.test.ts:728` reproduces the original inactive-platform case and verifies the response and stored row. It also checks an explicit `autoActivate: true` update and a new platform with `autoActivate: false`. Restoring only the route from `f8fa4ff^` makes this test fail at the first update: actual `active: true`, expected `false`. The fixed route was restored; the existing staged and duplicate-client cases still pass.
+
+The combined review suite passed **329 tests in 13 files**, including all **55 registration route tests**, before and after the temporary probes. Root type checks, full lint, F1 and F5 passed. Evidence: `/tmp/reviewer-b-e2k-focused.log`, `/tmp/reviewer-b-e2k-mutant-active.log` and `/tmp/reviewer-b-e2k-restored.log`. The commit changes only L's route and colocated unit test; no forbidden file, new LMS-name branch or unrelated behavior change was found. QA retains the live/simulator and frozen-suite confirmation for LA-IC-21. No Docker, stack, commit or push was run.
+
+
+## Round 4
+
+**Verdict: APPROVE.** Reviewer-B: Codex GPT-6-Astra xhigh. Date: 2026-10-23. Reviewed `1cbae3e` and RQ-2 `c240a6e` together in merge `78ffce1`, against BD-A1-75/83 and LA-ADR-02 D2. QA's prerequisite merge `4d08fc1` is an ancestor of this merge. Verification used a private clone at `823bb268fbaf2399f95c8d5b5300ad98d186beff`, with its own `npm ci` and the Vitest cache deleted before each run. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.** The Round 3 approval remains valid; B-LA-E2-02-05 is new documentation follow-up.
+
+### B-LA-E2-02-05 — MINOR — The profile-default note still derives the form from the removed flag
+
+- **File:** `docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md:45`.
+- **Problem:** the current default description says `clientAssertionAud` uses the legacy flag's form. After this removal, that flag is invalid and omission always gives the token URL as a string. A channel author reading the referenced D2 guidance must infer the final default from the transition history or inspect code.
+- **Evidence:** `profiles/registry.ts:28` supplies `{ value: '{tokenEndpoint}', form: 'string' }`. A private probe omitting the trait from the Blackboard profile returned that string default, while an old `flags.clientAssertionAudArray: true` failed check 7. D2's table correctly describes the replacement and explicit array form, so the repair remains discoverable; the default paragraph is stale.
+- **Suggested fix:** A1 should state the final default explicitly and mark the flag-derived default as historical. Add a short migration sentence: remove `flags.clientAssertionAudArray`, retain or set `clientAssertionAud.form: 'array'` when required, and otherwise use `'string'` (also the omitted-trait default).
+
+### Author experience, compatibility and verification
+
+The load-check error is actionable: an old Blackboard flag produces `RegistryError`, check `7`, channel `blackboard`, reason `profile_schema_invalid`, detail `profile "blackboard": flags: Unrecognized key: "clientAssertionAudArray"`. Removing that key while keeping its explicit array trait succeeds. The kernel source type and strict LTI schema agree; no production reference to the old flag remains. Keeping the two reviewed commits together is necessary because a leftover flag in any channel profile fails startup.
+
+Compared all **eight baseline profile records** with `1cbae3e^`, normalizing an omitted DR trait to `null` and using the old versus new audience defaults: every value is identical except the removed flag. Canvas and Blackboard now declare `dynamicRegistration: null` explicitly. The token-client tests still check standard string and Blackboard array JWT audiences. No token-client logic changed in this round.
+
+- The clean full unit suite passed **3,055 tests in 190 files**, with five skipped. K0 passed **149 tests**. Root type checks, full lint, F1 (0 hits) and F5 (six rules, 0 hits) passed.
+- Three controlled regressions each caused the intended test to fail: allowing the removed flag, changing the omitted-trait default to array, and changing the Blackboard audience trait to string. All mutations were restored; **32 profile/token-client tests** then passed. Logs: `/tmp/reviewer-b-e2k2-mutant-{removed-flag,default-form,baseline-aud}.log`, `/tmp/reviewer-b-e2k2-restored.log` and `/tmp/reviewer-b-e2k2-profile-probes.log`.
+- Ownership follows the declared RQ-2 changes to the kernel type and the two K-owned channel profiles; L owns the remaining schema, registry, baseline profiles and colocated tests. No app, portal, service wiring or `tests/**` file changed in these commits, and no new LMS branch was added. QA retains live and simulator regression gates. No Docker, stack, commit or push was run.

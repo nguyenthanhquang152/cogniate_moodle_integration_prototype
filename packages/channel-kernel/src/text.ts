@@ -12,16 +12,20 @@ export function fillText(text: string, values: Partial<Record<TextPlaceholder, s
 /**
  * BD-A1-59 (LA-ADR-01 D12): the keys of the optional manifest field `texts.registration`. Each value is a full Dynamic
  * Registration help sentence with `{LMS}` that names LMS menu paths: five LTI service codes (INVALID_OPENID_CONFIGURATION
- * by BD-A1-68), the app register page code `UPDATE_NOT_ALLOWED`, and the pending-tool recovery sentence
- * `TOOL_MAY_EXIST` (BD-A1-87; `{LMS}` and `{tool}`, the tool name that was sent to the platform).
+ * by BD-A1-68), the app register page code `UPDATE_NOT_ALLOWED`, the pending-tool recovery sentence `TOOL_MAY_EXIST`
+ * (BD-A1-87; `{LMS}` and `{tool}`, the tool name that was sent to the platform), and the `409 PLATFORM_IN_USE`
+ * description of a grant redemption collision (BD-A1-101).
  */
 export const REGISTRATION_TEXT_KEYS = [
   'UNKNOWN_TOOL_ACCOUNT', 'INVALID_REQUEST', 'ISSUER_MISMATCH', 'INVALID_OPENID_CONFIGURATION', 'REGISTRATION_UPDATE_NOT_ALLOWED', 'UPDATE_NOT_ALLOWED',
-  'TOOL_MAY_EXIST',
+  'TOOL_MAY_EXIST', 'PLATFORM_IN_USE',
 ] as const;
 export type RegistrationTextKey = (typeof REGISTRATION_TEXT_KEYS)[number];
 
-/** The core default of each key, for a channel without its own sentence: no LMS menu path. */
+/**
+ * The core default of each key, for a channel without its own sentence: no LMS menu path. PLATFORM_IN_USE names no
+ * LMS at all (BD-A1-101), so it reads well for every text name.
+ */
 export const DEFAULT_REGISTRATION_TEXTS: Readonly<Record<RegistrationTextKey, string>> = Object.freeze({
   UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate and paste it in {LMS}.',
   INVALID_REQUEST: 'Start the registration again from {LMS}.',
@@ -30,6 +34,7 @@ export const DEFAULT_REGISTRATION_TEXTS: Readonly<Record<RegistrationTextKey, st
   REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Register the tool again as a new tool in {LMS}.',
   UPDATE_NOT_ALLOWED: 'Go back in {LMS} and register the tool again as a new tool.',
   TOOL_MAY_EXIST: "{LMS} may have saved the Cogniate tool already. If {LMS} shows the tool '{tool}', delete it there, then connect again.",
+  PLATFORM_IN_USE: 'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.',
 });
 
 /**
