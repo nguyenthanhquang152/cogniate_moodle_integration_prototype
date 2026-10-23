@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 ## Round 1
 
@@ -191,3 +191,83 @@ Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
 - Private diagnostic suite: `npx --no-install vitest run --reporter=verbose --config reviewer-r2.config.mts` — **9/9 diagnostic assertions PASS**, 1 file, 280 ms. These confirm observed behavior, not product acceptance. Probe source/config and logs are retained as `reviewer-r2.probe.test.ts`, `reviewer-r2.config.mts`, `reviewer-r2-probes.log`, `reviewer-r2-types.log` and `reviewer-k0.log` in the private clone. No HTTP requests, operator invocation or stack were needed.
 - Cleared private `node_modules/.vitest-cache` before each Vitest run. No Docker, stack-starting runner or K1-SIM execution. The pending live K1 evidence is not an additional finding in this host-only review.
 - QA commit `5dcb2406` stays within the allowed kit and QA-report paths. No product or frozen-test edit was made by that commit; no LMS name was added to core paths. The M1-helper requirement is violated as described in A-08. Reviewer-B's file was not opened. This review file is the only integration file changed by this reviewer; concurrent work was left untouched. No commit.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: CHANGES_REQUESTED — 4 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed QA commit `cfcdc0ca155c86daaf13f524d67a800cad5b7916` at integration pin `af36ad31`, using `git diff c1bf5c7a af36ad31 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. References below are at that pin. The restored M1 imports fix the earlier session and transport replacements, but several callers still use incompatible request and response contracts. The host pass does not establish that the K1 cases can execute or prove their stated safety properties.
+
+### Previous finding disposition
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-06-01 | OPEN, BLOCKER | Current-wave identity is now independent and linked files are read. However, artifact suite identity is optional, so one anonymous PASS artifact certifies three different frozen suites. |
+| A-LA-E7-06-02 | CLOSED, unchanged | Required API capability-map checks remain. The C1 caller's different DTO errors remain under A-08. |
+| A-LA-E7-06-03 | CLOSED, unchanged | Required-source and recursive secret-scan checks remain; log loading now uses the existing acceptance paths and `.jsonl` files. |
+| A-LA-E7-06-04 | CLOSED | `evaluateKitRunPassRule` validates every record before partitioning and rejects unknown/unselected channels (`runtime.ts:716`). The new full-run K0 negative checks pass. |
+| A-LA-E7-06-05 | CLOSED | Grant issuance uses the frozen `cli('app:grant', args)` bridge, correct flags, and the real labeled 43-character output parser (`runtime.ts:974`; `fixtures.ts:388`, `:479`). Grant redemption has a separate body error under A-08. |
+| A-LA-E7-06-06 | CLOSED, unchanged | The capability-based ungraded refusal oracle remains. Picker transport and DTO errors are tracked under A-08. |
+| A-LA-E7-06-07 | OPEN, BLOCKER | C2 now includes capability details and both no-network checks; A3 and R6 contain more assertions. L9 still uses one library, L4 selects its expected outcome from the response, and L7 does not establish shared placement. |
+| A-LA-E7-06-08 | OPEN, BLOCKER | M1 imports, authentication, publication, simulator record kind and log paths are restored. Setup, manifest loading, picker handoff, registration and several DTO consumers still disagree with the shipped contracts. |
+| A-LA-E7-06-09 | OPEN, BLOCKER | All 12 fault names, exact codes and a valid control are present. The suite selects the wrong channel for the required generic-channel matrix. |
+| A-LA-E7-06-10 | CLOSED | All documented level aliases are accepted and the suite-level `describe.skip` guards are removed. The K0 level checks pass. |
+
+### A-LA-E7-06-01 — BLOCKER — One anonymous artifact can certify three frozen suites
+
+**Location:** `tests/ltiaas/kit/lib/fixtures.ts:1074`.
+
+**Problem and evidence:** `verifyWaveSuiteArtifact` checks the suite name only when `parsed.suite` exists. A private host probe wrote one file containing only `{"waveId":"current-wave","outcome":"PASS"}` and referenced it for T3b, T7 and T8. With complete synthetic kit records and an independently supplied current wave/run identity, full-run certification returned `ok: true`. Nothing in that file establishes a result for any of the three named suites. The freshness and missing-file fixes are useful, but AC-05 still accepts unverified `coveredBy` claims.
+
+**Suggested fix:** Require explicit matching suite identity in each consumed result, or validate an equivalent per-suite record from a documented aggregate result format. Add negative checks for a missing identity and one unrelated result reused for multiple suites, with a correctly identified result as the positive control.
+
+### A-LA-E7-06-07 — BLOCKER — Safety cases still have ineffective setup or oracles
+
+**Locations:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:178`, `:304`, `:409`; `tests/ltiaas/kit/lib/runtime.ts:1020`.
+
+**Problem and evidence:** These cases still do not prove TEST-STRATEGY §2.4 / AC-01:
+
+| Case | Remaining defect |
+| --- | --- |
+| L9: two-library isolation | L9 passes generated `lib-l9-a-…` and `lib-l9-b-…` labels, but setup maps only the exact string `B` to session B and every other value to A. A host probe captured two A sessions and identical library IDs. The test therefore exercises two connections in one library, not the required tenant boundary. |
+| L4: signed-family guard levels | The test chooses the first different family, then accepts either a 400 mismatch refusal or a 303 plus warning according to the observed status. It never derives the required result from the source family's guard level and destination platform. It can credit refusal where passthrough is required, or passthrough where refusal is required. The strategy specifies those outcomes separately (`tests/ltiaas/TEST-STRATEGY.md:150`). |
+| L7: both learners share one placement | It searches `learner.subject` and compares top-level `resourceLinkId` with the external launch value. The real result has `learner.sub` and `activity.resourceLinkId`, the internal placement reference (`services/cogniate-app/src/domain/results.ts:125`). Even after correcting the field access, the oracle must compare the two learners' internal placement identities, not compare an internal ID with the input string. The second unqualified `waitSync(..., 'sent')` can also return the first learner's already-sent sync. |
+
+**Suggested fix:** Select explicit A/B sessions and assert different library IDs before testing isolation. Derive L4's expected refusal or warning before sending the request, and cover the required guard-level branches. Poll each learner's actual row and sync, then assert the two rows reference one internal placement. Prove the negative assertions with bounded host checks or mutants; source-text presence is insufficient.
+
+### A-LA-E7-06-08 — BLOCKER — Restored helper imports still leave incompatible K1 contracts
+
+**Locations:** `tests/ltiaas/kit/lib/runtime.ts:1055`, `:1077`, `:1182`, `:1218`; `tests/ltiaas/kit/lib/fixtures.ts:333`; the suite locations below.
+
+**Problem:** The thin-glue requirement is not satisfied by importing M1 helpers while passing different bodies or interpreting different result shapes. Setup itself sends fields rejected by the real adapters. Several independent errors then prevent the corrected product from passing AC-01/AC-04, or prevent the intended safety check from being reached.
+
+| Kit caller and evidence | Shipped contract / necessary correction |
+| --- | --- |
+| Setup sends `authUrl`/`tokenUrl` (`runtime.ts:1055`) and operator grant `approvalCode` (`:1077`). | Moodle requires `authenticationEndpoint`/`accessTokenEndpoint` (`packages/channels/moodle/app.ts:48`, `:78`); Canvas requires `grantCode` (`packages/channels/canvas/app.ts:16`). Host probes passed the captured bodies to the real parsers: both were rejected. Correct the bodies in setup and the registration cases that repeat them. |
+| C1 loads `packages/lms-channels/channels/<id>/manifest.json` (`fixtures.ts:341`). | The shipped manifests are TypeScript modules in `packages/channels/<id>/manifest.ts`. A host probe confirmed all five real manifests exist and the default loader throws for all five. Use the actual public registry/manifest interface. |
+| C1 reads `connRes.json.connection`, `toolCfgRes.json.fields` and `channel.capabilities` (`k1-cap.k1sim.test.ts:76`, `:92`, `:102`). | Connection GET returns the DTO directly; tool configuration is an array of rows; `channel` is an ID string and the map is `channelCapabilities` (`services/cogniate-app/src/app/connections.ts:149`, `:236`, `:259`). These accesses fail before a meaningful bilateral comparison. The same nested-connection assumption appears in registration tests. |
+| L1 expects top-level `platformId`, `deploymentId`, `messageType`, `version`, `roles`, `context`, and `services.ags.serviceKey` (`k1-launch.k1sim.test.ts:82`). Related AGS/NRPS/DL assertions use the same invented layout. | `/api/idtoken` returns `platform.id/deploymentId`, `launch.type/context/resourceLink/deepLinkingSettings`, `ltiVersion`, `user.roles`, and `services.serviceKey` (`services/lti-service/src/lti/idtoken.ts:37`). Assert the actual documented fields. |
+| AGS A1 decodes `tr.clientAssertion` and splits `tr.scope` (`k1-ags.k1sim.test.ts:86`, `:105`). | Simulator token records expose `clientId`, `audience` and `scopes`; they do not expose the credential JWT (`tests/sim/core/provider.mjs:186`). The simulator already validates assertion identity and unique JTI (`:159`). Use the safe record fields and validation behavior; do not add raw credential logging to satisfy the test. |
+| AGS A3 casts `waitSync` to an array and calls `.find` (`k1-ags.k1sim.test.ts:182`), then searches `learner.subject`. | M1 `waitSync` returns one sync object (`tests/acceptance/M1/common/course.ts:74`); result rows come from `results`, with `learner.sub`. A host probe exercised the real helper and confirmed `.find` throws. A3 therefore stops at its first 204 case before reaching the new 429 assertion. |
+| `openPickerOnChannel` performs one GET and returns the launch handoff URL (`runtime.ts:1182`). | The handoff returns another 303 to `/tool/picker/:id`; the frozen picker helper follows it and opens the page (`tests/acceptance/M1/common/course.ts:89`). A host probe confirmed the wrapper returns status 303 and the intermediate `/tool/deep-link` URL instead of a picker. |
+| Dynamic registration expects `/tool/register?token=` (`runtime.ts:1218`), while R6 calls POST `/api/registrations/dynamic/preview` and `/dynamic/complete` (`k1-reg.k1sim.test.ts:486`, `:493`). | The supplied registration URL uses `?ref=` and enters GET `/lti/register/:account`; the LTI API then exposes GET `/api/registrations/:id` and POST `/api/registrations/:id/complete` (`services/cogniate-app/src/app/connections.ts:57`; `services/lti-service/src/http/routes/registration.ts:3`). The invented preview route does not exist. Follow the existing handshake and session-specific API. |
+
+**Suggested fix:** Audit every wrapper and suite against the real helper signatures, route bodies and DTOs, including simulator profile/shared-platform setup. Use typed boundary values and small host contract tests that execute the callers with actual product-shaped responses. The new K0 “documented contracts” test (`kit.k0.test.ts:932`) mostly checks source strings, so it passes despite the defects above. Keep product and frozen M1 files unchanged; then verify the corrected K1 rows in the authorized SIM window.
+
+### A-LA-E7-06-09 — BLOCKER — The full protocol matrix selects a named channel instead of generic
+
+**Locations:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:547`; `tests/ltiaas/kit/suites/k1-nrps.k1sim.test.ts:129`.
+
+**Problem and evidence:** Both global suites search for `simProfile === 'lti-1p3-standard'` and silently fall back to the first fixture. No shipped fixture has that profile. A host probe over the real fixtures confirmed the selected provider is `moodle-sim`; the generic fixture's profile is `lti-generic`. Thus the corrected 12 faults and exact error-code assertions do not run on the generic channel as required by TEST-STRATEGY §2.4 (`:151`) and AC-08. N2 has the same mistaken selector.
+
+**Suggested fix:** Select the protocol-control fixture from an explicit fixture/registry trait and fail if it is missing or ambiguous. Do not silently substitute an unrelated channel. Add a host assertion for the selected fixture, retaining the existing exact fault-list, valid-launch control and per-fault code checks.
+
+### Round 3 verification and boundaries
+
+- Private clone `/tmp/la-review-a-a69d11638d88`, detached at `af36ad31`, created with `git clone --no-hardlinks`; dependencies installed there only.
+- Kit K0: `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` — **13/13 PASS**, 1 file, 201 ms.
+- Kit type check: `npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0**.
+- Private diagnostic suite: `npx --no-install vitest run --reporter=verbose --config reviewer-r3.config.mts` — **8/8 diagnostic assertions PASS**, 1 file, 182 ms. They confirm the current defects: all manifest loads fail, both setup parsers reject their captured bodies, L9 uses A twice, picker stops at the handoff, real `waitSync` is not an array, one anonymous artifact certifies three suites, and global selection picks the wrong fixture. M1 network/CLI calls were mocked; parsers and `waitSync` were real. This is host evidence, not a live K1 result.
+- Probe source/config and logs remain in the private clone: `reviewer-r3.probe.test.ts`, `reviewer-r3.config.mts`, `reviewer-r3-probes.log`, `reviewer-r3-k0.log`, `reviewer-r3-types.log`. Cleared private `node_modules/.vitest-cache` before each Vitest run.
+- The reviewed QA commit changes only the permitted kit and QA-report files. No product or frozen-test changes, and no LMS name added to core paths. K0's suite-neutrality check passes. Host negative coverage improves, but the executed probes show the behavioral acceptance coverage is incomplete.
+- No Docker, stack, stack-starting host runner, K1-SIM execution or commit. Pending live evidence is not an additional finding in this host-only review. Reviewer-B's file was not opened. Only this review file was changed by this reviewer in integration; concurrent work was left untouched.

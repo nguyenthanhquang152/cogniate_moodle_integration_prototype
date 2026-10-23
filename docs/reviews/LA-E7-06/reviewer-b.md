@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 ## Round 1
 
@@ -166,3 +166,78 @@ Both HYG callers use `LA_WAVE_ID ?? waveEvidence.waveId`, and the evaluator has 
 - A sixth-file probe in the private clone ran that same host command: **9 PASS, 1 FAIL** at the fixed baseline assertion. Log: `/tmp/reviewer-b-e706r2-canary.log`. Removed the canary afterward; clone tracked files remained unchanged.
 - The reviewed diff stays within kit and QA-report ownership. The acceptance selector is unchanged in this fix; no product, frozen suite or simulator path was edited. The host neutrality check passes. Required live ACs remain **pending**; no Docker, stack, host stack runner or K1-SIM suite was run.
 - Blind review maintained. Only this review file was edited in the integration worktree; no commit was made. Other agents' existing changes were left alone.
+
+## Round 3
+
+Verdict: **CHANGES_REQUESTED**. Reviewer-B: Codex GPT-6-Astra xhigh. Reviewed QA fix `cfcdc0ca` at integration pin `af36ad31ddb3defa161d696d569b09185cbf46ac`, using the scoped diff from `c1bf5c7a`, against the task, TEST-STRATEGY §§2.2–2.6 and plan §6.1. **3 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT open.** These are retained findings; no new finding ID is added.
+
+The shared clients, full-ledger accounting and level selection are improved. However, a team still cannot run the documented kit against the supported contracts, and the green host checks do not establish the required case outcomes. Live K1-SIM evidence remains pending.
+
+### Round 2 disposition
+
+| Finding | Result |
+| --- | --- |
+| B-LA-E7-06-01 | **Open, partial fix.** Independent wave identity and existing, readable, current-wave PASS artifacts are now required. An artifact without a suite identity can still certify every named suite. |
+| B-LA-E7-06-02 | **Open, partial fix.** C2 now checks the capability error and absence of outbound calls. A3 and L7 have more assertions, but the contract errors below prevent them from running, and L4/L7/L9 still do not prove their design requirements. |
+| B-LA-E7-06-04 | **Closed.** The full-run evaluator rejects unselected/unknown channel records and counts their failures. Host controls confirm rejection and `totalFailed: 1`; earlier duplicate, stale, skip and final-order protections remain. |
+| B-LA-E7-06-06 | **Open, partial fix.** The main audit accepts discovered additions. Its canary test still fixes the total and expected IDs, so adding a real sixth fixture breaks K0. |
+| B-LA-E7-06-07 | **Open, partial fix.** M1/acceptance imports, authentication, publication and log paths are restored. The adapters and suite callers still send or read incompatible contract shapes. |
+| B-LA-E7-06-08 | **Closed.** Config/runtime mode semantics now agree for the supported aliases and defaults. Live suites no longer independently select `describe.skip`; the host mode matrix and alias probes pass. |
+
+B-LA-E7-06-03 and -05 remain closed. The strict capability comparator and required recursive hygiene inputs are retained; service logs now use the shared `LOGS_DIR` and `.jsonl` paths.
+
+### B-LA-E7-06-07 — BLOCKER — restored imports still have incompatible callers
+
+**File:line:** `tests/ltiaas/kit/lib/runtime.ts:1029`, `:1055`, `:1077`, `:1182`, `:1218`; `tests/ltiaas/kit/lib/fixtures.ts:331`; `tests/ltiaas/kit/suites/k1-cap.k1sim.test.ts:76`; `tests/ltiaas/kit/suites/k1-ags.k1sim.test.ts:182`.
+
+**Problem and evidence:** Importing the frozen clients repairs transport, but does not repair these request and response contracts:
+
+| Kit caller | Supported contract and consequence |
+| --- | --- |
+| `setupChannelBinding` omits `fixture.simProfile`; manual endpoint fields are `authUrl` / `tokenUrl`, and redemption sends `approvalCode`. | Connections need the simulator profile selection. The strict manual body uses `authenticationEndpoint`, `accessTokenEndpoint` and `grantCode` (app API §4.2; LA app API delta §3.3). A host capture for Canvas has no profile or `grantCode` and has the unknown `approvalCode` field. Setup cannot establish the intended binding. |
+| C1 reads `connRes.json.connection`, `toolCfgRes.json.fields` and `.channel.capabilities`. Its manifest loader defaults to `packages/lms-channels/channels/<id>/manifest.json`. | The connection DTO is flat, tool configuration is an array, and both capability maps are top-level `channelCapabilities`; `channel` is a string (app API §4; delta §§1–2). The repository has `packages/channels/<id>/manifest.ts`. The actual loader throws for Canvas on the reviewed tree. C1 cannot reach its otherwise strict comparison. |
+| A3 casts `waitSync(...)` to result rows and calls `.find(...)`; several cases select `learner.subject` and a top-level `resourceLinkId`. | Frozen `M1/common/course.ts:74` returns one sync object. The results contract uses `learner.sub` and `activity.resourceLinkId` (app API §5, ResultRow). A host evaluation of the frozen helper returns `{ status: 'sent', ... }`, not an array; the first A3 mapping would fail at `.find`. |
+| `openPickerOnChannel` fetches the launch location once and returns that location as the picker URL. | The launch location is a handoff which redirects to the picker. Frozen `M1/common/course.ts:89` follows both steps. With a contract-shaped handoff, the kit returns 303 and the handoff URL instead of the 200 picker page. |
+| Dynamic Registration asserts that `registrationUrl` contains `/tool/register?token=`. | The connection contract returns `/lti/register/cogniate?ref=...` (app API §4). The helper rejects the valid registration URL before the handshake. |
+
+The new K0 “documented contracts” check (`kit.k0.test.ts:932`) searches source strings for imports and assertions. It passes with these incompatible calls present. It therefore does not establish that a valid response can pass the suite.
+
+**Suggested fix:** Audit each adapter and caller against the public contracts and frozen helpers. Preserve simulator profile selection, strict request keys, DTO shapes and redirect steps. Add host contract tests that execute the adapters with valid responses and inspect captured requests; avoid unchecked casts that hide incompatible return types. Keep product APIs unchanged and keep live verification pending until the repaired suites run in their booked lane.
+
+### B-LA-E7-06-01 — BLOCKER — unnamed evidence still certifies named frozen suites
+
+**File:line:** `tests/ltiaas/kit/lib/fixtures.ts:1074`; `tests/ltiaas/kit/README.md:52`.
+
+**Problem and evidence:** `verifyWaveSuiteArtifact` compares `parsed.suite` only when the field is present. A host probe referenced one file containing only `{ "waveId": "current-wave", "outcome": "PASS" }` for T3b, T7 and T8. With a complete synthetic Moodle case ledger, the pass rule returned `ok: true`. Naming that same artifact `T3b` correctly rejects its use for T7/T8. Missing independent current-wave identity and an artifact with FAIL now correctly fail, so those parts of the previous finding are fixed. The remaining acceptance still does not establish that each named suite passed, as AC-05 requires.
+
+The guide describes the manifest but not the new artifact schema or the requirement that references resolve inside `LA_RUN_DIR`. Its absolute-path example does not explain that restriction. A new operator must read the validator to prepare accepted evidence.
+
+**Suggested fix:** Require the artifact's suite identity to match the named suite, along with its wave and outcome. Add the anonymous/reused-artifact negative control. Document the artifact format, producer and directory rule so a team can supply real suite results without reverse-engineering the implementation.
+
+### B-LA-E7-06-02 — BLOCKER — some expanded cases still miss their required oracle
+
+**File:line:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:187`, `:283`, `:304`, `:409`; `tests/ltiaas/kit/lib/runtime.ts:1020`.
+
+**Problem and evidence:** Even after -07 is repaired, these cases do not establish TEST-STRATEGY §2.4's required outcomes:
+
+- **L4:** The case chooses its expected result from the actual status: any 400 with `PROVIDER_PROFILE_MISMATCH` passes, otherwise 303 plus a log passes. It never derives refusal versus log-only behaviour from the selected family guard and target profile. A regression that swaps those policies can pass.
+- **L7:** The score check verifies learner and values but not the target launch line item. The two result rows are checked for the requested resource-link ID, without a placement identity/count assertion. Duplicate placements for that same ID can survive those checks. The second generic `waitSync(..., 'sent')` can also match the first learner's existing sync.
+- **L9:** Both bindings pass generated library labels, while `setupChannelBinding` selects account B only for the exact string `'B'` and account A otherwise. The actual adapter capture is `['A', 'A']`. Thus this case never creates the required two-library boundary; at best it checks isolation between connections within one library.
+
+**Suggested fix:** Derive expected policies independently from the fixture/profile, assert the actual line-item target and one-placement invariant, and select distinct A/B accounts with an explicit library-ID inequality check. Complete the design-case-to-assertion map and add focused negative controls for wrong policy, duplicate placement and same-library setup. Source-text presence checks cannot replace those controls.
+
+### B-LA-E7-06-06 — MAJOR — the onboarding self-test still fixes the fixture count
+
+**File:line:** `tests/ltiaas/kit/kit.k0.test.ts:154`, `:179`, `:180`, `:183`.
+
+**Problem and evidence:** `runShippedChannelsAudit` now correctly accepts all discovered fixtures. However, the canary test copies every discovered fixture into its temporary directory, adds one more, then requires exactly six and the fixed baseline-plus-canary ID list. Adding only `channels/review-canary.json` in the private clone produces **12 PASS, 1 FAIL** from the unchanged K0 command: line 179 receives 7 but expects 6. The main audit passes in that same run. The documented one-file onboarding workflow therefore still needs a shared test edit.
+
+**Suggested fix:** Derive the canary expectations from the discovered input set, or seed a deliberately fixed isolated fixture set. Verify the whole K0 command with one real extra fixture; checking only the extracted audit misses this failure.
+
+### Verification and scope
+
+- Private `git clone --no-hardlinks`, detached at `af36ad31ddb3defa161d696d569b09185cbf46ac`; dependencies installed there only. Shipped host command `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts`: **13/13 PASS**. Log: `/tmp/reviewer-b-e706r3-k0.log`.
+- Pinned-source host probes with all external clients stubbed and live operations blocked: **8 corrective predicates failed, 10 controls passed**. Source: `/tmp/reviewer-b-e706r3-probes.cjs`; output: `/tmp/reviewer-b-e706r3-probes.log`. These are local contract/helper diagnostics, not live results.
+- Actual sixth-file probe: **12 PASS, 1 FAIL**, as above. Log: `/tmp/reviewer-b-e706r3-canary.log`. The temporary fixture was removed afterward; the private clone's tracked files are unchanged.
+- QA fix `cfcdc0ca` edits only the kit and its QA report. No product, frozen suite, simulator or selector file is changed by that fix. The host suite-neutrality check passes. No Docker, stack, host stack runner or K1-SIM suite was run; the live ACs remain **pending**.
+- Blind review maintained. Only this review file was edited in the integration worktree; no commit was made. This is Round 3 with blocking findings, for the Lead's charter round-limit handling.
