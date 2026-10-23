@@ -844,3 +844,67 @@ The §15.7 HOLD inside the invocation (exit 4 after W3) would leave created path
 - The HOLD moves to the **separate external preflight stage** (16.2 step 1, the same pattern under E-R8). Each preflight uses its own new absent directory and creates no runtime path. A HOLD therefore consumes only preflight files, which stay as evidence.
 - A runtime invocation starts only after the Lead's decision. Its own W3 checks can still BLOCK. That consumes that attempt's paths.
 - **Every new attempt** needs an explicit fresh attempt root and a new grant. For v2, which has fixed paths, that means a reviewed path-only copy. For E-R8 v3, it means a required `T7_ROOT` parameter that must be absent. There is no automatic retry. Earlier attempt files are never reused, moved or deleted.
+
+## 17. Ruling on lane capture sufficiency and the preflight guard (2026-10-23, about 13:35–13:36 UTC)
+
+Author: Architect, Claude Code `claude-opus-5-5`. The configured effort is xhigh per the Lead's receipt; it is not visible in the session. Task `task_ed0712df4567`, dispatch `ctx_0781fcac0fba`. HEAD `765cade5`.
+§0–§16 are unchanged: the first 99,037 B have SHA-256 `4cf544579299fb657c9ed7c0fd12b739a3307ed9edcc396e492694d23bc99720`. This section changes §16.1 only where stated, and it records the Lead's ruling `msg_172fc3cfd28e` under §16.2–§16.3. It answers reviewer findings `msg_14d4c2c2b511` and `msg_5494fccf1fa8`. My early statement was `msg_256658ca030b`. I read no candidate or QA test. This is no candidate verdict and no runtime grant.
+
+### 17.1 Lane-watch full-inspect snapshots: admissible, but only in their own pool
+
+§16.1 said that lane-watch snapshots hold names only and attribute nothing. That was true for the §15.5 design. **Ruling:** when `lane-watch-r5` records sufficient full inspect records, its start and end snapshots are sufficient records **for the lane comparison only.**
+
+- **Two evidence pools.** A difference is attributed only from records in its own pool.
+  - The **outer pool** is {W3, W4} of `boundary-r2`, used for `compareBoundaries` and `reconcile-32vol-v2` at W3 and W4.
+  - The **lane pool** is {lane start, lane end} of one `lane-watch-r5` process, used for `nonLaneContainersUnchanged` and `networksUnchanged`.
+  - No record crosses pools. No record comes from the preflight, from another attempt or from another invocation, even for immutable fields.
+- **Invocation identity of the lane pool:** both snapshots come from the same lane-watch process and output folder under the same `T7_ROOT`. The start time is earlier than the end time. Both files are bound by size and SHA-256 in B-TW-02.
+- **Sufficiency** (per record; any missing, truncated or unparsable field makes the record insufficient, so the result is UNKNOWN):
+  - A **container** record has the name, the complete `Config.Labels`, every mount with its `Type` and volume name (empty only if there are no mounts), and the keys of `NetworkSettings.Networks`.
+  - For each mounted volume, the full volume record (labels) is in the same snapshot, so that AV can be evaluated.
+  - A **network** record has the `Name`, `Labels`, `Driver` and the complete IPAM subnets.
+  - Sanitizing may drop env, command, arguments and paths. It may never drop a predicate field.
+- **Predicates:** the §16.1 AV, SC, SV and SN predicates apply without change, inside each pool, in **every** capture of that pool that holds the resource.
+- **Vanish provenance:**
+  - A vanish at W3 or at lane start is UNKNOWN and BLOCKs.
+  - A vanish at W4 is attributed only from a sufficient W3 record of the same id.
+  - A vanish at lane end is attributed only from a sufficient lane-start record of the same id.
+- **Each pool must pass on its own.** An attribution in one pool never excuses a problem in the other. Positive cases are reachable in both pools. For example, a Savoy container that appears after lane start and is present at lane end is classified in the lane pool from its lane-end record. A Savoy resource that exists only between W3 and W4 changes no outer record.
+- **Strict checks are unchanged in both pools:**
+  - all 32 BASE32 full records, at lane start and lane end, and against `PREV_W4` at W3 and W4;
+  - the 7 originals;
+  - G-1 identity, `dockerInfo` and the settings hash;
+  - the Id and record of `bridge`, `host` and `none`, plus the sampler's single bridge Id;
+  - lane R1 and R2, ownership, the `--keep` proof, the teardown and the empty lane at the end;
+  - every functional assertion and deadline.
+  Raw problems stay visible beside every attribution.
+
+### 17.2 The Lead's preflight and guard ruling (`msg_172fc3cfd28e`, under §16.2–§16.3)
+
+**Chain.** `PREV_W4` (accepted M2 W4) is reconciled explicitly by the Lead into `PREFLIGHT_W3`, the fresh external held preflight. Only the E-R6 pre-W3 idle-VM bridge class may be reconciled. The v3 guard then checks the formal runtime W3 against `PREFLIGHT_W3`; any difference stops the run before T4. The strict comparison and the sampler then check runtime W3 against W4.
+
+**The v3 guard** passes only if all of these hold:
+- At the runtime W3, the Id and full record of `bridge`, `host` and `none`, the G-1 identity, `dockerInfo` and the settings hash equal those in `PREFLIGHT_W3`.
+- All 32 baseline full records equal `PREV_W4`, at every capture.
+
+**No gap.** Every interval of the chain is checked. A bridge replacement at any time falls into one interval:
+- before `PREFLIGHT_W3`: reconciled, allowed class only;
+- between `PREFLIGHT_W3` and runtime W3: a stop before T4;
+- between runtime W3 and W4: a strict W4 or sampler failure.
+There is no after-launch reconciliation in this route. It replaces the §16.2 post-run C1–C4 limit for v3.
+
+**Counterexamples:**
+- *Old reference (runtime W3 against PREV_W4):* the 04:35 wake already replaced the bridge relative to M2 W4 (`7dac5c96…` became `b9a014a3…`, `R/t7-external-preflight/compare-vs-m2-w4-v2.json`). Every later attempt would HOLD forever. The refreshed and reconciled `PREFLIGHT_W3` removes this permanent HOLD.
+- *Post-run reconciliation:* a bridge change between the preflight and runtime W3 would be found only after T7 had run. The guard finds it before any lane or runner exists.
+- *Runtime W1 wake after an idle VM:* the guard stops. That is a false stop, not a false pass. It consumes one attempt.
+
+**Bounded acceptance controls:**
+1. One preflight per attempt. Its fresh absent folder and the `PREFLIGHT_W3` SHA-256 are named in the grant. v3 records that SHA-256 in T0 and refuses a different file. A stopped or failed attempt needs a new preflight and a new grant.
+2. The Lead's reconciliation record names the only allowed difference: the old and new bridge Id and `Created`, with equal options, IPAM and labels, and identical `host` and `none`. Everything else in the preflight must match `PREV_W4`, or meet E-R6, or be classified under §16.1 within the preflight capture.
+3. At runtime W3, every non-lane, non-baseline resource is either identical (same id and full record) to one that was reconciled in `PREFLIGHT_W3`, or classified by §16.1 in runtime W3. Otherwise the run stops before T4.
+4. A stop before T4 starts no sampler, checkout, lane-watch or runner. The T0–T3 files stay as evidence under the used `T7_ROOT`. The exit code is distinct, and there is no automatic retry.
+5. Launch soon after the grant to avoid idle-VM stops. No keep-alive or other new Docker activity is added.
+
+The approved observer relocation (`msg_32cbc886594d`) changes nothing above. Each attempt uses a fresh `T7_ROOT`, byte-identical observer bytes, a fresh C8 source checkout, a separate pristine runtime clone and B-TW-03. No functional assertion or deadline changes.
+
+T7 has not run. AC-M4-06 stays PENDING. All 32 real-LMS rows stay UNVERIFIED, and local Canvas stays DEFERRED.

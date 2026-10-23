@@ -37,6 +37,16 @@ Lead ruling `msg_32cbc886594d` permits a byte-identical observer copy and fresh 
 
 Codex remains the sole implementation and fix owner. The initial candidate, its independent QA verdict and the focused review remain pending. No Docker runtime or acceptance exception is approved.
 
+## Capture-rule clarification — 2026-10-23, 13:38 UTC
+
+The focused reviewer found ambiguity RQ-1 before reading the candidate. Its [requirements checkpoint](../reviews/M3/t7-shared-host-focused-review.md) is PENDING. That attempt settled on the missing architectural ruling, with no candidate code failure. The same reviewer is retained for the full review.
+
+The original Architect resolved RQ-1 in [plan section 17](../reviews/M3/t6-09-failure-plan.md#17-ruling-on-lane-capture-sufficiency-and-the-preflight-guard-2026-10-23-about-13351336-utc), task `task_ed0712df4567` / `ctx_0781fcac0fba`. The Lead accepts this clarification for implementation and qualification. The file is 106,065 bytes, SHA-256 `5253e839118a22e867457005c7735fe23c85a270e675dfb996adb6244a6c257f`. Its first 99,037 bytes keep the earlier SHA-256 `4cf544579299fb657c9ed7c0fd12b739a3307ed9edcc396e492694d23bc99720`.
+
+The outer boundary and lane monitor each use their own full start/end records. Neither may borrow attribution evidence from the other, another attempt or the preflight. Each comparison must pass independently. Missing predicate fields and unexplained changes still fail closed.
+
+The runtime guard compares strict host identities and built-in networks with the new, explicitly reconciled preflight. All 32 baseline volume records must still equal the accepted M2 predecessor. Section 17 also requires the preflight hash in the grant, a hash mismatch refusal and no reconciliation after launch. Codex and Gemini received the ruling before candidate freeze. This remains preparation authority only; no runtime grant or T7 acceptance exists.
+
 ## Required result
 
 1. Positive attribution uses sufficient captured metadata and the section 16 joint predicates. Names or anonymous-volume labels alone are insufficient. Unexplained activity fails closed.
