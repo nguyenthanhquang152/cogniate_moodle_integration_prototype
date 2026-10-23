@@ -607,3 +607,240 @@ Authority: the Lead's acceptance in `msg_30bbc088a7ab` and `msg_8ba7ddcd0876`, r
 - **Pinned result** (C8 preparation root): `tools/lane-watch-r4/lane-watch-core.mjs` `d7b962b6e6ebefc5eb6f2ac9212f0368c556c233cff56cbf7174937414847561` (the amendment is at `:177-180`); `lane-watch-selftest.mjs` `e7064c25ad7e54557eb5c11377ca20982fa08b7cd699da3509c04f09a88dc40d` (39 checks and 54 scenarios PASS, including `s13-vanish-mixed-kind-positive`); `lane-watch.mjs` byte-identical to the original (`9090ce248251e430a4552ca2d3a4b85afe91be62ed905d844b3f0ace18ed33fb`). The 37 original tools, the 84-entry manifest and `tests/host/storage-docker.mjs` are unchanged.
 - **Judge step (review N7):** for each `listing_vanish`, the judge records the bytes and SHA-256 of `private/listing-errors.jsonl` (not its content), conditions (a)–(d) and the destroy event of that id.
 - **Retest identity:** M2 runs once more at tests C8 and product C6 on the new lane `qa-e2e-sim-r7` (port 8643, subnet `172.27.0.0/16`) with fresh paths, through `notes/scripts/run-m2-window-attempt4-v5.sh` (`b8bda7964aad3e9aa7f1a130036238b0a396f3ca12cb034a8049dd77fc509689`). T7 runs through `notes/scripts/run-t7-window-v2.sh` (`1c884fdfec60a849c6f57410f7b62b28bdd37fc0d29c89510c40e4910e73d48f`) on `qa-e2e-m3-r3` (port 8543, subnet `172.31.0.0/16`). Each still needs its own grant. The nonblocking review items N1–N7 keep the dispositions recorded in E-R6.
+
+## 15. T7 beside a continuously active foreign project: route proposal E-R8 (2026-10-23, about 12:09–12:17 UTC)
+
+Author: Architect, Claude Code `claude-opus-5-5` (the effort setting is not visible in the session). Task `task_5eeaa543c47b`, dispatch `ctx_8e0b8f913da4`, run `run_ebe671ad72a9`. Lead checkpoint `bd6b7260`.
+Authority: the dispatch and Lead `msg_8af9966a844b`. My early recommendation was `msg_c3cd829f2f35`. This section replaces it where they differ.
+§0–§14 are unchanged: the first 76,657 B have SHA-256 `455ab9b4fe7ec0b907726b0ebc04e338b21ca1e9c5e0408a38290838d1a0219c`.
+This is a plan. It is not a grant, and it changes no test, assertion, deadline or criterion. I ran no Docker command, test, build or install in this task. I read only files.
+
+R = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep`. Frozen tools read (SHA-256 prefixes):
+
+| File | SHA-256 prefix |
+| --- | --- |
+| `tools/boundary/live-boundary.mjs` | `dc5f636c1adf92dd` |
+| `tools/boundary/live-boundary-core.mjs` | `df868d548811c288` |
+| `tools/boundary/safe-docker.mjs` | `49516eac1779dcd6` |
+| `tools/boundary/docker-sampler.mjs` | `fcf1ce38fc826595` |
+| `tools/lane-watch-r4/lane-watch-core.mjs` | `d7b962b6e6ebefc5` |
+| `notes/scripts/reconcile-32vol.mjs` | `55f2a09bd7934532` |
+| `notes/scripts/run-t7-window-v2.sh` | `1c884fdf…` |
+
+Also read: C8 `tests/e2e/host/run-t7.mjs` and `tests/host/lib.mjs`.
+
+### 15.1 Facts and invalidated assumptions
+
+- **One Docker engine.** I read only files and ran no Docker command:
+  - `~/.docker/contexts/meta/*/meta.json` holds one context, `desktop-linux` (`unix:///Users/quangnguyen/.docker/run/docker.sock`).
+  - `~/.docker/config.json` has `currentContext` `desktop-linux`.
+  - `/opt/homebrew/bin` has no colima, podman, orb, lima, nerdctl or rancher. `~/.colima`, `~/.orbstack`, `~/.lima` and `~/.local/share/containers` are absent. `/Applications` has no OrbStack, Rancher or Podman.
+  - So a separate engine needs new setup, which is out of scope.
+- **Anonymous volumes.** On this engine they carry the label `com.docker.volume.anonymous` (`R/t7-external-preflight/w3-start.json`). 25 of the 32 baseline records are such volumes. So the label alone does not show who owns a volume.
+- **Invalidated assumptions:**
+  - The E-R6 rule "no foreign mutation during the window": Savoy will not pause (`msg_987ebb0a6be7`).
+  - The E-R5 owner chronology: Savoy will not list resources per window (`msg_293cd9f61de2`).
+  - "The frozen v2 path can pass as written beside an active Savoy": see 15.2.
+
+### 15.2 Why the frozen v2 path cannot pass beside Savoy (each point fails closed; none is an LTI fault)
+
+1. **T3 and T13:** `reconcile-32vol.mjs` requires exactly 32 volumes and no extra one. The script runs under `set -e`, so any extra Savoy volume at W3 stops the run before runtime.
+2. **W3 boundary:** `live-boundary-core.mjs` `judgeStart` BLOCKs when any resource vanishes between list and inspect.
+3. **Lane-watch start:** `lane-watch-core.mjs` `snapshot` inspects all containers and all networks in bulk. One vanished item makes the record null, so the start is "incomplete" and BLOCKs.
+4. **W4 comparison:** `compareBoundaries` reports a problem for any non-lane container, network or volume difference, and for any vanish during the end read.
+5. **Lane-watch end:** `nonLaneContainersUnchanged` and `networksUnchanged` are terms of `isolationPass`, and `t7-gate.mjs` requires `isolationPass`.
+6. **C8 test code (frozen, residual):** `run-t7.mjs:279` `stackSnapshot` and `images()` use `allContainers()` (`tests/host/lib.mjs:221-231`): `ps`, then one bulk `docker inspect`. One vanished foreign container makes the result `[]`. The "stack unchanged" check of a B-T7-01 or A-T7-04 confirmation can then be false. This is a possible false FAIL. It is not a false pass, because the refusal text, the exit code, the volumes, the seed and the data/log files are also compared.
+
+### 15.3 Which checks prove T7 validity (all stay strict and unchanged)
+
+- **Identity and engine:** G-1 identity (`BOUND`); engine `dockerInfo` keys; the Docker Desktop settings hash.
+- **Built-in networks:** `bridge`, `host` and `none` keep the same Id and FULL record from W3 to W4. The sampler sees one bridge Id, equal to the one at W3.
+- **Volume records:**
+  - All 32 baseline FULL records are byte-equal by name: predecessor W4 = M2 `R/m2/window-attempt4/w4-end.json` (`544142a1…38fd`) = T7 W3 = T7 W4.
+  - The 7 original protected records and the 2 preserved anonymous records are identical.
+- **Lane:** fresh lane, port 8543 free, no subnet clash with `172.31.0.0/16`; lane-watch R1 (no lane record that is not made by this run), R2 and ownership; the `--keep` proof; teardown, with the lane empty at the end.
+- **T7 functional criteria:** three default runs of 17 PASS, only the DEMO skip, all 15 criteria, demo ≤ 180 s (measured history about 8–9 s), the four confirmation and refusal checks, and B-TW-03 before READY.
+- **Fixed-wait negative row:** B-T7-01 keeps the §11.6 item 4 evidence: in each confirm-no PTY log, the question comes first, then the echoed "no", then the stop.
+
+The only check that changes is the exclusivity proxy: "no non-lane change at all". It is replaced by "every non-lane change is positively attributed to the Savoy class (15.4); else UNKNOWN, and the run BLOCKs or FAILs".
+
+Corrected claim (replaces "misattribution cannot create a false pass" in `msg_c3cd829f2f35`): by design, an attributed resource cannot touch a lane, protected or engine object without a strict check above failing. This is a design argument. It counts only after the negative self-tests in 15.6 pass.
+
+### 15.4 Positive attribution without per-window Savoy reports
+
+Sources of attribution: our own captures, read in the same listing or snapshot, and Savoy's standing declaration (`msg_293cd9f61de2`). Names alone never classify a volume. **Lane rules come first:** a resource that matches the lane prefix or lane labels is a lane resource, whatever its name.
+
+- **Container.** It is Savoy class only if all of these hold:
+  - its name (from the same `ps -a --format` listing) starts with `sto-`;
+  - its compose project label is absent or starts with `sto-`;
+  - it has no lane or QA label;
+  - every volume it mounts is a Savoy-class volume. A mount of any baseline-32, protected, preserved, lane or named volume makes it UNKNOWN.
+- **Network.** It is Savoy class only if its name starts with `sto-`, it has no lane label, and its IPAM does not overlap `172.31.0.0/16`.
+- **Volume.** It is Savoy class only by **positive linkage**: in the same W3 or W4 capture, a Savoy-class container mounts it. All of these must also hold:
+  - it has the `com.docker.volume.anonymous` label, a 64-hex name and no compose labels;
+  - it is not one of the 32 baseline, 7 protected or 2 preserved records, and it is not a lane volume;
+  - no container outside the Savoy class mounts it in that capture.
+  The link is kept in the capture record, so a volume linked at W3 and gone at W4 stays attributed.
+  - A volume with no link (for example a leaked LTI anonymous volume, or a Savoy volume left without its container) is **UNKNOWN**.
+- **Vanished between list and inspect.** A container or network can be classified only by its own listing row (name and project from `--format`) under the rules above. A vanished volume is UNKNOWN unless the same capture links it. A vanished item with no listing row is UNKNOWN.
+- **Raw data is kept.** Every original problem string and count stays in the output. Classification is added beside it as `attributedForeign` (kind, name, id, rule, capture), and it removes no raw record. Incomplete data never stands in for a lane or protected comparison: those comparisons read their own named records, and a missing one is a problem as before.
+- **Timing limit:** a Savoy container removed exactly during our capture, while its volume is still listed, gives an unlinked volume. That is UNKNOWN, so a fail-closed stop, never a false attribution. Savoy removes containers with `-v`, so leaks should be rare. This route does not depend on Savoy's cooperation, but it can stop on such a race.
+
+### 15.5 Minimal tool delta (QA verification tools only; fresh directories; originals byte-identical)
+
+Ownership:
+- The independent Gemini QA edits **copies of its own QA verification tools and scripts** under R. It changes no repository file, test or product code, so no Codex implementation is needed.
+- If the Lead prefers that the judge does not edit its own tools, the same delta can go to Codex as tool work, and Gemini then verifies it.
+- One focused, independent Claude review follows. The reviewer is not this Architect and not the editor.
+
+| New file (fresh path) | Change |
+| --- | --- |
+| `tools/boundary-r2/live-boundary.mjs` | Capture lists with names: `ps -a --no-trunc --format` (id, name, compose project), `network ls --no-trunc --format` (id, name), and volumes as now. It records `vanishedDetail` (kind, id, name, project) beside the counts. For each non-lane container it records only the volume names of its mounts of type `volume`: no paths, env or command. This is a disclosed narrow exception to the safe-docker rule "Mounts are never returned". |
+| `tools/boundary-r2/live-boundary-core.mjs` | Add `classifyForeign` with the 15.4 rules. `judgeStart`: a vanish BLOCKs unless the item is classified. `compareBoundaries`: non-lane container, network and volume differences, and end-read vanishes, go to `attributedForeign` only when classified; otherwise they stay problems. Every other rule is unchanged: built-in Ids and records, identity, settings, the original 7, lane leftovers and the sampler rules. |
+| `tools/boundary-r2/safe-docker.mjs`, `docker-sampler.mjs` | Byte-identical copies. No sampler change; there is no new collector. |
+| `tools/lane-watch-r5/lane-watch-core.mjs` | `snapshot`: non-lane containers from `ps -a --format` (id, name, project) and networks inspected one by one with vanish tolerance, so a vanish no longer nulls the record. `nonLaneContainersUnchanged` and `networksUnchanged` are computed over non-lane resources that are not classified; classified ones are listed in `attributedForeign`. The `isolationPass` formula, R1, R2, the teardown and the start BLOCK rules are otherwise unchanged. `lane-watch.mjs` is byte-identical. |
+| `notes/scripts/reconcile-32vol-v2.mjs` | All 32 baseline names are present and byte-equal. Extras are allowed only when they are linked Savoy-class volumes (15.4) in the capture under test. Anything else fails. |
+| `notes/scripts/run-t7-window-v3.sh` | Only these changes: the new tool paths; new absent output paths; the **prelaunch hold** of 15.7; the LA pause message ids in `t0`. T0–T14 order, the runner argv, the gate, the scans, B-TW-02 and B-TW-03 are unchanged. |
+
+Also: a new manifest for the new files only. The 84-entry and 6-entry manifests and every original file stay untouched. The self-test outputs print the SHA-256 of the core and the self-test (review N1).
+
+### 15.6 Required self-tests (positives and fail-closed negatives)
+
+**Positives (no problem, each entry listed in `attributedForeign`):**
+- A `sto-` container appears or disappears between W3 and W4.
+- A `sto-` container or network vanishes during a capture, with its own listing row.
+- A linked Savoy anonymous volume is present at W3 and removed by W4.
+- A linked extra volume is present at W3 and still present at W4.
+
+**Negatives (each must give a problem, or a BLOCK at start):**
+- **Volumes:**
+  - a new unlinked anonymous volume (an LTI-style leak);
+  - an unlinked volume whose container vanished during the capture;
+  - an anonymous volume with compose labels;
+  - a new named non-lane volume;
+  - a baseline-32, protected or preserved record that changed or is missing.
+- **Containers:**
+  - an unlabelled non-`sto-` container that appears, disappears, changes or vanishes;
+  - a `sto-` container that mounts a baseline-32, protected or lane volume;
+  - a `sto-`-named container or network with a lane label or the lane prefix (lane rules apply, and R1 fails).
+- **Networks:**
+  - a non-`sto-` network that is new, missing or changed;
+  - a `sto-` network that overlaps `172.31.0.0/16`.
+- **Engine:**
+  - a changed `bridge`, `host` or `none` Id or record (VM or engine restart);
+  - a change in `dockerInfo` or the settings hash;
+  - more than one bridge Id in the sampler.
+- **Vanish without data:** an item with no listing row, and a vanished volume without a link.
+
+All existing self-tests of the copied tools must pass unchanged. No assertion becomes weaker.
+
+### 15.7 Prelaunch hold and acceptance rules for the one T7 invocation (input for the Lead's E-R8)
+
+**Prelaunch hold**, in script v3 right after W3 and before T4, the sampler, the checkout and the lane-watch:
+- The built-in `bridge`, `host` and `none` Ids and FULL records must equal those in the predecessor W4.
+- All 32 baseline records must be byte-equal.
+- Every extra must be a linked Savoy-class volume, container or network.
+- Otherwise exit 4 (HOLD) before any runtime. The Lead reconciles from the frozen records:
+  - Only the E-R6 idle-VM bridge class before W3 may be reconciled.
+  - An unlinked extra volume needs specific provenance, such as a recorded mount by a named `sto-` container, or it stays HOLD.
+  - A new grant is needed to launch.
+
+**Pass rules:**
+- Runner ALL OK, `t7-gate.mjs` PASS (`isolationPass` and `keepVerified`).
+- W4 comparison with 0 problems; `reconcile-32vol-v2` ok at W3 and W4; anonymous and original checks ok.
+- Sampler: 1 bridge Id, 0 skew violations, at least one sample.
+- Secret scan PASS; `map-triggers`; B-TW-02 binder; B-TW-03 before READY; the B-T7-01 PTY evidence.
+- **Window rule:** LA pauses from before W1 to after W4, and confirms the whole window.
+
+**Accepted record:** it says "window NOT exclusive", lists every `attributedForeign` entry, and states the C8 run and the C6 product equivalence. It makes no exclusive-host claim.
+
+**Stop conditions** (objective; no automatic retry):
+- any UNKNOWN or unclassified non-lane change or vanish;
+- any W3, W4, lane-watch or reconcile problem;
+- the prelaunch HOLD;
+- lane-watch not READY;
+- a subnet clash;
+- any runner FAIL or BLOCKED.
+
+**Residual C8 false FAIL (15.2 item 6):** if a confirmation step fails, QA diagnoses it from the step text, the runner logs and the sampler. Even when the cause is shown to be an empty `allContainers()` snapshot, the row stays FAIL. A new invocation needs a new explicit Lead decision; there is never an automatic retry or a relabel.
+
+**Practical time:**
+- tool delta and self-tests: about 1–2 h host-only;
+- focused review: about 1 h;
+- window: about 16–20 min (runner 630–695 s, plus W1–W3, checkout and READY about 3–4 min, plus W4, scans and binder about 2–3 min).
+
+### 15.8 Remaining external inputs and blockers
+
+1. The Lead's E-R8 decision. For T7 only, it replaces the E-R6 "no foreign mutation" condition with 15.3–15.7. Every other E-R6 control stays.
+2. An LA pause with exact bounds, and LA's whole-window confirmation afterwards.
+3. No Savoy input is needed.
+4. If the user can obtain a Savoy pause of about 25 minutes, the frozen v2 path can run as written under E-R6, with no tool delta, adding only the prelaunch hold of 15.7.
+
+AC-M4-06 stays PENDING until T7 is accepted. All 32 real-LMS rows stay UNVERIFIED, and local Canvas stays DEFERRED.
+
+## 16. Clarification of §15 (2026-10-23, about 12:20–12:22 UTC)
+
+Author: Architect, Claude Code `claude-opus-5-5` (configured xhigh; the effort is not visible in the session). Task `task_355dd7e713ef`, dispatch `ctx_a32bb83ff51c`. HEAD `bd6b7260`.
+§0–§15 are unchanged: the first 92,078 B have SHA-256 `b05cb3423b1a3a5e536cc85ba8f168607a381a51c07bacc9bd7b12f490f42b62`. This section corrects §15.4, §15.7 and §15.8 item 4 where it differs from them. E-R6 still applies; E-R8 is a proposal only. I ran no Docker command.
+
+### 16.1 Attribution: one joint predicate (replaces the §15.4 rules)
+
+**Rule priority:** no false attribution comes before avoiding false failures. In doubt, the result is UNKNOWN, and UNKNOWN BLOCKs at a start capture and FAILs at an end capture.
+
+**Sufficient record:** a full `inspect` record from a W3 or W4 capture of the same invocation. Under the §15.5 delta, a container record holds `Config.Labels`, every `Mounts` entry with its `Type` and `Name`, and the keys of `NetworkSettings.Networks`. A network record holds `Labels`, `Driver` and the IPAM subnets. A listing row (name and project from `--format`) is only an identifier. It never establishes labels, mounts or IPAM. Lane-watch snapshots hold names only, so they attribute nothing.
+
+**Fixed sets:**
+- E = the 32 baseline names, the 7 protected originals, the 2 preserved anonymous records, and every lane name or lane label.
+- AV(v, S) holds when, in capture S, volume v has a full record with the `com.docker.volume.anonymous` label, a 64-hex name, no `com.docker.compose.*` label, and v is not in E.
+
+These definitions read only raw records, never another classification, so they are not recursive.
+
+**Container predicate SC(c, S):** c has a full record in S, and all of these hold:
+1. Its name starts with `sto-`.
+2. It has no compose project label, or the label starts with `sto-`, and it has no `org.cogniate.*` label.
+3. It is not a lane resource by name or labels.
+4. It has no network key of a lane network.
+5. Every mount has `Type` `volume` (or `tmpfs`), and every volume mount v satisfies AV(v, S). A bind mount, a named volume or any volume in E makes the result false.
+
+**Volume predicate SV(v, S):** AV(v, S) holds, and:
+1. at least one container c with SC(c, S) mounts v; and
+2. every container with a full record in S that mounts v satisfies SC.
+
+**Network predicate SN(k, S):** k has a full record in S, and all of these hold:
+1. Its name starts with `sto-`.
+2. It has no lane label and is not a built-in network.
+3. Its driver is `bridge`.
+4. None of its IPAM subnets overlaps `172.31.0.0/16`.
+
+**Attribution of a difference between W3 and W4.** A resource present in only one capture, or present in both with a changed record, is attributed only if its predicate holds in every capture that holds it. Otherwise it is UNKNOWN.
+
+**Vanished between list and inspect** (a listing row, but no full record in that capture):
+- A container or network is attributed only when an earlier full record of the same id in this invocation satisfies SC or SN. That earlier record must be W3 when the vanish is in W4.
+- The identifying attributes it relies on are immutable after creation: labels, mounts, IPAM. Mutable ones (name, network attachment) are covered by the strict lane-empty and lane-network-removal checks, which fail closed.
+- A vanish in W3 has no earlier record, so it is UNKNOWN and BLOCKs.
+- A volume that vanishes, or a volume whose only mounting container vanished in that capture, is UNKNOWN unless the same capture or the W3 capture gives SV.
+
+**Limit:** containers and volumes created and removed between W3 and W4 appear in no capture. They need no attribution, because no compared record changes. This route proves only what the two captures and their full records show. It does not prove that the window was exclusive.
+
+### 16.2 Zero-tool-delta alternative (replaces §15.8 item 4)
+
+Precondition from the user and Savoy: from the start of the preflight to the end of v2's W4, no `sto-` container, `sto-` network or non-baseline volume exists or changes. Savoy removes its own resources first, including any that remain from 11:58, such as anonymous volume `235243e9…`. We never touch them. If this cannot be met, the zero-delta route is impossible: v2's T3 requires exactly 32 volumes, and E-R6 requires a preflight with no foreign container.
+
+Protocol (no tool or script edit, and no bypass of the grant):
+1. **External held preflight.** It uses only the existing frozen tools, unchanged, in a new absent directory `R/t7-external-preflight-<UTC stamp>`:
+   - `live-boundary.mjs wake`, `liveness`, and `capture --stage formal-start`;
+   - `anon-check.mjs`;
+   - `reconcile-32vol.mjs` against the predecessor W4 (`R/m2/window-attempt4/w4-end.json`);
+   - a read-only comparison in the existing form of `R/t7-external-preflight/compare-vs-m2-w4-v2.json` (identity, settings, engine, 32 records, foreign containers 0, `bridge`, `host` and `none`).
+   It never creates a v2 runtime path.
+2. **Lead HOLD decision** on those files. The only difference that may be reconciled is the E-R6 bridge-only idle-VM class. Then the Lead gives the T7 grant (`GRANT_MSG`, `GRANT_DELIVERY`, `PREV_W4` = the M2 W4).
+3. **Immutable v2** (`run-t7-window-v2.sh`, `1c884fdf…`), started at once through the existing detached launcher. Its own T3 reconcile, W3 `judgeStart`, W4 comparison, lane-watch and gate stay fail-closed.
+
+Limit: v2 has no check of the built-in networks between the preflight and its own W3; its own W1 wake can still replace the bridge. Without a delta, that gap is reconciled after the run under the accepted M2 C1–C4 rule (bridge-only, before formal W3, from immutable records). If the Lead needs that gap to be a prelaunch hold, the minimum delta is one step in a fresh-path copy of v2: after T3, compare the W3 built-in Ids and records with the preflight record, and exit before T4. That copy needs a focused review.
+
+### 16.3 Used paths and the HOLD (corrects §15.7)
+
+The §15.7 HOLD inside the invocation (exit 4 after W3) would leave created paths behind (`R/t7`, the window files, the clone root). v2 and v3 refuse existing paths, so a new grant could not silently reuse them, and nothing may delete them. Correction:
+- The HOLD moves to the **separate external preflight stage** (16.2 step 1, the same pattern under E-R8). Each preflight uses its own new absent directory and creates no runtime path. A HOLD therefore consumes only preflight files, which stay as evidence.
+- A runtime invocation starts only after the Lead's decision. Its own W3 checks can still BLOCK. That consumes that attempt's paths.
+- **Every new attempt** needs an explicit fresh attempt root and a new grant. For v2, which has fixed paths, that means a reviewed path-only copy. For E-R8 v3, it means a required `T7_ROOT` parameter that must be absent. There is no automatic retry. Earlier attempt files are never reused, moved or deleted.

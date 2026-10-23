@@ -2,7 +2,18 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 12:10 UTC
+## Current checkpoint — 2026-10-23, 12:23 UTC
+
+Claude completed the bounded route plan and clarification in [the failure plan, sections 15–16](../reviews/M3/t6-09-failure-plan.md). The Lead verified both appended sections and all preserved prefixes. This is a planning deliverable; E-R8 is not approved and no tool or runtime grant exists.
+The user has been asked to choose between a coordinated 25-minute Savoy pause, or continued Savoy activity with new copied QA tools and a focused review (Claude estimates 2–3 hours for that work). The pause needs the owner's authorization because Savoy's coordinator declined it. Neither choice is assumed.
+
+Under the pause option, Savoy must remove only its own resources, LA must also hold, and the original external preflight and explicit Lead grant still apply. Section 16 discloses the unchanged v2 wrapper's bridge gap and the decision needed before use.
+Under the concurrent option, positive attribution must use sufficient captured metadata; unexplained changes fail closed. Sections 15–16 are the proposal for implementation and review, not runtime acceptance evidence.
+
+Gemini's bounded attempt settled in `msg_67761a8db0a0` solely on the external scheduling block. T7 remains NOT RUN/PENDING, with zero Docker calls and no test failure. Its report appendix is verified. The same Gemini and Claude sessions are retained without process action, ready for the selected route.
+M1, M2 and legacy results remain accepted. After T7: final conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 12:10 UTC
 
 The user resumed work. LA supplied its actual handoff at 11:58 (`msg_b032782139a5`) and explained that its coordinator was down from about 06:47 to 11:57. This explains the missed earlier handoff.
 The retained Gemini session is READY FOR PREFLIGHT under `task_d59003f88ba1` / `ctx_4df8a8c1c7d6`. All 84 original and six repaired-tool bindings match, report prefixes are preserved, and all new runtime paths remain absent (`msg_dc754e02d52e`). LTI has made zero Docker calls in this resumed attempt.

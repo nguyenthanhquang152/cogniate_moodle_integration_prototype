@@ -257,3 +257,15 @@ The Lead returned LA's unused reservation in `msg_53948031e836`. LA acknowledged
 
 Lead `msg_5f5caf07dee5` keeps Gemini on a zero-Docker hold. The same Claude Architect now owns the bounded host-only route assessment `task_5eeaa543c47b` / `ctx_8e0b8f913da4`. A terminal-send attempt was rejected because this retained handle is a structured agent session. The exact new preamble was delivered through orchestration message `msg_b5c3d4fde3c4`; heartbeat `msg_0c5d6146a1ff` confirms active investigation on `claude-opus-5-5`. The existing xhigh configuration is not observable in-session.
 This assessment authorizes no runtime, executable edit or evidence-policy exception. E-R6 remains in force and E-R5 remains invalidated. No accepted M1, M2 or legacy check needs repeating. T7 and final conformance remain pending.
+
+## Route proposal and prepared-session checkpoint — 2026-10-23, 12:23 UTC
+
+Claude completed the route plan in `msg_a3a7fa8e7791`. The Lead requested a bounded clarification of the attribution predicates and launch paths in new task `task_355dd7e713ef` / `ctx_a32bb83ff51c`, delivered by `msg_b72f92bfb4a6`. It succeeded in `msg_3d0c7fc2c13e`.
+Final `docs/reviews/M3/t6-09-failure-plan.md`: 99,037 bytes, SHA-256 `4cf544579299fb657c9ed7c0fd12b739a3307ed9edcc396e492694d23bc99720`. The Lead verified the complete 76,657-byte and 92,078-byte prefixes unchanged. Conformance remains unchanged at 69,686 bytes, SHA-256 `91dfd24dd8b2854fd6649aa126f7cd30bda469005b4349bc5d41d75a70acc3db`.
+
+Sections 15–16 provide two concrete routes: an owner-authorized Savoy pause with the original external preflight and frozen v2 wrapper, or fresh copies of QA tools with positive foreign-resource attribution, negative self-tests and independent focused review. Section 16 supersedes the earlier attribution and HOLD wording. It discloses the v2 bridge gap and requires fresh paths after any consumed attempt. This remains a proposal, not an E-R8 decision or grant.
+The user has been asked to choose. The pause changes Savoy's owner's stated schedule; no authority to override it is assumed. No answer has arrived at this checkpoint. No Docker or implementation work is granted while that choice is pending.
+
+Lead `msg_ee44720aabd9` requested a short QA checkpoint without repeated checks. Gemini settled in `msg_67761a8db0a0`, outcome failed solely because the bounded runtime task remains externally blocked. T7 is NOT RUN/PENDING, not a failed test.
+Final `docs/reviews/T7/qa.md`: 58,110 bytes, SHA-256 `714fd0a3ef15d4d85adbc5c40a4b3e51c4e8e4c931a60e6c5faf93ac27f7eb28`; the Lead verified the complete 55,995-byte prefix unchanged. M3 QA remains 65,430 bytes, SHA-256 `6be2952cb9ba006d9fe01b616cd4fcadf7f847a38e0fc3b6d0a2970c8bd914a1`.
+The QA and Architect sessions are retained with no process action. All T7 runtime paths remain unused; no accepted check was repeated. Final conformance, guide evidence updates, Docs QA and two blind reviews remain after T7.

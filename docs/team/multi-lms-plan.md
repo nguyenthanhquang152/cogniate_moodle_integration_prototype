@@ -13,7 +13,14 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 12:10 UTC
+### Current directive — 2026-10-23, 12:23 UTC
+
+Claude's bounded T7 route plan and clarification are complete in `t6-09-failure-plan.md` sections 15–16. They remain a proposal; E-R6 is still in force and E-R8 is not approved.
+The user scheduling choice is pending: authorize a coordinated 25-minute Savoy pause, or keep Savoy running and qualify copied QA tools with a focused review (estimated 2–3 hours). Neither path has a runtime grant.
+Gemini recorded its host-only readiness and settled this bounded attempt on the external scheduling block. T7 remains NOT RUN/PENDING; no Docker command or T7 test ran. The same QA and Architect sessions are retained. [Remaining work](remaining-work-2026-10-22.md) records the concrete alternatives and final gates.
+Accepted M1, M2 and legacy evidence, real-LMS limits, model roles and the no-push/no-main-merge rule remain unchanged.
+
+### Prior directive — 2026-10-23, 12:10 UTC
 
 T7 is still NOT RUN. Gemini has passed all 90 frozen-tool bindings and fresh-path checks in the retained session (`ctx_4df8a8c1c7d6`), with zero Docker calls.
 LA returned its stack-down handoff at 11:58, but Savoy's owner will not pause its Docker work or provide per-window resource lists. The Lead returned the unused LA reservation at 12:07; no exclusive window or runtime grant is active.
