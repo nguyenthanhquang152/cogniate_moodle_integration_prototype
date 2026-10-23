@@ -292,9 +292,9 @@ touch "$GATE_DIR/logs/stop-slot7a-stats"
 wait "$STATS_7A_PID" 2>/dev/null || true
 
 M1_SIM_ART=$(ls -td "$SRC_SLOT7/tests/host/artifacts/qalead-la-16-"* | head -n1)
-node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/perf/rate-peaks.mjs" \
-  --logs "$M1_SIM_ART/logs" \
-  --json > "$GATE_DIR/logs/slot7a-rate-peaks.json"
+node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/baseline/rate-peaks.mjs" \
+  --logs "$M1_SIM_ART/service-logs" \
+  --suite m1-sim > "$GATE_DIR/logs/slot7a-rate-peaks.json"
 ```
 
 ### Exact Commands for Slot 7 — Run 7B (Moodle 5.2 Lane on `1b17261`, Est. `38 min`, After Run 7A Is Fully Down; No Legacy `T1–T8`)
@@ -324,9 +324,6 @@ COMPOSE_PROJECT_NAME=qalead-la-20 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
   node "$SRC_SLOT7/tests/e2e/host/run-t7.mjs" \
   --sha "$INTAKE_SHA" \
-  --source "$SRC_SLOT7" \
-  --workdir "$GATE_DIR/qalead-la-20-t7x3" \
-  --replace-tests --tests-from "$SRC_SLOT7/tests" \
   --runs 3 \
   > "$GATE_DIR/logs/slot7b-1-t7x3.log" 2>&1
 
@@ -334,10 +331,10 @@ COMPOSE_PROJECT_NAME=qalead-la-20 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
 touch "$GATE_DIR/logs/stop-slot7b-stats"
 wait "$STATS_7B_PID" 2>/dev/null || true
 
-T7_ART=$(ls -td "$SRC_SLOT7/tests/host/artifacts/qalead-la-20-"* | head -n1)
-node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/perf/rate-peaks.mjs" \
-  --logs "$T7_ART/logs" \
-  --json > "$GATE_DIR/logs/slot7b-rate-peaks.json"
+T7_ART=$(ls -td "$SRC_SLOT7/tests/e2e/artifacts/runs/qalead-la-20-"* | head -n1)
+node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/baseline/rate-peaks.mjs" \
+  --logs "$T7_ART/run1/service-logs" \
+  --suite t7 > "$GATE_DIR/logs/slot7b-rate-peaks.json"
 ```
 
 ---
