@@ -1,5 +1,10 @@
 import type { ChannelManifest } from '@cogniate/channel-kernel';
 import { loadChannelFolders } from '@cogniate/channel-kernel';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { openSqlite } from '@cogniate/shared';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
@@ -17,8 +22,7 @@ const registry = await testProfileRegistry();
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0)) await close(); });
 
-async function setup(profileRegistry: ProfileRegistry = registry) {
-  const db = openDb(':memory:');
+async function setup(profileRegistry: ProfileRegistry = registry, db = openDb(':memory:')) {
   const account = ensureAccount(db, { id: 'unit', name: 'Unit', appUrl: URLS.app });
   await ensureToolKey(db, MASTER_KEY, 'unit');
   const { logger, lines } = capturingLogger();
@@ -262,6 +266,37 @@ describe('the audience obeys rule 2 on every create, staged or active (A-LA-E2-0
     expect(db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
     // A foreign audience on a host of no loaded profile stays allowed when staged.
     expect((await post({ ...body(), active: false, bindingRef: 'grant-1', clientAssertionAud: 'https://auth.brightspace.example/token' })).statusCode).toBe(201);
+  });
+});
+
+describe('AC-LA-E2-01-09: the platform answer of a row from before LTI migration 020 (A-LA-E2-01-03)', () => {
+  it('keeps every old field and gives null for clientAssertionAud and grantedScopes', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-platform-answer-'));
+    cleanup.push(async () => rmSync(dir, { recursive: true, force: true }));
+    const migrations = fileURLToPath(new URL('../../db/migrations', import.meta.url));
+    const old = join(dir, 'old');
+    mkdirSync(old);
+    for (const name of readdirSync(migrations).filter((name) => name < '020')) copyFileSync(join(migrations, name), join(old, name));
+    const file = join(dir, 'lti.db');
+    const before = openSqlite(file, old);
+    const { apiKey } = ensureAccount(before, { id: 'unit', name: 'Unit', appUrl: URLS.app });
+    before.prepare(`INSERT INTO platform (id, tool_account_id, issuer, client_id, name, auth_endpoint, token_endpoint, jwks_url, product_family_code, active,
+      created_at, updated_at, trusted_audiences) VALUES ('plt_old', 'unit', 'https://old.example.edu', 'old-client', 'Old', 'https://old.example.edu/a',
+      'https://old.example.edu/t', 'https://old.example.edu/k', 'moodle', 1, 100, 200, '["extra"]')`).run();
+    before.prepare("INSERT INTO deployment (platform_id, deployment_id) VALUES ('plt_old', '1')").run();
+    before.close();
+    const { app } = await setup(registry, openDb(file));
+    const answer = (await app.inject({ url: '/api/platforms/plt_old', headers: { authorization: `Bearer ${apiKey}` } })).json<Record<string, unknown>>();
+    expect(answer).toMatchObject({
+      id: 'plt_old', url: 'https://old.example.edu', clientId: 'old-client', name: 'Old', authenticationEndpoint: 'https://old.example.edu/a',
+      accesstokenEndpoint: 'https://old.example.edu/t', authConfig: { method: 'JWK_SET', key: 'https://old.example.edu/k' }, active: true,
+      deploymentIds: ['1'], productFamilyCode: 'moodle', trustedAudiences: ['extra'], profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null,
+      clientAssertionAud: null, grantedScopes: null,
+    });
+    expect(Object.keys(answer).sort()).toEqual([
+      'accesstokenEndpoint', 'active', 'authConfig', 'authenticationEndpoint', 'bindingRef', 'clientAssertionAud', 'clientId', 'deploymentIds', 'deployments',
+      'grantedScopes', 'id', 'name', 'productFamilyCode', 'profile', 'publicKey', 'serviceUrl', 'siteUrl', 'trustedAudiences', 'url',
+    ]);
   });
 });
 
