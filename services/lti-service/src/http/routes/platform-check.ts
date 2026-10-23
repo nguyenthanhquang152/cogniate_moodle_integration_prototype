@@ -135,8 +135,10 @@ export function registerPlatformCheckRoutes(app: FastifyInstance, ctx: CheckCont
         // For a shared platform the token proves the vendor application, not the school (ADR-011 R-M-14).
         limits: profile !== null && isSharedProfile(profile) ? 'shared-application' : null,
       };
-      ctx.logger.info('platform_check', { trace_id: req.traceId, platform_id: platform.id, jwks, token });
-      return audit.change(() => answer, () => ({ details: { deploymentId, jwks, token } }));
+      // The shared redaction hides every field named "token", so the token result is logged as token_result
+      // (tokenResult in the audit details). Neither holds a token or an assertion.
+      ctx.logger.info('platform_check', { trace_id: req.traceId, platform_id: platform.id, jwks, token_result: token });
+      return audit.change(() => answer, () => ({ details: { deploymentId, jwks, tokenResult: token } }));
     });
   });
 }
