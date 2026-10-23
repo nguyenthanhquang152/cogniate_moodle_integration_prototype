@@ -339,7 +339,15 @@ export interface ExtensionRoute {
   legacyCapabilityName?: string;
   /** Run after ownership and capability checks; return success or an error the kernel renders. */
   handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
-    { status: number; body: unknown; headers?: Record<string, string> } |
+    {
+      status: number; body: unknown; headers?: Record<string, string>;
+      /**
+       * LA-E6-05 (LA-ADR-08 D5): a setup artifact reports the `kid` of the key snapshot that it embeds, or null when it
+       * embeds no key (it names the key URL). The kernel records it on the connection (`artifact_key_kid`) and never
+       * sends it. Absent: the route is not a setup artifact, and the stored value does not change.
+       */
+      artifactKeyKid?: string | null;
+    } |
     { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;
 }
 /** Read-only publication fields needed by a publish hook. Extension state is read through scoped SQL. */

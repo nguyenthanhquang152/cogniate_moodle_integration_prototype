@@ -4,17 +4,30 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-const level = process.env.LA_LEVEL ?? '';
-const include = level === 'k0' ? ['*.k0.test.ts'] : level === 'k1sim' ? ['*.k1sim.test.ts'] : ['*.test.ts'];
+const k0 = process.env.LA_LEVEL === 'k0';
 
 export default defineConfig({
-  test: {
-    root: fileURLToPath(new URL('.', import.meta.url)),
-    include,
-    pool: 'forks',
-    fileParallelism: false,
-    retry: 0,
-    testTimeout: 30 * 60_000,
-    hookTimeout: 30 * 60_000,
-  },
+  test: k0
+    ? {
+        root: fileURLToPath(new URL('.', import.meta.url)),
+        include: ['*.k0.test.ts'],
+        pool: 'forks',
+        fileParallelism: false,
+        retry: 0,
+        testTimeout: 30 * 60_000,
+        hookTimeout: 30 * 60_000,
+      }
+    : {
+        root: fileURLToPath(new URL('.', import.meta.url)),
+        include: ['*.k1sim.test.ts'],
+        pool: 'forks',
+        fileParallelism: false,
+        retry: 0,
+        testTimeout: 30 * 60_000,
+        hookTimeout: 30 * 60_000,
+        reporters: ['default', 'json'],
+        outputFile: {
+          json: fileURLToPath(new URL('../../../acceptance/artifacts/vitest-results.json', import.meta.url)),
+        },
+      },
 });

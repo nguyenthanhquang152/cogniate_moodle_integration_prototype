@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { it } from 'vitest';
 import { artifact, f5Text, hasScript } from '../../tasks-core/LA-E1-04/fitness';
 
-const RETENTION_JOB = 'services/lti-service/src/jobs/audit-retention.ts';
+const RETENTION_JOB = 'services/lti-service/src/store/audit-retention.ts';
 const FORBIDDEN_PATHS = [
   'services/lti-service/src/store/audit.ts',
   'services/lti-service/src/http/operator/audit.ts',

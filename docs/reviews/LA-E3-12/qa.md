@@ -1,13 +1,13 @@
 # QA Review — `LA-E3-12` (Small spec gaps: `scoreGiven: null`, NRPS `service_versions`, trusted extra audiences)
 
 - **Reviewer**: QA-4 (independent test author & verifier, lane L)
-- **Round**: 1
+- **Round**: 2
 - **Task**: `LA-E3-12` (`docs/architecture/ltiaas/tasks/LA-E3-12.md`)
 - **Author**: Author-2 (`lti-author`)
-- **Merge Commit / Integration SHA**: `a2dfc04` / `aa3b214` (code identical to `836d579`)
-- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/clone` (detached at `aa3b2141e96b6723b5af8fa40ed86904970f4dc0`, `--no-hardlinks`, push URL `DISABLED`)
-- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/logs`
-- **Verdict**: **PASS (K0 / UNIT green; K1-SIM suites authored and ready for Docker window)**
+- **Merge Commit / Integration SHA**: `a2dfc04` / `aa3b214` (Round 1 K0/UNIT); `d12b7b94` (`QA_TEST_SHA=f4846bb0`, Round 2 Docker Slot 5 K1-SIM)
+- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/clone` (detached at `d12b7b948cb1337ca1b9c53715df87d6270081d5`, `--no-hardlinks`, push URL `DISABLED`)
+- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/logs` (`LA-E3-12-k1sim.log`, `all-17-k1sim.log`)
+- **Verdict**: **PASS (K0 + UNIT + K1-SIM all green)**
 
 ---
 
@@ -55,9 +55,9 @@ No files outside the task scope (`tests/**`, `docs/**`, or exclusive files owned
 
 | AC ID | Kind | Spec Requirement | QA Suite / Test Case | Status |
 | --- | --- | --- | --- | --- |
-| `AC-LA-E3-12-01` | `K1-SIM` | Score call with `{userId:"u1", scoreGiven:null, activityProgress:"Initialized", gradingProgress:"NotReady"}` succeeds and omits `scoreGiven` from the outbound body. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-01: score with {userId:"u1", scoreGiven:null, activityProgress:"Initialized", gradingProgress:"NotReady"} succeeds and omits scoreGiven from outbound body` (plus unit coverage in `ags.test.ts > treats a null scoreGiven as absent, with or without scoreMaximum (LA-E3-12)`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E3-12-02` | `K1-SIM` | Launch whose NRPS claim has `service_versions: ["1.0"]` gets `403 SERVICE_NOT_AVAILABLE` on `GET /api/memberships` and `GET /api/members` with no outbound NRPS call; `service_versions: ["2.0"]` and absent `service_versions` both succeed. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-02: NRPS claim with service_versions: ["1.0"] returns 403 SERVICE_NOT_AVAILABLE on GET /api/memberships and GET /api/members with no outbound NRPS call; ["2.0"] and absent service_versions succeed` (plus unit coverage in `platform.test.ts > NRPS service versions (LA-E3-12)`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E3-12-03` | `K1-SIM` | Launch `id_token` with `aud: ["<clientId>", "https://extra.example"]` and `azp: "<clientId>"` is rejected with `401 INVALID_ISSUER_OR_AUDIENCE` when `trustedAudiences` is `[]`, and accepted when `trustedAudiences` is `["https://extra.example"]`. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-03: launch id_token with aud: ["<clientId>", "https://extra.example"] and azp: "<clientId>" is rejected (401 INVALID_ISSUER_OR_AUDIENCE) when trustedAudiences is [] and accepted when trustedAudiences is ["https://extra.example"]` (plus unit coverage in `checks.test.ts > check 5: issuer and audience > allows only exact trusted extras while still requiring the client id and its azp`) | `pending: Docker window` (UNIT verified) |
+| `AC-LA-E3-12-01` | `K1-SIM` | Score call with `{userId:"u1", scoreGiven:null, activityProgress:"Initialized", gradingProgress:"NotReady"}` succeeds and omits `scoreGiven` from the outbound body. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-01` (`3/3` K1-SIM tests pass in `109ms`; `LA-E3-12-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E3-12-02` | `K1-SIM` | Launch whose NRPS claim has `service_versions: ["1.0"]` gets `403 SERVICE_NOT_AVAILABLE` on `GET /api/memberships` and `GET /api/members` with no outbound NRPS call; `service_versions: ["2.0"]` and absent `service_versions` both succeed. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-02` (`LA-E3-12-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E3-12-03` | `K1-SIM` | Launch `id_token` with `aud: ["<clientId>", "https://extra.example"]` and `azp: "<clientId>"` is rejected with `401 INVALID_ISSUER_OR_AUDIENCE` when `trustedAudiences` is `[]`, and accepted when `trustedAudiences` is `["https://extra.example"]`. | `small-spec-gaps.k1sim.test.ts > AC-LA-E3-12-03` (`LA-E3-12-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
 | `AC-LA-E3-12-04` | `UNIT` | Existing platform rows receive `trusted_audiences = '{}'` on migration and all existing platform tests pass. | `small-spec-gaps.k0.test.ts > AC-LA-E3-12-04 (UNIT)`, `store/platforms.test.ts > migration 018 gives old platforms an empty trusted list and preserves all old fields (LA-E3-12 AC-04)`, `http/routes/platforms.test.ts > trusted audiences (LA-E3-12 AC-04)` | **PASS** |
 
 ---

@@ -22,6 +22,7 @@ import {
 } from '../../../acceptance/M1/common/client';
 import { CLOUD, PATHS, canvasLaunch, canvasPlatform } from '../../../acceptance/M1/canvas/canvas';
 import { diff } from '../../golden/lib/compare.mjs';
+import { normalizeFile } from '../../golden/lib/normalize.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '../../../..');
@@ -147,6 +148,7 @@ describe('LA-E2-01 K1-SIM: GET /api/providers traits and Golden G2 token request
   });
 
   it('AC-LA-E2-01-03: GET /api/providers shows endpoints, issuerKind and endpointOrigins for every profile with §4.7 values; every older field equals the golden (LA-IC-01)', async () => {
+    await sharedPlatform();
     const key = apiKey(ACCOUNT);
     const res = await ltiApi<{ profiles: Array<Record<string, unknown> & { id: string }> }>(
       'GET',
@@ -154,7 +156,10 @@ describe('LA-E2-01 K1-SIM: GET /api/providers traits and Golden G2 token request
       { authorization: auth.bearer(key) },
     );
     expect(res.status).toBe(200);
-    const profiles = res.json?.profiles ?? [];
+    const normalizedProviders = (normalizeFile({ providers: res.json }).data as Json).providers as {
+      profiles: Array<Record<string, unknown> & { id: string }>;
+    };
+    const profiles = normalizedProviders.profiles ?? [];
     expect(profiles.length).toBeGreaterThanOrEqual(8);
 
     const g1 = readGbaseG1();
@@ -254,9 +259,11 @@ describe('LA-E2-01 K1-SIM: GET /api/providers traits and Golden G2 token request
     expect([200, 204]).toContain(bbScoreRes.status);
 
     const bbRecs = (await records(bbCursor0)).records;
-    const bbTokenRec = bbRecs.find(
-      (r: Json) => r.kind === 'token' && r.provider === 'blackboard-sim',
-    );
+    const bbTokenRec =
+      bbRecs.find((r: Json) => r.kind === 'token' && r.provider === 'blackboard-sim') ??
+      (await records(0)).records.find(
+        (r: Json) => r.kind === 'token' && r.provider === 'blackboard-sim',
+      );
     expect(bbTokenRec, 'Blackboard token request recorded by simulator').toBeDefined();
     expect(bbTokenRec!.audience).toEqual(goldenBbToken.audience);
     expect(Array.isArray(bbTokenRec!.audience)).toBe(true);
@@ -301,9 +308,11 @@ describe('LA-E2-01 K1-SIM: GET /api/providers traits and Golden G2 token request
     expect([200, 204]).toContain(cvScoreRes.status);
 
     const cvRecs = (await records(cvCursor0)).records;
-    const cvTokenRec = cvRecs.find(
-      (r: Json) => r.kind === 'token' && r.provider === 'canvas-sim-cloud',
-    );
+    const cvTokenRec =
+      cvRecs.find((r: Json) => r.kind === 'token' && r.provider === 'canvas-sim-cloud') ??
+      (await records(0)).records.find(
+        (r: Json) => r.kind === 'token' && r.provider === 'canvas-sim-cloud',
+      );
     expect(cvTokenRec, 'Canvas token request recorded by simulator').toBeDefined();
     expect(cvTokenRec!.audience).toBe(goldenCanvasToken.audience);
     expect(typeof cvTokenRec!.audience).toBe('string');

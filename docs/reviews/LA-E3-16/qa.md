@@ -1,0 +1,34 @@
+Verdict: PASS (K0 + UNIT); K1-SIM and E2E pending Docker window
+Round: 1
+
+# LA-E3-16 Canvas Dynamic Registration in the portal (`packages/channels/canvas/portal/**`): QA verification
+
+Tester: QA-3 (Orca task `task_f5ff76d73ce9`, dispatch `ctx_545e35a7e7c7`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E3-16.md` (with `LA-ADR-05` D6, `LA-ADR-04` D5/D6, and `B-LA-E3-16-01` / `ce9b4a6`). Suite: `tests/ltiaas/tasks-core/LA-E3-16/` (QA-3 test-first, authored in this round).
+
+Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E3-16/` from `docs/architecture/ltiaas/tasks/LA-E3-16.md`, `LA-ADR-05` D6, and `LA-ADR-04` D5/D6 without reading product source (`packages/channels/canvas/portal/*.tsx`, `apps/**`, `services/**`), Author notes or reviewer files (test file `packages/channels/canvas/portal/canvas.test.tsx` was inspected after authoring the suite solely for exact unit test names).
+
+| Item | Value |
+| --- | --- |
+| SHA | `8143e6696bad9acdb8d3cae0d4232ffd3b19de01` (integration `8143e669`, code `49f1ce48`; holds `LA-E3-16` commits `4d31891` and `ce9b4a6` / merge `69af69d6`) |
+| Lane and slot | lane P; no Docker (`HOST-ONLY`; `K1-SIM` row `AC-LA-E3-16-04` and live E2E part of `AC-LA-E3-16-05` marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/run21/clone`: `git clone --no-hardlinks --no-checkout`, detached at `8143e6696bad9acdb8d3cae0d4232ffd3b19de01`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run21/k0/LA-E3-16/` (umask 077): `vitest.log`, `e3-16-unit.log`, `e3-16-k0.log`, `e3-16-touched-files.json`, `~/cogniate-qa-runs/LA/run21/k0/head-sha.txt`, `~/cogniate-qa-runs/LA/run21/k0/status-after.txt` (`0` bytes) |
+
+## Acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E3-16-01 | PASS (UNIT) | `tests/ltiaas/tasks-core/LA-E3-16/canvas-portal-dr.k0.test.ts` + `packages/channels/canvas/portal/canvas.test.tsx > AC-LA-E3-16-01: offers the manifest methods at create with the developer key selected, and sends the chosen method` | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_RUN_DIR=~/cogniate-qa-runs/LA/run21/k0/LA-E3-16 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E3-16/vitest.config.mts --reporter=verbose` | With a Canvas manifest exposing `["manual", "dynamic"]`, the create step renders the `"Connection method"` radio group with `"Developer key"` (`manual`) checked by default and `"Dynamic Registration"` (`dynamic`) unchecked; submitting `manual` sends the exact pre-LA-E3-16 body (`{ lms: "canvas", method: "manual", name, siteUrl, profile }`); selecting `dynamic` sends `method: "dynamic"`; with a manifest that has only `manual`, no radio group is rendered. `e3-16-unit.log` |
+| AC-LA-E3-16-02 | PASS (UNIT) | `canvas-portal-dr.k0.test.ts` + `packages/channels/canvas/portal/canvas.test.tsx > AC-LA-E3-16-02: shows the registration URL step instead of the developer key JSON for a pending dynamic connection` + `AC-LA-E3-16-02: shows the URL and its expiry at once when the create answer has the URL (BD-A1-106)` | same | A pending `dynamic` connection renders `"Register Cogniate in Canvas"` with the 4 STE instructions, shows the registration URL (`"Copy Registration URL"`) and expiry immediately when `registrationUrl` is present on create (`BD-A1-106`), calls `POST /app-api/connections/:id/registration-url` when `"Get registration URL"` is clicked, makes `0` requests to `canvas-configuration`, and does not show `"Copy JSON"`; once the platform is staged (`platform !== null`), `"Get registration URL"` and the `<ol>` list are hidden (`B-LA-E3-16-01` / `ce9b4a6`). `e3-16-unit.log` |
+| AC-LA-E3-16-03 | PASS (UNIT) | `canvas-portal-dr.k0.test.ts` + `packages/channels/canvas/portal/canvas.test.tsx > AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits without inputs before the platform is staged` | same | Before the platform is staged (`platform: null`), step 3 shows `"Finish the registration in Canvas. Then this page shows the values to check."` and `0` `<input>` elements; once staged (`platform !== null`), step 3 pre-fills `"Client ID"` from `platform.clientId` and `"Deployment ID"` from `platform.deploymentIds[0]` (both editable), leaves `"Approval code"` empty (`""`), and submits `PUT /app-api/connections/:id/platform` with `{ clientId, deploymentId, grantCode }`. `e3-16-unit.log` |
+| AC-LA-E3-16-04 | `pending: Docker window` (K1-SIM) | `tests/ltiaas/tasks-core/LA-E3-16/canvas-portal-dr.k1sim.test.ts > AC-LA-E3-16-04` | Queued for next SIM Docker slot | Suite authored and ready in `tests/ltiaas/tasks-core/LA-E3-16/canvas-portal-dr.k1sim.test.ts`; live execution deferred to the next booked Docker slot. |
+| AC-LA-E3-16-05 | PASS (UNIT); `pending: Docker window` (E2E) | `canvas-portal-dr.k0.test.ts` + `packages/channels/canvas/portal/canvas.test.tsx > AC-LA-E3-16-05: keeps the manual create and pending steps byte for byte (DOM snapshot before LA-E3-16)` (`18/18` tests in `canvas.test.tsx`) | same (UNIT part) | All `18/18` unit tests in `packages/channels/canvas/portal/canvas.test.tsx` (including the SHA-256 DOM snapshot checks for the `manual` create and pending steps and all 13 pre-existing M2 Canvas portal unit tests) pass with `0` edits to `tests/acceptance/M2/**`. Live M2 Canvas Playwright E2E regression is `pending: Docker window`. `e3-16-unit.log`, `e3-16-touched-files.json` |
+
+## Other checks
+
+- **Exclusive file scope (`canvas-portal-dr.k0.test.ts > Exclusive file scope & M2 untouched guard`):**
+  - `git diff --name-only 4d31891^1 4d31891` and `git diff --name-only ce9b4a6^1 ce9b4a6` touch only 9 files: `apps/portal/src/channels/ManifestWizard.tsx`, `apps/portal/src/sdk/index.ts`, and `packages/channels/canvas/portal/{CanvasBinding.tsx,CanvasCreate.tsx,CanvasRegistration.tsx,CanvasWizard.tsx,canvas-steps.json,canvas.test.tsx,steps.ts}` (`0` edits to `packages/channels/canvas/{manifest.ts,app.ts,app/**}`, `services/**`, or `tests/acceptance/M2/**`).
+- **Reviewer-B `B-LA-E3-16-01` fix (`ce9b4a6`):**
+  - Verified that once a `dynamic` Canvas connection has a staged platform (`connection.platform !== null`), `CanvasRegistration` does not offer `"Get registration URL"` or the step-2 `<ol>` list and instead shows `"Canvas sent the registration. The registration URL is not necessary now. In the next step, check the Client ID and the Deployment ID. Then enter the approval code from your Cogniate operator and select Save."`
+- **Measured time:** `LA-E3-16` K0 suite `1.91s` (`2/2` K0 tests passed; `2` portal unit test files / `20/20` unit tests in `752ms`; `145/145` K0 contract tests in `567ms`). `K1-SIM` (`AC-LA-E3-16-04`) and live E2E (`AC-LA-E3-16-05` E2E part) are `pending: Docker window`.

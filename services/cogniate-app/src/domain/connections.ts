@@ -157,6 +157,14 @@ export function getConnectionAnyLibrary(db: Db, id: string): Connection | undefi
   return row ? toConnection(row) : undefined;
 }
 
+/**
+ * LA-E6-05 (LA data model §5a): the `kid` of the key snapshot in the last exported setup artifact (today the Canvas
+ * `jwk=inline` JSON); null after an export that names the key URL. The health view compares it with the active key.
+ */
+export function setArtifactKeyKid(db: Db, libraryId: string, id: string, kid: string | null): void {
+  db.prepare('UPDATE connection SET artifact_key_kid = ? WHERE id = ? AND library_id = ?').run(kid, id, libraryId);
+}
+
 /** Newest first. */
 export function listConnections(db: Db, libraryId: string): Connection[] {
   return db.prepare('SELECT * FROM connection WHERE library_id = ? ORDER BY created_at DESC, id').all(libraryId).map(toConnection);

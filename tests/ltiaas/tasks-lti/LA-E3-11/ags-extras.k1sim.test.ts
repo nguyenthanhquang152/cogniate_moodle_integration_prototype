@@ -11,19 +11,23 @@ import { unique } from '../../../acceptance/M1/common/client';
 async function launchWithAgs(label: string) {
   const target = await canvasPlatform({ name: unique(`QA4 E3-11 ${label}`) });
   const id = unique(`ags-${label}`);
+  const resource = unique(`res-e3-11-${label}`);
+  const subject = `learner-${label}`;
   const launched = await canvasLaunch(target, {
     id,
+    resource,
+    subject,
     roles: [ROLE.instructor],
   });
   expect(launched.response.status, `launch (${label}) status`).toBe(303);
   expect(launched.ltik, `launch (${label}) returned ltik`).toBeTruthy();
-  return { target, ltik: launched.ltik };
+  return { target, ltik: launched.ltik, resource, subject };
 }
 
 describe('LA-E3-11 AGS extras (K1-SIM)', () => {
   it('[SIM] AC-LA-E3-11-01 & AC-LA-E3-11-05: line item POST/GET preserves URL-keyed member and score POST sends submission.submittedAt, scoringUserId and https URL-keyed member unchanged {case:LA-E3-11-01}', async () => {
     const key = apiKey(ACCOUNT);
-    const { ltik } = await launchWithAgs('ac01');
+    const { ltik, resource, subject } = await launchWithAgs('ac01');
     const authz = auth.ltik(key, ltik);
 
     const extKey = 'https://canvas.instructure.com/lti/submission';
@@ -35,7 +39,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       body: {
         scoreMaximum: 100,
         label: 'QA4 E3-11 Line Item',
-        resourceId: unique('res-e3-11'),
+        resourceId: resource,
         [lineItemExtKey]: { mode: 'extra-credit', weight: 1.5 },
       },
     });
@@ -66,7 +70,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       {
         authorization: authz,
         body: {
-          userId: 'learner-e3-11-01',
+          userId: subject,
           scoreGiven: 92,
           scoreMaximum: 100,
           activityProgress: 'Completed',
@@ -90,7 +94,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
 
   it('[SIM] AC-LA-E3-11-02 & AC-LA-E3-11-03: non-https member is dropped; 9th URL-keyed member or >4 KB value returns 400 INVALID_REQUEST {case:LA-E3-11-02}', async () => {
     const key = apiKey(ACCOUNT);
-    const { ltik } = await launchWithAgs('ac02');
+    const { ltik, resource, subject } = await launchWithAgs('ac02');
     const authz = auth.ltik(key, ltik);
 
     const createLi = await ltiApi<Record<string, unknown>>('POST', '/api/lineitems', {
@@ -98,7 +102,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       body: {
         scoreMaximum: 100,
         label: 'QA4 E3-11 Bounds',
-        resourceId: unique('res-e3-11-bounds'),
+        resourceId: resource,
       },
     });
     expect(createLi.status).toBe(201);
@@ -111,7 +115,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       {
         authorization: authz,
         body: {
-          userId: 'learner-e3-11-02',
+          userId: subject,
           scoreGiven: 80,
           scoreMaximum: 100,
           activityProgress: 'Completed',
