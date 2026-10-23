@@ -64,8 +64,14 @@ interface ProfilesModule {
 
 interface KernelModule {
   pendingToolText?: (toolName: string) => string;
-  loadChannelFolders?: (roots?: readonly string[], target?: 'app' | 'lti') => Promise<unknown[]>;
-  buildChannelRegistry?: (loaded: unknown[], opts?: { simulations?: boolean }) => { textName: (channelId: string) => string };
+  loadChannelFolders?: (
+    roots?: readonly string[],
+    target?: 'app' | 'lti',
+  ) => Promise<Array<{ manifest?: { id?: string } }>>;
+  buildChannelRegistry?: (
+    loaded: unknown[],
+    opts?: { simulations?: boolean },
+  ) => { textName: (channelId: string) => string; list?: () => Array<{ id: string }> };
 }
 
 function writeArtifact(name: string, content: string): void {
@@ -212,8 +218,17 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
     try {
       process.env.STACK_PROFILE = 'acceptance';
       process.env.LTI_PROVIDER_SIMULATION = 'on';
+      const kernelIndex = path.join(TARGET_ROOT, 'packages/channel-kernel/src/index.ts');
+      const kernelMod = (await import(pathToFileURL(kernelIndex).href)) as KernelModule;
+      const loadedForReg = await kernelMod.loadChannelFolders!([path.join(TARGET_ROOT, 'packages/channels')], 'lti');
+      const channelReg = kernelMod.buildChannelRegistry!(loadedForReg, { simulations: true });
+      const registered = new Set<string>([
+        ...BASELINE_LMS,
+        ...loadedForReg.map((entry) => entry.manifest?.id).filter((id): id is string => typeof id === 'string'),
+        ...(channelReg.list ? channelReg.list().map((c) => c.id) : []),
+      ]);
+
       profilesOn = mod.listProfiles!({ simulation: true });
-      const registered = new Set<string>(BASELINE_LMS);
       checkProfiles(profilesOn, BASELINE_PROFILES, { registered, label: 'K0 listProfiles({ simulation: true })' });
       for (const expected of BASELINE_PROFILES) {
         const actual = profilesOn.find((p) => p.id === expected.id);
@@ -225,10 +240,9 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
         sameBaselineFields(actual!, expected, `K0 ${expected.id}`);
       }
 
-      // 5. BD-A1-30: pendingToolText is frozen in @cogniate/channel-kernel (legacy-wire.ts) and imported in http/routes/registration.ts.
-      const kernelIndex = path.join(TARGET_ROOT, 'packages/channel-kernel/src/index.ts');
-      const kernelMod = (await import(pathToFileURL(kernelIndex).href)) as KernelModule;
-      expect(typeof kernelMod.pendingToolText, 'pendingToolText is exported by @cogniate/channel-kernel (BD-A1-30)').toBe(
+      // 5. BD-A1-30 / BD-A1-87: pendingToolText stays exported by @cogniate/channel-kernel (legacy-wire.ts) as a
+      // compatibility helper, while http/routes/registration.ts uses texts.registration.TOOL_MAY_EXIST (BD-A1-87).
+      expect(typeof kernelMod.pendingToolText, 'pendingToolText is exported by @cogniate/channel-kernel (BD-A1-30 / BD-A1-87)').toBe(
         'function',
       );
       const pendingText = kernelMod.pendingToolText!('Cogniate');
@@ -238,14 +252,12 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
         'utf8',
       );
       expect(
-        regRouteText.includes('pendingToolText') && regRouteText.includes('@cogniate/channel-kernel'),
-        'http/routes/registration.ts imports pendingToolText from @cogniate/channel-kernel (BD-A1-30)',
+        regRouteText.includes('TOOL_MAY_EXIST'),
+        'http/routes/registration.ts uses texts.registration.TOOL_MAY_EXIST (BD-A1-87 supersedes BD-A1-30)',
       ).toBe(true);
 
       // 6. BD-A1-31: ISSUER_RESERVED names derived from fixed-issuer profile owners in profile order -> 'Canvas or Blackboard' byte for byte.
       expect(typeof mod.reservedIssuerOrigins, 'reservedIssuerOrigins is exported').toBe('function');
-      const loadedForReg = await kernelMod.loadChannelFolders!([path.join(TARGET_ROOT, 'packages/channels')], 'lti');
-      const channelReg = kernelMod.buildChannelRegistry!(loadedForReg, { simulations: true });
       const reservedOwnerNames: string[] = [];
       for (const p of profilesOn) {
         const def = mod.profileDefinition!(p.id, { simulation: true });
