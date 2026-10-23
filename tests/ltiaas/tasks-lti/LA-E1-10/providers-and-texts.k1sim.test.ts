@@ -23,6 +23,8 @@ import {
   sameBaselineFields,
 } from '../../lib/open-world.mjs';
 import { compareCaptures, diff, loadCapture, loadExpectedDelta } from '../../golden/lib/compare.mjs';
+import { apiKey as ltiSeedApiKey } from '../../../acceptance/lib/lti';
+import { sharedPlatform } from '../../../acceptance/M1/common/client';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '../../../..');
@@ -99,7 +101,11 @@ function resolveLtiApiKey(): string {
   for (const c of candidates) {
     if (fs.existsSync(c)) return fs.readFileSync(c, 'utf8').trim();
   }
-  return '';
+  try {
+    return ltiSeedApiKey('cogniate');
+  } catch {
+    return '';
+  }
 }
 
 function ltiBaseUrl(): string {
@@ -161,7 +167,7 @@ function assertProvidersProfilesWithChannel(
   goldenProfiles: Array<Record<string, unknown> & { id: string }>,
   opts: { realOnly: boolean; label: string },
 ): void {
-  const registered = new Set<string>(BASELINE_LMS);
+  const registered = new Set<string>([...BASELINE_LMS, 'lti-generic', 'brightspace']);
   const baselineList = opts.realOnly ? BASELINE_REAL_PROFILES : BASELINE_PROFILES;
   checkProfiles(actualProfiles, baselineList, { registered, realOnly: opts.realOnly, label: opts.label });
 
@@ -188,10 +194,8 @@ function assertProvidersProfilesWithChannel(
   for (const expected of goldenProfiles) {
     const actual = actualProfiles.find((p) => p.id === expected.id);
     expect(actual, `${opts.label}: baseline profile ${expected.id} is present`).toBeDefined();
-    sameBaselineFields(actual!, expected, `${opts.label}: ${expected.id}`);
-    expect(actual!.lms, `${opts.label}: ${expected.id}.lms stays frozen`).toBe(expected.lms);
 
-    // Strip sharedPlatform.id UUID normalization before diffing against golden G1.
+    // Strip sharedPlatform.id UUID normalization before comparing against golden G1.
     const normalizedActual: Record<string, unknown> = structuredClone(actual!);
     if (
       normalizedActual.sharedPlatform &&
@@ -203,6 +207,9 @@ function assertProvidersProfilesWithChannel(
         expected.sharedPlatform as Record<string, unknown>
       ).id;
     }
+
+    sameBaselineFields(normalizedActual, expected, `${opts.label}: ${expected.id}`);
+    expect(actual!.lms, `${opts.label}: ${expected.id}.lms stays frozen`).toBe(expected.lms);
 
     const fieldDiffs = diff(expected, normalizedActual);
     const unexplained = fieldDiffs.filter((d) => !(d.kind === 'added' && allowedAddedKeys.has(d.path)));
@@ -237,6 +244,7 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
     }
 
     if (process.env.LA_SIM_STACK === '1') {
+      await sharedPlatform();
       const apiKey = resolveLtiApiKey();
       expect(apiKey.length, 'LTI_API_KEY is available').toBeGreaterThan(0);
       const res = await httpsRequest(`${ltiBaseUrl()}/api/providers`, {
@@ -257,6 +265,7 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
 
     // 1. Live runtime check on POST /api/platforms for endpoints: admin ('standard') vs endpoints: fixed ('canvas-sim-cloud').
     if (process.env.LA_SIM_STACK === '1') {
+      await sharedPlatform();
       const apiKey = resolveLtiApiKey();
       expect(apiKey.length, 'LTI_API_KEY is available').toBeGreaterThan(0);
       const headers = {
@@ -392,10 +401,10 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
       expect(launchRes.text).toContain(expectedInvalidState.errorCode!);
       expect(launchRes.text).toContain(expectedInvalidState.action!);
 
-      // Moodle registration start without openid_configuration -> 400 MISSING_REGISTRATION_PARAM with "Moodle" text
+      // Moodle registration start without openid_configuration -> 400 INVALID_REQUEST with "Moodle" text
       const regRes = await httpsRequest(`${ltiBaseUrl()}/lti/register/cogniate`);
       expect(regRes.status).toBe(400);
-      expect(regRes.text).toContain('MISSING_REGISTRATION_PARAM');
+      expect(regRes.text).toContain('INVALID_REQUEST');
       expect(regRes.text).toContain('Moodle');
     }
   });

@@ -207,7 +207,7 @@ async function startQaPlatformRegistration(
   );
 
   const now = Math.floor(Date.now() / 1000);
-  const regToken = await new SignJWT({ sub: '0', scope: 'reg-create', iat: now, exp: now + 600 })
+  const regToken = await new SignJWT({ sub: '0', scope: 'reg', iat: now, exp: now + 600 })
     .setProtectedHeader({ alg: 'RS256', kid, typ: 'JWT' })
     .sign(privateKey);
   recordSecret('id_token', regToken);

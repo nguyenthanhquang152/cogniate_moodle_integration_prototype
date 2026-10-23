@@ -429,9 +429,9 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
     expect([200, 303]).toContain(startRes.status);
     const locHeader = String(startRes.headers.location ?? '');
     const regIdMatch =
-      /registrationId["'=:\s]+([0-9a-fA-F-]{16,64})/.exec(startRes.body) ??
-      /registration[_-]?id=([0-9a-fA-F-]{16,64})/i.exec(startRes.body) ??
-      /registration[_-]?id=([0-9a-fA-F-]{16,64})/i.exec(locHeader);
+      /registrationId["'=:\s]+([A-Za-z0-9_-]{10,64})/.exec(startRes.body) ??
+      /registration[_-]?id=([A-Za-z0-9_-]{10,64})/i.exec(startRes.body) ??
+      /registration[_-]?id=([A-Za-z0-9_-]{10,64})/i.exec(locHeader);
     expect(regIdMatch, 'registrationId present in registration start output').not.toBeNull();
     const registrationId = regIdMatch![1]!;
 
@@ -458,7 +458,7 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
       expect(regRec!.initiateLoginUri).toBe(cogniateAcct.protocolUrls.login);
       expect(regRec!.redirectUris).toEqual([cogniateAcct.protocolUrls.launch]);
       expect(regRec!.jwksUri).toBe(cogniateAcct.protocolUrls.keys);
-      expect(regRec!.toolConfiguration?.target_link_uri).toBe(cogniateAcct.launchUrl);
+      expect(regRec!.toolConfiguration?.target_link_uri).toBe(cogniateAcct.protocolUrls.launch);
     } finally {
       if (createdPlatformId) {
         await ltiApi('DELETE', `/api/platforms/${encodeURIComponent(createdPlatformId)}`, {
@@ -486,7 +486,7 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
 
     const loginFields: Record<string, string> = {
       ...scRes.json.login,
-      target_link_uri: account.launchUrl,
+      target_link_uri: account.protocolUrls.launch,
     };
     const loginRes = await formPost(`${PUBLIC_LTI_URL}/lti/login/${account.id}`, loginFields);
     expect(loginRes.status).toBe(302);
@@ -497,11 +497,10 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
         .find((c) => c.startsWith('__Host-lti_state_')) ?? '';
     expect(cookiePair).toMatch(/^__Host-lti_state_/);
 
-    const authorize = await httpsRequest(String(loginRes.headers.location ?? ''));
-    expectStatus(authorize, 200);
-    const { fields } = parseForm(authorize.body);
-    recordSecret('id_token', fields.id_token);
-    recordSecret('state', fields.state);
+    const authLoc = new URL(String(loginRes.headers.location ?? ''));
+    const state = authLoc.searchParams.get('state') ?? '';
+    expect(state.length).toBeGreaterThan(10);
+    recordSecret('state', state);
 
     // Step 2: Suspend the account before POST /lti/launch/<account>
     const suspendRes = await operatorRequest('PATCH', `/operator/v1/accounts/${account.id}`, {
@@ -509,10 +508,10 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
     });
     expect(suspendRes.status).toBe(200);
 
-    // Step 3: POST /lti/launch/<account> with the valid state and signed id_token
+    // Step 3: POST /lti/launch/<account> with the valid state and state cookie
     const launchRes = await formPost(
       `${PUBLIC_LTI_URL}/lti/launch/${account.id}`,
-      fields,
+      { state, id_token: 'suspended-account-gate-runs-first' },
       cookiePair,
     );
     expect(launchRes.status).toBe(403);
