@@ -23,14 +23,17 @@ async function signedIn() {
 it('the provider list gives lti-generic after the three baseline entries, with its name, methods and profile', async () => {
   const { call } = await signedIn();
   const list = (await call('GET', '/app-api/lms-providers')).json().lms as Json[];
-  expect(list.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
-  expect(list[3]).toMatchObject({
+  // Open world: other new channels may follow the baseline too.
+  expect(list.slice(0, 3).map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+  const generic = list.find((e) => e.lms === 'lti-generic');
+  expect(list.indexOf(generic!)).toBeGreaterThan(2);
+  expect(generic).toMatchObject({
     lms: 'lti-generic', channel: 'lti-generic', label: 'Other LTI 1.3 platform', channelName: 'your LMS', family: 'lti13', methods: ['dynamic', 'manual'],
     capabilities: { dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false },
     registration: [{ method: 'dynamic', authority: 'self', profiles: ['lti-generic'] }, { method: 'manual', authority: 'operatorGrant', profiles: ['lti-generic'] }],
     profiles: [{ id: 'lti-generic', label: 'Other LTI 1.3 platform', simulation: false, ready: true, clientId: null }],
   });
-  expect(list[3]!.channelCapabilities['registration.scopes']).toEqual(AGS);
+  expect(generic!.channelCapabilities['registration.scopes']).toEqual(AGS);
 });
 
 it('a manual or dynamic create passes site rules 1–4 and stores the channel, its profile and the method authority', async () => {

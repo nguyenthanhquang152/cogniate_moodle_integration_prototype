@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import type { LtiProviderProfile } from '../clients/lti-client.ts';
 import type { TestApp } from '../testkit.ts';
-import { THANH, testApp } from '../testkit.ts';
+import { TEST_CHANNELS, THANH, testApp } from '../testkit.ts';
 
 let t: TestApp;
 afterEach(async () => {
@@ -16,7 +16,7 @@ const unknownProfile: LtiProviderProfile = {
   siteUrlOn: 'platform', serviceUrl: false, simulation: false, sharedPlatform: null,
 };
 
-it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order (lti-generic follows, LA-E2-03); the app logs it once', async () => {
+it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order (every new channel follows: open world); the app logs it once', async () => {
   t = await testApp();
   t.lti.addSharedPlatform('blackboard-sim', 'qa-bb-app');
   const cookie = await t.login(THANH);
@@ -26,7 +26,9 @@ it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep th
     return r.body;
   };
   const baseline = await list();
-  expect((JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
+  const ids = (JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms);
+  expect(ids.slice(0, 3)).toEqual(['moodle', 'canvas', 'blackboard']);
+  expect(ids).toEqual(TEST_CHANNELS.channels().filter((m) => m.availability !== 'simulation-only').map((m) => m.id));
   // The unknown row comes between two known rows, so a change of order would show.
   t.lti.providers.splice(1, 0, unknownProfile);
   expect(await list()).toBe(baseline);
