@@ -124,6 +124,11 @@ describe('Dynamic Registration rule table per profile (LA-ADR-02 D5, AC-LA-E2-02
       .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_3=jwks_uri' });
     expect(parseOpenIdConfiguration(`${G}/config`, generic({ registration_endpoint: 'http://lms.school.test/register' }), GENERIC))
       .toEqual({ code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_https=registration_endpoint' });
+    // §4.6.1 order: rule 2 (endpoints), rule 3 (reserved issuer), rule 1 (issuer).
+    const canvasIssuer = generic({ issuer: 'https://canvas.instructure.com' });
+    expect(parseOpenIdConfiguration('https://canvas.instructure.com/config', canvasIssuer, GENERIC)).toEqual({ code: 'ISSUER_RESERVED', detail: 'issuer_reserved' });
+    expect(parseOpenIdConfiguration('https://canvas.instructure.com/config', { ...canvasIssuer, jwks_uri: 'https://sso.canvaslms.com/jwks' }, GENERIC))
+      .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'reserved_host=jwks_uri' });
     const reservedIssuer = generic({ issuer: 'https://sso.canvaslms.com/x', token_endpoint: 'https://lms.school.test/t' });
     expect(parseOpenIdConfiguration('https://sso.canvaslms.com/x/config', reservedIssuer, GENERIC)).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_4=issuer' });
   });

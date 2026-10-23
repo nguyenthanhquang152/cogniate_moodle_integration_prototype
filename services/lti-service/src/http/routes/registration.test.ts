@@ -296,15 +296,20 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.code)).toEqual(['UNKNOWN_TOOL_ACCOUNT', 'FETCH_FAILED', 'FETCH_FAILED', 'ISSUER_MISMATCH', 'INVALID_REQUEST']);
   });
 
-  it('a token that is not signed by the platform, an expired token, or a wrong scope -> INVALID_OPENID_CONFIGURATION page', async () => {
-    const s = await setup();
-    const stranger = await makeKey('moodle-kid');
-    const now = Math.floor(s.clock.now / 1000);
-    for (const token of [await sign(stranger, { scope: 'reg', sub: 'x', iat: now, exp: now + 60 }), await s.regToken({ scope: 'reg', sub: 'x', exp: now - 120 }), await s.regToken({ scope: 'admin', sub: 'x' })]) {
-      const r = await s.start(token);
-      expect(r.body, token.slice(0, 10)).toContain('data-error-code="INVALID_OPENID_CONFIGURATION"');
-    }
-  });
+  it.each([['the product registry (an opaque-token DR profile is loaded)', false], ['a registry without opaque-token DR profiles', true]])(
+    'a token that is not signed by the platform, an expired token, or a wrong scope -> INVALID_OPENID_CONFIGURATION page, with %s (A-LA-E2-02-05)',
+    async (_, baseline) => {
+      const s = await setup(baseline ? await baselineRegistry() : undefined);
+      try {
+        const stranger = await makeKey('moodle-kid');
+        const now = Math.floor(s.clock.now / 1000);
+        for (const token of [await sign(stranger, { scope: 'reg', sub: 'x', iat: now, exp: now + 60 }), await s.regToken({ scope: 'reg', sub: 'x', exp: now - 120 }), await s.regToken({ scope: 'admin', sub: 'x' })]) {
+          const r = await s.start(token);
+          expect(r.body, token.slice(0, 10)).toContain('data-error-code="INVALID_OPENID_CONFIGURATION"');
+        }
+        expect(s.db.prepare('SELECT COUNT(*) AS n FROM registration_session').get()?.n).toBe(0);
+      } finally { await s.app.close(); s.db.close(); }
+    });
 
   it('the platform refuses the registration: 502 PLATFORM_ERROR with its code; the session can be completed again later', async () => {
     const s = await setup();
@@ -407,6 +412,11 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
 // ---------------------------------------------------------------- E2: Dynamic Registration per profile (LA-ADR-02 D5)
 
 const E2_TRAITS = ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'];
+/** The product channels without the opaque-token generic DR channel: the start page then has today's Moodle rule. */
+async function baselineRegistry(): Promise<ProfileRegistry> {
+  const loaded = await loadChannelFolders([CHANNEL_ROOT], 'lti');
+  return buildProfileRegistry(loaded.filter((e) => (e.manifest as ChannelManifest).id !== 'lti-generic'));
+}
 /**
  * The baseline channels and two test channels: `zz-dr` offers Dynamic Registration of the `any-https` profile
  * `zz-generic` (opaque token, {platformValue} audience) and guards the family `zzdr`; `zz-guard` has no DR and
@@ -574,7 +584,7 @@ describe('LA-IC-03: Moodle in a subfolder; the configuration must be at /mod/lti
   });
 
   it('completes for a subfolder issuer; refuses another path of the same site; stores the granted scopes', async () => {
-    const s = await setup();
+    const s = await setup(await baselineRegistry());
     try {
       const base = 'https://moodle.test/moodle';
       s.state.configs[`${base}/mod/lti/openid-configuration.php`] = { ...moodleIn(base), jwks_uri: `${base}/mod/lti/certs.php`, registration_endpoint: `${base}/register-tool` };
@@ -591,6 +601,18 @@ describe('LA-IC-03: Moodle in a subfolder; the configuration must be at /mod/lti
       expect(other.body).toContain('data-error-code="ISSUER_MISMATCH"');
       expect(other.body).toContain('Start the registration again from Manage tools on the site itself.');
       expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_rejected', code: 'ISSUER_MISMATCH', detail: 'configuration_path_mismatch' }));
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('with a path-prefix DR profile without a fixed path loaded, the start page takes another path and complete refuses it for standard', async () => {
+    const s = await setup();
+    try {
+      s.state.configs['https://moodle.test/pluginfile.php/7/config.json'] = CONFIG;
+      const r = await s.app.inject({ method: 'GET', url: `/lti/register/cogniate?openid_configuration=${encodeURIComponent('https://moodle.test/pluginfile.php/7/config.json')}` });
+      expect(r.statusCode, r.body).toBe(303);
+      const c = await s.app.inject({ method: 'POST', url: `/api/registrations/${idOf(String(r.headers.location))}/complete`, headers: s.bearer(), payload: {} });
+      expect([c.statusCode, c.json().details.message, c.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'configuration_path_mismatch']);
+      expect(s.state.registrations).toEqual([]);
     } finally { await s.app.close(); s.db.close(); }
   });
 });
