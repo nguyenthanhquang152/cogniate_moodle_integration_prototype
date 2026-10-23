@@ -7,14 +7,14 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current status — 2026-10-23, 04:24 UTC
+### Current status — 2026-10-23, 04:38 UTC
 
 | Task | Status | Evidence and next step |
 | --- | --- | --- |
 | M0 | Design complete | Existing design approvals stand. |
-| M1 | Both fresh C9 rounds and equality accepted | Each round passed 394/394, all seven dead-handler preconditions, sink/browser scans and operational closure. [E-R7](r7-m1-verification-2026-10-23.md) records independent judgment and all 32 complete volume records unchanged. The 94 carried C4 rows stay separate. Final QA report appendices are being completed. |
-| M2 | Fresh r7 invocation granted; result pending | Attempt 3 remains NOT ACCEPTED because its lane monitor failed. The repair has focused Claude approval `b84b53e`. Grant `msg_1d96a40f0530` permits one r7 invocation through 04:31 UTC, using the accepted M1 Round 2 W4. |
-| M3 | Legacy accepted; final T7 pending | All twelve fresh legacy groups remain accepted under E-R4. C6 product is unchanged. T7 follows the monitor repair under its own grant. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. |
+| M1 | Both fresh C9 rounds and equality accepted | Each round passed 394/394, all seven dead-handler preconditions, sink/browser scans and operational closure. [E-R7](r7-m1-verification-2026-10-23.md) records independent judgment and all 32 complete volume records unchanged. The 94 carried C4 rows stay separate. Common QA appendices are committed at `d72dbd6`. |
+| M2 | Fresh r7 invocation accepted | All 64 cases, 13 criteria and seven gates passed; monitor isolationPass, scans and cleanup passed. [E-R6](r6-independent-verification-2026-10-23.md) records the late pre-W3 bridge reconciliation and its required disclosure. Attempt 3 remains NOT ACCEPTED history. |
+| M3 | Legacy accepted; T7 not run, awaiting host availability | T7 missed the 04:33 launch cutoff. Its grant is closed unused; preflight only ran. Host returned at 04:38:30 UTC; no LTI Docker or window request through 07:45 UTC. All twelve legacy groups remain accepted. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. |
 | M4 | Guides have static QA and review approvals; final closure pending | Guide base `958ee5c`; final runtime conformance, evidence updates, independent Docs QA and two final reviews remain. Architect Round 6 is prepared; AC-M4-06 stays PENDING until M2 and T7 pass. |
 
 Claude owns architecture and review; retained Codex owns product changes and Docs; Gemini owns independent QA.

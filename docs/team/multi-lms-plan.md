@@ -13,7 +13,18 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 04:24 UTC
+### Current directive — 2026-10-23, 04:38 UTC
+
+M1 is accepted and Common QA's report is committed at `d72dbd6`. M2 r7 is accepted: 64/64 cases, 13 criteria, seven gates, monitor isolation, scan and operational closure PASS.
+[E-R6](r6-independent-verification-2026-10-23.md) records the missed prelaunch hold, the late bridge-only reconciliation and the Architect's bounded acceptance conditions. No check was waived.
+T7 did not run. Its grant `msg_d04d641ae347` required a start by 04:33 UTC; the evidence handoff and external preflight finished too late. The grant is closed unused, with T7 PENDING.
+
+The Lead returned the host at 04:38:30 UTC in `msg_4037ceaece2a`, with all LTI stacks down and all 32 complete volume records unchanged.
+No LTI Docker command, wake, boundary capture, phase or new window request is permitted through 07:45 UTC. That is the earliest scheduling opportunity, not a reservation or completion promise.
+Finish host-only report checkpoints. Resume T7 in the same retained Gemini session after a newly confirmed host window, then final Architect conformance/ADR status, Docs, independent Docs QA and two blind reviews.
+No repeat of accepted M1, M2 or legacy is required by this scheduling hold. Product, tests and qualified tools stay frozen. No push or main merge is authorized.
+
+### Prior directive — 2026-10-23, 04:24 UTC
 
 Both fresh M1 C6/C9 rounds and their equality judgment are accepted: 394/394 PASS per round, all seven dead-handler preconditions PASS, clean scans and operational closure.
 The 94 carried C4 rows remain separate. [E-R7](r7-m1-verification-2026-10-23.md) records the exact final evidence and Lead decision.

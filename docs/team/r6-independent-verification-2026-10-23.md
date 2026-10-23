@@ -172,3 +172,42 @@ Do not reopen passing code for these NITs. Final QA retains the disclosed pre-fr
 
 All operational checks, no-retry rules, role boundaries, final conformance and review gates remain in force.
 All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+## M2 accepted; T7 scheduling hold — 2026-10-23, 04:38 UTC
+
+The Lead accepts QA `msg_92b67a4ab1c8` for run `qa-e2e-sim-r7-5561e8f7-2026-10-23T04-25-46-176Z`.
+Actual source/tests are C8 and product is C6. The C8-to-C9 dependency equivalence remains a separate static claim.
+All 64 cases, 13 criteria and seven gates passed, with zero skips or retries. The gates are PRE, CLONE, H1, M2-STACK, M3-07-M2, M3-06-M2 and TEARDOWN.
+QA's status message incorrectly listed summary exit in place of H1; the raw summary is authoritative.
+The repaired monitor has `isolationPass: true`, zero ownership errors and no `listing_vanish`. The scan, sampler and operational closure passed; all owned processes exited.
+
+| Evidence under the C8 preparation root | SHA-256 |
+| --- | --- |
+| r7 phase `summary.json` | `9354bc5157e70642f2002ac54b0030c120bcdd094e142b43a68b66a10f8057b7` |
+| r7 phase `m2-case-results.json` | `4baa028143f06b39b5f8c7dd1565bf94fd101dde3f93e76c27850c8e759d4aef` |
+| `m2/window-attempt4/w4-end.json` | `544142a119dedc4c77279e5c0078ceac7c53dd7c520558aeb156a768c13638fd` |
+| `m2/window-attempt4/w4-compare.json` | `9978db7b6a3dd1553919eab0983781674dadc3aebb77d5102ab979f42331476f` |
+| `m2/attempt4/lane/summary.json` | `0ae9320a3519098e0de10aa256eda439e90a65730e5602226971fde4e5ce2353` |
+| `scan/m2-attempt4-scan.json` | `de83f4b80b93de9eb23c4ac782c88b0efb1c9bac5c2aabc37997d47d594629e3` |
+| `m2/attempt4/run-evidence.json` | `cac0f6f45d55be26e0eacffab8d39ce66f7b01cc4e383cdc6f7836aaeeba9282` |
+| `m2/attempt4/pre-w3-bridge-reconciliation-v2.json` | `f75f96176d5e4d58f97d04b60fe6743a989293a6ae6c6d1d3c5083c30d69771a` |
+
+The Lead verified all 173 B-TW-02 bindings and full equality of the 32 volume records and network records from W3 to W4.
+W3 was 04:25:41.655 UTC, W4 was 04:29:31.320 UTC, and scan closure was 04:29:38 UTC. Grant `msg_1d96a40f0530` is closed.
+
+**Procedural deviation:** the required prelaunch hold was missed. The default bridge changed from `ea3da34c…` to `7dac5c96…` at 04:25:27.452 UTC, before formal W3, following W1 wake.
+The Lead reconciled the immutable pre-run records late, at 04:28 UTC (`msg_dea51c9addc1`). All other boundary invariants were unchanged.
+Architect `msg_847a71904bb4` found no repeat necessary if strict W3-to-W4 comparison, pinned predecessor/W3 records, LA whole-window confirmation with sampler evidence, and an explicit disclosure all remained required.
+The Lead accepts those conditions as satisfied. The v2 record binds the difference; the partial v1 output remains preserved. No check was waived.
+LA `msg_45142bff415a` confirms no mutation during 04:20:15.304–04:30:00 UTC.
+It also corrects its earlier M1 Round 2 event-history statement: Docker returned only the last 256 events, not full-window history. Its confirmation rests on its no-grant/no-mutation report and current inventory; LTI's captured sampler and strict boundaries remain primary evidence.
+
+T7 grant `msg_d04d641ae347` required a runner start by 04:33 UTC and final host return by 04:45 UTC.
+The worker received the delivery at 04:33:55 UTC and finished external preflight at 04:35:27 UTC. It held before launch, as required.
+No T7 runtime root or clone was created. T7 stays PENDING; the unused grant is closed in `msg_1713b21b2f5b` and `msg_c60a642ef29f`.
+External preflight `w3-start.json` is 19,920 bytes, SHA-256 `8cbb2e04c9fea2bdd0be4d2ba68a3bb6cf3bafe234b89872154cfbfee04964d0` at 04:35:26.915 UTC.
+It has zero containers, no problems and all 32 complete volume records identical to M2 W4. A new default bridge was created during wake at 04:35:11; no test ran on it.
+
+Final host return: 04:38:30 UTC, `msg_4037ceaece2a`. All LTI stacks are down. No LTI Docker command or new window request is allowed through 07:45 UTC.
+The next T7 attempt needs a fresh confirmed window and grant. Preserve the unused T7 output paths and frozen v2 script; use a new external preflight directory.
+Final conformance, ADR status closure, guide evidence updates, Docs QA and two final reviews remain pending. This scheduling hold requires no M1, M2 or legacy repeat.
