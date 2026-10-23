@@ -13,7 +13,20 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 01:52 UTC
+### Current directive — 2026-10-23, 02:13 UTC
+
+C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1` freezes the six test-only dead-handler repairs.
+Host-only validation passed 184 self-tests, TypeScript checking and the unchanged 488-row inventory.
+Common Gemini prepares the v5 launcher. Claude Reviewer-A reviews immutable C9; the second blind reviewer follows when a slot is free.
+No M1 runtime route or grant is issued by these results.
+
+The first M2 preflight failed before any Docker call and is preserved as an invocation failure.
+The checked explicit Bash replacement has grant `msg_b2b4ecd13c67` for 02:12–02:25 UTC under E-R6.
+No tool, source, assertion or deadline changed. M2 uses both unchanged `m1-profile` and `m1-cli` branches; final equivalence binding must name both.
+T7 remains ungranted. Final runtime, conformance, guides, Docs QA and blind reviews remain pending.
+All real-LMS limits, model roles and the no-push rule remain unchanged.
+
+### Prior directive — 2026-10-23, 01:52 UTC
 
 The Claude quota blocker is resolved for the planning deliverable: the all-seven repair plan is committed at `5116227`.
 Common Gemini `ctx_b34c29c515f2` owns the six test paths in `t6-09-failure-plan.md` §12.3 and private v5 launcher preparation.

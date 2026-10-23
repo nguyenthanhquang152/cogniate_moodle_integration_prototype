@@ -2,7 +2,20 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 01:52 UTC
+## Current checkpoint — 2026-10-23, 02:13 UTC
+
+The six test repairs are frozen at C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1`.
+Common Gemini passed all 184 host self-tests, TypeScript checking and the unchanged 488-row inventory.
+The Lead verified all 13 Stage A evidence bindings. No product or live-provider test ran in this check.
+The same QA prepares the v5 launcher. Claude Reviewer-A `ctx_de7c7933e455` reports no source BLOCKER or MAJOR so far.
+Its two MINOR documentation clarifications remain recorded. The launcher review and second blind review are pending.
+
+M2's first preflight failed before Docker because of zsh command interpretation. The failure remains preserved.
+The checked Bash replacement has grant `msg_b2b4ecd13c67` for 02:12–02:25 UTC. No M2 PASS is claimed.
+T7 remains ungranted. Two fresh M1 rounds, final conformance, guide stamps, independent Docs QA and final blind reviews remain.
+Model roles, all 32 real-LMS UNVERIFIED rows, local Canvas DEFERRED and the no-push rule remain unchanged.
+
+## Historical checkpoint — 2026-10-23, 01:52 UTC
 
 Claude completed the seven-case repair plan. The Lead committed the plan and conformance checkpoint at `5116227`.
 The diagnosis is a test-harness defect: graceful restart can let the old handler clear its lease before exit.

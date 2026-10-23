@@ -24,7 +24,7 @@ Use the existing reviewed source, 37 qualified tools, runbook and pinned image. 
 ## Dependency conditions
 
 The M1 repair must remain test-only. No product edit is granted.
-M2 uses the existing `m1-profile` controller branch and the existing Canvas browser, diagnostics and coverage helpers.
+M2 uses the existing `m1-profile` and `m1-cli` controller branches and the existing Canvas browser, diagnostics and coverage helpers.
 T7 uses the existing browser diagnostics helper.
 The Architect's proposal adds a separate dead-handler action and changes only its selected test call sites and controller self-tests.
 All existing controller branches and shared helper files must remain unchanged.
@@ -75,3 +75,20 @@ Legacy results remain accepted under E-R4; no legacy rerun is required by the pr
 Any new functional failure or changed dependency requires a focused diagnosis and new decision before more runtime.
 Final conformance, guide completion, independent Docs QA and two blind final reviews remain required.
 All 32 real-LMS rows remain UNVERIFIED. Local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Invocation and dependency checkpoint — 2026-10-23, 02:13 UTC
+
+Reviewer-A `msg_33e87324592d` corrects the earlier dependency description: M2 also sends `m1-cli` through `canvas/browser.ts`.
+Both controller branches are unchanged in C9 and occur outside the new kill-mode block. Final blind review and evidence binding remain required.
+C9 is `9eb504f5bff4be7e291570fde12fdf9919a07fa1`; its six test-path repair changes no product file.
+
+The first M2 invocation failed before any Docker call. Zsh passed the lane flags as one argument, then a bare redirection waited on stdin.
+The owner preserved the four window files and task log, and stopped only its verified shell and `cat` processes.
+Failure index: `notes/m2-window-attempt1-failure-index.json`, 7,506 bytes, SHA-256 `83a98bcb970a48737fb77d8a95698fcf734f228684c3427b5806b8af7dd9aa19` under the C8 preparation root.
+This is an invocation failure, not an M2 test result. Grant `msg_4dd81c22cc1a` is closed.
+
+The Lead inspected the explicit Bash replacement and its bounded observer-cleanup correction.
+Script: `notes/scripts/run-m2-window-attempt2-v2.sh`, 19,785 bytes, SHA-256 `b234d73851f6051940041098ac1ce74991bb55741dee3bfae6ada15e14c61eb0`.
+Replacement grant `msg_b2b4ecd13c67` permits one M2 invocation during 02:12–02:25 UTC, with fresh `m2/window-attempt2` records.
+All 37 qualified tools, source, tests, assertions, deadlines, baseline and required checks remain unchanged.
+T7 and M1 still need separate grants. No PASS is implied by this checkpoint.
