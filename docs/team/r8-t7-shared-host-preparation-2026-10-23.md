@@ -39,13 +39,21 @@ Codex remains the sole implementation and fix owner. The initial candidate, its 
 
 ## Capture-rule clarification — 2026-10-23, 13:38 UTC
 
-The focused reviewer found ambiguity RQ-1 before reading the candidate. Its [requirements checkpoint](../reviews/M3/t7-shared-host-focused-review.md) is PENDING. That attempt settled on the missing architectural ruling, with no candidate code failure. The same reviewer is retained for the full review.
+The focused reviewer found ambiguity RQ-1 before reading the candidate. Its [requirements checkpoint](../reviews/M3/t7-shared-host-focused-review.md) is PENDING. That attempt settled on the missing architectural ruling, with no candidate code failure. The same task and reviewer resumed under `ctx_d41f3cb69570` after the ruling. The full candidate review remains required.
 
-The original Architect resolved RQ-1 in [plan section 17](../reviews/M3/t6-09-failure-plan.md#17-ruling-on-lane-capture-sufficiency-and-the-preflight-guard-2026-10-23-about-13351336-utc), task `task_ed0712df4567` / `ctx_0781fcac0fba`. The Lead accepts this clarification for implementation and qualification. The file is 106,065 bytes, SHA-256 `5253e839118a22e867457005c7735fe23c85a270e675dfb996adb6244a6c257f`. Its first 99,037 bytes keep the earlier SHA-256 `4cf544579299fb657c9ed7c0fd12b739a3307ed9edcc396e492694d23bc99720`.
+The original Architect resolved RQ-1 in [plan section 17](../reviews/M3/t6-09-failure-plan.md), task `task_ed0712df4567` / `ctx_0781fcac0fba`. The Lead accepts this clarification for implementation and qualification. The file is 106,065 bytes, SHA-256 `5253e839118a22e867457005c7735fe23c85a270e675dfb996adb6244a6c257f`. Its first 99,037 bytes keep the earlier SHA-256 `4cf544579299fb657c9ed7c0fd12b739a3307ed9edcc396e492694d23bc99720`.
 
 The outer boundary and lane monitor each use their own full start/end records. Neither may borrow attribution evidence from the other, another attempt or the preflight. Each comparison must pass independently. Missing predicate fields and unexplained changes still fail closed.
 
 The runtime guard compares strict host identities and built-in networks with the new, explicitly reconciled preflight. All 32 baseline volume records must still equal the accepted M2 predecessor. Section 17 also requires the preflight hash in the grant, a hash mismatch refusal and no reconciliation after launch. Codex and Gemini received the ruling before candidate freeze. This remains preparation authority only; no runtime grant or T7 acceptance exists.
+
+## Final pre-candidate checkpoint — 2026-10-23, 13:47 UTC
+
+The Lead verified the two final Control 1 test files from Gemini message `msg_191489fa351a`. Both were frozen before QA read the candidate. The files are `frozen-section17-final-control1-addendum.md` (3,149 bytes, mode 0600, SHA-256 `d4a3a712a8700166606e95f7e451d4a62d1249a525e1b90ae63fd2efd81a168a`) and `frozen-section17-control1-runner.mjs` (6,200 bytes, mode 0700, SHA-256 `3c1deda55a9863d26e18d6496933f90a8ed94c261f615eaa2ee4dcb1d596c026`). Earlier frozen QA files remain preserved. This checkpoint does not claim a passing candidate.
+
+Lead reply `msg_2e865a3fab69` resolves operational question CL-1. The separate external preflight will use the qualified new boundary and reconciliation tools, after qualification and a separate grant. The runtime guard must verify the expected preflight hash. It must also pin the accepted M2 predecessor to 19,913 bytes and SHA-256 `544142a119dedc4c77279e5c0078ceac7c53dd7c520558aeb156a768c13638fd`. Preflight admission cannot supply attribution evidence to either runtime capture pool. A pre-T4 stop must have a distinct nonzero exit from usage exit 2.
+
+The initial held candidate remains pending. Codex reported 67 passing author mock checks at 13:38 UTC. Independent QA and focused review must assess the frozen files before any runtime decision. No Docker call or host window is authorized by this checkpoint.
 
 ## Required result
 
