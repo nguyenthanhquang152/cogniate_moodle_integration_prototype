@@ -1,3 +1,5 @@
+import type { ChannelManifest } from '@cogniate/channel-kernel';
+import { loadChannelFolders } from '@cogniate/channel-kernel';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
@@ -5,6 +7,7 @@ import { ensureAccount } from '../../store/accounts.ts';
 import { getPlatform } from '../../store/platforms.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import type { ProfileRegistry } from '../../profiles/index.ts';
+import { CHANNEL_ROOT, buildProfileRegistry } from '../../profiles/index.ts';
 import { MASTER_KEY, URLS, capturingLogger, testProfileRegistry } from '../../testkit.ts';
 import { installApiBasics } from '../app.ts';
 import { authenticate } from '../auth.ts';
@@ -194,6 +197,50 @@ describe('admin-value platform rules for endpointOrigins any-https (contract del
     const created = await post(adminBody('standard'));
     expect(created.json()).toMatchObject({ clientAssertionAud: null, grantedScopes: null });
     expect(lines.filter((l) => l.event === 'platform_created')).toEqual([]);
+  });
+});
+
+/**
+ * B-LA-E2-01-01: data-only test profiles that take the stored audience ({platformValue}) with the issuer-origin
+ * endpoint rule: zz-default omits endpointOrigins (the registry default "issuer"), zz-issuer sets it.
+ */
+async function platformValueRegistry(): Promise<ProfileRegistry> {
+  const loaded = structuredClone(await loadChannelFolders([CHANNEL_ROOT], 'lti'));
+  const moodle = loaded.find((e) => (e.manifest as ChannelManifest).registration.some((m) => m.profiles.includes('standard')))!;
+  const base: Record<string, unknown> = { ...(moodle.ltiProfiles![0] as Record<string, unknown>), privacyFloor: 'allowlist' };
+  for (const field of ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration']) delete base[field];
+  const aud = { clientAssertionAud: { value: '{platformValue}', form: 'string' } };
+  const profiles = [{ ...base, ...aud, id: 'zz-default', listOrder: 100 }, { ...base, ...aud, id: 'zz-issuer', listOrder: 110, endpointOrigins: 'issuer' }];
+  return buildProfileRegistry([...loaded, {
+    folder: '/unit/zz-aud',
+    manifest: {
+      ...(moodle.manifest as ChannelManifest), id: 'zz-aud', names: { text: 'ZZ', label: 'ZZ' },
+      registration: [{ method: 'manual', authority: 'operatorGrant', profiles: profiles.map((p) => p.id), defaultProfile: 'zz-default' }],
+      lti: { guardedFamilies: [], toolConfiguration: 'none' },
+    },
+    ltiProfiles: profiles,
+  }]);
+}
+
+describe('the active-admin audience rule for every admin profile (B-LA-E2-01-01, A1 BD-A1-82)', () => {
+  it.each(['zz-default', 'zz-issuer'])('%s: an active foreign audience is refused; absent, the token URL and a staged create pass', async (profile) => {
+    const { db, post } = await setup(await platformValueRegistry());
+    const body = (extra: Record<string, unknown>) => ({ ...adminBody(profile), clientId: `c-${Object.keys(extra).join('-')}-${String(extra.active)}`, ...extra });
+    const foreign = 'https://foreign.example.edu/token';
+    for (const active of [{}, { active: true }]) {
+      const refused = await post(body({ ...active, clientAssertionAud: foreign }));
+      expect(refusal(refused)).toEqual([400, 'PLATFORM_URL_NOT_ON_ISSUER_ORIGIN',
+        'clientAssertionAud is not the accesstokenEndpoint on the issuer origin. A value off the issuer origin needs a staged create (active false, with a bindingRef).']);
+    }
+    // active false without a bindingRef is not a staged create.
+    expect(refusal(await post(body({ active: false, clientAssertionAud: foreign })))[1]).toBe('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN');
+    expect(db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
+    expect((await post(body({}))).statusCode).toBe(201);
+    const token = await post(body({ clientAssertionAud: 'https://admin.example.edu/token' }));
+    expect([token.statusCode, token.json().clientAssertionAud]).toEqual([201, 'https://admin.example.edu/token']);
+    const staged = await post(body({ active: false, bindingRef: 'grant-1', clientAssertionAud: foreign }));
+    expect(staged.statusCode).toBe(201);
+    expect(getPlatform(db, 'unit', staged.json<{ id: string }>().id)).toMatchObject({ active: false, bindingRef: 'grant-1', clientAssertionAud: foreign });
   });
 });
 
