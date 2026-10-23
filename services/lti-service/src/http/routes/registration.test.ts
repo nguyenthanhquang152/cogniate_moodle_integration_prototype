@@ -506,6 +506,20 @@ describe('E2 Dynamic Registration rules per profile (AC-LA-E2-02-01)', () => {
     } finally { await s.app.close(); s.db.close(); }
   });
 
+  it('A-LA-E2-02-08 (BD-A2-84): a staged complete refuses an authorization_server on a reserved host before anything is sent', async () => {
+    const s = await setup(registry);
+    try {
+      s.state.configs[G_CONFIG_URL] = genericConfig({ token_endpoint: 'https://auth.idp.test/token', authorization_server: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken' });
+      const id = idOf(String((await startAt(s, G_CONFIG_URL, 'opaque-token-r')).headers.location));
+      const r = await complete(s, id, { profile: 'zz-generic', bindingRef: 'conn-r' });
+      expect([r.statusCode, r.json().details.message, r.json().details.description])
+        .toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE', 'authorization_server is on a reserved host of a hosted LMS profile.']);
+      expect(s.state.registrations).toEqual([]);
+      expect(s.db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
   it('item 2: a configuration host of a fixed profile is PLATFORM_URL_NOT_IN_PROFILE on the start page; nothing goes to it', async () => {
     const s = await setup(registry);
     try {
@@ -708,6 +722,26 @@ describe('LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88
       const u = await complete(s, id, { profile: 'zz-jwt', bindingRef: 'conn-2', updatePlatformId: jwtPlatform.id });
       expect(u.statusCode, u.body).toBe(200);
       expect(getPlatform(s.db, 'cogniate', jwtPlatform.id)).toMatchObject({ profile: 'zz-jwt', tokenEndpoint: CONFIG.token_endpoint, clientAssertionAud: null });
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('B-LA-E2-02-04 = A-LA-E2-02-07 (BD-A1-93): an explicit update keeps a switched-off platform off; a new platform takes autoActivate', async () => {
+    const s = await setup(registry);
+    try {
+      const off = seed(s, { issuer: M, clientId: 'client-jwt', profile: 'zz-jwt', deploymentIds: ['12'], active: false, bindingRef: 'owner-ref' });
+      s.state.clientId = 'client-jwt';
+      s.state.nextTypeId = 12;
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '12' }))).headers.location));
+      const u = await complete(s, id, { profile: 'zz-jwt', bindingRef: 'owner-ref', updatePlatformId: off.id });
+      expect([u.statusCode, u.json().platformId, u.json().active]).toEqual([200, off.id, false]);
+      expect(getPlatform(s.db, 'cogniate', off.id)).toMatchObject({ active: false, bindingRef: 'owner-ref', tokenEndpoint: CONFIG.token_endpoint });
+      // autoActivate has no effect on an update.
+      const again = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '12' }))).headers.location));
+      expect((await complete(s, again, { profile: 'zz-jwt', bindingRef: 'owner-ref', updatePlatformId: off.id, autoActivate: true })).json().active).toBe(false);
+      // A new platform still takes autoActivate (default true).
+      s.state.clientId = 'client-new';
+      const fresh = idOf(String((await s.start(await s.regToken({ scope: 'reg' }))).headers.location));
+      expect((await complete(s, fresh, { profile: 'zz-jwt', bindingRef: 'owner-ref', autoActivate: false })).json().active).toBe(false);
     } finally { await s.app.close(); s.db.close(); }
   });
 

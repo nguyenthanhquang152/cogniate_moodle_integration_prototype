@@ -75,6 +75,7 @@ describe('load check 7 for the E2 traits (AC-LA-E2-01-02)', () => {
     ['admin endpoints without an endpoint origin rule', 'moodle', 0, { endpointOrigins: null }, 'endpointOrigins'],
     ['a configuration path without path-prefix', 'moodle', 0, { dynamicRegistration: { issuerRule: 'origin', configurationPath: '/x', registrationToken: 'opaque-bearer' } }, 'configurationPath'],
     ['an unknown aud value', 'moodle', 0, { clientAssertionAud: { value: '{issuer}', form: 'string' } }, 'clientAssertionAud'],
+    ['a stored audience on fixed endpoints (A-LA-E2-01-04)', 'canvas', 0, { clientAssertionAud: { value: '{platformValue}', form: 'string' } }, 'clientAssertionAud.value'],
     ['an aud form that disagrees with the legacy flag', 'blackboard', 0, { clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' } }, 'clientAssertionAud.form'],
     ['an array aud form without the legacy flag', 'moodle', 0, { clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' } }, 'clientAssertionAud.form'],
   ])('stops the start for %s', (_, channel, index, change, field) => {

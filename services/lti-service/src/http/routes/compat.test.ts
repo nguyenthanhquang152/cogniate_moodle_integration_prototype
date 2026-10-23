@@ -54,6 +54,28 @@ describe('T3c compat routes with real API authorization', () => {
   });
   afterEach(async () => { await h.app.close(); h.db.close(); });
 
+  it('BD-A2-83: the scope choice and the create preflight use the platform grant; a grant refusal is not stored for the key', async () => {
+    const grant = (scopes: string[] | null) => h.db.prepare('UPDATE platform SET granted_scopes = ? WHERE id = ?').run(scopes ? JSON.stringify(scopes) : null, h.platform.id);
+    const headers = auth();
+    // The launch has lineitem.readonly and lineitem; the platform granted only lineitem: the read uses lineitem.
+    grant([AGS_SCOPES.lineitem]);
+    expect((await h.app.inject({ url: `/api/lineitems/${enc(ITEM)}`, headers })).statusCode).toBe(200);
+    expect(new URLSearchParams(String(calls[0]!.req?.body)).get('scope')).toBe(AGS_SCOPES.lineitem);
+    // Only score granted: the create is refused before the idempotency claim, with no outbound call.
+    grant([AGS_SCOPES.score]);
+    calls = [];
+    const post = () => h.app.inject({ method: 'POST', url: '/api/lineitems', headers: { ...headers, 'idempotency-key': 'grant-key' }, payload: item });
+    const refused = await post();
+    expect([refused.statusCode, refused.json().details.message, refused.json().details.description])
+      .toEqual([403, 'SERVICE_NOT_AVAILABLE', 'The platform did not grant the scope for this call.']);
+    expect(calls).toEqual([]);
+    // After a new grant, the same key runs the create: the 403 was not stored.
+    grant(null);
+    const created = await post();
+    expect(created.statusCode).toBe(201);
+    expect(calls.map((c) => c.url)).toContain(BASE);
+  });
+
   it('normalizes only leading slashes and always reports Basic Outcomes unavailable, independently of AGS', async () => {
     for (const over of [{}, { [CLAIM.ags]: undefined, [CLAIM.nrps]: undefined }]) {
       const headers = auth(over);

@@ -14,7 +14,7 @@ import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import { statusGate } from '../../lti/account-status.ts';
-import { BINDING_REF } from '../../lti/platform-rules.ts';
+import { BINDING_REF, checkAudienceHost } from '../../lti/platform-rules.ts';
 import type { AnyHttpsRules } from '../../lti/platform-rules.ts';
 import type { ConfigurationProblem, ConfigurationRule, OpenIdConfiguration } from '../../lti/registration.ts';
 import {
@@ -340,6 +340,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       // D5 items 4 and 10 (I-SELF, D2a): only a {platformValue} profile stores authorization_server as its audience. When
       // a value is off the issuer origin, the platform is staged: inactive, with the connection's binding ref.
       const platformAud = profile.clientAssertionAud.value === '{platformValue}' ? config.authorizationServer : null;
+      // BD-A2-84 (A-LA-E2-02-08): the audience that a staged or active registration stores obeys rule 2, before anything is sent.
+      if (platformAud !== null) {
+        try { checkAudienceHost(platformAud, hosts, 'authorization_server'); } catch (err) { if (err instanceof ApiError) reject(err); throw err; }
+      }
       const staged = !endpointsOnIssuerOrigin({ ...config, authorizationServer: platformAud });
       if (profile.endpointOrigins === 'any-https' && body.data.bindingRef === undefined) {
         throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).', { details: { field: 'bindingRef' } });
@@ -381,19 +385,23 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           active: staged ? false : body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
           grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef,
         };
-        /** The update of an existing platform, checked again in the write transaction (the record can change meanwhile). */
-        const update = (existing: Platform | null, active: boolean): Platform | null => {
+        /**
+         * The update of an existing platform, checked again in the write transaction (the record can change meanwhile).
+         * A1 BD-A1-93 (LA-IC-21): it sets active = false when it stages, else it keeps the stored value, so no registration
+         * switches on a platform that an operator or the app switched off. autoActivate applies only to a new platform.
+         */
+        const update = (existing: Platform | null): Platform | null => {
           if (!existing) return null;
           const problem = updateProblem(existing);
           if (problem) throw problem;
-          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active });
+          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active: staged ? false : existing.active });
         };
         // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
         const { platform, operation } = audit.change(() => {
           let platform: Platform | null;
           let operation: RegistrationOperation = operation0;
           if (operation0 === 'update') {
-            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!), values.active);
+            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!));
           } else {
             try {
               platform = createPlatform(ctx.db, account.id, {
@@ -411,7 +419,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
               // app deactivated) is never switched on again by this path.
               // A staged registration never leaves the platform active (I-SELF).
               const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-              platform = update(same, staged ? false : same.active);
+              platform = update(same);
               operation = 'update';
             }
           }
