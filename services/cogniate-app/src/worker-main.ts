@@ -3,9 +3,10 @@ import { appendFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import {
-  JOB_HEARTBEAT_STALE_MS, createJobRunner, createLogger, createOutboundClient, parseAllowlist, readServiceKnobs,
+  ConfigRefusedError, JOB_HEARTBEAT_STALE_MS, createJobRunner, createLogger, createOutboundClient, parseAllowlist, readServiceKnobs,
   type JobRole, type JobRunner, type JobStore, type Logger,
 } from '@cogniate/shared';
+import { loadAppKeyProvider } from './app/sealing.ts';
 import { createLtiClient, type LtiClient } from './clients/lti-client.ts';
 import { loadConfig, type AppConfig } from './config.ts';
 import { openDb, transaction, type Db } from './domain/db.ts';
@@ -72,12 +73,23 @@ export function createAppRunner(options: {
 /** No HTTP listener. APP_JOB_RUNNER controls the web entry only; this entry always starts its runner. */
 async function startWorker() {
   const env = process.env;
-  const config = loadConfig(env);
   const logger = createLogger({ service: 'cogniate-app', dir: env.LOG_DIR });
+  let config: AppConfig;
+  try {
+    config = loadConfig(env, logger);
+  } catch (err) {
+    // LA-ADR-06 D12: one config_refused line and exit code 1 (for example app_master_key_in_env, BD-A2-91).
+    if (!(err instanceof ConfigRefusedError)) throw err;
+    logger.error('config_refused', { reason: err.reason, message: err.message, ...(err.setting ? { setting: err.setting } : {}) });
+    process.exitCode = 1;
+    return null;
+  }
   const { active: knobs } = readServiceKnobs('cogniate-app', env);
   for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
   const db = openDb(join(config.dataDir, 'cogniate.db'));
   try {
+    // LA-E5-22: bind the app key ring to the master-key handle before the dispatch opens a service key.
+    await loadAppKeyProvider({ db, masterKey: config.masterKey, ring: config.keyRing, logger });
     const channels = await loadAppChannelRegistry(logger);
     const allowlist = parseAllowlist(env.OUTBOUND_PRIVATE_HOST_ALLOWLIST);
     const lti = createLtiClient({
@@ -101,7 +113,9 @@ async function startWorker() {
 
 if (import.meta.main) {
   const worker = await startWorker();
-  const stop = createShutdownHandler(worker);
-  process.once('SIGTERM', () => stop('SIGTERM'));
-  process.once('SIGINT', () => stop('SIGINT'));
+  if (worker) {
+    const stop = createShutdownHandler(worker);
+    process.once('SIGTERM', () => stop('SIGTERM'));
+    process.once('SIGINT', () => stop('SIGINT'));
+  }
 }

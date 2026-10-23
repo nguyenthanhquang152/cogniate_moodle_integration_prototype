@@ -43,6 +43,8 @@ export interface ProfileSource {
     readonly configurationPath?: string;
     /** `scope-jwt`: a JWT with the scope claim `reg` or `reg-update`, verified with the platform JWKS; `opaque-bearer`: only sent back. */
     readonly registrationToken: 'scope-jwt' | 'opaque-bearer';
+    /** Extra members of the registration request's tool configuration claim; keys are absolute https URLs; values are strings. */
+    readonly toolConfigurationExtensions?: Readonly<Record<string, string>>;
   } | null;
   /** Frozen compatibility value, allowed only on the baseline profiles. */
   readonly wireLms?: string | null;

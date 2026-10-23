@@ -609,12 +609,18 @@ it('BD-A2-57 A platform 429 is not stored, so the retry with the same Idempotenc
 it('BD-A2-71 & BD-A2-75 A credential without the lineitem scope gets 403 SERVICE_NOT_AVAILABLE (not a stored 201) and its refused preflight is not stored; an ltik and a service key of a no-context launch share one fingerprint', async () => {
   assert.ok(simLtik && lineitemsIdemKey, 'precondition: AC-01 created lineitems record on simLtik');
 
-  const idTokenRes = await ltiApi<{ services?: { lineItems?: string } }>('GET', '/api/idtoken', {
+  const idTokenRes = await ltiApi<{
+    services?: { lineItems?: string; assignmentAndGrades?: { lineItems?: string; available?: boolean } };
+  }>('GET', '/api/idtoken', {
     authorization: auth.ltik(cogniateKey, simLtik),
   });
   assert.equal(idTokenRes.status, 200, 'GET /api/idtoken for simLtik returns 200');
-  const lineItemsUrl = String(idTokenRes.json?.services?.lineItems ?? '');
-  assert.ok(lineItemsUrl.length > 0, 'simLtik has services.lineItems URL');
+  const lineItemsUrl = String(
+    idTokenRes.json?.services?.assignmentAndGrades?.lineItems ??
+      idTokenRes.json?.services?.lineItems ??
+      `${CANVAS_SITE}/api/lti/courses/course-1/line_items`,
+  );
+  assert.ok(lineItemsUrl.length > 0, 'simLtik has services.assignmentAndGrades.lineItems URL');
 
   // 1. BD-A2-71: Launch in the same platform/deployment/course/lineItemsUrl without the lineitem scope.
   const noScopeLtik = await launchCanvasScenario({

@@ -1,0 +1,139 @@
+{
+  "id": "LA-IC-14",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md, docs/reviews/LA-E3-15/reviewer-a.md, docs/reviews/LA-E3-15/reviewer-b.md",
+  "ld9": {
+    "epic": "E3 (LA-E3-15 app/channel part, lane K, merged 2cc2aa5 / dc98c43 / a03e15b / dfe94ff; LA-E3-09 LTI service/profile part, lane L, commits 7433884 / 0dc350f)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md#d6-canvas-dynamic-registration-should",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-103, BD-A1-105, BD-A1-106, BD-A1-107)",
+      "docs/architecture/ltiaas/build-decisions-A2.md (BD-A2-89)",
+      "docs/architecture/ltiaas/tasks/LA-E3-09.md",
+      "docs/architecture/ltiaas/tasks/LA-E3-15.md"
+    ],
+    "goldenFields": [
+      "G1.acceptance.lmsProviders.lms[1].capabilities.dynamicRegistration",
+      "G1.acceptance.lmsProviders.lms[1].methods[1]",
+      "G1.default.lmsProviders.lms[1].capabilities.dynamicRegistration",
+      "G1.default.lmsProviders.lms[1].methods[1]",
+      "G1.lmsProvidersAfter.lms[1].capabilities.dynamicRegistration",
+      "G1.lmsProvidersAfter.lms[1].methods[1]",
+      "G1.connectionList.connections[0].capabilities.dynamicRegistration",
+      "G1.connectionList.connections[1].capabilities.dynamicRegistration",
+      "G1.connections[\"canvas-connected\"].capabilities.dynamicRegistration",
+      "G1.connections[\"canvas-disabled\"].capabilities.dynamicRegistration",
+      "G1.connections[\"canvas-pending\"].capabilities.dynamicRegistration",
+      "G1.connections[\"canvas-registered\"].capabilities.dynamicRegistration",
+      "G3.canvas.connection.capabilities.dynamicRegistration"
+    ],
+    "authorUnitTestChanges": [
+      "packages/channel-kernel/src/registry.test.ts (updates Canvas legacyCapabilities.dynamicRegistration from false to true)",
+      "services/cogniate-app/src/tool-pages/register-staged.test.ts (adds Canvas dynamic connection create with operatorGrant and registrationUrl, fixed-issuer register check, staged complete keeping connection pending with 'Waiting for approval', refusal of active complete, and staged Canvas redemption adoption)",
+      "services/cogniate-app/src/app/redemption-admin.test.ts (adds staged fixed-endpoint Canvas grant issuance without bound values and refusal checks for staged_values_changed, client_id_mismatch, deployment_mismatch, and bound_values_not_allowed)",
+      "services/lti-service/src/profiles/canvas.test.ts (asserts all 5 Canvas profiles define dynamicRegistration with issuerRule 'profile', registrationToken 'opaque-bearer', and the 3 Canvas toolConfigurationExtensions)",
+      "services/lti-service/src/profiles/traits.test.ts (adds load check 7 tests for issuerRule 'profile' vs endpoints 'fixed' and toolConfigurationExtensions validation)",
+      "services/lti-service/src/lti/registration.test.ts (adds profile issuer rule matching, site/service origin rules 1-5 including rule 4 across all loaded profiles, fixed-endpoint registration_endpoint origin check, and toolConfigurationExtensions filling)",
+      "services/lti-service/src/http/routes/registration.test.ts (adds Canvas start/complete tests on cloud and self-hosted profiles, no-fetch refusal when no profile rule matches, fixed-host configuration URL refusal on complete, staged inactive platform with siteUrl and serviceUrl, and 3 Canvas extension fields)"
+    ],
+    "qaTaskTestChanges": [
+      "tests/ltiaas/k0/contract.test.ts:596-605 (M1_BASELINE_LEGACY_FLAGS.canvas.dynamicRegistration updated from false to true per LA-IC-14)",
+      "tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts:123-156 (QA-4 LA-E2-01 K0 suite updated so Canvas profiles accept the LA-E3-09 dynamicRegistration trait object { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: ... })",
+      "tests/ltiaas/tasks-core/LA-E1-02/registry.k0.test.ts:80-87,181-203 (QA-3 LA-E1-02 K0 suite pinned M1_LEGACY_CAPABILITIES.canvas.dynamicRegistration: false and G-BASE G1.json capabilities before LA-IC-14)",
+      "tests/ltiaas/tasks-core/LA-E3-15/canvas-dr-app.k0.test.ts (QA-3 LA-E3-15 K0 + UNIT suite verifying Canvas dynamic method, operatorGrant authority, and staged registration)",
+      "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k0.test.ts and tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k1sim.test.ts (QA-4 LA-E3-09 K0 + UNIT and K1-SIM suites)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/k0/contract.test.ts",
+      "tests/ltiaas/golden/expected/LA-IC-14.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs",
+      "tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts",
+      "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k0.test.ts",
+      "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k1sim.test.ts"
+    ],
+    "frozenTestsTouched": [
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-228 (M1-15.canvas.dto: CANVAS_CAPABILITIES.dynamicRegistration was false, now true)",
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:240-252 (M1-15.canvas.dynamic-refused: POST /app-api/connections with lms: 'canvas', method: 'dynamic' previously returned 422 CAPABILITY_NOT_SUPPORTED; now Canvas supports method 'dynamic' and returns 201 pending with registrationUrl)",
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:253-265 (M1-15.canvas.lms-providers: canvas entry in GET /app-api/lms-providers had methods: ['manual'] and capabilities.dynamicRegistration: false; now methods: ['manual', 'dynamic'] and capabilities.dynamicRegistration: true)"
+    ],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:183-261 (captures G1.default.lmsProviders, G1.acceptance.lmsProviders, G1.lmsProvidersAfter, G1.connectionList, G1.connections['canvas-*'], and G3.canvas.connection; GET /api/providers in G1 does not project dynamicRegistration)",
+      "tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G1.json:43-94,351-410,654-783,873-917,1070-1121 (all 12 G1 paths for Canvas lmsProviders capabilities/methods and Canvas connection DTO capabilities)",
+      "tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G3.json:715-750 (G3.canvas.connection.capabilities.dynamicRegistration)",
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265 (M1-15.canvas.dto, M1-15.canvas.dynamic-refused, and M1-15.canvas.lms-providers — all 3 recorded in frozenTestsTouched)",
+      "tests/acceptance/M1/canvas/31-canvas-grants.test.ts:170-315 (checks 409 CAPABILITY_NOT_SUPPORTED for webServices, courseShell, and non-Canvas canvasConfiguration; does not assert dynamicRegistration: false)",
+      "tests/acceptance/M1/common/00-profiles.test.ts:82-129 (checks capabilities and dynamic-refused on moodle and blackboard only; Blackboard dynamicRegistration stays false)",
+      "tests/acceptance/M1/common/03-snapshot-controls.test.ts:15-35 (checks Moodle capabilities, not Canvas)",
+      "tests/e2e/M2/02-canvas-wizard.m2.ts:18-130 (runs on /integrations/canvas/connect where CanvasWizard submits method: 'manual'; neither LA-E3-15 nor LA-E3-09 alters CanvasWizard.tsx)",
+      "tests/ltiaas/k0/ld1/open-world.test.ts:1-261 (operates on static recorded fixtures in tests/ltiaas/k0/ld1/g-base/*.json)",
+      "tests/ltiaas/k0/contract.test.ts:596-605 (M1_BASELINE_LEGACY_FLAGS.canvas.dynamicRegistration updated to true)"
+    ],
+    "scanResult": "13 golden fields changed across G1 and G3 (3 Canvas lmsProviders entries in G1.acceptance, G1.default, and G1.lmsProvidersAfter each flipping capabilities.dynamicRegistration false -> true and adding methods[1] = 'dynamic'; 6 Canvas connection DTOs in G1.connectionList.connections[0..1] and G1.connections['canvas-{connected,disabled,pending,registered}'] plus 1 in G3.canvas.connection flipping capabilities.dynamicRegistration false -> true; plus channelCapabilities['registration.dynamic'] true and channelCapabilities['binding.authority'].dynamic = 'operatorGrant' when combined with LA-IC-01) and 3 frozen M1 cases touched in tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265 (M1-15.canvas.dto, M1-15.canvas.dynamic-refused, M1-15.canvas.lms-providers). K0 legacy flag oracle updated in tests/ltiaas/k0/contract.test.ts:597."
+  },
+  "changes": [
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].methods[1]",
+      "value": "dynamic"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].methods[1]",
+      "value": "dynamic"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].methods[1]",
+      "value": "dynamic"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[0].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[1].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "connections[\"canvas-connected\"].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "connections[\"canvas-disabled\"].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "connections[\"canvas-pending\"].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G1",
+      "path": "connections[\"canvas-registered\"].capabilities.dynamicRegistration",
+      "value": true
+    },
+    {
+      "file": "G3",
+      "path": "canvas.connection.capabilities.dynamicRegistration",
+      "value": true
+    }
+  ]
+}

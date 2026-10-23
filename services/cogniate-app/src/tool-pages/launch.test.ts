@@ -1,6 +1,7 @@
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SERVICE_KEY_COLUMN, appAad, openText } from '../app/sealing.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import { continuesNewest } from '../domain/attempts.ts';
 import type { TestApp } from '../testkit.ts';
@@ -573,6 +574,12 @@ describe('launch without context (LA-E3-03)', () => {
       line_item_id: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`, service_key_encrypted: expect.any(Uint8Array),
     }]);
     expect(externalKeys()).toEqual([JSON.stringify(['1', '', '3'])]);
+    // LA-E5-22: the service key has the versioned header and opens only with the associated data of its own row.
+    const row = t.db.prepare('SELECT rl.id, c.library_id, rl.service_key_encrypted AS blob FROM resource_link rl JOIN connection c ON c.id = rl.connection_id').get()!;
+    const blob = row.blob as Uint8Array;
+    expect(Buffer.from(blob.subarray(0, 4)).toString('ascii')).toBe('cgk1');
+    expect(openText(TEST_MASTER_KEY, blob, appAad(SERVICE_KEY_COLUMN, String(row.library_id), String(row.id)))).toBe('s'.repeat(43));
+    expect(() => openText(TEST_MASTER_KEY, blob, appAad(SERVICE_KEY_COLUMN, String(row.library_id), 'rl_other'))).toThrow(/did not open/);
   });
 
   it('without AGS and NRPS it still opens the player; no line item and no service key are stored (AC-LA-E3-03-04 at unit level)', async () => {

@@ -1,10 +1,12 @@
+import { originHost } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { URLS } from '../testkit.ts';
 import type { AnyHttpsRules } from './platform-rules.ts';
+import { allFixedHosts, listProfiles, profileDefinition, reservedIssuerOrigins, siteRulesFor } from '../profiles/index.ts';
 import type { ConfigurationRule } from './registration.ts';
 import {
-  PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, endpointsOnIssuerOrigin, grantedScopesOf, operationFromToken,
-  parseOpenIdConfiguration, parseRegistrationResponse, supportsDeepLinking,
+  PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, configurationUrlProblem, endpointsOnIssuerOrigin, fixedRuleOf,
+  grantedScopesOf, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, supportsDeepLinking,
 } from './registration.ts';
 
 const protocolUrls = { login: `${URLS.lti}/lti/login/cogniate`, launch: `${URLS.lti}/lti/launch/cogniate`, keys: `${URLS.lti}/lti/keys/cogniate`, register: `${URLS.lti}/lti/register/cogniate` };
@@ -68,6 +70,14 @@ describe('registration request (ADR-009)', () => {
         messages: [{ type: 'LtiDeepLinkingRequest', target_link_uri: `${URLS.lti}/lti/launch/cogniate`, label: 'Cogniate', placements: ['ContentArea'] }],
       },
     });
+  });
+
+  it('LA-ADR-05 D6: the extension members of the chosen profile join the tool configuration claim', () => {
+    const extensions = { 'https://lms.example/lti/tool_id': 'cogniate', 'https://lms.example/lti/vendor': 'Cogniate' };
+    const r = buildRegistrationRequest({ protocolUrls, clientName: 'x', privacyLevel: 'anonymous', extensions });
+    expect(r[TOOL_CONFIG_CLAIM]).toMatchObject({ domain: new URL(URLS.lti).host, claims: ['iss', 'sub'], ...extensions });
+    expect(Object.keys(buildRegistrationRequest({ protocolUrls, clientName: 'x', privacyLevel: 'anonymous' })[TOOL_CONFIG_CLAIM] as object))
+      .toEqual(['domain', 'target_link_uri', 'claims', 'messages']);
   });
 
   it.each([
@@ -157,5 +167,113 @@ describe('Dynamic Registration rule table per profile (LA-ADR-02 D5, AC-LA-E2-02
     expect(grantedScopesOf({ client_id: 'c', scope: ' a  b a ' })).toEqual(['a', 'b']);
     expect(grantedScopesOf({ client_id: 'c' })).toBeNull();
     expect(grantedScopesOf({ client_id: 'c', scope: 7 })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------- LA-E3-09: the `profile` issuer rule (LA-ADR-05 D6)
+
+describe('the profile issuer rule (LA-ADR-05 D6, A2 BD-A2-89)', () => {
+  const OWN = [URLS.lti, URLS.app, URLS.content];
+  const ruleFor = (id: string) => {
+    const p = profileDefinition(id)!;
+    return fixedRuleOf(p, siteRulesFor(p, OWN, { simulation: true }), allFixedHosts({ simulation: true }));
+  };
+  // Open world (N10): every loaded profile with the profile rule, whatever its channel.
+  const FIXED = listProfiles({ simulation: true }).filter((p) => p.dynamicRegistration?.issuerRule === 'profile').map((p) => ruleFor(p.id));
+  const ONLY_FIXED: ConfigurationRule = { issuerRules: [], endpointOrigins: 'issuer', fixedRules: FIXED };
+  const SITE = 'https://school.instructure.com';
+  const URL_AT = (origin: string) => `${origin}/api/lti/security/openid-configuration`;
+  const SSO = 'https://sso.canvaslms.com';
+  const cloud = (extra: Record<string, unknown> = {}) => ({
+    ...MOODLE_CONFIG, issuer: 'https://canvas.instructure.com', authorization_endpoint: `${SSO}/api/lti/authorize_redirect`, jwks_uri: `${SSO}/api/lti/security/jwks`,
+    token_endpoint: `${SITE}/login/oauth2/token`, registration_endpoint: `${SITE}/api/lti/registrations`,
+    [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'canvas', messages_supported: [{ type: 'LtiDeepLinkingRequest' }] }, ...extra,
+  });
+  const SELF = 'https://canvas.school.edu';
+  const selfHosted = (extra: Record<string, unknown> = {}) => cloud({
+    issuer: SELF, authorization_endpoint: `${SELF}/api/lti/authorize_redirect`, jwks_uri: `${SELF}/api/lti/security/jwks`,
+    token_endpoint: 'https://api.school.edu/login/oauth2/token', registration_endpoint: `${SELF}/api/lti/registrations`, ...extra,
+  });
+
+  it('passes with the profile issuer and the filled values; the site and service origins come from the configuration', () => {
+    expect(FIXED.map((r) => r.profile)).toEqual(expect.arrayContaining(['canvas-cloud-production', 'canvas-self-hosted']));
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud(), ONLY_FIXED)).toMatchObject({
+      issuer: 'https://canvas.instructure.com', fixed: { profile: 'canvas-cloud-production', siteUrl: SITE, serviceUrl: SITE }, adminRule: false,
+    });
+    // A separate service origin: the token endpoint origin, with the same site rules.
+    const api = 'https://school-api.instructure.com';
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ token_endpoint: `${api}/login/oauth2/token`, registration_endpoint: `${api}/api/lti/registrations` }), ONLY_FIXED))
+      .toMatchObject({ fixed: { profile: 'canvas-cloud-production', siteUrl: SITE, serviceUrl: api } });
+    // Self-hosted: the issuer is the site origin.
+    expect(parseOpenIdConfiguration(URL_AT(SELF), selfHosted(), ONLY_FIXED))
+      .toMatchObject({ issuer: SELF, fixed: { profile: 'canvas-self-hosted', siteUrl: SELF, serviceUrl: 'https://api.school.edu' } });
+  });
+
+  it('AP-05-30: an issuer that is not the profile issuer, or one endpoint that differs from the filled value, is refused', () => {
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ issuer: 'https://lms.example.edu' }), ONLY_FIXED)).toEqual({ code: 'ISSUER_MISMATCH', detail: 'issuer_not_profile_issuer' });
+    expect(parseOpenIdConfiguration(URL_AT(SELF), selfHosted({ issuer: `${SELF}/x` }), ONLY_FIXED)).toEqual({ code: 'ISSUER_MISMATCH', detail: 'issuer_not_profile_issuer' });
+    for (const [name, value] of [
+      ['authorization_endpoint', `${SSO}/api/lti/authorize`], ['jwks_uri', `${SITE}/api/lti/security/jwks`], ['token_endpoint', `${SITE}/login/oauth2/token/`],
+    ] as const) {
+      expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ [name]: value }), ONLY_FIXED), name).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `not_profile_value=${name}` });
+    }
+    // The beta issuer with the production endpoints: the beta rule names the problem.
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ issuer: 'https://canvas.beta.instructure.com' }), ONLY_FIXED))
+      .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'not_profile_value=authorization_endpoint' });
+    // The service origin passes the site rules (here rule 4: the fixed sso host); the registration endpoint stays on the site or service origin.
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ token_endpoint: `${SSO}/login/oauth2/token` }), ONLY_FIXED)).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_4=token_endpoint' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ registration_endpoint: 'https://other.example.edu/api/lti/registrations' }), ONLY_FIXED))
+      .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'not_on_site_origin=registration_endpoint' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ registration_endpoint: `http://school.instructure.com/api/lti/registrations` }), ONLY_FIXED))
+      .toEqual({ code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_https=registration_endpoint' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ jwks_uri: undefined }), ONLY_FIXED)).toEqual({ code: 'INVALID_OPENID_CONFIGURATION', detail: 'missing=jwks_uri' });
+  });
+
+  it('BD-A2-89: the configuration URL gives the site; on a fixed endpoint host it proves none; elsewhere the site rules refuse it', () => {
+    expect(parseOpenIdConfiguration(URL_AT(SSO), cloud({ registration_endpoint: `${SSO}/api/lti/registrations` }), ONLY_FIXED))
+      .toMatchObject({ fixed: { profile: 'canvas-cloud-production', siteUrl: null, serviceUrl: SITE } });
+    expect(parseOpenIdConfiguration(URL_AT('https://canvas.instructure.com'), cloud(), ONLY_FIXED)).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_4=configuration_url' });
+    expect(parseOpenIdConfiguration(URL_AT('https://sso.test.canvaslms.com'), cloud(), ONLY_FIXED)).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_4=configuration_url' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ token_endpoint: 'https://sso.beta.canvaslms.com/login/oauth2/token' }), ONLY_FIXED))
+      .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_4=token_endpoint' });
+    expect(parseOpenIdConfiguration(URL_AT(SELF), selfHosted({ issuer: 'https://school.instructure.com' }), { ...ONLY_FIXED, fixedRules: [ruleFor('canvas-self-hosted')] }))
+      .toEqual({ code: 'ISSUER_MISMATCH', detail: 'issuer_not_profile_issuer' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), selfHosted({ issuer: SITE }), { ...ONLY_FIXED, fixedRules: [ruleFor('canvas-self-hosted')] }))
+      .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_5=configuration_url' });
+  });
+
+  it('BD-A2-93: the floor before the fetch refuses own hosts, failing host names and reserved hosts; the rest goes to the fetch', () => {
+    const rules: AnyHttpsRules = {
+      ownHosts: OWN.map(originHost), reservedHosts: allFixedHosts({ simulation: true }), reservedIssuerOrigins: reservedIssuerOrigins({ simulation: true }),
+    };
+    const notInProfile = (detail: string) => ({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `${detail}=configuration_url` });
+    const refused = {
+      // A reserved issuer host keeps the M1 answer (contract §9.2), any port.
+      [URL_AT('https://canvas.instructure.com')]: { code: 'ISSUER_RESERVED', detail: 'issuer_reserved=configuration_url' },
+      'https://Blackboard.com:8443/x': { code: 'ISSUER_RESERVED', detail: 'issuer_reserved=configuration_url' },
+      [URL_AT(SSO)]: notInProfile('reserved_host'), [URL_AT('https://SSO.Beta.canvaslms.com:8443')]: notInProfile('reserved_host'),
+      'https://developer.blackboard.com/x': notInProfile('reserved_host'), [`${URLS.app}/x`]: notInProfile('site_rule_3'),
+      'https://localhost/x': notInProfile('site_rule_2'), 'https://intranet/x': notInProfile('site_rule_2'), 'https://school.test./x': notInProfile('site_rule_2'),
+    };
+    expect(Object.fromEntries(Object.keys(refused).map((u) => [u, configurationUrlProblem(u, rules)]))).toEqual(refused);
+    // Option A (Lead call): http and IP addresses go to the guarded client as before (it refuses http and private
+    // addresses itself); a value that is not a URL fails there too.
+    for (const u of [URL_AT(SITE), URL_AT(SELF), CONFIG_URL, 'https://203.0.113.10/x', 'https://169.254.169.254/x', 'https://[::1]/x', 'http://canvas.instructure.com/x', 'not a url']) {
+      expect(configurationUrlProblem(u, rules), u).toBeNull();
+    }
+  });
+
+  it('with admin-value rules loaded: the profile rule is tried first; an admin configuration keeps its own result and problem', () => {
+    const MIXED: ConfigurationRule = { issuerRules: [{ issuerRule: 'origin' }], endpointOrigins: 'issuer', fixedRules: FIXED };
+    expect(parseOpenIdConfiguration(CONFIG_URL, MOODLE_CONFIG, MIXED)).toMatchObject({ issuer: 'https://moodle.test', fixed: null, adminRule: true });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud(), MIXED)).toMatchObject({ fixed: { profile: 'canvas-cloud-production' }, adminRule: false });
+    // A configuration that passes both kinds of rule (everything on the self-hosted site): both are reported.
+    const allOnSite = selfHosted({ token_endpoint: `${SELF}/login/oauth2/token` });
+    expect(parseOpenIdConfiguration(URL_AT(SELF), allOnSite, MIXED)).toMatchObject({ fixed: { profile: 'canvas-self-hosted', serviceUrl: SELF }, adminRule: true });
+    // Problems: the admin problem for an admin configuration; the problem of the profile whose fixed issuer the configuration names.
+    expect(parseOpenIdConfiguration(CONFIG_URL, { ...MOODLE_CONFIG, token_endpoint: 'https://auth.idp.test/token' }, MIXED))
+      .toEqual({ code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_on_issuer_origin=token_endpoint' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ jwks_uri: `${SSO}/jwks` }), MIXED)).toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'not_profile_value=jwks_uri' });
+    expect(parseOpenIdConfiguration(URL_AT(SITE), cloud({ issuer: 'https://lms.example.edu' }), MIXED)).toEqual({ code: 'ISSUER_MISMATCH', detail: 'issuer_not_configuration_origin' });
   });
 });

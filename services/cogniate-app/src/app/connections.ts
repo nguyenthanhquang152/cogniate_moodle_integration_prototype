@@ -2,7 +2,8 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Connections (app contract §4, M1 §4.2 to §4.7): connect a Moodle site by dynamic or manual registration, or a Canvas
 // or Blackboard site with an operator approval grant (the common redemption engine). Every lookup uses the session
 // user's library: a connection of another library gives 404 NOT_FOUND.
-import { decrypt, encrypt, randomToken, sha256Hex } from '@cogniate/shared';
+import { randomToken, sha256Hex } from '@cogniate/shared';
+import { REF_COPY_COLUMN, appAad, openText, sealText } from './sealing.ts';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -43,10 +44,14 @@ export interface ConnectionDeps {
 
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
 
-/** A new registration ref (43 characters, 256 bits): the URL holds it, the table its hash and an encrypted copy. */
-export function newRef(masterKey: Buffer, ttlSeconds: number, now: number): { token: string; stored: RefToken } {
+/**
+ * A new registration ref (43 characters, 256 bits): the URL holds it, the table its hash and a sealed copy. LA-E5-22:
+ * the copy is bound to the library and to its hash (the row key; the ref is made before the connection has an id).
+ */
+export function newRef(masterKey: Buffer, libraryId: string, ttlSeconds: number, now: number): { token: string; stored: RefToken } {
   const token = randomToken();
-  return { token, stored: { hash: sha256Hex(token), encrypted: encrypt(masterKey, token), expiresAt: now + ttlSeconds * 1000 } };
+  const hash = sha256Hex(token);
+  return { token, stored: { hash, encrypted: sealText(masterKey, token, appAad(REF_COPY_COLUMN, libraryId, hash)), expiresAt: now + ttlSeconds * 1000 } };
 }
 
 export const registrationUrl = (urls: PublicUrls, ref: string): string => `${toolUrls(urls).register}?ref=${ref}`;
@@ -67,7 +72,7 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
   };
   return {
     id: c.id, name: c.name, siteUrl: c.siteUrl, method: c.method, status: c.status,
-    registrationUrl: showRef ? registrationUrl(urls, decrypt(masterKey, c.refTokenEncrypted!)) : null,
+    registrationUrl: showRef ? registrationUrl(urls, openText(masterKey, c.refTokenEncrypted!, appAad(REF_COPY_COLUMN, c.libraryId, c.refTokenHash ?? ''))) : null,
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     // M1 (§4.2)
     lms: c.channel, profile: c.profile, serviceUrl: c.serviceUrl, capabilities: channels.legacyCapabilities(c.channel),
@@ -172,7 +177,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       }
       const checked = adapter.checkCreate({ siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
       if (!checked.ok) return invalid(checked.field);
-      const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
+      const ref = b.method === 'dynamic' ? newRef(masterKey, libraryOf(req).id, deps.refTtlSeconds, now()).stored : null;
       const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: checked.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
       return reply.code(201).send(dto(req, c));
     }
@@ -207,7 +212,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const snapshot = snapshotOf(profile, { siteUrl, serviceUrl: serviceUrl ?? siteUrl });
     // A1 BD-A1-106: a dynamic method with authority operatorGrant (Canvas, LA-ADR-05 D6) also gets its registration URL
     // at create. The authority stays operatorGrant; the registration stages the platform for the grant.
-    const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
+    const ref = b.method === 'dynamic' ? newRef(masterKey, libraryOf(req).id, deps.refTtlSeconds, now()).stored : null;
     const c = transaction(db, () => createConnection(db, libraryOf(req).id, {
       name: b.name, siteUrl, method: b.method, channel, profile: profile.id, serviceUrl, snapshot,
     }, ref, now(), channels, adapter.sharingOf));
@@ -220,7 +225,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const c = connectionOf(req);
     // A staged registration keeps its platform and waits for the operator grant: no new registration URL.
     if (c.status !== 'pending' || c.method !== 'dynamic' || c.platform !== null || !channels.capabilities(c.channel)['registration.dynamic']) throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending dynamic connection has a registration URL.');
-    const ref = newRef(masterKey, deps.refTtlSeconds, now());
+    const ref = newRef(masterKey, c.libraryId, deps.refTtlSeconds, now());
     if (!replaceRef(db, c.libraryId, c.id, ref.stored, now())) throw new ApiError('CONNECTION_NOT_PENDING');
     return { registrationUrl: registrationUrl(urls, ref.token), expiresAt: new Date(ref.stored.expiresAt).toISOString() };
   });

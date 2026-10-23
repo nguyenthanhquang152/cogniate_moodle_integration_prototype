@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { ConfigRefusedError, createLogger, type JobContext, type LogLine } from '@cogniate/shared';
+import { ConfigRefusedError, createLocalKeyProvider, createLogger, legacyKeyRing, type JobContext, type LogLine } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openDb } from '../domain/db.ts';
 import { observeDispatchSends } from '../kernel/records/outbox.ts';
@@ -63,6 +63,20 @@ describe('GET /readyz (BD-A2-88: the app only)', () => {
     const closed = openDb(':memory:');
     closed.close();
     expect(readiness(closed)).toEqual(['database']);
+  });
+
+  it('LA-E5-22 (BD-A2-88 D3): 503 key_version_missing when a stored value uses a key version that the app key ring does not have', async () => {
+    const db = memoryDb();
+    const app = buildOperatorListener({ db, metrics: new AppMetrics(db), keys: createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 5))) });
+    closers.push(() => app.close());
+    expect((await app.inject({ method: 'GET', url: '/readyz' })).statusCode).toBe(200);
+    const k2 = createLocalKeyProvider({ active: 'k2', keys: new Map([['k2', Buffer.alloc(32, 2)]]) });
+    expect(db.prepare('UPDATE connection SET ws_token_encrypted = ?').run(k2.sealSync(Buffer.from('token'), 'app:connection:ws_token_encrypted:x:y').bytes).changes).toBeGreaterThan(0);
+    const missing = await app.inject({ method: 'GET', url: '/readyz' });
+    expect([missing.statusCode, missing.json()]).toEqual([503, { status: 'not_ready', reasons: ['key_version_missing'] }]);
+    // A ring that has the version is ready again; without a key provider there is no key check.
+    expect(readiness(db, k2)).toEqual([]);
+    expect(readiness(db)).toEqual([]);
   });
 });
 

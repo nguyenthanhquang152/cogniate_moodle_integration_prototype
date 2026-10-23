@@ -43,15 +43,22 @@ it('AC-03: binds the library and connection on get, all and run, even if paramet
 });
 
 it('seals and unseals through asynchronous functions without exposing the key or database', async () => {
-  const ctx = createPortContext({ db, masterKey: Buffer.alloc(32, 7), now: () => 42,
+  const deps = { db, masterKey: Buffer.alloc(32, 7), now: () => 42,
     logger: createLogger({ service: 'test', write: () => {} }), outbound: {} as OutboundClient,
       urls: { app: 'https://app.test', lti: 'https://lti.test', content: 'https://content.test' }, lti: { getToolKeys: async () => [] },
-  }, 'library-a', null, 'trace', 'Library A');
-  const promise = ctx.seal('secret-token');
+  };
+  const ctx = createPortContext(deps, 'library-a', 'a', 'trace', 'Library A');
+  const promise = ctx.seal('secret-token', 'ws_token_encrypted');
   expect(promise).toBeInstanceOf(Promise);
   const sealed = await promise;
   expect(Buffer.from(sealed).includes('secret-token')).toBe(false);
-  expect(await ctx.unseal(sealed)).toBe('secret-token');
+  expect(await ctx.unseal(sealed, 'ws_token_encrypted')).toBe('secret-token');
+  // LA-E5-22: the value is bound to its column and to the library and connection of the context.
+  expect(Buffer.from(sealed.subarray(0, 4)).toString('ascii')).toBe('cgk1');
+  await expect(ctx.unseal(sealed, 'other_secret')).rejects.toThrow(/did not open/);
+  await expect(createPortContext(deps, 'library-b', 'a', 'trace', 'Library B').unseal(sealed, 'ws_token_encrypted')).rejects.toThrow(/did not open/);
+  await expect(createPortContext(deps, 'library-a', 'b', 'trace', 'Library A').unseal(sealed, 'ws_token_encrypted')).rejects.toThrow(/did not open/);
+  await expect(createPortContext(deps, 'library-a', null, 'trace', 'Library A').seal('x', 'ws_token_encrypted')).rejects.toThrow(/bound connection/);
   expect(ctx).not.toHaveProperty('db');
   expect(ctx).not.toHaveProperty('masterKey');
   expect(ctx.now()).toBe(42);

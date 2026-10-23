@@ -16,10 +16,10 @@ import { PlatformKeyError } from '../../lti/jwks.ts';
 import { statusGate } from '../../lti/account-status.ts';
 import { BINDING_REF, checkAudienceHost } from '../../lti/platform-rules.ts';
 import type { AnyHttpsRules } from '../../lti/platform-rules.ts';
-import type { ConfigurationProblem, ConfigurationRule, OpenIdConfiguration } from '../../lti/registration.ts';
+import type { ConfigurationProblem, ConfigurationRule, IssuerRule, OpenIdConfiguration } from '../../lti/registration.ts';
 import {
-  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, endpointsOnIssuerOrigin, grantedScopesOf, operationFromToken,
-  parseOpenIdConfiguration, parseRegistrationResponse, registrationView, supportsDeepLinking,
+  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, configurationUrlProblem, endpointsOnIssuerOrigin, fixedRuleOf,
+  grantedScopesOf, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView, supportsDeepLinking,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
 import { withAudit } from '../../store/audit.ts';
@@ -34,7 +34,7 @@ import { invalid } from '../validation.ts';
 import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
 import type { ProviderProfile } from '../../profiles/index.ts';
-import { allFixedHosts, channelRegistry, findProfile, listProfiles, lmsNameOf, reservedIssuerOrigins } from '../../profiles/index.ts';
+import { allFixedHosts, channelRegistry, findProfile, listProfiles, lmsNameOf, reservedIssuerOrigins, siteRulesFor } from '../../profiles/index.ts';
 import { OutboundError } from '@cogniate/shared';
 import { decodeProtectedHeader } from 'jose';
 
@@ -148,16 +148,33 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     (isRegistrationTextKey(code) ? registrationText(channel, code) : CORE_HELP[code]);
   // LA-ADR-02 D5: the profiles that a channel offers for Dynamic Registration (trait and manifest, as the app capability).
   const dynamicProfiles = listProfiles(ctx.profiles).filter((p) => p.dynamicRegistration !== null && channels.capabilities(p.channel, p)['registration.dynamic']);
+  const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
   const hosts: AnyHttpsRules = {
-    ownHosts: [ctx.urls.lti, ctx.urls.app, ctx.urls.content].map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles),
+    ownHosts: ownOrigins.map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles),
   };
-  const ruleOf = (profiles: readonly ProviderProfile[]): ConfigurationRule => ({
-    issuerRules: profiles.map((p) => p.dynamicRegistration!),
-    endpointOrigins: profiles.some((p) => p.endpointOrigins === 'any-https') ? 'any-https' : 'issuer',
-    hosts,
-  });
+  /** LA-ADR-05 D6: a fixed-endpoint profile keeps its own rule (issuerRule profile; load check 7 keeps the two together). */
+  const isFixedRule = (p: ProviderProfile) => p.dynamicRegistration!.issuerRule === 'profile';
+  const ruleOf = (profiles: readonly ProviderProfile[]): ConfigurationRule => {
+    const admin = profiles.filter((p) => !isFixedRule(p));
+    return {
+      issuerRules: admin.map((p): IssuerRule => {
+        const { issuerRule, configurationPath } = p.dynamicRegistration!;
+        return { issuerRule: issuerRule as IssuerRule['issuerRule'], ...(configurationPath !== undefined ? { configurationPath } : {}) };
+      }),
+      endpointOrigins: admin.some((p) => p.endpointOrigins === 'any-https') ? 'any-https' : 'issuer',
+      hosts,
+      fixedRules: profiles.filter(isFixedRule).map((p) => fixedRuleOf(p, siteRulesFor(p, ownOrigins, ctx.profiles), hosts.reservedHosts)),
+    };
+  };
   // The start page applies the loosest rule of every DR profile; complete applies the exact rule of the chosen one.
   const startRule = ruleOf(dynamicProfiles);
+  const adminChannels = dynamicProfiles.filter((p) => !isFixedRule(p)).map((p) => p.channel);
+  /** The channels whose rule the configuration passed: the family guard of the start page asks only them. */
+  const passedChannels = (config: OpenIdConfiguration): Array<string | null> => {
+    const fixedChannel = config.fixed ? dynamicProfiles.find((p) => p.id === config.fixed!.profile)!.channel : null;
+    const passed = [...(fixedChannel !== null ? [fixedChannel] : []), ...(config.adminRule ? adminChannels : [])];
+    return passed.length ? passed : [null];
+  };
   const acceptsOpaqueToken = dynamicProfiles.some((p) => p.dynamicRegistration!.registrationToken === 'opaque-bearer');
   /** Registration-phase family guard (BD-A1-54, BD-A1-55): refuse when no allowed channel may own the family. */
   const familyRefusal = (family: string, profileChannels: ReadonlyArray<string | null>) => {
@@ -183,11 +200,16 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
+    // BD-A2-93: the floor for every loaded profile. No loaded profile could complete such a configuration, so it is
+    // not fetched; every other URL is fetched and read with the loosest rule of the loaded profiles.
+    const floor = configurationUrlProblem(q.data.openid_configuration, hosts);
+    if (floor) return page(floor.code, floor.detail);
     const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId, startRule);
     if ('code' in config) return page(config.code, config.detail);
-    // M1: a reserved issuer or a guarded product family; nothing is stored and no session starts.
-    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) return page('ISSUER_RESERVED', 'issuer_reserved');
-    const guard = familyRefusal(config.productFamilyCode, dynamicProfiles.length ? dynamicProfiles.map((p) => p.channel) : [null]);
+    // M1: a reserved issuer (except the own issuer of the profile rule it passed) or a guarded product family; nothing
+    // is stored and no session starts.
+    if (!config.fixed && reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) return page('ISSUER_RESERVED', 'issuer_reserved');
+    const guard = familyRefusal(config.productFamilyCode, passedChannels(config));
     if (guard) {
       const family = channels.textName(guard.guardChannel);
       log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${guard.family}` });
@@ -313,6 +335,13 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const config = configOf(session);
       const exact = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration, ruleOf([profile]));
       if ('code' in exact) reject(profileRuleError(exact, profile.id));
+      // LA-ADR-05 D6 (BD-A2-89): the site and service origins that a profile rule derived from the configuration.
+      const fixed = 'code' in exact ? null : exact.fixed;
+      // A configuration URL on a fixed endpoint host proves no site, so nothing is stored or sent (until a live row).
+      if (fixed?.siteUrl === null) {
+        reject(new ApiError('INVALID_REQUEST', `Invalid field: profile. The site cannot be proven from this platform configuration: its address is a fixed host of profile ${profile.id}.`,
+          { details: { field: 'profile', reason: 'configuration_on_fixed_host' } }));
+      }
       // A token that the start page did not verify as a registration JWT does not fit a scope-jwt profile. NULL with a
       // token is a session from before LTI migration 021 (verified then). Any other stored kind is refused (fail closed).
       const tokenKind: string | null = session.registrationToken === null ? null : session.tokenKind ?? 'scope-jwt';
@@ -335,8 +364,9 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           details: { field: 'scopes', unsupported },
         });
       }
-      // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
-      if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
+      // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform. A profile rule
+      // passed only with the profile's own issuer.
+      if (!fixed && reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
       // D5 items 4 and 10 (I-SELF, D2a): only a {platformValue} profile stores authorization_server as its audience. When
       // a value is off the issuer origin, the platform is staged: inactive, with the connection's binding ref.
       const platformAud = profile.clientAssertionAud.value === '{platformValue}' ? config.authorizationServer : null;
@@ -344,15 +374,17 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       if (platformAud !== null) {
         try { checkAudienceHost(platformAud, hosts, 'authorization_server'); } catch (err) { if (err instanceof ApiError) reject(err); throw err; }
       }
-      const staged = !endpointsOnIssuerOrigin({ ...config, authorizationServer: platformAud });
-      if (profile.endpointOrigins === 'any-https' && body.data.bindingRef === undefined) {
+      // LA-ADR-05 D6: a fixed-endpoint profile is always staged; the operator grant proves the derived site.
+      const staged = fixed !== null || !endpointsOnIssuerOrigin({ ...config, authorizationServer: platformAud });
+      if ((profile.endpointOrigins === 'any-https' || fixed !== null) && body.data.bindingRef === undefined) {
         throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).', { details: { field: 'bindingRef' } });
       }
       if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
       try {
-        const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
+        const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(fixed?.siteUrl ?? config.issuer).host}`;
         const request = buildRegistrationRequest({
           protocolUrls, clientName, scopes, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
+          ...(rule.toolConfigurationExtensions ? { extensions: rule.toolConfigurationExtensions } : {}),
         });
         let res;
         try {
@@ -383,7 +415,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         const values = {
           clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
           active: staged ? false : body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
-          grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef,
+          grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef, siteUrl: fixed?.siteUrl ?? null, serviceUrl: fixed?.serviceUrl ?? null,
         };
         /**
          * The update of an existing platform, checked again in the write transaction (the record can change meanwhile).
@@ -407,7 +439,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
               platform = createPlatform(ctx.db, account.id, {
                 issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
                 jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
-                profile: profile.id, bindingRef, clientAssertionAud: platformAud, grantedScopes: values.grantedScopes,
+                profile: profile.id, bindingRef, clientAssertionAud: platformAud, grantedScopes: values.grantedScopes, siteUrl: values.siteUrl, serviceUrl: values.serviceUrl,
               });
             } catch (err) {
               if (!(err instanceof PlatformExistsError)) throw err;

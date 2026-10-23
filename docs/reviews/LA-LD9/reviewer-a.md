@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 4
+Verdict: CHANGES_REQUESTED
+Round: 5
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -243,3 +243,49 @@ The core receives the route's manifest through `ChannelScope` for both create an
 - **A-LA-LD9-08 (NIT): the IC-20 inline-error helper reference points to unrelated code.** Where: `tests/ltiaas/golden/expected/LA-IC-20.json:34`, copied into golden README §5 (`:138`) and TEST-STRATEGY §4.7 (`:456`). The cited `tests/acceptance/lib/portal.ts:89-99` contains the card-grid return and colour helpers; `hasInlineError` is at `:176-181`. The actual helper does check only invalid-field/alert presence, so the zero-change conclusion is right. Update the three references to `176-181` or the function name; no frozen assertion or product change is needed.
 
 Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used.
+
+## Round 5
+
+Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed lead-QA `19da95e` / merge `4d08fc1`: IC-03, IC-20, IC-21, their README and TEST-STRATEGY rows, and `golden.k0.test.mjs`. Checked the records against LA-ADR-04 D8, the cited build decisions, plan §6.1 LD-9 and product source at `326ceae`. Blind review; no Reviewer-B file read.
+
+**Verdict: CHANGES_REQUESTED for IC-03; APPROVE for IC-20 and IC-21. New findings: 0 BLOCKER, 1 MAJOR, 0 MINOR, 1 NIT. A-LA-LD9-08 is closed. Earlier findings retain their recorded status.**
+
+Verification used a fresh private clone at `dd19b694`, with its own `npm ci --ignore-scripts` and a cleared Vitest cache. The relevant LTI implementation and portal error renderer are unchanged from `326ceae`; the later Canvas wizard changes in this test snapshot are outside this review.
+
+- Golden K0: **12/12 pass**. The metadata checks require the new records and the corrected IC-20 citation. They do not prove the prose in `scanChecked`.
+- The **11 distinct Author test files** named by these records: **203/203 pass**.
+- **15 private comparator probes pass**: each record permits G-BASE self-comparison and rejects an added field independently in G1–G4. None of the empty deltas permits a golden difference.
+- Every listed scan file and numeric range exists at `326ceae`. Source inspection found the evidence problems below. No live capture, browser suite, K1 stack, Docker or host stack runner was run.
+
+### LA-IC-03 — CHANGES_REQUESTED
+
+The intended product changes are correct: the standard profile accepts a path-prefix issuer, requires the full configuration URL to equal `issuer + '/mod/lti/openid-configuration.php'`, and refuses missing Deep Linking support. G1–G4 do not execute DR. The real-Moodle frozen flows use the standard endpoint; AC-T3-05's foreign-issuer fixture still fails before the Deep Linking check. Thus the empty golden and frozen-test lists remain supported. The E3-06 fixture change in `18fa1d3` correctly replaces its old `/openid-<id>.json` URL with the standard path under a unique issuer prefix.
+
+**A-LA-LD9-09 (MAJOR): IC-03 wrongly marks the query-bearing E5-06 simulator fixture unchanged.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-03.json:39,43` and its incomplete `qaTaskTestChanges` list at `:21-22`.
+- Problem: the scan compares the URL's pathname, while the product compares the full URL. This misses another affected QA fixture and labels a failing DR path as unchanged.
+- Evidence: `tests/sim/core/runtime.mjs:303-304` returns a configuration URL ending in `?scenario=...`; `protocol-wiring.k1sim.test.ts:161-163` uses that returned URL and has the same query-bearing fallback. At `326ceae`, `services/lti-service/src/lti/registration.ts:81` requires full-string equality. `http/routes/registration.ts:118,314` passes the unmodified URL at start and completion. A private pure-function probe with `https://moodle.sim.test/mod/lti/openid-configuration.php?scenario=e506-dr-ac07` succeeds under the old origin rule and returns `{ code: 'ISSUER_MISMATCH', detail: 'configuration_path_mismatch' }` under the standard rule. With another permissive DR profile loaded, start can pass, but completion with the default standard profile still fails its exact rule. This is not evidence that the K1 suite passed.
+- Suggested fix: have QA repair or explicitly track the E5-06 fixture so its standard-profile configuration URL has the exact required form, with safe scenario selection. Record that additional task-test adjustment and correct the scan result and corresponding summaries. Keep the empty golden/frozen lists; this finding does not authorize changing frozen assertions or relaxing the product rule.
+
+**A-LA-LD9-10 (NIT): several scan descriptions name assertions that the cited ranges do not contain.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-03.json:36,41`; `tests/ltiaas/golden/expected/LA-IC-21.json:31`.
+- Evidence: T4b1 `3-security.spec.ts:95-110` contains the end of **AC-T4-33**, its unknown-ref check, and the start of AC-T4-34; it is not AC-T4-25 or a ref-replay test. E2-02 `dynamic-registration.k1sim.test.ts:150-310` does not cover AC-01 through AC-08 as claimed: the wrong-path branch asserts a status, not `ISSUER_MISMATCH`, and the staged case reads the registration view before creating an inactive platform directly after line 310. It does not complete a staged DR registration in that range.
+- Suggested fix: name the actual cases and assertions, correct the ranges where needed, and remove the unsupported completion claim. The zero golden/frozen-change conclusions do not depend on these overstatements.
+
+### LA-IC-20 — APPROVE
+
+BD-A1-81 is reflected correctly. `ChannelErrorNotice` handles the five manifest keys; Moodle `PLATFORM_IN_USE` now matches `LEGACY_SELF_BINDING_TEXT.collision` after filling `{LMS}`. Canvas site rules 1/5 and collision text, Blackboard deployment text, and the baseline site-rule texts keep their bytes. Other codes retain each form's renderer. BD-A1-102's `details.reason` exception is present at `326ceae`, but the decision explicitly requires no LD-9 record change because no baseline answer carries that field.
+
+The M2 assertions run on the owning channels. T6 checks invalid-field/alert presence, T4b1 checks API status/code, and U1/U2 use valid connection flows. G1–G4 do not render the portal notices. The empty golden and frozen lists are correct, and both summary tables agree with the updated record.
+
+**A-LA-LD9-08 closed:** the record and both tables now cite `tests/acceptance/lib/portal.ts:176-181`, which contains `hasInlineError`. The new K0 assertion rejects the former `89-99` citation. Round 4's table entry saying Moodle `PLATFORM_IN_USE` uses generic text is superseded by BD-A1-81 and this round.
+
+### LA-IC-21 — APPROVE
+
+BD-A1-93 / BD-A2-86 match the implementation: both update paths call the same transaction-local helper, preserve the existing platform's `active` value, and force `false` when staged. `autoActivate` applies only to a new platform. The regression test covers an explicit update of a switched-off platform, and the existing duplicate-client test covers the other path.
+
+AC-T3-03 creates an active platform (`1-registration.spec.ts:89`); AC-T3-26 then updates that platform (`2-update.spec.ts:61-77`). Its result remains unchanged. The app rejects explicit updates before completion and never sends `updatePlatformId`; the listed frozen app flows register new tools. G1–G4 make no completion call. The empty golden/frozen lists and both summary rows are correct. A-LA-LD9-10 requests evidence wording cleanup only; the E5-06 URL issue belongs to IC-03, not this activation change.
+
+Only this review file was changed in the integration worktree. No commit was made.

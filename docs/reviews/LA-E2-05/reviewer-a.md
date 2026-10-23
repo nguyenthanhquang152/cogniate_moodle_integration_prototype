@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E2-05 review: Reviewer-A
 
@@ -29,3 +29,18 @@ None.
 - K0: **149/149**. Node and portal channel typechecks and full lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**. F2: **core = 0**.
 
 Probe sources are saved at `/tmp/la-reviewer-a-ctx-2b78b5ca35f1-probes`; test logs use the same prefix in `/tmp`. The private clone is clean. No Docker, stack, stack-starting runner or commit was used; no other reviewer's file was opened; only this review file was written in the integration worktree. K1-SIM, K2, R1 and live D2L confirmation remain QA gates. This verdict covers the channel-folder diff and does not close findings assigned to its core dependencies.
+
+
+## Round 2
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `6bfb150` and the P-file RQ-2 commit `eea9532`, integrated by `326ceae`, against BD-A1-85, the task spec and plan §6.1. No findings. The interim row-display limitation recorded in Round 1 is resolved.
+
+Both manifests now select `toolConfiguration: channel`. The kernel already supplies the rows without an `app.ts`; the merged K-ADAPTER change `4d08fc1` accepts this only for admin-value profiles without adapter-only features. Private portal probes confirm that the real manual wizards for both channels request and render the returned rows. The actual Brightspace app endpoint returns its nine filled rows in the required order. Restoring `none` makes both display probes fail. The updated staged-wizard mock answers the additional GET with the correct array shape; its original input and submitted-body assertions are unchanged and pass.
+
+This is the authorized E2-K follow-up, not an E2-N add-channel commit. F2 on `6bfb150` alone reports **core = 1, paths = 2**, solely because it also changes `lti-generic`; that result is expected under the dispatch. The P test change has the explicit RQ-2 handover. No frozen assertion, forbidden product path or unrelated behavior changes.
+
+Verification at `326ceae` in fresh private clone `/tmp/la-reviewer-a-ctx-8d3d02b18795`, with its own `npm ci` and the Vitest cache deleted before each run: the combined focused public suites pass **144/144**, K0 passes **148/148**, and the relevant private app/portal probes pass **8/8**. App, portal and both channel typechecks pass, as do targeted lint, F1 (**0 hits**) and F5 (**6 rules, 0 hits**). After the three review mutations were restored, the affected public/app/portal suites pass **17/17**.
+
+Probe sources are saved under `/tmp/la-reviewer-a-ctx-8d3d02b18795-probes`; logs use the same prefix. The private clone is clean. No Docker, stack, commit or other reviewer's file was used. Only the two assigned Reviewer-A reports were edited in integration. These host tests do not claim the K1-SIM, K2 or live D2L gates.

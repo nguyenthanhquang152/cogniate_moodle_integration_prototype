@@ -28,10 +28,9 @@ type AppAuditListResult = {
 };
 
 async function runAppAuditList(args: string[] = []): Promise<AppAuditListResult> {
-  const act = await hostAction({
-    action: 'qa2-app-audit-list',
-    args,
-  } as AppAuditListAction);
+  const act = await hostAction('qa2-app-audit-list' as HostAction, 60_000, {
+    payload: { args },
+  });
   assert.equal(act.code, 0, 'host runner refused qa2-app-audit-list');
   assert.ok(act.out, 'host runner returned no output file');
   return JSON.parse(fs.readFileSync(path.join(CONTROL_DIR(), act.out), 'utf8')) as AppAuditListResult;

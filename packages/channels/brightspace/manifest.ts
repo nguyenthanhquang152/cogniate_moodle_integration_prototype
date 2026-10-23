@@ -12,9 +12,10 @@ const manifest = {
     category: 'LMS Publishing', order: 5,
   },
   availability: 'ga',
-  // Dynamic Registration (LA-E2-06, Should) starts with `self`, but I-SELF always fails: the D2L token host is off the
-  // issuer origin. So every D2L registration is staged, and the operator grant binds it (LA-ADR-02 D2a, D4, D5 item
-  // 10). Manual always needs an operator grant (D6).
+  // Dynamic Registration (LA-E2-06, Should) starts with `self`. The real D2L token host is off the issuer origin, so
+  // I-SELF fails and every real D2L registration is staged; the operator grant binds it (LA-ADR-02 D2a, D4, D5 item 10;
+  // A1 BD-A1-108). A configuration with every endpoint on the issuer origin completes active with `self`, as for
+  // lti-generic. Manual always needs an operator grant (D6).
   registration: [
     { method: 'dynamic', authority: 'self', profiles: ['brightspace'], defaultProfile: 'brightspace' },
     { method: 'manual', authority: 'operatorGrant', profiles: ['brightspace'], defaultProfile: 'brightspace' },

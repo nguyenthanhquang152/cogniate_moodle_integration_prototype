@@ -16,6 +16,7 @@ import { ensureAccount } from '../../store/accounts.ts';
 import { listApiKeys } from '../../store/api-keys.ts';
 import { listAuditEvents } from '../../store/audit.ts';
 import { createPlatform, getPlatform } from '../../store/platforms.ts';
+import { createRegistrationSession } from '../../store/registrations.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
 import { buildApp } from '../app.ts';
@@ -778,6 +779,173 @@ describe('LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88
       const stale = await complete(s, id, { profile: 'zz-generic', bindingRef: 'owner' });
       expect([stale.statusCode, stale.json().details.message]).toEqual([409, 'BINDING_REF_MISMATCH']);
       expect(getPlatform(s.db, 'cogniate', existing.id)?.bindingRef).toBe('owner-2');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+});
+
+// ---------------------------------------------------------------- LA-E3-09: Dynamic Registration with the profile rule (LA-ADR-05 D6)
+
+const SITE = 'https://school.instructure.com';
+const SSO = 'https://sso.canvaslms.com';
+const SELF = 'https://canvas.school.edu';
+const configUrlAt = (origin: string) => `${origin}/api/lti/security/openid-configuration`;
+const AGS = REGISTRATION_SCOPES.filter((scope) => scope.includes('/lti-ags/'));
+const EXTENSIONS = {
+  'https://canvas.instructure.com/lti/privacy_level': 'anonymous', 'https://canvas.instructure.com/lti/tool_id': 'cogniate', 'https://canvas.instructure.com/lti/vendor': 'Cogniate',
+};
+/** A hosted configuration: the vendor issuer, auth and JWKS on the sso host, token and registration on the school's site. */
+const hostedConfig = (site = SITE, extra: Record<string, unknown> = {}) => ({
+  issuer: 'https://canvas.instructure.com', authorization_endpoint: `${SSO}/api/lti/authorize_redirect`, jwks_uri: `${SSO}/api/lti/security/jwks`,
+  token_endpoint: `${site}/login/oauth2/token`, registration_endpoint: `${site}/register-tool`, scopes_supported: [...REGISTRATION_SCOPES],
+  [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'canvas', version: 'cloud', messages_supported: [{ type: 'LtiDeepLinkingRequest', placements: ['link_selection'] }] }, ...extra,
+});
+/** A self-hosted configuration, by default with a separate service origin for the token endpoint. */
+const selfHostedConfig = (service = 'https://api.school.edu') => hostedConfig(SELF, {
+  issuer: SELF, authorization_endpoint: `${SELF}/api/lti/authorize_redirect`, jwks_uri: `${SELF}/api/lti/security/jwks`, token_endpoint: `${service}/login/oauth2/token`,
+});
+describe('LA-E3-09: Dynamic Registration with the profile rule (LA-ADR-05 D6, A2 BD-A2-89)', () => {
+  const startAt = (s: Awaited<ReturnType<typeof setup>>, url: string, token?: string) =>
+    s.app.inject({ method: 'GET', url: `/lti/register/cogniate?${new URLSearchParams({ openid_configuration: url, ...(token ? { registration_token: token } : {}) })}` });
+  const complete = (s: Awaited<ReturnType<typeof setup>>, id: string, payload: Record<string, unknown>) =>
+    s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload });
+  const count = (s: Awaited<ReturnType<typeof setup>>, table: string) => s.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n;
+
+  it.each([
+    ['canvas-cloud-production', configUrlAt(SITE), hostedConfig(), SITE, SITE],
+    ['canvas-self-hosted', configUrlAt(SELF), selfHostedConfig(), SELF, 'https://api.school.edu'],
+    // Every endpoint on the site: I-SELF holds, and the profile rule still stages the platform.
+    ['canvas-self-hosted', configUrlAt(SELF), selfHostedConfig(SELF), SELF, SELF],
+  ])('AP-05-29 (UNIT part), %s: an opaque-token registration stages one inactive platform with the binding ref and the derived origins', async (profile, url, config, site, service) => {
+    const s = await setup();
+    try {
+      s.state.configs[url] = config;
+      s.state.grantedScope = AGS.join(' ');
+      const r = await startAt(s, url, 'opaque-canvas-1');
+      expect(r.statusCode, r.body).toBe(303);
+      const id = idOf(String(r.headers.location));
+      expect((await s.app.inject({ method: 'GET', url: `/api/registrations/${id}`, headers: s.bearer() })).json()).toMatchObject({ url: config.issuer, familyCode: 'canvas', operation: 'new' });
+      // Always staged: the binding ref is required before anything is sent.
+      const noRef = await complete(s, id, { profile, scopes: AGS });
+      expect([noRef.statusCode, noRef.json().details.message, noRef.json().details.field]).toEqual([400, 'INVALID_REQUEST', 'bindingRef']);
+      expect(s.state.registrations).toEqual([]);
+      const c = await complete(s, id, { profile, bindingRef: 'conn-c1', scopes: AGS, autoActivate: true });
+      expect(c.statusCode, c.body).toBe(200);
+      expect(c.json()).toMatchObject({ active: false });
+      expect(getPlatform(s.db, 'cogniate', c.json().platformId)).toMatchObject({
+        profile, issuer: config.issuer, active: false, bindingRef: 'conn-c1', siteUrl: site, serviceUrl: service, clientId: 'client-dyn-1',
+        authEndpoint: config.authorization_endpoint, jwksUrl: config.jwks_uri, tokenEndpoint: `${service}/login/oauth2/token`, clientAssertionAud: null, grantedScopes: AGS,
+      });
+      expect(count(s, 'platform')).toBe(1);
+      // AP-05-29 request: the opaque token sent back, the asked scopes, and the extension members of the profile.
+      const sent = s.state.registrations[0]!;
+      expect(sent.auth).toBe('Bearer opaque-canvas-1');
+      expect(sent.body.scope).toBe(AGS.join(' '));
+      expect(sent.body[TOOL_CONFIG_CLAIM]).toMatchObject({ ...EXTENSIONS, claims: ['iss', 'sub'] });
+      expect(sent.body.client_name).toBe(`canvas ${new URL(site).host}`);
+      expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_completed', operation: 'new', staged: true }));
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('AP-05-30 (UNIT part): another issuer, or one endpoint off the filled profile value, gives the refusal page; no session, platform or request', async () => {
+    const s = await setup();
+    try {
+      const url = configUrlAt(SITE);
+      for (const [config, code] of [
+        [hostedConfig(SITE, { issuer: 'https://lms.example.edu' }), 'ISSUER_MISMATCH'],
+        [hostedConfig(SITE, { jwks_uri: `${SSO}/api/lti/jwks` }), 'PLATFORM_URL_NOT_IN_PROFILE'],
+        [hostedConfig(SITE, { token_endpoint: `${SITE}/login/oauth2/token2` }), 'PLATFORM_URL_NOT_IN_PROFILE'],
+      ] as const) {
+        s.state.configs[url] = config;
+        const r = await startAt(s, url, 'opaque-canvas-2');
+        expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]]).toEqual([400, code]);
+      }
+      expect([count(s, 'registration_session'), count(s, 'platform'), s.state.registrations.length]).toEqual([0, 0, 0]);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('AP-05-30 at complete: a session that another rule took is refused for the profile rule, and a profile session for another profile', async () => {
+    const s = await setup();
+    try {
+      // A standard configuration with a registration JWT, completed with a profile-rule profile.
+      const standard = idOf(String((await s.start(await s.regToken({ scope: 'reg' }))).headers.location));
+      const r = await complete(s, standard, { profile: 'canvas-cloud-production', bindingRef: 'conn-c2' });
+      expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'issuer_not_profile_issuer']);
+      // A hosted configuration completed with the admin-value profiles.
+      s.state.configs[configUrlAt(SITE)] = hostedConfig();
+      const hosted = idOf(String((await startAt(s, configUrlAt(SITE), 'opaque-canvas-3')).headers.location));
+      for (const profile of ['standard', 'lti-generic']) {
+        const wrong = await complete(s, hosted, { profile, bindingRef: 'conn-c2' });
+        expect([wrong.statusCode, wrong.json().details.message], profile).toEqual([400, 'INVALID_REQUEST']);
+      }
+      expect([count(s, 'platform'), s.state.registrations.length]).toEqual([0, 0]);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('BD-A2-89 behind the BD-A2-93 floor: the start page refuses the fixed sso host; a stored session with it is refused at complete', async () => {
+    const s = await setup();
+    try {
+      const url = configUrlAt(SSO);
+      const config = hostedConfig(SITE, { registration_endpoint: `${SSO}/register-tool` });
+      s.state.configs[url] = config;
+      const r = await startAt(s, url, 'opaque-canvas-4');
+      expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]]).toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE']);
+      expect(s.state.fetched).toEqual([]);
+      // A session with that configuration (for example one stored before the floor) still gets nothing stored or sent.
+      const session = createRegistrationSession(s.db, MASTER_KEY, {
+        toolAccountId: 'cogniate', openidConfigurationUrl: url, registrationToken: 'opaque-canvas-4', platformConfiguration: config, operation: 'new',
+        existingPlatformId: null, privacyLevel: 'anonymous', passthrough: {}, expiresAt: s.clock.now + 3600_000, tokenKind: 'opaque-bearer',
+      }, s.clock.now);
+      const c = await complete(s, session.id, { profile: 'canvas-cloud-production', bindingRef: 'conn-c4' });
+      expect([c.statusCode, c.json().details.message, c.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'configuration_on_fixed_host']);
+      expect(c.json().details.description).toContain('The site cannot be proven from this platform configuration');
+      expect([count(s, 'platform'), s.state.registrations.length]).toEqual([0, 0]);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(session.id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('AC-LA-E3-09-05 (BD-A2-93): with the product registry, an own host, a failing host name or a reserved host is refused before any fetch', async () => {
+    // The real mixed registry: the admin-value DR profiles (standard, lti-generic) stay loaded next to the profile rules.
+    const s = await setup();
+    try {
+      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({ registrationSessionsPerAddress: 20, classes: { registration: { ratePerMinute: 100, burst: 100 } } });
+      // A reserved issuer host keeps the M1 ISSUER_RESERVED page (contract §9.2); the other hosts get PLATFORM_URL_NOT_IN_PROFILE.
+      const refused = {
+        [configUrlAt('https://canvas.instructure.com')]: 'issuer_reserved', 'https://blackboard.com/config': 'issuer_reserved', [configUrlAt(SSO)]: 'reserved_host',
+        [configUrlAt('https://sso.test.canvaslms.com')]: 'reserved_host', 'https://developer.blackboard.com/config': 'reserved_host', [`${URLS.app}/config`]: 'site_rule_3',
+        [`${URLS.lti}/config`]: 'site_rule_3', 'https://localhost/config': 'site_rule_2', 'https://intranet/config': 'site_rule_2',
+      };
+      for (const [url, detail] of Object.entries(refused)) {
+        const r = await startAt(s, url, 'opaque-canvas-5');
+        expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]], url).toEqual([400, detail === 'issuer_reserved' ? 'ISSUER_RESERVED' : 'PLATFORM_URL_NOT_IN_PROFILE']);
+      }
+      expect(s.state.fetched).toEqual([]);
+      expect(count(s, 'registration_session')).toBe(0);
+      expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.detail)).toEqual(Object.values(refused).map((d) => `${d}=configuration_url`));
+      // Another https URL is fetched (the union start rule): a school site and a Moodle site.
+      s.state.configs[configUrlAt(SITE)] = hostedConfig();
+      expect((await startAt(s, configUrlAt(SITE), 'opaque-canvas-6')).statusCode).toBe(303);
+      expect((await s.start(undefined)).statusCode).toBe(303);
+      // Lead call (option A): http and IP addresses still go to the guarded client, which refuses them (T3b baseline).
+      for (const url of ['http://school.instructure.com/config', 'https://169.254.169.254/config']) {
+        expect(/data-error-code="([A-Z_]+)"/.exec((await startAt(s, url)).body)?.[1], url).toBe('FETCH_FAILED');
+      }
+      expect(s.state.fetched).toEqual([configUrlAt(SITE), CONFIG_URL, 'http://school.instructure.com/config', 'https://169.254.169.254/config']);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('BD-A1-89: the duplicate client path writes the derived origins with the credential set and keeps the platform staged', async () => {
+    const s = await setup();
+    try {
+      s.state.configs[configUrlAt(SITE)] = hostedConfig();
+      const first = await complete(s, idOf(String((await startAt(s, configUrlAt(SITE), 'opaque-canvas-7')).headers.location)), { profile: 'canvas-cloud-production', bindingRef: 'conn-c7' });
+      expect(first.statusCode, first.body).toBe(200);
+      const other = 'https://school-b.instructure.com';
+      s.state.configs[configUrlAt(other)] = hostedConfig(other);
+      const again = await complete(s, idOf(String((await startAt(s, configUrlAt(other), 'opaque-canvas-8')).headers.location)), { profile: 'canvas-cloud-production', bindingRef: 'conn-c7' });
+      expect(again.statusCode, again.body).toBe(200);
+      expect(again.json().platformId).toBe(first.json().platformId);
+      expect(getPlatform(s.db, 'cogniate', first.json().platformId)).toMatchObject({ active: false, siteUrl: other, serviceUrl: other, tokenEndpoint: `${other}/login/oauth2/token` });
+      expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_completed', operation: 'update', staged: true }));
     } finally { await s.app.close(); s.db.close(); }
   });
 });
