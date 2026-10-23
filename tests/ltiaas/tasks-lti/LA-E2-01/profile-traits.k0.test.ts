@@ -125,9 +125,9 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       issuerRule: 'profile',
       registrationToken: 'opaque-bearer',
       toolConfigurationExtensions: {
-        'https://canvas.instructure.com/lti/privacy_level': 'public',
+        'https://canvas.instructure.com/lti/privacy_level': 'anonymous',
         'https://canvas.instructure.com/lti/tool_id': 'cogniate',
-        'https://canvas.instructure.com/lti/registration_config_url': '{configurationUrl}',
+        'https://canvas.instructure.com/lti/vendor': 'Cogniate',
       },
     };
     const canvasFixedIds = [
