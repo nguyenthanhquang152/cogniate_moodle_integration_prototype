@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-12 review: Reviewer-A
 
@@ -46,3 +46,24 @@ Reviewed K commits `3979743`, `4eaba01`, `eb7b717`, `b216f86`, the empty E1 mark
 - Five mutants are detected: hard-coded operator channel list, missing route scope, always-generic provider text, open error-text keys, and the earlier register replacement. After restoring the product files, the five affected public suites pass (**63/63**) and F1 returns to zero. The private clone's tracked and untracked state is clean; probe source is saved separately at `/tmp/la-reviewer-a-ctx-6fcaeeac30dc-probes`.
 
 This review ran the focused gates above, not the complete `npm run check` chain or live M1/M2/golden capture. The B2 wave-end regressions remain with QA; the LA-IC-20 list needs its normal LD-9 review. Only this review file was created in the integration worktree.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, lens "Is it right and is it safe?" Date: 2026-10-23. **Verdict: APPROVE. Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT; both Round 1 findings closed.**
+
+Reviewed `70b41f4` and `bd988df`, merged as `ac1c339`, against the task spec, BD-A1-63/-69/-73, LA-IC-20 and plan §6.1. Verification ran in private clone `/tmp/la-reviewer-a-ctx-5efe91a2df32`, pinned to `ac1c339ff81aceb59a894f3987a85dbe6954af39`.
+
+### Finding closure
+
+- **A-LA-E1-12-01 (MAJOR): CLOSED.** `channelErrorText` at `apps/portal/src/connect/provider-errors.tsx:43` selects only the five manifest error cases; `ChannelErrorNotice` at line 82 uses the channel in scope, else the generic text. `ManifestWizard`, `ManifestBinding`, Moodle `ManualSetup` and `CreateConnection` now consume it. All **three original Round 1 route probes pass unchanged**: the data-only channel's own text, its generic fallback, and Moodle's manual refusal. The new public route tests also cover Moodle's approval form.
+- The narrower notice is the correct scope choice. It replaces only the selected description and preserves status, other details and trace ID; errors outside the five cases pass through unchanged. Using `ProviderErrorNotice` on these forms would also change `INVALID_PLATFORM_VALUES`, `PROVIDER_NOT_READY` and other messages/actions beyond LA-IC-20. The new tests preserve those server texts and actions. The extraction leaves the existing provider helper's mappings and baseline texts unchanged; server error defaults are not edited.
+- **A-LA-E1-12-02 (NIT): CLOSED.** `packages/channel-kernel/fitness-scope.json:25` no longer advertises `sharedBuild.except`. F2 still passes a channel-only path list with `core = 0` and rejects that list plus `infra/.certs/host-manifest-probe.crt` with `core = 1`.
+
+### Verification
+
+- Portal and baseline channel UI suites: **136/136 tests in 10 files**, including the three original private probes. Portal and channel-portal type checks pass.
+- Negative controls: restoring the old consumer files causes **7 assertion failures** (all three original probes and four new public route cases). Broadening `ChannelErrorNotice` to use `providerErrorMessage` causes **4 failures** (three route cases and the server-text/action unit case). After restoration, all **53/53** tests in the affected three suites pass.
+- Fitness unit tests: **70/70**; K0: **121/121**. Full lint passes; F1 reports **0 files with hits, 0 hits**; F5 reports **6 rules, 0 hits**.
+- Ownership is respected: the K metadata change is the dispatched RQ-2 commit; portal and channel UI changes belong to P in B2. No frozen acceptance assertion, server API, authorization check or applied migration is changed. No new F1 exception is introduced. The task has K0 acceptance rows, with no UNIT row requiring an additional test.
+
+No new findings. All private mutations and copied probes were removed; the private clone is clean. No Docker, stack, stack-starting runner or commit was used, and no other reviewer's file was opened. Only this review file changed in the integration worktree. Full wave-end/live regression and LA-IC-20's LD-9 assertion-list review remain separate gates; they were not rerun here.
