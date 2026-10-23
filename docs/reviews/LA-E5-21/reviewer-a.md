@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -58,3 +58,27 @@ UNIT AC-02 through AC-06 have focused tests. Disabling only the new production g
 The diff stays in S1's config/helper files and adjacent tests, the explicitly dispatched `main.ts` change, and the one-line S2 export under RQ-2. It does not edit the app config, shared knob registry, `infra/**`, `tests/**` or frozen acceptance assertions. No LMS-specific core branch was added.
 
 Open findings: **2 MAJOR**, no BLOCKER. Fix the file-permission check and ring-only startup, then retest. K1-SIM AC-01/07 and full regression gates remain with QA. No Docker, stack or host stack runner was used. Only this review file was written for this item in the integration worktree; no product edit, commit or push was made.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra, xhigh. Date: 2026-10-23 (+07). Reviewed `68e2d44`, `1f6ddc7`, `fd9b512` and `eb1d415` against BD-A2-77 through BD-A2-80, LA-ADR-06 D6/D12, operability §2, the task spec and plan §6.1. Test snapshot: `a3e50efeab51a92ade5c260ba489842821d3eaa8`, private clone `/tmp/la-review-a-bdddf01d8b4c`. Blind review.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+- **A-LA-E5-21-01 is closed.** `readSecretFile` checks the opened descriptor with `fstat`, rejects non-regular files, applies the group/world-bit mask and reads that same descriptor. Production rejects unsafe modes; default/acceptance warn and continue for readable regular files. Both master-key and key-ring reads use it. Tests cover safe modes `0600`/`0400`, several unsafe modes, symlink targets, directories, unreadable files and missing files.
+- **A-LA-E5-21-02 is closed under BD-A2-77.** `loadConfig` no longer requires a separate master key. `main.ts` reads `readStartupKeys` before opening the database and passes its ring to `loadKeyProvider`. A valid ring containing `legacy` starts production by itself; its legacy bytes become the shared handle. A supplied master key must match that version. Missing rings retain the legacy fallback.
+
+The two changed S2 assertions follow the ruling exactly: a ring without `legacy` now gives `key_ring_invalid` before provider startup, and a differing standalone master key is refused instead of silently ignored. The missing non-legacy version test still checks `key_provider_not_ready` and failed readiness, so that coverage was retained. No unrelated acceptance expectation was removed.
+
+The seven refusal messages match operability §2. Their fields contain fixed text and setting names, with no secret value or path in the mode refusal. Hex-key reads validate 64 hex characters and compare after case normalization; other secrets retain exact string comparison. The six production checks retain D12 order.
+
+The Round 1 production probes were rerun through `loadConfig` plus the new `readStartupKeys` boundary. **All four passed**, including the formerly failing mode and ring-only cases. Two more independent probes passed:
+
+1. A process with an unsafe master-key file exits 1 with one fixed `secret_file_mode` JSON line, no stderr/stack trace, no key/path value and no database creation.
+2. Startup keeps using the loaded ring when its file is replaced after `readStartupKeys` returns but before provider binding. The reader is called once and the active provider version remains correct.
+
+The combined focused run passed **115 tests in 12 files**, and the combined independent run passed **11 probes**, as documented in [LA-E5-20 Reviewer-A](../LA-E5-20/reviewer-a.md). TypeScript checks passed for the shared package and both services. The existing production guard and readiness UNIT tests remain green.
+
+Regression controls in the private clone were detected: bypassing the mode check caused **5 test failures**; requiring a separate master key again caused the real ring-only startup test to fail. Both mutations were restored and compared with the snapshot. Logs: `/tmp/la-review-a-bdddf01d8b4c-mode-control.log` and `/tmp/la-review-a-bdddf01d8b4c-ring-control.log`. Baseline and probe logs use the same prefix with `-baseline.log` and `-probes.log`.
+
+No new finding. The S2 export and key-config/test changes are the explicit RQ-2 scope of this dispatch. App config, the knob registry, infrastructure, QA `tests/**` and frozen assertions are untouched; no LMS-specific core branch was added. Only this review file was edited for this item in the integration worktree. No Docker, stack, host stack runner, commit or push was used. No Reviewer-A fix remains; QA and the Lead own final regression closeout.
