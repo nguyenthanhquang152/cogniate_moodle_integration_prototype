@@ -49,6 +49,11 @@ const manifest = {
       { key: 'jwksUrl', label: 'Public keyset URL', kind: 'url', required: true, method: 'manual' },
       { key: 'tokenAudience', label: 'Token audience', kind: 'url', required: false, method: 'manual' },
       { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'manual' },
+      // A staged Dynamic Registration (LA-ADR-02 D5 item 10): the admin values come from the staged platform, and the
+      // portal pre-fills both ids from it (app API delta §3.4).
+      { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'dynamic' },
     ],
   },
   texts: {

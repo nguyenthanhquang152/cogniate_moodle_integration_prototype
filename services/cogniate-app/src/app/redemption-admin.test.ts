@@ -176,6 +176,20 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect([r.json.status, getConnectionAnyLibrary(t.db, c.id)!.ltiPlatformId, t.lti.platforms.get(platformId)!.active, creates()]).toEqual(['registered', platformId, true, []]);
   });
+
+  it('the lti-generic dynamic form fields, pre-filled from the staged platform as the wizard does, redeem the staged registration', async () => {
+    const { c, platform, call, issue, put } = await staged();
+    const dynamicFields = TEST_CHANNELS.channel('lti-generic')!.setup.bindingFields.filter((f) => f.method === 'dynamic');
+    expect(dynamicFields.map((f) => [f.key, f.required])).toEqual([['clientId', true], ['deploymentId', true], ['grantCode', true]]);
+    const dto = (await call('GET', `/app-api/connections/${c.id}`)).json as { platform: { clientId: string; deploymentIds: string[] } };
+    // The DTO of a pending staged registration lists the staged deployments (no approval yet), so the wizard pre-fills them.
+    expect(dto.platform.deploymentIds).toEqual(['dep-1']);
+    const code = await issue(c, { acceptStaged: true, confirmForeignHosts: true });
+    const prefill: Record<string, string> = { clientId: dto.platform.clientId, deploymentId: dto.platform.deploymentIds[0]!, grantCode: code };
+    const r = await put(c, Object.fromEntries(dynamicFields.map((f) => [f.key, prefill[f.key] ?? ''])));
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(t.lti.platforms.get(platform.id)!.active).toBe(true);
+  });
 });
 
 describe('AC-LA-E2-04-07: suspend and release pick the record kind from the stored target_kind', () => {
