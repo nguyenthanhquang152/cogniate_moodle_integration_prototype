@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 import type { PublicUrls } from '@cogniate/shared';
-import { ConfigRefusedError, knobValue, loadPublicUrls, parseAllowlist, portFromEnv, readSecretSetting, readServiceKnobs } from '@cogniate/shared';
+import { ConfigRefusedError, knobValue, loadPublicUrls, parseAllowlist, portFromEnv, readServiceKnobs } from '@cogniate/shared';
 import { simulationEnabled } from './profiles/index.ts';
 
 type Env = Record<string, string | undefined>;
@@ -14,8 +14,6 @@ export interface LtiConfig {
   operatorPort: number;
   /** Folder of lti.db (compose: /data = infra/.data/lti-service). */
   dataDir: string;
-  /** AES-256-GCM key for private key material (LTI_MASTER_KEY or the file LTI_MASTER_KEY_FILE, 64 hex characters). */
-  masterKey: Buffer;
   ltikTtlSeconds: number;
   /** STACK_PROFILE: "default", "acceptance" (T2b) or "production" (LA-ADR-06 D12). */
   profile: string;
@@ -62,15 +60,13 @@ export function loadConfig(env: Env = process.env): LtiConfig {
   const operatorHost = env.OPERATOR_HOST?.trim() || '127.0.0.1';
   const refusal = profile === 'production' ? productionRefusal(env, operatorHost) : null;
   if (refusal) throw new ConfigRefusedError(refusal, PRODUCTION_REFUSALS[refusal]);
-  const masterHex = readSecretSetting(env, 'LTI_MASTER_KEY', { hexKey: true }) ?? '';
-  if (!/^[0-9a-f]{64}$/i.test(masterHex)) throw new Error('LTI_MASTER_KEY must be 64 hex characters (npm run gen-env), or the file LTI_MASTER_KEY_FILE must hold them');
+  // The key settings (LTI_KEYRING_FILE, LTI_MASTER_KEY, LTI_MASTER_KEY_FILE) are read by readStartupKeys (BD-A2-77).
   return {
     urls: loadPublicUrls(env),
     port: portFromEnv('PORT', 4100),
     operatorHost,
     operatorPort: portFromEnv('OPERATOR_PORT', 4110),
     dataDir: env.DATA_DIR ?? '/data',
-    masterKey: Buffer.from(masterHex, 'hex'),
     ltikTtlSeconds: knobValue('LTIK_TTL_SECONDS', env),
     profile,
     outboundAllowlist: parseAllowlist(env.OUTBOUND_PRIVATE_HOST_ALLOWLIST),

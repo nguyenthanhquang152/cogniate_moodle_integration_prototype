@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { ConfigRefusedError } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { hostPort, isLoopbackHost, loadConfig } from './config.ts';
+import { readStartupKeys } from './keys/key-config.ts';
 
 const ENV = {
   LTI_MASTER_KEY: '0'.repeat(64),
@@ -39,8 +40,9 @@ describe('production profile refusals (LA-E5-21, LA-ADR-06 D12)', () => {
   };
 
   it('AC-LA-E5-21-04: the key from LTI_MASTER_KEY_FILE starts; the same key in LTI_MASTER_KEY is refused', () => {
-    const env = production();
-    expect(loadConfig(env)).toMatchObject({ profile: 'production', masterKey: Buffer.from('ab'.repeat(32), 'hex'), operatorHost: '127.0.0.1' });
+    const env = { ...production(), LTI_KEYRING_FILE: join(dirs[0]!, 'no-keyring.json') };
+    expect(loadConfig(env)).toMatchObject({ profile: 'production', operatorHost: '127.0.0.1' });
+    expect(readStartupKeys(env).handle).toEqual(Buffer.from('ab'.repeat(32), 'hex'));
     expect(reason({ ...env, LTI_MASTER_KEY: 'ab'.repeat(32) })).toBe('master_key_in_env');
   });
 

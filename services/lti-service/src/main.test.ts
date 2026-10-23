@@ -1,7 +1,7 @@
 // The service entry point binds the key ring to the master-key Buffer of every store caller before the first store
 // call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01). Both listeners use port 0 here.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,11 +41,39 @@ describe('startLtiService (main.ts)', () => {
     symlinkSync(new URL('./main.ts', import.meta.url), entry);
     const result = spawnSync(process.execPath, [entry], {
       cwd: dir, encoding: 'utf8', timeout: 10_000,
-      env: { ...process.env, LTI_MASTER_KEY: '' },
+      env: { ...process.env, LTI_MASTER_KEY: '', LTI_KEYRING_FILE: join(dir, 'no-keyring.json'), DATA_DIR: dir,
+        PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test' },
     });
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain('LTI_MASTER_KEY must be 64 hex characters');
+    expect(result.stderr).toContain('No key-ring file, and LTI_MASTER_KEY (or LTI_MASTER_KEY_FILE) is not 64 hex characters.');
+  });
+
+  it('BD-A2-77: production starts with only a 0600 key-ring file (no master key); a 0644 ring is refused with one line', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-ring-'));
+    temps.push(dir);
+    const ringFile = join(dir, 'keyring.json');
+    writeFileSync(ringFile, JSON.stringify({ active: 'k2', keys: { legacy: LEGACY, k2: K2 } }), { mode: 0o600 });
+    const env = {
+      DATA_DIR: dir, LTI_KEYRING_FILE: ringFile, STACK_PROFILE: 'production', TRUSTED_PROXY_CIDRS: '10.0.0.0/8', PORT: '0', OPERATOR_PORT: '0',
+      OPERATOR_HOST: '127.0.0.1', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+      PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', LTI_MASTER_KEY: '', LTI_MASTER_KEY_FILE: '',
+    };
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    const { logger, lines } = capturingLogger();
+    service = await startLtiService({ logger });
+    expect(lines.map((l) => l.event)).toContain('service_started');
+    expect(service.masterKey).toEqual(Buffer.from(LEGACY, 'hex'));
+    expect(keyProviderFor(service.masterKey).versions()[0]).toEqual({ id: 'k2', state: 'active' });
+    await service.close();
+    service = null;
+
+    chmodSync(ringFile, 0o644);
+    const refused = capturingLogger();
+    await expect(startLtiService({ logger: refused.logger })).rejects.toBeInstanceOf(ConfigRefusedError);
+    expect(refused.lines).toEqual([expect.objectContaining({ event: 'config_refused', reason: 'secret_file_mode', setting: 'LTI_KEYRING_FILE',
+      message: 'A secret file has group or world access. Set the mode of the file named by the setting to 0600, then start the service again.' })]);
+    expect(JSON.stringify(refused.lines)).not.toContain(ringFile);
   });
 
   it('LA-E5-21: a production refusal logs one config_refused line and opens no database; the entry point exits 1 with no stack trace', async () => {
@@ -87,10 +115,10 @@ describe('startLtiService (main.ts)', () => {
     service = await startLtiService({ logger });
     expect(lines.map((l) => l.event)).toContain('service_started');
 
-    // The routes and the token client get service.config.masterKey: it gives the loaded ring.
-    expect(keyProviderFor(service.config.masterKey).versions()[0]).toEqual({ id: 'k2', state: 'active' });
+    // The routes and the token client get service.masterKey: it gives the loaded ring.
+    expect(keyProviderFor(service.masterKey).versions()[0]).toEqual({ id: 'k2', state: 'active' });
     ensureAccount(service.db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.cogniate.test' });
-    const kid = await ensureToolKey(service.db, service.config.masterKey, 'cogniate');
+    const kid = await ensureToolKey(service.db, service.masterKey, 'cogniate');
     const row = service.db.prepare('SELECT private_jwk_encrypted AS blob FROM tool_key WHERE kid = ?').get(kid) as { blob: Uint8Array };
     expect(blobKeyVersion(row.blob)).toBe('k2');
     expect(lines.map((l) => l.event)).not.toContain('key_provider_legacy_fallback');
@@ -98,7 +126,7 @@ describe('startLtiService (main.ts)', () => {
     // Fail closed: the same bytes in another Buffer are not bound, so they never seal as "legacy".
     let error: unknown;
     try {
-      keyProviderFor(Buffer.from(service.config.masterKey));
+      keyProviderFor(Buffer.from(service.masterKey));
     } catch (err) {
       error = err;
     }
@@ -175,13 +203,13 @@ it('BD-A2-52, BD-A2-54: wires the platform observers and the JWKS cache age to t
   jobServiceConfig();
   service = await startLtiService({ logger: capturingLogger().logger });
   const { apiKey } = ensureAccount(service.db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.cogniate.test' });
-  await ensureToolKey(service.db, service.config.masterKey, 'cogniate');
+  await ensureToolKey(service.db, service.masterKey, 'cogniate');
   // A loopback token endpoint: the outbound guard refuses the token request with no network call.
   const platform = createPlatform(service.db, 'cogniate', {
     issuer: 'https://127.0.0.1', clientId: 'unit', name: 'Unit', authEndpoint: 'https://127.0.0.1/auth',
     tokenEndpoint: 'https://127.0.0.1/token', jwksUrl: 'https://127.0.0.1/keys', deploymentIds: ['1'], active: true,
   });
-  const { serviceKey } = issueServiceKey(service.db, service.config.masterKey, {
+  const { serviceKey } = issueServiceKey(service.db, service.masterKey, {
     toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: '3',
     agsClaim: { lineitems: 'https://127.0.0.1/lineitems', scope: Object.values(AGS_SCOPES) }, nrpsClaim: null,
   }, Date.now());
