@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 6
+Verdict: APPROVE
+Round: 7
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -344,3 +344,44 @@ M2 continues through the manual path because `CanvasCreate` defaults to manual, 
 **A-LA-LD9-15 (NIT): several IC-14 evidence references do not describe the pinned tree.** Where: `LA-IC-14.json:42-43,64-66`. The named E3-15 `canvas-dr-app.k0.test.ts` and E3-09 `canvas-dr.{k0,k1sim}.test.ts` files are absent at `b40c789`; mark them planned or cite their actual revision. `03-snapshot-controls.test.ts` ends at line 24, not 35; the common Blackboard checks start at line 131, beyond the cited `82-129`. Describe M2's manual default at the reviewed code, rather than relying on the older API-only Canvas wizard state. Correct these references; the 13 golden paths and three frozen-case changes remain valid.
 
 Only this review file was edited in the integration worktree. No commit was made.
+
+## Round 7
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Reviewed `7db4f2c5`, the named product source `d26d7018`, and the intervening product diff against plan §6.1 LD-9, LA-ADR-04 D8 and TEST-STRATEGY §4.7. Tests use a fresh private clone pinned to **`7db4f2c5`**; the intervening product changes do not alter the reviewed channel/profile projections. Blind review; no Reviewer-B file read.
+
+**APPROVE for IC-01, IC-03, IC-04, IC-12, IC-14 and IC-21. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** A-LA-LD9-11 and -12 are closed. A-LA-LD9-10, -13 and -14 are closed. A-LA-LD9-15 is partly closed, with one citation correction left below. Earlier findings outside this dispatch retain their status.
+
+### Verification
+
+Private clone `/tmp/la-review-a-ea939d2c10ff`, own `npm ci`, Vitest cache cleared before each run:
+
+- **113/113 Author tests** pass in the seven IC-01 metadata-listed files; a separate **1/1 private product-response test** passes.
+- **103/103 contract K0 tests** and **12/12 golden K0 tests** pass. The golden test covers IC-01 alone, all 13 records together with **280 explained differences**, and ten negative controls. Substituting round 6's IC-01 makes the new test fail; the reviewed file was then restored byte-for-byte.
+- **525 IC-01 comparison probes** pass: the correct candidate, rejection of the original round 6 bad candidate, rejection of a wrong value and a missing value at each of the 259 paths, and rejection of the five separate round 6 variants. **38 narrow-record probes** pass for IC-03/04/12/14.
+- The private product test reads the real LTI `/api/providers` route in default and acceptance modes, passes those rows to the real app `/app-api/lms-providers` route, and projects the captured connection shapes with the current connection DTO code and registry. All **259 exact IC-01 values** match. Comparing that candidate with IC-01 plus IC-14 passes with **272 differences**. Existing captured shared-platform state is held constant; this is host verification of the projections, not a replay of operator seeding or a new live golden capture.
+
+No Docker, stack, browser or host stack runner was used.
+
+### Resolved findings and approved scope
+
+**A-LA-LD9-11 closed:** all 259 paths are unique, use exact indices/keys and exact JSON values, and match `ld9.goldenFields`. No wildcard or type-only rule remains. Wrong channel identity/name, empty capabilities, empty registration and a missing field now fail. The actual record is included in the combined test. G-BASE, normalization rules and the comparator are unchanged.
+
+**A-LA-LD9-12 closed:** all three exact Brightspace provider rows now match the current response: dynamic and manual methods, dynamic capability enabled, and self/operatorGrant authorities. The same product-response check confirms four AGS scopes, Canvas dynamic registration, and `setup.connectionCheck: true` for Canvas and lti-generic. IC-14 retains its separate 13 legacy-field changes. IC-01's new metadata and both summary tables identify the additive paths and the separate LD-1 rewrite; no extra frozen assertion change is authorized.
+
+**A-LA-LD9-10 closed:** IC-21 now describes the actual E2-02 refusal/start/view cases and direct inactive-platform test, without claiming staged completion. IC-03's previously corrected portions remain valid. The E5-06 query-free helper is now present at the reviewed pin, as the updated IC-03 record states; its K1-SIM execution remains a separate QA gate.
+
+**A-LA-LD9-13 closed:** IC-04 and both tables now cite the common Moodle configuration case at `115-130`, including its row-13 value at `126`. The three exact golden changes and four frozen cases in three files remain approved.
+
+**A-LA-LD9-14 closed:** IC-12 and both tables describe the landed app picker change, name the app tests, and list the two exact G4 text changes. K0 no longer accepts the obsolete empty/pending record. Zero frozen edits remains correct.
+
+### Non-blocking documentation findings
+
+**A-LA-LD9-15 (NIT), partly closed:** the snapshot-control/common-profile ranges are corrected, the E3-09 suites now exist at the cited integration revision, and the absent E3-15 suite is identified as QA-3 branch work. The remaining issue is `tests/ltiaas/golden/expected/LA-IC-14.json:66`: `packages/channels/canvas/portal/canvas.tsx` does not exist at either `7db4f2c5` or the cited `4c9809ff`. The current code is `packages/channels/canvas/portal/CanvasCreate.tsx:13-17`, with `useState(methods.includes("manual") ? "manual" : methods[0] ?? "manual")`, not the quoted generic initializer. Cite that file and describe the conditional default. The conclusion that M2 selects manual remains correct.
+
+**A-LA-LD9-16 (NIT): IC-04 names a skip guard absent from its placeholder test.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-04.json:26`.
+- Evidence: `tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts:12-18` uses an ordinary `describe` and asserts `LA_DOCKER_WINDOW === '1'`; it does not use `describe.skipIf`. Calling it a placeholder is correct, but the asserted skip behavior is not present at this pin.
+- Suggested fix: describe the environment assertion accurately, or cite an explicit different revision if the skip guard exists only on a QA branch. No product or frozen-assertion change is needed for this NIT.
+
+Only this review file was edited in the integration worktree. No commit was made. Live wave-end capture and outstanding QA gates remain outside this host-only review.
