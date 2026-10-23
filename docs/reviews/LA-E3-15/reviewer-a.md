@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E3-15 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -54,3 +54,40 @@ Round: 1
 ### Verdict
 
 CHANGES_REQUESTED for lens A, because of A-LA-E3-15-01. The manifest change itself is correct and safe: load checks 5 and 6 pass, the manual path does not change outside LA-IC-14, the authority is `operatorGrant`, and the feature fails closed until LA-E3-09. But with this method, the app cannot stage the Canvas registration that D6 requires. The fix sits in K's LA-E2-04 files, so the Lead routes it.
+
+## Round 2
+
+- Reviewer: Claude Code Opus 5.5 xhigh (same session as round 1).
+- Diff:
+  - `07eab11` (merge `dc98c43`): the Canvas `dynamic` binding rows and the README row, BD-A1-103/104;
+  - `d32a7a8` (merge `a03e15b`): BD-A1-106;
+  - `75d81fa` (merge `dfe94ff`): BD-A1-107, G1 and G2.
+- References: A1 BD-A1-103 to BD-A1-107; app delta §3.4, §5, §7; LA-ADR-05 D6.
+- I ran these in the private clone at `dfe94ff`. I deleted the Vitest cache before each run. No Docker, no stack.
+  - `npm run test:unit` (all workspaces): 191 files, 3102 tests pass, 5 skipped. Test 4f now runs.
+  - `npm run test:k0`: 148 tests pass.
+  - F1 and F5 PASS; `npm run typecheck`: exit 0; ESLint on `services/cogniate-app` and `packages/channels/canvas`: clean.
+  - My round 1 probe, extended to four cases (below). The probe file is kept at `/tmp/ra-e201/e315/ra-e315-r2.test.ts`.
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 2): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round 1 findings
+
+| Finding | Status | Evidence at `dfe94ff` |
+| --- | --- | --- |
+| A-LA-E3-15-01 (MAJOR): the app refuses the staged Canvas registration | **Closed** (BD-A1-106, BD-A1-107) | The `stageRegistration` guard is now `pending AND method = 'dynamic' AND platform_json IS NULL AND binding_authority IN ('self', 'operatorGrant')`, and the SET part does not change. Probe (a): a Canvas `dynamic` connection with a staged answer (registration issuer = the vendor issuer, staged site = the connection site) shows `200` "Waiting for approval", stays `pending`/`operatorGrant` with the staged platform record, and the ref is used up. An active answer for a connection that is not `self` (`register.ts:169`) is refused. Probe (c): `502 REGISTRATION_FAILED`, the platform is switched off (`active: false`), the connection stays `pending` with no platform, and its ref still works. |
+| A-LA-E3-15-02 (MINOR): no registration URL at create | **Closed** (BD-A1-106) | The `operatorGrant` create branch makes a ref for `method: 'dynamic'` (`app/connections.ts`). Probe: `201`, the ref is stored, `registrationUrl` is set, and the authority stays `operatorGrant`. |
+
+### Lens A checks of the fix
+
+| Check | Result |
+| --- | --- |
+| No launch authority without a grant, on any path | Holds. **Staged:** the platform is inactive in the LTI service, and the connection has `lti_platform_id` `NULL` with the platform only in `platform_json`. Probe (a): `routeLaunch` before the grant gives `{ok: false, reason: unknown_platform}`. **Active answer:** refused, and the platform is switched off. **Self routing:** `findLaunchConnection` needs `binding_authority = 'self'`, which a Canvas connection never has, because staging keeps `operatorGrant`. **Redemption:** the only path to authority. It writes `approved_deployment` and activates the platform with a conditional S3, after adoption rule A3 compares profile, client id, deployment, issuer, site URL and service URL with the grant target (the snapshot plus the grant's ids). |
+| Staged site proof (G1) | Holds, with A1's recorded trade-off. **Confirm step:** for a fixed-issuer connection (snapshot issuer set; today only Canvas `dynamic` reaches it, because only `dynamic` connections have a ref), it needs the registration issuer to equal the snapshot issuer exactly. Probe (d): an issuer equal to the site gives `400 SITE_MISMATCH` with no `complete` call. **After `complete`:** the staged platform's `siteUrl` must equal the connection site before staging (`register.ts:154`). Probe (b): another school's site gives `400 SITE_MISMATCH`, the connection is unchanged, its ref still works, and the staged platform stays inactive and unowned. A missing `siteUrl` (for example before LA-E3-09) also fails closed. Trade-off (BD-A1-107, security §2.5): the Canvas site is proven only after `complete`, so a link used on a wrong Canvas site makes an inactive tool there. Later hardening is recorded for after LA. |
+| Staged fixed redemption (G2) | Holds. `adminValueStaged = stagedRegistration && servedByKernel` is false for Canvas, so a Canvas grant has no bound values and the redemption target is the fixed snapshot target. S1 is skipped for every staged connection (`redemption.ts:208`, unchanged). In S2, a gone staged platform gives `PLATFORM_IN_USE`. `app:grant issue` reads the staged platform and refuses `staged_values_changed` (active, or another issuer, client id, profile or site), `client_id_mismatch` and `deployment_mismatch`. `--accept-staged` gives `bound_values_not_allowed`. Test 4f proves no S1 create, then S2 adopt, then S3 activate, and a registered connection with the approved deployment. A staged `siteUrl` or `serviceUrl` that differs is not adopted. |
+| `lti-generic`, `brightspace` and Moodle paths unchanged | Holds. They have no snapshot issuer, so they keep the old site check before `complete`. They are `self`, so an active answer is still `markRegistered` and staging still switches `self` to `operatorGrant` (the guard adds only `method = 'dynamic'` and `platform_json IS NULL`, which their path already meets). For them, `adminValueStaged` equals the old `stagedRegistration`, so bound values are still required. The `staged` flag in `operator.ts` now includes `purpose === 'initial'`; together with `adminValueGrant` the condition is unchanged for them. Their existing tests pass unchanged. |
+| Binding rows and README (`07eab11`) | No Canvas byte change. The three `dynamic` rows follow the unchanged `manual` rows; `GET /app-api/lms-providers` does not carry `bindingFields`; the Canvas portal does not read them (BD-A1-104). F1 PASS. |
+
+### Verdict (round 2)
+
+APPROVE for lens A. Both round 1 findings are closed. A Canvas `dynamic` connection now stages and keeps `operatorGrant`, and no path gives launch authority without a redeemed grant. The site is proven before staging, and the other DR channels behave as before. The end-to-end redemption is LA-E3-09 AC-03 (K1-SIM).
