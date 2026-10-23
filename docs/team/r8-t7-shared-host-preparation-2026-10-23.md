@@ -61,6 +61,12 @@ Codex froze the candidate in `msg_378d68de0ee8`. The Lead verified all 42 manife
 
 Author checks report PASS: 68 core controls, 13 full-baseline lane scenarios, 29 wiring/CLI controls and the unchanged 54-scenario lane regression. These are author checks only. Gemini and the separate Claude reviewer received the held candidate in `msg_2c34c6c4dbcb` and `msg_5b76938ede20`. They qualify it in parallel. Codex keeps sole ownership of any fixes. T7 and runtime approval remain pending.
 
+## Initial review findings — 2026-10-23, 14:00 UTC
+
+The independent Claude review found two required tool corrections. F-01 rejects the valid `IPAM.Config: null` value on built-in `host` and `none` networks. F-02 uses usage exit 2 for some stops after the attempt creates paths and calls Docker. Messages `msg_c6416aba7c4c` and `msg_29e536c22062` contain the reproductions and affected paths. Neither finding establishes an LTI product failure.
+
+The Lead checked the saved real-host network records and F-01's pure probe without calling Docker. Codex prepares both fixes and regressions in a separate private copy while the 42 frozen candidate bindings remain unchanged. This allows QA and review to finish against stable input. The complete findings batch and independent verdicts remain pending; no runtime grant exists.
+
 ## Required result
 
 1. Positive attribution uses sufficient captured metadata and the section 16 joint predicates. Names or anonymous-volume labels alone are insufficient. Unexplained activity fails closed.
