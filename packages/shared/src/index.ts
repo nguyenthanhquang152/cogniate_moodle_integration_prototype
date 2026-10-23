@@ -26,4 +26,4 @@ export { ADMIN_ROLES, canSelectContent, hasAdminRole, hasContextLearnerRole, has
 export { KeyProviderError, LEGACY_KEY_VERSION, associatedData, bindKeyProvider, blobKeyVersion, createLocalKeyProvider, keyProviderFor, legacyKeyRing, parseKeyRing } from './key-provider.ts';
 export type { KeyHandle, KeyProvider, KeyRing, KeyVersion, LocalKeyProvider, LocalKeyProviderOptions, MacPurpose, SealedBlob } from './key-provider.ts';
 export { afterCommit } from './migrations.ts';
-export { ConfigRefusedError, readSecretSetting } from './config.ts';
+export { ConfigRefusedError, SECRET_FILE_MODE_MESSAGE, readSecretFile, readSecretSetting } from './config.ts';
