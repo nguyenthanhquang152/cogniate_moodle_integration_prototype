@@ -15,12 +15,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { it } from 'vitest';
 import { SECRETS_DIR, TESTS_DIR } from '../../../acceptance/lib/paths';
-import { bound, expectStatus, httpsRequest, records, session, urls, type Json } from '../../../acceptance/M1/common/client';
+import { bound, expectStatus, httpsRequest, records, session, sim, urls, type Json } from '../../../acceptance/M1/common/client';
 import { gradeWorks, openPlay, pick, picker, publication, returnDeepLink } from '../../../acceptance/M1/common/course';
 
 const PHASE = process.env.QA_LA_PHASE;
-if (PHASE !== 'old' && PHASE !== 'new') {
-  throw new Error('QA_LA_PHASE must be "old" or "new" (set by tests/ltiaas/tasks-ops/LA-E5-22/run.mjs)');
+if (PHASE !== 'old' && PHASE !== 'new' && PHASE !== 'ring-before-rewrap' && PHASE !== 'ring-after-rewrap') {
+  throw new Error(
+    'QA_LA_PHASE must be "old", "new", "ring-before-rewrap", or "ring-after-rewrap" (set by tests/ltiaas/tasks-ops/LA-E5-22/run.mjs)',
+  );
 }
 
 const DIR = path.join(TESTS_DIR, '.tmp', 'qa2-LA-E5-22');
@@ -32,6 +34,9 @@ interface U1AppState {
   platformId: string;
   pub: { id: string; format: 'html' | 'scorm12'; courseId: string };
   openPickerUrl: string;
+  openPickerUrlRing: string;
+  pickerScenario: Json;
+  pickerScenarioRing: Json;
   link: { resourceLinkId: string; contextId: string; subject: string };
 }
 
@@ -79,8 +84,10 @@ it.runIf(PHASE === 'old')(
     const graded = await gradeWorks(b);
     assert.equal(graded.hits.length, 1, 'old build: learner launch and score dispatch succeeded');
 
-    // 3. Open a second picker session on the old build (stores legacy ltik_encrypted on picker_session) to pick after upgrade.
+    // 3. Open two more picker sessions on the old build (stores legacy ltik_encrypted on picker_session):
+    //    one for the APP_MASTER_KEY-only start and one for the key-ring start before app:keys rewrap.
     const chooser2 = await picker(b);
+    const chooser3 = await picker(b);
 
     saveState({
       connection: {
@@ -93,6 +100,9 @@ it.runIf(PHASE === 'old')(
       platformId: b.platformId,
       pub: { id: pub.id, format: pub.format, courseId: pub.courseId },
       openPickerUrl: chooser2.url,
+      openPickerUrlRing: chooser3.url,
+      pickerScenario: chooser2.result.scenario,
+      pickerScenarioRing: chooser3.result.scenario,
       link,
     });
   },
@@ -115,6 +125,7 @@ it.runIf(PHASE === 'new')(
     const b = await oldBinding(s);
 
     // 1. Pick using the pre-upgrade picker session (opens legacy picker_session.ltik_encrypted).
+    expectStatus(await sim('/scenarios', 'POST', s.pickerScenario), 201);
     const pickedOldSession = await pick(s.openPickerUrl, s.pub.id);
     expectStatus(pickedOldSession, 200);
     const dlCursor1 = (await records()).cursor;
@@ -142,5 +153,61 @@ it.runIf(PHASE === 'new')(
     assert.ok(play.token.services?.serviceKey, 'launch on upgraded stack succeeded');
     const graded = await gradeWorks(b);
     assert.equal(graded.hits.length, 1, 'score dispatch on upgraded stack succeeded');
+  },
+);
+
+it.runIf(PHASE === 'ring-before-rewrap')(
+  'AC-LA-E5-22-01 U1 (key ring before rewrap): an app with legacy blobs started with a key ring hides infra/.secrets/app-keys from e2e and still opens legacy blobs (pick, launch, score dispatch)',
+  async () => {
+    assert.equal(
+      fs.existsSync(path.join(SECRETS_DIR, 'app-keys', 'keyring.json')),
+      false,
+      'e2e container must not see infra/.secrets/app-keys/keyring.json even when present on host',
+    );
+
+    const s = loadState();
+    const b = await oldBinding(s);
+
+    // 1. Pick using the second pre-upgrade picker session while the key ring (active: k2) is loaded before rewrap.
+    expectStatus(await sim('/scenarios', 'POST', s.pickerScenarioRing), 201);
+    const pickedLegacyWithRing = await pick(s.openPickerUrlRing, s.pub.id);
+    expectStatus(pickedLegacyWithRing, 200);
+    const dlCursor = (await records()).cursor;
+    await returnDeepLink(pickedLegacyWithRing);
+    assert.equal(
+      (await records(dlCursor)).records.filter((r: Json) => r.kind === 'deep-link').length,
+      1,
+      'pick on pre-upgrade legacy picker session succeeded with key ring active before rewrap',
+    );
+
+    // 2. Launch and score dispatch with key ring active before rewrap.
+    const play = await openPlay(b, { id: s.pub.id, format: s.pub.format }, s.link);
+    assert.ok(play.token.services?.serviceKey, 'launch with key ring before rewrap succeeded');
+    const graded = await gradeWorks(b);
+    assert.equal(graded.hits.length, 1, 'score dispatch with key ring before rewrap succeeded');
+  },
+);
+
+it.runIf(PHASE === 'ring-after-rewrap')(
+  'AC-LA-E5-22-01 U1 (after app:keys rewrap): pick, launch and score dispatch succeed after app:keys rewrap moves sealed blobs to the active key ring version',
+  async () => {
+    const s = loadState();
+    const b = await oldBinding(s);
+
+    const chooser = await picker(b);
+    const picked = await pick(chooser.url, s.pub.id);
+    expectStatus(picked, 200);
+    const dlCursor = (await records()).cursor;
+    await returnDeepLink(picked);
+    assert.equal(
+      (await records(dlCursor)).records.filter((r: Json) => r.kind === 'deep-link').length,
+      1,
+      'pick after app:keys rewrap succeeded',
+    );
+
+    const play = await openPlay(b, { id: s.pub.id, format: s.pub.format }, s.link);
+    assert.ok(play.token.services?.serviceKey, 'launch after app:keys rewrap succeeded');
+    const graded = await gradeWorks(b);
+    assert.equal(graded.hits.length, 1, 'score dispatch after app:keys rewrap succeeded');
   },
 );
