@@ -77,6 +77,22 @@ The six NITs are accepted as nonblocking for this T7-only route: non-atomic root
 
 Codex reported 24 passing author checks for the prepared F-01/F-02 fixes in `msg_b3435514e5c2`. It now extends that separate copy for F-03 and M-1. The initial candidate remains frozen while independent QA finishes. All fixes stay in the same executor session. Independent QA and focused review of the corrected candidate remain required.
 
+## Full correction batch and r2 freeze — 2026-10-23, 14:35 UTC
+
+Gemini's recorded initial execution at 14:16:38 UTC failed one of 30 frozen cases and all four added Q1–Q4 regressions. Other frozen suites passed. Its output is `v1-initial-candidate-results.json`, 15,997 bytes, SHA-256 `6d327bbb73c5daef15e776b627451a44ceae2a536e2be587fc6caacbe60a1616`. Earlier unrecorded runs led to the 14:14:58 finding message; that message is not the persisted execution evidence. Gemini documented this chronology in `msg_7e4ce03f6cd0`.
+
+Q1 exposed an orphan-volume false pass in one comparison function; final reconciliation already rejected it. Q2 exposed missing positive attribution for unchanged foreign objects. The Lead requires every present foreign object to qualify in each start/end capture, independently in both OUTER and LANE pools. Q3 requires a `not_found` reason for vanished-mounter fallback. Q4 rejects a defined non-outer predecessor pool while retaining the accepted legacy predecessor format.
+
+F-04 supersedes the earlier non-atomic-root NIT deferral. Atomic root ownership and no-clobber evidence prevent a losing duplicate invocation from writing into another attempt. Codex completed F-01–F-04, Q1–Q4 and M-1 in the same session. Automatic grant-reuse scanning and the other stated NITs remain deferred. No functional or isolation check was waived.
+
+The Lead verified all 42 r2 entries by hash, size and mode. `notes/t7-shared-host-implementation/r2/MANIFEST-candidate-r2.sha256` is 8,577 bytes, SHA-256 `e4f6030009ff02c2f15cd9a79b7eca1e76ff7088b8b9a81fdae12a3706ecb05c`. Its implementation report is SHA-256 `952ba5e0ad7b1fb47c6c99836e2a467949d44b088db2bc9acde044d720bc8c70`; source bindings are SHA-256 `e2b02e047ce834cc0c22a4b4f1a09c115d1861207fefe2c977189201712503c7`.
+
+Author checks pass: 68 core controls, 17 lane controls, 30 wiring controls, 54 legacy scenarios with 39 checks, 32 focused controls and seven defect reproductions. Independent acceptance remains pending. The original 90 bindings, 42-entry v1 snapshot and 12-entry prepared correction snapshot are preserved.
+
+Gemini froze its correction addendum and runner before reading r2. The Lead verified both: addendum 12,465 bytes, SHA-256 `392a25b6c8b0267df649d30bdc5abb17b3189b21bfb02de7c903b874a8e1c6ac`; runner 37,574 bytes, SHA-256 `78082cd6bc15626952c41e232159a18bcecaf1c5f94fbb9241808e3a18e0bd5e`. The focused reviewer disclosed one probe against changing files and excluded it from evidence. Only reruns against held r2 bindings may support its final verdict.
+
+LA offered handoff opportunities near 14:45 and 15:30 UTC in `msg_8107294bbe35`. No hold is active. Qualification, a separate runtime decision, actual handoff and fresh preflight must precede any T7 launch.
+
 ## Required result
 
 1. Positive attribution uses sufficient captured metadata and the section 16 joint predicates. Names or anonymous-volume labels alone are insufficient. Unexplained activity fails closed.

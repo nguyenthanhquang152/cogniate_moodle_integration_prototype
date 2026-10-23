@@ -7,9 +7,9 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current host status — 2026-10-23, 14:03 UTC
+### Current host status — 2026-10-23, 14:35 UTC
 
-The shared-host tool candidate is frozen. Independent Gemini QA and Claude review are active. Claude found two required corrections: built-in network null metadata and consumed-attempt exit codes. The same Codex executor prepares fixes separately while the initial candidate stays unchanged. [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md) records the exact bindings and findings. No Docker runtime is granted.
+The corrected shared-host tool candidate r2 is frozen. The same Codex session completed F-01–F-04, Q1–Q4 and M-1. All author checks pass, and the Lead verified all 42 candidate bindings. Independent Gemini qualification and focused Claude review are active against these held files. [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md) records the evidence and initial failures. No Docker runtime or host reservation is granted.
 T7 remains NOT RUN/PENDING. M1, M2 and legacy remain accepted. Final conformance, guides, Docs QA and blind reviews remain after T7.
 
 ### Prior host status — 2026-10-23, 12:23 UTC
