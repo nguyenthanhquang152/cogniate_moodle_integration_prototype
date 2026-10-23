@@ -9,8 +9,11 @@ describe('reserved-issuer owner names (BD-A1-31)', () => {
   it('keeps the baseline action and registration page text byte for byte', async () => {
     expect(protocolAction('ISSUER_RESERVED')).toBe(action);
     const issuer = 'https://blackboard.com';
+    // The endpoints are on another host: with an any-https DR profile loaded, a reserved endpoint host is refused first
+    // (contract delta §4.6.1 rule 2 before rule 3).
+    const site = 'https://lms.school.test';
     const h = await harness({ outbound: () => ({ status: 200, body: {
-      issuer, authorization_endpoint: `${issuer}/auth`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks`, registration_endpoint: `${issuer}/register`,
+      issuer, authorization_endpoint: `${site}/auth`, token_endpoint: `${site}/token`, jwks_uri: `${site}/jwks`, registration_endpoint: `${site}/register`,
     } }) });
     try {
       // LA-IC-03: the standard rule needs the configuration at the issuer + /mod/lti/openid-configuration.php.

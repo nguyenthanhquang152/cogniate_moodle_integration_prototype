@@ -95,6 +95,7 @@ const CompleteBody = z.object({
 
 /** A configuration that breaks the exact rule of the chosen profile, as an API error; nothing is sent (D5). */
 function profileRuleError(problem: ConfigurationProblem, profileId: string): ApiError {
+  if (problem.code === 'ISSUER_RESERVED') return new ApiError('ISSUER_RESERVED');
   if (problem.code === 'PLATFORM_URL_NOT_IN_PROFILE') return new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `The platform configuration breaks the rules of profile ${profileId} (${problem.detail}).`);
   if (problem.detail.startsWith('not_on_issuer_origin=')) return new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `The platform configuration of profile ${profileId} has ${problem.detail.slice(21)} off the issuer origin.`);
   return new ApiError('INVALID_REQUEST', `Invalid field: profile. The platform configuration does not follow the Dynamic Registration rule of profile ${profileId} (${problem.detail}).`,
@@ -204,17 +205,11 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if (token && acceptsOpaqueToken && !isJws(token)) {
       tokenKind = 'opaque-bearer'; // D5 item 3: only sent back as the Bearer token; operation new
     } else if (token) {
+      // A-LA-E2-02-05, BD-A1-84: a JWT-shaped token is never an opaque token; it keeps its verification failure.
       const t = await readToken(ctx, token, config, account.id, req.traceId, now);
-      if (!('code' in t)) {
-        ({ operation, existingPlatformId, expiresAt } = t);
-        tokenKind = 'scope-jwt';
-      } else if (acceptsOpaqueToken && t.code === 'INVALID_OPENID_CONFIGURATION') {
-        // D5 item 3: not a registration JWT, but a DR profile takes an opaque token (only sent back; operation new).
-        // A JWKS that cannot be read stays a FETCH_FAILED page: a launch needs it too.
-        tokenKind = 'opaque-bearer';
-      } else {
-        return page(t.code, t.detail);
-      }
+      if ('code' in t) return page(t.code, t.detail);
+      ({ operation, existingPlatformId, expiresAt } = t);
+      tokenKind = 'scope-jwt';
     }
     // Pass-through parameters (for example ref): strings only, never the token or the configuration URL.
     const passthrough = Object.fromEntries(Object.entries(q.data)

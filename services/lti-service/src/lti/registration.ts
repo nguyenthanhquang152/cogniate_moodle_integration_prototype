@@ -47,7 +47,7 @@ export interface OpenIdConfiguration {
   raw: Record<string, unknown>;
 }
 
-export type ConfigurationProblem = { code: 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'PLATFORM_URL_NOT_IN_PROFILE'; detail: string };
+export type ConfigurationProblem = { code: 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'PLATFORM_URL_NOT_IN_PROFILE' | 'ISSUER_RESERVED'; detail: string };
 
 /** The issuer rule of a Dynamic Registration profile (LA-ADR-02 D2 trait `dynamicRegistration`). */
 export interface IssuerRule {
@@ -90,9 +90,10 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is
 
 /**
  * Security §2.4 with the profile rule (LA-ADR-02 D5 items 1 and 2). The issuer follows an issuer rule. With
- * `endpointOrigins: issuer` every endpoint URL is https on the issuer origin. With `any-https` the issuer passes
- * §4.6.1 rule 1 and each endpoint host passes rule 2 (PLATFORM_URL_NOT_IN_PROFILE). Returns the parsed configuration,
- * or the problem (code + safe detail). The default rule is today's Moodle rule.
+ * `endpointOrigins: issuer` every endpoint URL is https on the issuer origin. With `any-https` the rules of §4.6.1 run
+ * in its order: each endpoint host passes rule 2 (PLATFORM_URL_NOT_IN_PROFILE), the issuer origin is not reserved
+ * (rule 3, ISSUER_RESERVED), and the issuer passes rule 1. Returns the parsed configuration, or the problem (code +
+ * safe detail). The default rule is today's Moodle rule.
  */
 export function parseOpenIdConfiguration(configUrl: string, body: unknown, rule: ConfigurationRule = ORIGIN_RULE): OpenIdConfiguration | ConfigurationProblem {
   if (!isObj(body)) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_json_object' };
@@ -100,10 +101,6 @@ export function parseOpenIdConfiguration(configUrl: string, body: unknown, rule:
   const issuerProblem = issuerRuleProblem(configUrl, body.issuer, rule.issuerRules);
   if (issuerProblem) return { code: 'ISSUER_MISMATCH', detail: issuerProblem };
   const origin = new URL(body.issuer).origin;
-  if (rule.endpointOrigins === 'any-https' && rule.hosts) {
-    const site = issuerSiteProblem(body.issuer, rule.hosts);
-    if (site !== null) return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `site_rule_${site}=issuer` };
-  }
   const endpoints = {
     authorization_endpoint: body.authorization_endpoint, token_endpoint: body.token_endpoint, jwks_uri: body.jwks_uri, registration_endpoint: body.registration_endpoint,
   };
@@ -116,6 +113,11 @@ export function parseOpenIdConfiguration(configUrl: string, body: unknown, rule:
     if (!isHttpsUrl(value)) return { code: 'INVALID_OPENID_CONFIGURATION', detail: `not_https=${name}` };
     const host = rule.hosts ? endpointHostProblem(value, rule.hosts) : null;
     if (host !== null) return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `${host === 'reserved host' ? 'reserved_host' : `site_rule_${host}`}=${name}` };
+  }
+  if (rule.endpointOrigins === 'any-https' && rule.hosts) {
+    if (rule.hosts.reservedIssuerOrigins.includes(origin)) return { code: 'ISSUER_RESERVED', detail: 'issuer_reserved' };
+    const site = issuerSiteProblem(body.issuer, rule.hosts);
+    if (site !== null) return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `site_rule_${site}=issuer` };
   }
   const platform = isObj(body[PLATFORM_CONFIG_CLAIM]) ? (body[PLATFORM_CONFIG_CLAIM] as Obj) : {};
   return {
