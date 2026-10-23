@@ -68,6 +68,10 @@ export const profileSourceSchema = z.strictObject({
   if (profile.endpointOrigins !== undefined && (profile.endpointOrigins === null) !== (profile.endpoints === 'fixed')) {
     ctx.addIssue({ code: 'custom', path: ['endpointOrigins'], message: profile.endpoints === 'fixed' ? 'Expected null for endpoints "fixed".' : 'Expected "issuer" or "any-https" for endpoints "admin".' });
   }
+  // Legacy flag (provisional Lead call 2a): flags.clientAssertionAudArray stays until QA removes it with this rule.
+  if (profile.clientAssertionAud !== undefined && (profile.clientAssertionAud.form === 'array') !== profile.flags.clientAssertionAudArray) {
+    ctx.addIssue({ code: 'custom', path: ['clientAssertionAud', 'form'], message: `Expected "${profile.flags.clientAssertionAudArray ? 'array' : 'string'}" to agree with flags.clientAssertionAudArray.` });
+  }
   if (profile.dynamicRegistration?.configurationPath !== undefined && profile.dynamicRegistration.issuerRule !== 'path-prefix') {
     ctx.addIssue({ code: 'custom', path: ['dynamicRegistration', 'configurationPath'], message: 'Expected a configurationPath only with issuerRule "path-prefix".' });
   }

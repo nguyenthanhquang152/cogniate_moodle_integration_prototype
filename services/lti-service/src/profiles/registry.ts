@@ -25,7 +25,8 @@ export function buildProfileRegistry(loaded: readonly LoadedChannel[]): ProfileR
     const traits = {
       issuerKind: source.issuerKind ?? issuerKindOf(source.issuer),
       endpointOrigins: source.endpointOrigins !== undefined ? source.endpointOrigins : source.endpoints === 'admin' ? 'issuer' as const : null,
-      clientAssertionAud: Object.freeze(source.clientAssertionAud ?? { value: '{tokenEndpoint}' as const, form: 'string' as const }),
+      // The default form comes from the legacy flag (provisional Lead call 2a).
+      clientAssertionAud: Object.freeze(source.clientAssertionAud ?? { value: '{tokenEndpoint}' as const, form: source.flags.clientAssertionAudArray ? 'array' as const : 'string' as const }),
       assertionDeploymentId: source.assertionDeploymentId ?? false,
       dynamicRegistration: source.dynamicRegistration ? Object.freeze(source.dynamicRegistration) : null,
     };
