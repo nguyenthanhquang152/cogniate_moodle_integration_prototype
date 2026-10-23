@@ -55,6 +55,12 @@ Lead reply `msg_2e865a3fab69` resolves operational question CL-1. The separate e
 
 The initial held candidate remains pending. Codex reported 67 passing author mock checks at 13:38 UTC. Independent QA and focused review must assess the frozen files before any runtime decision. No Docker call or host window is authorized by this checkpoint.
 
+## Initial candidate frozen — 2026-10-23, 13:49 UTC
+
+Codex froze the candidate in `msg_378d68de0ee8`. The Lead verified all 42 manifest entries by size, hash and mode. `notes/MANIFEST-t7-shared-host-v1.sha256` is 8,624 bytes, mode 0600, SHA-256 `c9062c36c8a688f9b480961bc3300910037e7dcfe5dbb5ed93050c384f7ffac6`. The implementation report is 10,064 bytes, mode 0600, SHA-256 `3f5fd59822487ed67e5b1ba6bb3158326d835d504be24384b5dfcc19ed654c3d`.
+
+Author checks report PASS: 68 core controls, 13 full-baseline lane scenarios, 29 wiring/CLI controls and the unchanged 54-scenario lane regression. These are author checks only. Gemini and the separate Claude reviewer received the held candidate in `msg_2c34c6c4dbcb` and `msg_5b76938ede20`. They qualify it in parallel. Codex keeps sole ownership of any fixes. T7 and runtime approval remain pending.
+
 ## Required result
 
 1. Positive attribution uses sufficient captured metadata and the section 16 joint predicates. Names or anonymous-volume labels alone are insufficient. Unexplained activity fails closed.
