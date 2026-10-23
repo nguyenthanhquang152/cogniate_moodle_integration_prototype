@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 ## Round 1
 
@@ -135,3 +135,27 @@ The new JWKS join reads `lastSuccessAt` at scrape time for stored active platfor
 The shared helper and one-line S2 export are covered by the dispatch's RQ-2 scope. The named diffs do not edit `tests/**`, frozen acceptance assertions or protected protocol routes, and add no LMS-specific core logic. UNIT AC-04/05 remain covered by dependency-failure and production-health tests. The scrape-time join is now present and reviewed.
 
 Open findings: **1 MAJOR (A-LA-E5-17-03)**; no open BLOCKER. Fix or resolve the transaction contract with A2, then retest the failing probes. K1-SIM and full regression gates remain with QA. No Docker, stack or host stack runner was used; only this review file was changed for this item in the integration worktree, with no commit or push.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra, xhigh. Date: 2026-10-23 (+07). Reviewed `ccaed3a` (merge `19d6dc4`) against BD-A2-74, LA-ADR-06 D4 T0/T4, the task spec and plan §6.1. Test snapshot: `911ed4f3c9f8cc57f5d4dda5d81f7a696fd04817`, private clone `/tmp/la-review-a-23196a32859a`. Review was blind.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+**A-LA-E5-17-03 is closed.** A2 has ratified the narrower contract: all enclosing transactions must be opened through `transaction()`. Both entry points now throw `TypeError("transaction opened outside transaction()")` when SQLite has an open transaction and that database has no helper scope. The guard runs before a savepoint, work callback or commit callback. The two premature-publication branches are gone.
+
+`insertAuditEvent` now wraps its insert and callback registration in one helper scope. This is necessary: checking only `afterCommit` would throw after the row was already written. The revised writer refuses before insertion, even when the caller catches the error and commits its raw outer transaction. Autocommit, nested helper transactions, outer rollback and the real key-rewrap completion retain the intended counts. Throwing observers still cannot change the commit result.
+
+The earlier Round 2 probes were rerun with the explicit-refusal expectation required by BD-A2-74. **All 5 independent probes passed**: direct and nested helper entry, direct and nested audit insertion, and isolation between two database connections. They check both raw outer commit and rollback, no row before the outer transaction ends, no counter afterward, and recovery to a normal helper-managed transaction. A raw savepoint on the second connection is also refused while the first connection has a valid helper scope. The probes live only in the private clone's `packages/shared/src/reviewer-a-commit-probe.test.ts` and appended rows of `http/metrics.test.ts`.
+
+Focused regression: **103 tests passed in 7 files**, covering the shared migration/transaction helper, LTI metrics, LTI audit, key rewrap, service startup, app audit and app operator audit. This includes the unchanged UNIT AC-04/05 tests and the prior path-redaction and committed-count regressions. TypeScript checks passed for the shared package and both services.
+
+As a control, restoring only the two implementation files from `ccaed3a^` made **both new BD-A2-74 tests fail**. The source was restored and compared with the reviewed snapshot afterward. Evidence logs:
+
+- `/tmp/la-review-a-23196a32859a-baseline.log` — 103 passed.
+- `/tmp/la-review-a-23196a32859a-probes.log` — 5 passed; 18 existing tests unselected by the `Reviewer-A` filter.
+- `/tmp/la-review-a-23196a32859a-old-control.log` — 2 expected control failures; 43 tests unselected by the `BD-A2-74` filter.
+
+No new finding. A product-source scan found raw transaction statements only in the shared helper; the app matches are comments. The guard therefore does not break an existing product caller. The fix stays within the dispatched shared-helper and S1 audit scope and adjacent unit tests. It does not edit protected protocol files, `tests/**` or frozen assertions, and adds no LMS-specific core branch. Findings -01 and -02 remain closed.
+
+Only this review file was changed in the integration worktree. No Docker, stack, host stack runner, commit or push was used. No Reviewer-A fix remains; QA and the Lead own final regression closeout.
