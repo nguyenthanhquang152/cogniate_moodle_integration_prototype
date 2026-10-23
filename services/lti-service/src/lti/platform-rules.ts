@@ -75,7 +75,7 @@ export function issuerSiteProblem(value: string, rules: AnyHttpsRules): SiteRule
  * A staged create (inactive, with a bindingRef) may have endpoints and an assertion audience off the issuer origin.
  * No URL is fetched here; later calls use the guarded client (rule 4).
  */
-export function checkAnyHttpsPlatform(p: PlatformUrls & { clientAssertionAud?: string | undefined }, staged: boolean, rules: AnyHttpsRules,
+export function checkAnyHttpsPlatform(p: PlatformUrls, staged: boolean, rules: AnyHttpsRules,
   fields: Record<keyof PlatformUrls, string>): void {
   // Rule 2: each endpoint is https; its host passes site rules 2 and 3 and is not a reserved host.
   for (const key of ENDPOINTS) {
@@ -91,15 +91,22 @@ export function checkAnyHttpsPlatform(p: PlatformUrls & { clientAssertionAud?: s
   // Rule 1.
   const rule = issuerSiteProblem(p.url, rules);
   if (rule !== null) throw new ApiError('INVALID_SITE_URL', `Invalid field: ${fields.url} breaks rule ${rule} of the site rules.`, { details: { rule, field: fields.url } });
-  // Rule 7 (I-SELF): an active platform keeps every endpoint and the assertion audience on the issuer origin.
+  // Rule 7 (I-SELF): an active platform keeps every endpoint on the issuer origin. The audience: checkActiveAudience.
   if (staged) return;
-  const hint = 'A value off the issuer origin needs a staged create (active false, with a bindingRef).';
   for (const key of ENDPOINTS) {
-    if (new URL(p[key]).origin !== origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${fields[key]} is not on the issuer origin. ${hint}`);
+    if (new URL(p[key]).origin !== origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${fields[key]} is not on the issuer origin. ${STAGED_HINT}`);
   }
-  if (p.clientAssertionAud !== undefined && p.clientAssertionAud !== p.accesstokenEndpoint) {
-    throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `clientAssertionAud is not the accesstokenEndpoint on the issuer origin. ${hint}`);
-  }
+}
+
+const STAGED_HINT = 'A value off the issuer origin needs a staged create (active false, with a bindingRef).';
+
+/**
+ * LA-ADR-02 D2a, A1 BD-A1-82: an active admin platform of any profile has `clientAssertionAud` absent or equal to its
+ * token URL, else 400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN. A staged create (inactive, with a bindingRef) is exempt.
+ */
+export function checkActiveAudience(p: { accesstokenEndpoint: string; clientAssertionAud?: string | undefined }, staged: boolean): void {
+  if (staged || p.clientAssertionAud === undefined || p.clientAssertionAud === p.accesstokenEndpoint) return;
+  throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `clientAssertionAud is not the accesstokenEndpoint on the issuer origin. ${STAGED_HINT}`);
 }
 
 // ---------------------------------------------------------------- M1: provider profiles (LTI contract §9.4 to §9.6)

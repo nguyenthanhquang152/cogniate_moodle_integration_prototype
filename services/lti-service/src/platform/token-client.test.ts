@@ -190,6 +190,41 @@ describe('client assertion and scopes from the profile traits (LA-ADR-02 D2)', (
     expect(standard.assertion()).not.toHaveProperty([claim]);
   });
 
+  it('A-LA-E2-02-03: a changed token URL, client id or audience does not reuse a cached token', async () => {
+    const registry = registryWith({ clientAssertionAud: { value: '{platformValue}', form: 'string' } });
+    const c = await client({ profile: 'zz-admin', clientAssertionAud: 'https://auth.idp.test/token' }, registry);
+    c.request.mockImplementation(async (url) => response(200, { access_token: `token-for-${url}-${c.request.mock.calls.length}`, expires_in: 3600 }));
+    const first = await c.tokens.getToken(c.platform, ['scope'], 't1');
+    expect(await c.tokens.getToken(c.platform, ['scope'], 't2')).toBe(first); // the same set: cached
+    // A registration update keeps the platform id and changes the credentials.
+    const moved = { ...c.platform, tokenEndpoint: 'https://platform.test/new-token', clientAssertionAud: null };
+    const second = await c.tokens.getToken(moved, ['scope'], 't3');
+    expect(second).not.toBe(first);
+    expect(c.request.mock.calls.at(-1)![0]).toBe('https://platform.test/new-token');
+    expect(c.assertion(1).aud).toBe('https://platform.test/new-token');
+    const reissued = { ...moved, clientId: 'client-2' };
+    expect(await c.tokens.getToken(reissued, ['scope'], 't4')).not.toBe(second);
+    expect(c.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('A-LA-E2-02-03: a request in flight for the old credentials does not serve or fill the new ones', async () => {
+    const c = await client({});
+    let releaseOld!: () => void;
+    const held = new Promise<void>((resolve) => { releaseOld = resolve; });
+    // The old token URL answers only when the test releases it.
+    c.request.mockImplementation(async (url) => {
+      if (url === 'https://platform.test/token') { await held; return response(200, { access_token: 'old-token', expires_in: 3600 }); }
+      return response(200, { access_token: 'new-token', expires_in: 3600 });
+    });
+    const oldPending = c.tokens.getToken(c.platform, ['scope'], 'old');
+    const moved = { ...c.platform, tokenEndpoint: 'https://platform.test/new-token' };
+    expect(await c.tokens.getToken(moved, ['scope'], 'new')).toBe('new-token');
+    releaseOld();
+    expect(await oldPending).toBe('old-token');
+    expect(await c.tokens.getToken(moved, ['scope'], 'new-again')).toBe('new-token');
+    expect(c.request.mock.calls.map((call) => call[0]).sort()).toEqual(['https://platform.test/new-token', 'https://platform.test/token']);
+  });
+
   it('AC-LA-E2-01-07: granted scopes limit the token request; NULL asks for the requested scopes', async () => {
     const granted = await client({ grantedScopes: ['score', 'lineitem'] });
     await granted.tokens.getToken(granted.platform, ['score'], 't');
