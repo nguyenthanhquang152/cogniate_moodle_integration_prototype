@@ -223,6 +223,9 @@ export function applyRegistrationUpdate(
     /** BD-A1-89: the credential set is written as one: the audience and the granted scopes too (null clears them). */
     clientAssertionAud: string | null;
     grantedScopes: string[] | null;
+    /** LA-ADR-05 D6: the site and service origins that a profile rule derived (null for an admin-value platform). */
+    siteUrl: string | null;
+    serviceUrl: string | null;
     /** D5 item 10: the binding ref of a staged registration; null keeps the stored value. */
     bindingRef?: string | null;
   },
@@ -230,10 +233,11 @@ export function applyRegistrationUpdate(
   return transaction(db, () => {
     if (!getPlatform(db, accountId, id)) return null;
     db.prepare(`UPDATE platform SET client_id = ?, name = ?, auth_endpoint = ?, token_endpoint = ?, jwks_url = ?, active = ?,
-      product_family_code = COALESCE(?, product_family_code), client_assertion_aud = ?, granted_scopes = ?,
+      product_family_code = COALESCE(?, product_family_code), client_assertion_aud = ?, granted_scopes = ?, site_url = ?, service_url = ?,
       binding_ref = COALESCE(?, binding_ref), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
       .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode,
-        input.clientAssertionAud, input.grantedScopes ? JSON.stringify(input.grantedScopes) : null, input.bindingRef ?? null, Date.now(), id, accountId);
+        input.clientAssertionAud, input.grantedScopes ? JSON.stringify(input.grantedScopes) : null, input.siteUrl, input.serviceUrl, input.bindingRef ?? null,
+        Date.now(), id, accountId);
     db.prepare('INSERT OR IGNORE INTO deployment (platform_id, deployment_id, created_at) VALUES (?, ?, ?)').run(id, input.deploymentId, Date.now());
     return getPlatform(db, accountId, id);
   });

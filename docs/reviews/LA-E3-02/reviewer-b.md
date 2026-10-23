@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-02 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -72,3 +72,17 @@ The route tests cover the order: a wrong Origin leaves the check usable, a misma
 
 - K1-SIM ACs (AC-01..03, -05..07, -10..12) and the K2 browser cases AC-08 and AC-09 (QA, QA-E2E). The LA-IC-06 test-change list (QA).
 - Lens-A items: the CSP, `Referrer-Policy` and the Origin rule beyond the unit rows; whether the prepared launch can grow too large.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-23. Lens B: can a human team own it? Scope: CSP fix `2ea1f624` (merge `02f5d420`), tested at `6ee79282dbf2c353791fb254f8cc00c293f66e72`. Read the prior B review, task spec, BD-A2-103, LA-ADR-05 D1 rule 7, security delta §5, and QA-E2E P3. No Reviewer-A file was opened.
+
+**APPROVE. No new findings.** Earlier non-blocking notes are outside this focused fix.
+
+The reason for the extra origin is clear at `lti/storage-pages.ts:83`: the form submission's redirect chain must reach the tool. The comment names BD-A2-103, whose row links to the ADR, security header table, and live failure. `toolUrlOf` in `lti/launch.ts:85` gives the page and redirect one URL-selection rule. The origin guard has a short documented fallback, and the tool URL is removed before building the page's JSON data.
+
+The three cases at `lti/storage-check.test.ts:74` are easy to find by decision id. They use distinct resource-link and Deep Linking origins, plus a second account's operator-set URL, and compare the complete CSP and resulting redirect origin. The page tests cover origin normalization, ports, rejected origin forms, nonce freshness, and existing data escaping. Restoring only the old `form-action 'self'` header in the private clone caused all three cases and the page-header test to fail with assertion errors; the mutation was restored.
+
+Verification: fresh private clone `/tmp/la-review-b-ce92e43aeb32`, its own `npm ci`, and Vitest cache deletion before each run. **48 tests passed in five files**: storage check, storage pages, launch, protocol routes, and storage-check store. This includes the existing UNIT expiry/cleanup criterion and the method-refusal regression. LTI typecheck, lint on all four changed files, F1, and whitespace checks passed. The private clone is clean.
+
+The four-file diff fits the specific lane-L fix routed by BD-A2-103. Protected files and other page policies are unchanged; no core LMS name was added. The remaining acceptance step is QA-E2E's live `U4.platform-storage.positive` rerun (AC-08). No Docker, stack, or commit was used. Only this review file changed in integration.

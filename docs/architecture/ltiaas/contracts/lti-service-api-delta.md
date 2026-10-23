@@ -187,7 +187,7 @@ Bearer, `admin` scope. Body `{ "deploymentId"?: string }`. It fetches the platfo
   "limits": null }
 ```
 
-`token.detail` values: `invalid_client`, `invalid_scope`, `http_<status>`, or an outbound reason (security §9). `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
+The HTTP answer keeps the name `token` (answers are not redacted); logs and audit details use `token_result` and `tokenResult` (BD-A2-99). `token.detail` values: `invalid_client`, `invalid_scope` (the platform's OAuth answer), `no_granted_scope` (the platform granted no AGS scope, so no token request was made; BD-A2-98), `http_<status>`, or an outbound reason (security §9). `jwks.detail` values: `invalid_jwks` (not a JSON key set with at least one key), `http_<status>`, or an outbound reason. With no `deploymentId`, the platform's first active deployment is checked; an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`. `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
 
 ## 3. Operator API (new; paths are ours)
 
@@ -287,8 +287,9 @@ The stored platform gets `grantedScopes` (the scope of the registration response
 - `GET /api/registrations/:registrationId` adds `endpointsOnIssuerOrigin: boolean` (`true` when I-SELF holds for the configuration), so the app can tell the user before `complete` that an operator approval will be needed.
 - `complete` checks I-SELF for the chosen profile before it sends anything. Holds: a new platform is created as today (`autoActivate`, default `true`), and an update keeps its stored `active` value (BD-A1-93). Fails: the platform is created or set **inactive** with the request's `bindingRef` (a staged registration, base §9.15), whatever `autoActivate` says; a missing `bindingRef` gives `400 INVALID_REQUEST` (field `bindingRef`), and nothing is sent or stored.
 - The answer adds `active: boolean`; a staged registration logs `registration_completed {operation, staged: true}`. The app then changes the connection's authority from `self` to `operatorGrant` (A1, LA-ADR-02 D5 item 10), and only the grant redemption activates the platform (`PATCH /api/platforms/:id {active: true, ifBindingRef, bindingRef}`), as for Canvas DR ([LA-ADR-05 D6](../adr/LA-ADR-05-lti-advantage-completeness.md#d6-canvas-dynamic-registration-should-d-1)).
+- Start (`GET /lti/register/:account`, BD-A2-93, BD-A2-94): before any fetch, a configuration URL on a reserved issuer host gives the M1 page `ISSUER_RESERVED` (base §9.2, byte for byte); another reserved host (a fixed host of any loaded profile), an own host (rule 3), or a host name that fails site rule 2 gives the page `PLATFORM_URL_NOT_IN_PROFILE` (BD-A2-95); nothing is fetched or stored. A URL that is not https, or a private IP literal, is refused by the guarded client with no request (page `FETCH_FAILED`, log `outbound_blocked`), as today; a public IP literal is fetched, as today. Every other https URL is fetched (the loosest start rule of any loaded profile, LA-ADR-02 D5), and the profile rules apply at `complete`.
 - The configuration endpoints also follow §4.6.1 rules 1 to 3 (reserved hosts and issuers). So does the audience (`authorization_server`): it is never on a reserved host, staged or active (BD-A2-84).
-- Fixed-endpoint profiles keep their own rule (`issuerRule: profile`): their endpoints must equal the profile values, and the platform is always staged (LA-ADR-05 D6).
+- Fixed-endpoint profiles keep their own rule (`issuerRule: profile`): their endpoints must equal the profile values, and the platform is always staged (LA-ADR-05 D6). Canvas (BD-A2-89): `complete` derives the site origin from the configuration URL origin and the service origin from the token endpoint origin, both checked with the Canvas site rules, and stores them on the staged platform. The operator grant's adoption rule proves them. A configuration URL on a fixed Canvas host is refused until the CANVAS-HOSTED live row. No new `complete` field.
 
 ### 4.6 Platforms (§3.9, §9.4)
 
@@ -361,13 +362,13 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `PATCH /api/platforms/:id/deployments/:deploymentId` | `deployment.update` | `deployment` |
 | `POST /api/registrations/:id/complete` | `registration.complete` | `registration` |
 | `POST /api/service-keys/revoke` (Should) | `service_key.revoke` | `platform` |
-| `POST /api/platforms/:id/check` (Could) | `platform.check` | `platform` |
+| `POST /api/platforms/:id/check` (Could) | `platform.check` (`details.tokenResult` = `{ ok, scope?, detail? }`, and `jwks`; BD-A2-99) | `platform` |
 | `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` really changes, decided inside the change transaction; a refused `PATCH` is `account.update` with the request fields in `details`; BD-A2-29) | `account` |
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
 | `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`, `result: ok`: `details.outcome` `complete`, `partial` or `failed`, the counts `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, and `legacyBlobsRefused: true` when that run stored the setting; an exception gives `outcome: failed` with `details.errorClass`; BD-A2-36, BD-A2-42) | `key_provider` |
-| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
+| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `service_setting` (target id `rate_limits`; BD-A2-92) |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
 | `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.counts` = a list of `{table, rows}`; BD-A2-67, BD-A2-82) | `account` |
@@ -381,7 +382,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | --- | --- | --- | --- |
 | `rate_limited` | warn | `class`, `key_kind` (`address`, `api_key`, `operator_key`), `key_id`? (API key id or operator key id, never the key), `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s`, `trace_id` (the request that first hit the limit in that minute) | at most once per bucket per minute |
 | `trusted_proxy_unresolved` | warn | `host` | a `TRUSTED_PROXY_CIDRS` host name does not resolve at a refresh (trust for it drops at once); at most once per failing host per refresh (BD-A2-30, B-LA-E5-03-04) |
-| `job_run_request_failed` | error | `job`, `trace_id` | `POST /operator/v1/jobs/:name/run` (or the re-wrap route) answered `202`, but the runner could not start the run (BD-A2-82) |
+| `job_run_request_failed` | error | `job`, `trace_id`, `error` (the error class name) | `POST /operator/v1/jobs/:name/run` answered `202`, but the runner could not start the run (`runNow` rejected; BD-A2-82). Also for `key-rewrap` when it is started through this route |
+| `key_rewrap_failed` | error | `trace_id`, `error` (the error class name) | `POST /operator/v1/key-provider/rewrap` answered `202`, but the runner could not start the run (`runNow` rejected). The re-wrap route kept its own name from LA-E5-09 (BD-A2-107) |
 | `secret_file_mode_open` | warn | `setting` | a secret file has a group or world bit outside the `production` profile (BD-A2-78) |
 | `rate_limit_soft` | warn | `class`, `tool_account_id` | a soft class above its rate; at most once per minute |
 | `platform_rate_limited` | warn | `platform_id`, `status`, `retry_after_s` | a platform `429` or throttling `403` |
@@ -391,10 +393,10 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `key_provider_not_ready` | error | `version` | start or readiness |
 | `key_open_failed` | error | `table` | a sealed value does not open |
 | `job_run` | info | `job`, `ms`, `result`, `counts` | every job run (LA-ADR-03 D7) |
-| `platform_check` | info | `platform_id`, `jwks`, `token` | §2.6 |
+| `platform_check` | info | `platform_id`, `jwks`, `token_result` (the value of the answer's `token` object; not named `token`, because the shared redaction replaces any field named or ending with `token`; BD-A2-99) | §2.6 |
 | `config_refused` | error | `reason` | production profile start refusal |
 
-Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
+Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` and `launch_claims_minimized` get `tool_account_id` when it is known (every `launch_*` line, LA-ADR-06 D10; `launch_claims_minimized`: BD-A2-108, a frozen-test change, LA-IC). `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
 
 ## 7. Data retention (additions to §6)
 

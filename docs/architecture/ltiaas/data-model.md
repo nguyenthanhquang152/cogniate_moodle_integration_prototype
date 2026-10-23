@@ -276,7 +276,7 @@ CREATE TABLE admin_launch_code (                      -- verified admin launch (
 
 | Rule | Detail |
 | --- | --- |
-| `connection_event` | At most 100 rows per connection and 30 days (retention job; LA-H4). Every portal read includes `library_id`. |
+| `connection_event` | At most 100 rows per connection and 30 days (LA-H4). The app retention job deletes them (`domain/retention.ts`, lane R's file; LA-E6-02 lands the lines by RQ-2). Every portal read includes `library_id`. The `code` of a `check` row (A2 BD-A2-100): `ok`, or the failed parts in the order `jwks`, then `token`, each as `<part>:<detail>` with a contract delta §2.6 detail value, joined by one space (for example `jwks:invalid_jwks token:invalid_client`). LA writes no `disconnect` or `suspend` rows (deferred: no task owns those call sites). The migration number is the Lead's, in landing order (`016` is reserved for it, §1). |
 | `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
 | `admin_launch_code` | Single use; a newer code of the same connection replaces an unused older one; redemption follows A2's LA-ADR-08 D3 rules. |
 

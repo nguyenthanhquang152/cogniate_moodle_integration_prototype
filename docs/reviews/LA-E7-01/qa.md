@@ -1,11 +1,30 @@
 Verdict: PASS
-Round: 3
+Round: 4
 
 # LA-E7-01 K0 channel contract suite and the canary channel: QA verification
 
-Tester: lead QA (Round 1: `task_9eba03b67aaa` / `ctx_cb28274cfd08`; Round 2: `task_1100e1e862e3` / `ctx_02bcb0afde80`; Round 3: `task_a8adccfe1547` / `ctx_7c3cb8b3db3a`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-01.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (D2–D6, D10–D12, test impact), `BD-A1-20`, `BD-A1-28`, and `tests/ltiaas/TEST-STRATEGY.md` §2.7.
+Tester: lead QA (Round 1: `task_9eba03b67aaa` / `ctx_cb28274cfd08`; Round 2: `task_1100e1e862e3` / `ctx_02bcb0afde80`; Round 3: `task_a8adccfe1547` / `ctx_7c3cb8b3db3a`; Round 4: `task_e83f04afbb74` / `ctx_f232fb808203`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E7-01.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (D2–D6, D10–D12, test impact), `BD-A1-20`, `BD-A1-28`, `BD-A1-85`, `BD-A1-110`, and `tests/ltiaas/TEST-STRATEGY.md` §2.7.
 
 Independence: Lead QA wrote `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas/canary/**` from the task spec, `LA-ADR-01`, `TEST-STRATEGY.md` §2.7, and the public entry points of `docs/architecture/ltiaas/tasks/README.md` §3 (`@cogniate/channel-kernel`, `services/lti-service/src/profiles/index.ts`, and `services/cogniate-app/src/kernel/ports.ts`). Lead QA read no product source files.
+
+## Round 4 (`BD-A1-110` `setup.connectionCheck` Kit Update + `buildProfileRegistryCompat` Shim Removal)
+
+| Item | Value |
+| --- | --- |
+| SHA | Verified on `c62b373d` and `e4a3ceefb3b68edeeefc0a1ba1088725d6df7b7c` (`quang/ltiaas-milestone`) |
+| Lane and slot | host-only (no Docker) |
+| Clone | `/Users/quangnguyen/cogniate-qa-runs/LA/K0-connectionCheck/r1/clone` (`git clone --no-hardlinks`, push URL disabled, `npm ci --no-audit --no-fund`, `node_modules/.vitest-cache` cleared before every Vitest run) |
+| Files delivered | `tests/ltiaas/k0/contract.test.ts`, `docs/reviews/LA-E7-01/qa.md` |
+| Artifacts | `/Users/quangnguyen/cogniate-qa-runs/LA/K0-connectionCheck/r1/logs/`: `tsc.log`, `k0-c62b373-without-connectionCheck.log`, `k0-c62b373-with-lti-generic-connectionCheck.log`, `k0-without-connectionCheck.log`, `k0-with-lti-generic-connectionCheck.log` |
+
+### Changes in Round 4
+
+| Item | Resolution |
+| --- | --- |
+| `BD-A1-110` (`K-ADAPTER` `setup.connectionCheck` without `app.ts`) | Removed `manifest.setup.connectionCheck === true` from `needsAdapter` in `tests/ltiaas/k0/contract.test.ts:1132-1136` and updated the no-`app.ts` branch (`contract.test.ts:1153-1157`) to assert `expect(channelCaps['setup.connectionCheck']).toBe(Boolean(manifest.setup?.connectionCheck))` (since `POST /app-api/connections/:id/check` → LTI `POST /api/platforms/:id/check` is a core route guarded by `setup.connectionCheck` that uses no `ConnectionSetup` member). Verified in the clean clone both without `lti-generic` `setup.connectionCheck: true` (`147/147` pass in `610 ms` on `c62b373`; `146/146` pass in `970 ms` on `e4a3ceef` after `LA-E6-04` part 1 enabled `canvas` `setup.connectionCheck`) and with simulated `lti-generic` `setup.connectionCheck: true` (`146/146` pass in `619 ms` on `c62b373`; `145/145` pass in `867 ms` on `e4a3ceef`). |
+| `buildProfileRegistryCompat` dead shim removal (`BD-A1-75` / `78ffce1`) | Removed the transitional `buildProfileRegistryCompat` function (`contract.test.ts:685-708`) and called `buildProfileRegistry(productMerged)` and `buildProfileRegistry(combinedMerged)` directly (`contract.test.ts:693,701`). `npx --no-install tsc -p tests/ltiaas/tsconfig.json --noEmit` exits `0` (`0` errors) and K0 passes `147/147` on `c62b373` (`146/146` on `e4a3ceef`). |
+
+---
 
 ## Round 3
 

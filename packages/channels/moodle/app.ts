@@ -21,7 +21,8 @@ export function moodleToolRows(t: ToolUrls, libraryName: string): ToolRow[] {
     { key: 'tool_configuration_usage', label: 'Tool configuration usage', value: 'Show in activity chooser and as a preconfigured tool' },
     { key: 'launch_container', label: 'Default launch container', value: 'New window' },
     { key: 'ags', label: 'IMS LTI Assignment and Grade Services', value: 'Use this service for grade sync and column management' },
-    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: "Use this service to retrieve members' information as per privacy settings" },
+    // A2 LA-ADR-05 D4 (LA-IC-04): the tool asks for no NRPS scope. The Moodle 5.2.4 option label; QA confirms the text.
+    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: 'Do not use this service' },
     { key: 'share_name', label: "Share launcher's name with tool", value: 'Never' },
     { key: 'share_email', label: "Share launcher's email with tool", value: 'Never' },
     // Q-T7-01 (contract §4.1 row 16): the exact Moodle 5.2.4 option text of the tool form.

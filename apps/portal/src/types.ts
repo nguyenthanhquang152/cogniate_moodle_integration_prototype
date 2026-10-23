@@ -95,6 +95,27 @@ export interface Connection {
     at: string;
   } | null;
 }
+/** POST /app-api/connections/:id/check (app API delta §3.7, LA-ADR-08 D4). */
+export interface ConnectionCheckAnswer {
+  result: "ok" | "failed";
+  checkedAt: string;
+  details: {
+    jwks: { ok: boolean; keys?: number; detail?: string };
+    token: { ok: boolean; scope?: string; detail?: string };
+    platform: { active: boolean; deploymentActive: boolean };
+    limits: "shared-application" | null;
+  };
+}
+/** GET /app-api/connections/:id/health (app API delta §3.7, LA-ADR-08 D5). */
+export interface ConnectionHealth {
+  status: Connection["status"];
+  lastLaunchAt: string | null;
+  lastLaunchRefusal: { reason: string | null; at: string } | null;
+  dispatch: { pending: number; oldestPendingAt: string | null; lastSentAt: string | null; failedLast24h: number; lastError: { code: string | null; at: string } | null };
+  keys: { activeKid: string | null; nextKid: string | null; artifactKeyKid: string | null; artifactKeyCurrent: boolean | null };
+  lastCheck: { at: string; jwks: boolean; token: boolean } | null;
+  events: { kind: string; code: string | null; at: string }[];
+}
 export interface ToolRow {
   key: string;
   label: string;
@@ -235,6 +256,8 @@ export interface ErrorDetails {
   fields?: Record<string, string> | string[];
   field?: string;
   rule?: number;
+  /** A specific cause of a refusal, for example "staged_gone" (BD-A1-102). The portal then keeps the server description. */
+  reason?: string;
   capability?: keyof LmsCapabilities;
   reasons?: RejectReason[];
   traceId?: string;

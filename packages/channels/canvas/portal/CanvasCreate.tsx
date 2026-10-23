@@ -8,9 +8,13 @@ import { Button, buttonVariants } from "@cogniate/portal-sdk";
 import { Input, Select } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
 import type { ChannelWizardProps } from "@cogniate/portal-sdk";
+import steps from "./steps.ts";
 
 export function CanvasCreate({ provider, opener, onCreated }: ChannelWizardProps) {
   const alive = useAlive();
+  // The methods of the manifest's registration list (the provider list copies them). The developer key is the default.
+  const methods = provider.methods;
+  const [method, setMethod] = useState(methods.includes("manual") ? "manual" : methods[0] ?? "manual");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const fields = providerErrorFields(error);
@@ -20,7 +24,7 @@ export function CanvasCreate({ provider, opener, onCreated }: ChannelWizardProps
     const data = new FormData(event.currentTarget);
     const serviceUrl = String(data.get("serviceUrl") ?? "").trim();
     const body: ConnectionCreateBody = {
-      lms: "canvas", method: "manual",
+      lms: "canvas", method,
       name: String(data.get("name") ?? "").trim(),
       siteUrl: String(data.get("siteUrl") ?? "").trim(),
       profile: String(data.get("profile") ?? ""),
@@ -61,6 +65,16 @@ export function CanvasCreate({ provider, opener, onCreated }: ChannelWizardProps
           <option key={profile.id} value={profile.id} disabled={!profile.ready}>{profile.label}</option>)}
       </Select>
     </label>
+    {methods.length > 1 && <fieldset>
+      <legend>Connection method</legend>
+      <div className="grid gap-3">
+        {methods.map((value) => <label key={value} data-selected={method === value}
+          className="flex flex-row items-center gap-3 rounded-[9px] border border-border p-4 cursor-pointer [&_small]:mt-1 [&_small]:block data-[selected=true]:border-[#a976e6] data-[selected=true]:bg-[#b18ae811]">
+          <Input type="radio" name="method" value={value} checked={method === value} onChange={() => setMethod(value)} />
+          <span><strong>{steps.dynamic.methods[value].label}</strong><small>{steps.dynamic.methods[value].help}</small></span>
+        </label>)}
+      </div>
+    </fieldset>}
     <div id="canvas-create-error"><ProviderErrorNotice error={error} /></div>
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" disabled={busy || !provider.profiles.some((p) => p.ready)}>Next</Button>

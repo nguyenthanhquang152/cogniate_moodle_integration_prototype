@@ -16,7 +16,7 @@ New fields on every connection answer:
 | Field | Type | Rule |
 | --- | --- | --- |
 | `channel` | string | the channel id (`connection.channel`) |
-| `channelName` | string | the manifest text name, for example `Moodle`, `your LMS` |
+| `channelName` | string | the manifest text name, for example `Moodle`, `LMS` (`lti-generic`, BD-A1-111) |
 | `channelCapabilities` | object | the capability set of the connection: keys are capability ids ([LA-ADR-01 D3](../adr/LA-ADR-01-channel-kernel.md#d3-capability-model)), values are booleans, strings, lists or the method → authority map |
 | `bindingAuthority` | string | the stored `connection.binding_authority`: `self`, `operatorGrant` or `verifiedAdminLaunch`. The portal verify step reads it ([LA-ADR-01 D9](../adr/LA-ADR-01-channel-kernel.md#decision)); a staged Dynamic Registration shows `operatorGrant` although the method map says `self` (BD-A1-24) |
 
@@ -33,7 +33,7 @@ Example (`lti-generic`, registered by an operator grant):
 ```json
 {
   "id": "con_...", "name": "School Sakai", "siteUrl": "https://lms.school.edu", "method": "manual", "status": "registered",
-  "lms": "lti-generic", "channel": "lti-generic", "channelName": "your LMS", "bindingAuthority": "operatorGrant", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
+  "lms": "lti-generic", "channel": "lti-generic", "channelName": "LMS", "bindingAuthority": "operatorGrant", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
   "capabilities": { "dynamicRegistration": true, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": false },
   "channelCapabilities": {
     "registration.dynamic": true, "binding.authority": { "dynamic": "self", "manual": "operatorGrant" },
@@ -65,7 +65,7 @@ Example (`lti-generic`, registered by an operator grant):
 | Moodle | unchanged (base §4) |
 | Canvas, Blackboard | unchanged (base §4.2) |
 
-The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)).
+The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)). Every `method: dynamic` create issues a registration ref, whatever the method's authority, so the answer has `registrationUrl` (BD-A1-106; before: only the `self` branch, so a Canvas `dynamic` create answered `registrationUrl: null`).
 
 ### 3.2 `POST /app-api/connections/:id/registration-url`
 
@@ -100,7 +100,8 @@ New and changed answers:
 | The LTI service answers `PLATFORM_URL_NOT_IN_PROFILE` or `INVALID_SITE_URL` | `422 INVALID_PLATFORM_VALUES` with the field name, or `422 INVALID_SITE_URL` |
 | A finalized repeat (same `clientId`, `deploymentId` and bound values) | `200`, nothing changes (base rule) |
 | Staged redemption: the staged platform's admin values differ from the grant's bound values (changed after the grant was issued) | `422 GRANT_MISMATCH` with `details.fields`; log `grant_rejected` with reason `mismatch` (BD-A1-97) |
-| Staged redemption: the staged platform is gone | `409 PLATFORM_IN_USE` (existing code; the description says that the staged registration is gone and to make a new connection) (BD-A1-97) |
+| Staged redemption of a connection with fixed endpoints (Canvas `dynamic`, BD-A1-107) | the grant has no bound values (an admin-value binding is typed admin values, or a staged registration of an admin-value channel); body `{ clientId, deploymentId, grantCode }`; the target is the normal fixed target (snapshot issuer, the connection's site and service URLs); no S1 create; S2 adopts the staged platform only when its profile, client id, deployment, issuer, site URL and service URL match (rule A3); S3 activates it |
+| Staged redemption: the staged platform is gone | `409 PLATFORM_IN_USE` (existing code; the description says that the staged registration is gone and to make a new connection) (BD-A1-97), with `details.reason: "staged_gone"` (BD-A1-102). Portal rule: a refusal with one of the five `texts.errors` codes that has `details.reason` names a specific cause, so the portal shows the server description unchanged (no channel or generic text). Today only this case has it; no baseline answer has `details.reason` on these codes |
 | Disconnect or release of a staged connection that was never redeemed | the inactive staged platform in the LTI service is not changed (it stays inactive and cannot launch) (BD-A1-97) |
 | Grant redemption (not staged), every `operatorGrant` channel with an exclusive platform: the LTI service has the platform already, and S2 finds no record that the adoption rule adopts (base §4.7.1) | `409 PLATFORM_IN_USE`; the description is the channel's `texts.registration.PLATFORM_IN_USE` with `{LMS}` filled, else the core default "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator." The Canvas manifest holds today's sentence ("This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."), so the Canvas bytes do not change; `lti-generic` and `brightspace` get the core default (BD-A1-101). The portal notice is a separate text (`texts.errors.PLATFORM_IN_USE`, else the portal generic text). The staged-platform-gone case above keeps its own description (`da423f9`) |
 
@@ -125,7 +126,7 @@ Design and full rules: A2 [LA-ADR-08](../adr/LA-ADR-08-onboarding-and-connection
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
 | `POST /app-api/connections/:id/check` | — | `200 { result, checkedAt, details }` after a token probe and a JWKS fetch through the LTI service (`POST /api/platforms/:id/check`, [lti-service-api-delta](lti-service-api-delta.md)); guard: `setup.connectionCheck` |
-| `GET /app-api/connections/:id/health` | — | `200` health view: last launch, last launch refusal, dispatch state, last errors, key state (`keys.artifactKeyKid`, `artifactKeyCurrent`) |
+| `GET /app-api/connections/:id/health` | — | `200` health view: last launch, last launch refusal, dispatch state, last errors, key state (`keys.artifactKeyKid`, `artifactKeyCurrent`). Field rules (A2 BD-A2-100, LA-ADR-08 D5 "Build notes"): `keys.nextKid` is `null` in LA (the public JWKS has no key status); `keys.artifactKeyCurrent` is `null`, `true` or `false` (`null` when `artifactKeyKid` is `null` or the active kid cannot be read, else `artifactKeyKid === activeKid`; the portal warns only on `false`); `lastCheck { at, jwks, token }` comes from the newest `check` event (a part that is not in its failed list is `true`); `dispatch.lastError.code` is the `CODE` parsed from the stored reporter text (`"<status> <CODE>: <text>"`) when it matches `[A-Z][A-Z0-9_]*`, else `null`, never free text, with `at` = that row's `updated_at`; `events` = the kept rows (at most 100), newest first. Only ids, codes and public key ids reach the portal |
 | `POST /app-api/connections/:id/verify` | `{ code }` | the verified admin launch redemption (authority `verifiedAdminLaunch`); same phase 1 and phase 2 rules as a grant; errors as A2 lists |
 
 ## 4. Portal routes (base §4.2)
@@ -140,10 +141,10 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 | LMS check | the profile's channel must equal the connection's channel; a signed family guarded at the `launch` level must belong to the connection's channel (Canvas and Blackboard, as M1); a `registration`-level guard refuses a launch only on a platform of a `MANUAL_SELF_LEGACY_CHANNELS` channel (Moodle `standard`; A-LAD-19), else it only logs `family_guard_mismatch` ([LA-ADR-01 D6](../adr/LA-ADR-01-channel-kernel.md#decision)); log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
 | Content item `window` | when `launch.windowHint` is true and the platform accepts `window` (base: every non-Moodle LMS) |
 | Embedded page script | when `launch.topLevelContinue` is true (base: Canvas) |
-| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant` |
+| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant`. A connection whose `dynamic` method has authority `operatorGrant` (Canvas) keeps it from the create; only a staged answer is accepted, and an active answer gives `REGISTRATION_FAILED` (the new platform is switched off when no connection owns it; the connection stays `pending`), so the register page never gives launch authority to an `operatorGrant` connection (BD-A1-106). Site check (BD-A1-107): for a connection whose profile has a fixed issuer (the create stored the snapshot issuer; Canvas), the confirm step compares the registration's issuer with the snapshot issuer, not the site; after `complete`, the staged platform's site URL (the LTI service takes it from the configuration URL origin, BD-A2-89) must equal the connection's site URL, else page `SITE_MISMATCH`, nothing changes on the connection (its link still works), and the inactive platform stays inactive. Other channels keep the site check of the confirm step |
 | Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
 | Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
-| Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
+| Texts | `{LMS}` from the manifest; the generic channel's text name is `LMS` (BD-A1-111), for example "This LMS site is not connected to Cogniate. Tell your LMS administrator." |
 
 ### 5a. App-edge limit for the handoff pages (Should; Reviewer-A A-LAD-22)
 
@@ -158,7 +159,7 @@ A2's abuse control for random ltiks ([LA-ADR-06 D1](../adr/LA-ADR-06-service-ope
 | Answer | `429` error page `RATE_LIMITED` ("Too many launches from your network. Wait one minute, then open the activity again in {LMS}.") with `Retry-After`; log `rate_limited {class: "tool_handoff", retry_after_s}` at most once per minute per address |
 | Test | Author unit test of the bucket. Acceptance points: (1) 300 valid launches from one address, sent at an even rate within one minute, all pass (no `429`); (2) 400 random ltiks from one address within 10 s give `429` after the bucket is empty (at most 300 pass), and a valid launch from the same address after `Retry-After` works (QA has one client address, TEST-STRATEGY §9.2 item 14). QA records the `/tool/launch` peak rate of the frozen suites at E0 (TEST-STRATEGY §9.2 item 14) |
 
-The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not built in LA: the `admin` limit of 600 per minute already covers the provider list, and a cache could show a stale `ready` value to the frozen M1 and M2 checks right after an operator changes the shared platform. A2 changes its sentence (README §8 OC-12).
+The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not built in LA: the `admin` limit (1,200 per minute, burst 600; A2 BD-A2-108, LA-ADR-06 D1) already covers the provider list, and a cache could show a stale `ready` value to the frozen M1 and M2 checks right after an operator changes the shared platform. A2 changes its sentence (README §8 OC-12).
 
 ## 6. Publications, results and records (base §5, §10)
 
@@ -201,11 +202,11 @@ Refused-event codes (A2 BD-A2-64; A1 BD-A1-67; LA-E5-12). A write command that r
 | `binding_active` | `app:binding release` | the connection is not disabled (run `suspend` first) |
 | `redemption_running` | `app:binding release` | a redemption may still run (retry later) |
 | `bound_values_missing` | `app:grant issue` | an admin-value connection with no staged platform, and a required bound-value flag (`--issuer`, `--auth-url`, `--token-url`, `--jwks-url`) is missing; or a staged connection without `--accept-staged` (LA-ADR-02 D6) |
-| `bound_values_not_allowed` | `app:grant issue` | a bound-value flag for a grant that is not the initial grant of an admin-value connection, or for a staged connection (its values come from the staged platform) |
+| `bound_values_not_allowed` | `app:grant issue` | a bound-value flag for a grant that is not the initial grant of an admin-value connection, or for a staged connection (its values come from the staged platform); also `--accept-staged` for a staged connection with fixed endpoints (Canvas), which binds no values (BD-A1-107) |
 | `bound_value_invalid` | `app:grant issue` | a bound value is not an `https` URL, or `--issuer` is not on the site URL of the connection |
 | `not_staged` | `app:grant issue` | `--accept-staged` for a connection with no staged platform |
-| `staged_values_changed` | `app:grant issue` | checked before the values are printed: the staged platform that the LTI service gives is active, has another issuer or client id than the connection's staged record, or has no JWK-set key URL; make a new connection |
-| `deployment_mismatch` | `app:grant issue` | a staged connection: `--deployment-id` is not a deployment of the staged platform |
+| `staged_values_changed` | `app:grant issue` | checked before the values are printed: the staged platform that the LTI service gives is active, has another issuer or client id than the connection's staged record, or has no JWK-set key URL (admin values); for a staged connection with fixed endpoints: active, or another issuer, client id, profile or site URL than the connection (BD-A1-107); make a new connection |
+| `deployment_mismatch` | `app:grant issue` | a staged connection (admin values or fixed endpoints, BD-A1-107): `--deployment-id` is not a deployment of the staged platform |
 | `foreign_hosts_unconfirmed` | `app:grant issue` | a bound value has a host other than the issuer host, and `--confirm-foreign-hosts` is missing (LA-ADR-02 D6) |
 
 The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2 (Lead decision, plan OC-9).

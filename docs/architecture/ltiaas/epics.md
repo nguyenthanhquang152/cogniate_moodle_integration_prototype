@@ -53,7 +53,7 @@ A1 wrote the E0, E1, E2, E4, E7 and E8 specs. A2 wrote the E3, E5 and E6 specs. 
 |  | F3.3 Deep Linking completeness | Must | [LA-E3-04](tasks/LA-E3-04.md), [LA-E3-05](tasks/LA-E3-05.md), [LA-E3-13](tasks/LA-E3-13.md) |
 |  | F3.4 NRPS decision D-8 | Must | [LA-E3-06](tasks/LA-E3-06.md), [LA-E3-07](tasks/LA-E3-07.md) |
 |  | F3.5 Ungraded placements | Should | [LA-E3-08](tasks/LA-E3-08.md), [LA-E3-14](tasks/LA-E3-14.md), [LA-E4-08](tasks/LA-E4-08.md) |
-|  | F3.6 Canvas DR | Should | [LA-E3-09](tasks/LA-E3-09.md), [LA-E3-15](tasks/LA-E3-15.md) |
+|  | F3.6 Canvas DR | Should | [LA-E3-09](tasks/LA-E3-09.md), [LA-E3-15](tasks/LA-E3-15.md), [LA-E3-16](tasks/LA-E3-16.md) (cut group: all three together) |
 |  | F3.7 Claim policy per tool account | Should | [LA-E3-10](tasks/LA-E3-10.md) |
 |  | F3.8 New-window launch | Should | no task: decision only (A2 LA-ADR-05 D8; Moodle deferred, Canvas and Blackboard unchanged) |
 |  | F3.9 AGS extras | Should | [LA-E3-11](tasks/LA-E3-11.md) |
@@ -165,6 +165,7 @@ Every Must feature of README §7 has at least one task, and every task has ACs (
 | [LA-E3-13](tasks/LA-E3-13.md) | Deep Linking per-type item fields | Should | L2 | B3 | E3-04 | S | SIM | QA-4 (writes and runs) | 0.75 / 0 |
 | [LA-E3-14](tasks/LA-E3-14.md) | Ungraded placements: channel values, Canvas `link_selection` | Should | K | B3 | E2-03, E1-08 | S | SIM | QA-3 (writes and runs) | 0.75 / 0 |
 | [LA-E3-15](tasks/LA-E3-15.md) | Canvas `dynamic` method (LA-IC-14) | Should | K | B3 | E2-04 | S | SIM | QA-3 (writes and runs) | 0.75 / 0 |
+| [LA-E3-16](tasks/LA-E3-16.md) | Canvas DR in the portal (Canvas wizard) | Should | P | B3 | E3-15, E2-04 (K1-SIM also E3-09) | M | SIM | QA-3 (writes and runs) | 1.5 / 0 + E2E 0.25 |
 | [LA-E4-01](tasks/LA-E4-01.md) | Job runner in `packages/shared` | Must | R | B1 | E0-01 | M | none | QA-3 (writes and runs) | 1.5 / 0 |
 | [LA-E4-02](tasks/LA-E4-02.md) | Migration 014, placements, records, outbox | Must | R | B2 | E1-06, E1-07, E4-01 | L | SIM+MOODLE | QA-3 (writes and runs) | 2 / 0.75 + E2E 0.25 |
 | [LA-E4-03](tasks/LA-E4-03.md) | `lti-ags` reporter, throttling, read-back guard | Must | R | B2 | E4-02, E5-14, E7-05 | M | SIM+MOODLE | QA-3 (writes and runs) | 1.5 / 0 + E2E 0.25 |
@@ -298,6 +299,7 @@ flowchart LR
     E3_13["E3-13 L2"]
     E3_14["E3-14 K"]
     E3_15["E3-15 K"]
+    E3_16["E3-16 P"]
     E4_04["E4-04 R"]
     E4_06["E4-06 R"]
     E4_07["E4-07 R"]
@@ -398,6 +400,9 @@ flowchart LR
   E2_03 --> E3_14
   E1_08 --> E3_14
   E2_04 --> E3_15
+  E3_15 --> E3_16
+  E2_04 --> E3_16
+  E3_09 -.-> E3_16
   E0_01 --> E4_01
   E1_06 --> E4_02
   E1_07 --> E4_02
@@ -516,7 +521,7 @@ flowchart LR
   E6_05 -.-> E6_02
   E6_06 -.-> E6_02
   classDef opt stroke-dasharray: 5 5
-  class E2_06,E2_07,E3_08,E3_09,E3_10,E3_11,E3_12,E3_13,E3_14,E3_15,E4_04,E4_06,E4_07,E4_08,E5_15,E5_16,E5_17,E5_18,E5_20,E5_21,E5_22,E5_23,E5_24,E6_01,E6_02,E6_03,E6_04,E6_05,E6_06,E6_07,E7_11,E7_12 opt
+  class E2_06,E2_07,E3_08,E3_09,E3_10,E3_11,E3_12,E3_13,E3_14,E3_15,E3_16,E4_04,E4_06,E4_07,E4_08,E5_15,E5_16,E5_17,E5_18,E5_20,E5_21,E5_22,E5_23,E5_24,E6_01,E6_02,E6_03,E6_04,E6_05,E6_06,E6_07,E7_11,E7_12 opt
 ```
 
 ## 5. File-ownership matrix
@@ -558,7 +563,7 @@ Adjustments to README §6a and later Lead decisions, with the reason:
 | `packages/channel-kernel/**` (schema, catalog, registry, `legacy-wire.ts`, `fitness-scope.json`) | K | K | K | K | new in B1 |
 | `packages/channels/{moodle,canvas,blackboard}/manifest.ts`, `app.ts`, `app/**`, `README.md` | K | K | K | K | A2's value changes are K companion tasks (LA-E3-07, LA-E3-14, LA-E3-15, LA-E6-04, LA-E6-05) |
 | `packages/channels/{moodle,canvas,blackboard}/lti-profiles.ts` | L | L | L | L |  |
-| `packages/channels/{moodle,canvas,blackboard}/portal/**` | P | P | P | P | new in B2 (LA-E1-11) |
+| `packages/channels/{moodle,canvas,blackboard}/portal/**` | P | P | P | P | new in B2 (LA-E1-11); B3: the Canvas Dynamic Registration path (A2 LA-E3-16; `apps/portal/src/sdk/**` export lines only) |
 | `packages/channels/lti-generic/**`, `packages/channels/brightspace/**` | — | — | K | K | new in B3 (LA-E2-03, LA-E2-05) |
 | **Shared packages** | | | | | |
 | `packages/shared/src/jobs.ts` | R | R | R | R | new in B1 |
@@ -624,7 +629,7 @@ Tasks that need a file that another lane owned in the previous window wait for t
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | B1 | E0-01, E1-01, E1-02, E1-03, E1-06 | E1-05 | — | E1-04 | E4-01, E7-10 | E5-01, E5-02, E5-04, E7-03 | E5-08, E5-10 | E0-02, E0-03, E0-04, E7-01 | E7-02 | — |
 | B2 | E1-07, E1-08, E1-09, E1-12, E5-12 | E1-10, E3-01, E3-02, E3-04, E3-06, E5-06, E5-14 | — | E1-11 | E4-02, E4-03, E4-05 | E5-03, E5-05, E5-11, E5-19 | E5-07, E5-09 | E7-04, E7-06 | E7-05 | — |
-| B3 | E2-03, E2-04, E2-05, E3-07, E2-06 (S), E3-14 (S), E3-15 (S), E6-04 (C), E6-05 (C) | E2-01, E2-02, E2-07 (C, deferred), E3-09 (S), E3-11 (S), E3-12 (C, deferred) | E3-03, E3-05, E3-08 (S), E3-10 (S), E3-13 (S), E5-18 (S), E6-06 (C, deferred) | E6-01 (C), E6-02 (C) | E4-04 (S), E4-06 (S), E4-07 (S), E4-08 (S) | E5-16 (S), E5-17 (S), E5-20 (S), E5-21 (S) | E5-15 (S) | E5-13 | E7-07 | — |
+| B3 | E2-03, E2-04, E2-05, E3-07, E2-06 (S), E3-14 (S), E3-15 (S), E6-04 (C), E6-05 (C) | E2-01, E2-02, E2-07 (C, deferred), E3-09 (S), E3-11 (S), E3-12 (C, deferred) | E3-03, E3-05, E3-08 (S), E3-10 (S), E3-13 (S), E5-18 (S), E6-06 (C, deferred) | E3-16 (S), E6-01 (C), E6-02 (C) | E4-04 (S), E4-06 (S), E4-07 (S), E4-08 (S) | E5-16 (S), E5-17 (S), E5-20 (S), E5-21 (S) | E5-15 (S) | E5-13 | E7-07 | — |
 | B4 | E5-22 (S), E6-03 (C) | E7-11 (S) | — | E6-07 (C) | — | — | E5-23 (S) | E8-02 | E5-24 (S), E7-12 (C) | E8-01, E8-03, E8-04, E8-05 |
 | each wave end | — | — | — | — | — | — | — | E7-08 | E7-09 | — |
 
@@ -638,7 +643,7 @@ Authors need no slot: they run unit tests and K0. QA, QA-2, QA-3, QA-4 and QA-E2
 | --- | --- | --- |
 | B1 | E0-02, E0-03, E0-04, E1-01, E1-02, E1-05, E1-06, E5-01, E5-02, E5-04, E5-08, E5-10, E7-02, E7-03 | E0-02, E1-05 |
 | B2 | E1-07, E1-08, E1-09, E1-10, E1-11, E3-01, E3-02, E3-04, E3-06, E4-02, E4-03, E4-05, E5-03, E5-05, E5-06, E5-07, E5-09, E5-11, E5-12, E5-14, E5-19, E7-05, E7-06 | E1-07, E1-08, E1-09, E1-10, E4-02, E4-03 |
-| B3 | E2-01, E2-02, E2-03, E2-04, E2-05, E2-06, E3-03, E3-05, E3-07, E3-08, E3-09, E3-10, E3-11, E3-13, E3-14, E3-15, E4-04, E4-06, E4-07, E4-08, E5-13, E5-15, E5-16, E5-17, E5-18, E5-20, E5-21, E6-01, E6-02, E6-04, E6-05, E7-07 | E2-01, E2-02, E3-05, E3-07, E3-10 |
+| B3 | E2-01, E2-02, E2-03, E2-04, E2-05, E2-06, E3-03, E3-05, E3-07, E3-08, E3-09, E3-10, E3-11, E3-13, E3-14, E3-15, E3-16, E4-04, E4-06, E4-07, E4-08, E5-13, E5-15, E5-16, E5-17, E5-18, E5-20, E5-21, E6-01, E6-02, E6-04, E6-05, E7-07 | E2-01, E2-02, E3-05, E3-07, E3-10 |
 | B4 | E5-22, E5-23, E5-24, E6-03, E6-07, E7-11, E7-12, E8-02 | — |
 | each wave end | LA-E7-08 (R1 + K1 on every channel + golden + U1 when a migration landed; about 50–60 min), K2 in LA-E7-09 | LA-E7-09 (T7 × 3 + legacy groups; about 1.5–2.5 h) |
 
@@ -653,16 +658,16 @@ Author lanes: sizes in days (S = 1, M = 2.5, L = 4.5); "m (a)" = m days of Must 
 | K | 10 | 13.5 | 7 (12) | 0 (7) | — | 30.5 | 42.5 |
 | L | 4.5 | 15 | 9 (12.5) | 0 (2.5) | — | 28.5 | 34.5 |
 | L2 | 0 | 0 | 3.5 (10.5) | 0 | — | 3.5 | 10.5 |
-| P | 2.5 | 4.5 | 0 (5) | 0 (1) | — | 7 | 13 |
+| P | 2.5 | 4.5 | 0 (7.5) | 0 (1) | — | 7 | 15.5 |
 | R | 3.5 | 8 | 0 (5.5) | 0 | — | 11.5 | 17 |
 | S1 | 10.5 | 10.5 | 0 (8.5) | 0 | — | 21 | 29.5 |
 | S2 | 9 | 5 | 0 (2.5) | 0 (2.5) | — | 14 | 19 |
 | Docs | 0 | 0 | 0 | 10 | — | 10 | 10 |
 | QA-2 (lanes S1, S2: write + run) | 9.75 | 8.75 | 0 (6.75) | 0 (1.5) | — | 18.5 | 26.75 |
-| QA-3 (lanes K, R, P: write + run) | 9.5 | 13.25 | 4.5 (15) | 0 (4.25) | — | 27.25 | 42 |
+| QA-3 (lanes K, R, P: write + run) | 9.5 | 13.25 | 4.5 (16.5) | 0 (4.25) | — | 27.25 | 43.5 |
 | QA-4 (lanes L, L2: write + run) | 2 | 8.75 | 6.25 (13) | 0 (1.5) | — | 17 | 25.25 |
 | QA (own tasks, R1 and migration runs) | 9.75 | 8.25 | 2.5 | 2.75 | 6 | 29.25 | 29.25 |
-| QA-E2E (own tasks, Moodle-lane checks, K2 runs) | 2.75 | 6.5 | 4 (4.25) | 0 (2) | 4 | 17.25 | 19.5 |
+| QA-E2E (own tasks, Moodle-lane checks, K2 runs) | 2.75 | 6.5 | 4 (4.5) | 0 (2) | 4 | 17.25 | 19.75 |
 
 Each task's own QA cost is in the §3 columns "Tests by" and "QA days".
 
@@ -714,14 +719,14 @@ Requests from A2's specs that the matrix closes (no decision needed):
 | `store/retention.ts` | S1 in B1–B3 (LA-E3-02 no longer edits it), S2 in B4 |
 | Mount lines: LTI `http/app.ts` (S2 groups, P `platform-check.ts`; L `Retry-After` line), app `app/server.ts` (P, R) | S1 and K by RQ-1 |
 | `clients/lti-client.ts` | K in B1, R in B2, K in B3 and B4 |
-| K and L parts of A2's Should and Could tasks (Reviewer-B B-LAB-01) | A2's companion tasks LA-E3-14, LA-E3-15 (K), LA-E6-04, LA-E6-05 (K), LA-E6-06 (L2), LA-E6-07 (P), each cut together with its partner |
+| K and L parts of A2's Should and Could tasks (Reviewer-B B-LAB-01) | A2's companion tasks LA-E3-14, LA-E3-15 (K), LA-E3-16 (P; cut with LA-E3-09 and LA-E3-15, BD-A2-90), LA-E6-04, LA-E6-05 (K), LA-E6-06 (L2), LA-E6-07 (P), each cut together with its partner |
 | R parts of LA-E3-03 (course name "—") and LA-E3-08 (ungraded rule) | LA-E4-02 AC-11 and LA-E4-08 (which depends on A2's LA-E3-14) |
 | `lti-generic` values `content.multiple`, `registration.scopes`, `platformStorage`; `brightspace` `registration.scopes` | LA-E2-03 AC-09 to AC-11; LA-E2-05 AC-09 |
 
 ## 11. Index of task specs
 
 - A1: [E0](tasks/LA-E0-01.md) (LA-E0-01 to LA-E0-04), [E1](tasks/LA-E1-01.md) (LA-E1-01 to LA-E1-12), [E2](tasks/LA-E2-01.md) (LA-E2-01 to LA-E2-07), [E4](tasks/LA-E4-01.md) (LA-E4-01 to LA-E4-08), [E7](tasks/LA-E7-01.md) (LA-E7-01 to LA-E7-12), [E8](tasks/LA-E8-01.md) (LA-E8-01 to LA-E8-05).
-- A2: [E3](tasks/LA-E3-01.md) (LA-E3-01 to LA-E3-15), [E5](tasks/LA-E5-01.md) (LA-E5-01 to LA-E5-24), [E6](tasks/LA-E6-01.md) (LA-E6-01 to LA-E6-07); lanes: [A2-lanes](tasks/A2-lanes.md).
+- A2: [E3](tasks/LA-E3-01.md) (LA-E3-01 to LA-E3-16), [E5](tasks/LA-E5-01.md) (LA-E5-01 to LA-E5-24), [E6](tasks/LA-E6-01.md) (LA-E6-01 to LA-E6-07); lanes: [A2-lanes](tasks/A2-lanes.md).
 - Rules: [tasks/README](tasks/README.md) (spec format, start and done rules, QA authors and folders, QA command forms, request rules, test knobs).
 - Responses: [tasks/review-response-B1-A1](tasks/review-response-B1-A1.md), [tasks/review-response-B1-A2](tasks/review-response-B1-A2.md).
 

@@ -4,6 +4,7 @@ import type { ConfigurationSnapshot } from "@cogniate/portal-sdk";
 import { CopyButton, ErrorNotice, Loading } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { ToolConfiguration } from "@cogniate/portal-sdk";
+import { downloadJson } from "./download-json.ts";
 
 export function CanvasConfiguration({ id }: { id: string }) {
   const [inline, setInline] = useState(false);
@@ -26,21 +27,10 @@ export function CanvasConfiguration({ id }: { id: string }) {
   function download() {
     if (!current?.snapshot) return;
     setDownloadError(null);
-    let url: string | undefined;
     try {
-      url = URL.createObjectURL(new Blob([current.snapshot.text], { type: "application/json;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "cogniate-canvas-lti.json";
-      document.body.append(link);
-      try { link.click(); } finally { link.remove(); }
+      downloadJson(current.snapshot.text);
     } catch (reason) {
       setDownloadError(reason);
-    } finally {
-      if (url) {
-        const downloadUrl = url;
-        setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
-      }
     }
   }
   return <>

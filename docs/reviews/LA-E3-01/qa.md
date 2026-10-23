@@ -1,5 +1,5 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 2
+Verdict: PASS (K0 + UNIT + K1-SIM)
+Round: 3
 
 # LA-E3-01 Platform storage: login page and state columns: QA verification
 
@@ -34,12 +34,12 @@ Round: 1
 | AC-LA-E3-01-07 | PASS (UNIT) | `services/lti-service/src/lti/storage-pages.test.ts > posts to forwarding and only the storage origin, with the bounded state key (AC-07)` + `posts to _parent and only the storage origin, with the bounded state key (AC-07)` + `services/lti-service/src/lti/login.test.ts > uses a fixed frame and fixed storage origin without a target parameter (AC-07)` | as AC-06 | Posts `lti.put_data` with `key = cog_state_<d>` and `value = <state>` to `window.parent.frames["forwarding"]` or `window.parent` (`_parent`), with targetOrigin `O` (either `authOrigin` or a fixed `https` origin), never `*`. `e3-01-r1-unit.log` |
 | AC-LA-E3-01-08 | PASS (UNIT) | `services/lti-service/src/store/states.test.ts > stores and returns storage metadata, defaults old callers to null and keeps state single use (AC-08)` + `login.test.ts` (`AC-03, AC-04, AC-08`) | `./node_modules/.bin/vitest run --reporter=verbose services/lti-service/src/store/states.test.ts services/lti-service/src/lti/login.test.ts` | Storage logins store `storage_target` and `storage_origin` on the `oidc_state` row; `302` logins store `NULL` for both; `consumeState` returns both columns and stays single-use. `e3-01-r1-unit.log` |
 | AC-LA-E3-01-09 | PASS (UNIT + K0) | `services/lti-service/src/store/states.test.ts > migration 014 gives every copied M1 state null storage columns and preserves old fields (AC-09)` | `./node_modules/.bin/vitest run --reporter=verbose services/lti-service/src/store/states.test.ts` | LTI migration `014_platform_storage.sql` applies cleanly to a copy of an M1 LTI database with existing `oidc_state` rows, giving them `NULL` in `storage_target` and `storage_origin` and passing F5 `sql-portability`. `LA-E3-01-r1-k0.log`, `e3-01-r1-unit.log` |
-| AC-LA-E3-01-10 | pending: Docker window (K1-SIM) | `tests/ltiaas/tasks-lti/LA-E3-01/platform-storage-login.k1sim.test.ts > AC-LA-E3-01-10` | SIM Docker slot | Pending Docker window (M1 `--phase sim` + M2 regression). |
+| AC-LA-E3-01-10 | PASS (K1-SIM) | `tests/ltiaas/tasks-lti/LA-E3-01/platform-storage-login.k1sim.test.ts > AC-LA-E3-01-10` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live Canvas simulator login with `lti_storage_target=forwarding` returns `200 text/html` storage page with rule-3 CSP, `cog_state_<d>`, and exact `authUrl`, while login without `lti_storage_target` or on `standard`/`blackboard-sim` returns `302` (`1/1` test passes in `87ms`; `LA-E3-01-k1sim.log`, `all-17-k1sim.log`). |
 
 ## Round 2 (`3344520` / `a2dfc04`)
 
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 2
+Verdict: PASS (K0 + UNIT + K1-SIM)
+Round: 3
 
 ### Round 2 changes and verification (`23a736e`, `5fecc58`, `db1038f`, `f09c3ea` in `3344520`, verified at `a2dfc04`)
 

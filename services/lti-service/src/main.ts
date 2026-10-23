@@ -51,7 +51,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
     throw err;
   }
   const db = openDb(join(config.dataDir, 'lti.db'));
-  const metrics = metricsFor(db);
+  const metrics = (await metricsFor(db));
   const logger = metrics.logger(sink);
   const { active: knobs } = readServiceKnobs(SERVICE);
   for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });

@@ -33,13 +33,13 @@ it('migration 012 preserves existing sessions; new client keys and settings surv
     db.close();
     db = openDb(join(dir, 'lti.db'));
     expect(readRateLimitSettings(db)).toEqual(expected);
-    expect(new RateLimiter(db, capturingLogger().logger, () => 1000, '').view()).toMatchObject({ classes: { api: { ratePerMinute: 7, burst: 3, source: 'operator' } }, registrationSessionsPerAddress: 9 });
+    expect(new RateLimiter(db, capturingLogger().logger, () => 1000, '', readRateLimitSettings(db)).view()).toMatchObject({ classes: { api: { ratePerMinute: 7, burst: 3, source: 'operator' } }, registrationSessionsPerAddress: 9 });
     patchRateLimitSettings(db, { classes: { api: null }, registrationSessionsPerAddress: null });
     expect(readRateLimitSettings(db)).toEqual({ classes: {} });
   } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
 });
 
-it('the session cap counts unexpired open/completing rows per address prefix AND account', () => {
+it('the session cap counts unexpired open/completing rows per address prefix AND account', async () => {
   const db = openDb(':memory:');
   const limiter = new RateLimiter(db, capturingLogger().logger, () => 1000, '');
   try {
@@ -60,14 +60,14 @@ it('the session cap counts unexpired open/completing rows per address prefix AND
     add('one', client, 'open', 1000);
     add('one', null, 'open');
     add('two', client, 'open');
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8::abcd', 'one', 1000)).toEqual({ allowed: false, clientKey: client, open: 2, limit: 2 });
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8::ffff', 'two', 1000)).toMatchObject({ allowed: true, open: 1 });
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8:0:1::1', 'one', 1000)).toMatchObject({ allowed: true, open: 0 });
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8::abcd', 'one', 1000))).toEqual({ allowed: false, clientKey: client, open: 2, limit: 2 });
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8::ffff', 'two', 1000))).toMatchObject({ allowed: true, open: 1 });
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8:0:1::1', 'one', 1000))).toMatchObject({ allowed: true, open: 0 });
     db.prepare("UPDATE registration_session SET status = 'completed', client_key = NULL WHERE id = ?").run(pending);
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 1000)).toMatchObject({ allowed: true, open: 1 });
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 2000)).toMatchObject({ allowed: true, open: 0 });
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 1000))).toMatchObject({ allowed: true, open: 1 });
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 2000))).toMatchObject({ allowed: true, open: 0 });
     limiter.replaceSettings({ registrationSessionsPerAddress: 1 });
-    expect(checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 1000).allowed).toBe(false);
-    expect(checkRegistrationSessionCap(db, limiter, '192.0.2.1', 'one', 1000).clientKey).toBe('192.0.2.1');
+    expect((await checkRegistrationSessionCap(db, limiter, '2001:db8::1', 'one', 1000)).allowed).toBe(false);
+    expect((await checkRegistrationSessionCap(db, limiter, '192.0.2.1', 'one', 1000)).clientKey).toBe('192.0.2.1');
   } finally { db.close(); }
 });

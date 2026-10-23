@@ -5,7 +5,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CapabilityId, ChannelRegistry } from '@cogniate/channel-kernel';
 import { EMPTY_PUBLICATION_EXTENSION_FIELDS, EXTENSION_CAPABILITY_MEMBERS, EXTENSION_GUARDS, PACKAGE_EXPORT_WIRE, PUBLICATION_EXTENSION_FIELDS } from '@cogniate/channel-kernel';
-import { getConnection } from '../domain/connections.ts';
+import { getConnection, setArtifactKeyKid } from '../domain/connections.ts';
 import { parseStrictBody } from '@cogniate/channel-kernel/setup';
 import type { SetupRouteDeps } from './setup/deps.ts';
 import { ApiError } from '../app/api-errors.ts';
@@ -107,6 +107,8 @@ export function registerExtensionRoutes(api: FastifyInstance, deps: ExtensionDep
         if (!route) throw new ApiError('CAPABILITY_NOT_SUPPORTED', undefined, { details: { capability: descriptor.legacyCapabilityName ?? descriptor.capability } });
         const result = await route.handle({ body: req.body, query: req.query }, portContextOf(deps, req, c.id));
         if ('error' in result) return reply.code(result.error.status).send(apiErrorBody(result.error.status, result.error.code, result.error.message, result.error.details));
+        // LA-E6-05: a setup artifact export records the kid of its embedded key (null: the key URL); the answer is unchanged.
+        if (result.artifactKeyKid !== undefined) setArtifactKeyKid(deps.db, c.libraryId, c.id, result.artifactKeyKid);
         return reply.code(result.status).headers(result.headers ?? {}).send(result.body);
       },
     });

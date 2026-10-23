@@ -10,8 +10,18 @@ const canvas = {
   simulation: false, productFamily: 'canvas', // F-CV-22.
   accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', // F-CV-5, F-CV-18.
   platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' }, // LA-ADR-05 D1 rule 1a.
-  // LA-ADR-02 D2: fixed endpoints; no Dynamic Registration (BD-A1-83: explicit null). Canvas DR is A2's LA-ADR-05 D6.
-  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false, dynamicRegistration: null,
+  // LA-ADR-02 D2: fixed endpoints.
+  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false,
+  // LA-ADR-05 D6: Dynamic Registration with the profile values and an opaque registration token; the registration
+  // request carries the three Canvas extension members.
+  dynamicRegistration: {
+    issuerRule: 'profile', registrationToken: 'opaque-bearer',
+    toolConfigurationExtensions: {
+      'https://canvas.instructure.com/lti/privacy_level': 'anonymous',
+      'https://canvas.instructure.com/lti/tool_id': 'cogniate',
+      'https://canvas.instructure.com/lti/vendor': 'Cogniate',
+    },
+  },
   flags,
 } as const;
 

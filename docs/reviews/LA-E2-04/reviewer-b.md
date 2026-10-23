@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 5
 
 ## Round 1
 
@@ -81,3 +81,29 @@ The portal edit is the dispatched RQ-2 test only; the production fixes stay in t
 **Verification:** fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r3-review-b-qu1frkll/repo`, with its own successful `npm ci`. The final focused run passed **151 tests in three files**, including the portal observation and cancellation assertion. Restoring the pre-fix `redemption.ts` made the new gone-platform test fail on precisely the old collision sentence (one failure, 13 skipped). The Vitest cache was removed before the negative control and final verification. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All temporary mutations were restored; the private checkout is clean.
 
 The two changed files are the K engine and its adjacent unit test, explicitly authorized for lane L2 by RQ-2. The diff adds no LMS name to core and changes no behavior outside the specified refusal text. Earlier UNIT-AC evidence remains in Rounds 1–2; QA retains K1-SIM/R1 and browser acceptance. Only this report was edited in the integration worktree; no Docker, stack, commit or push was run.
+
+## Round 4
+
+**Verdict: APPROVE.** Reviewed `00d17d3` at merge `2434c26a18c0615b5e993c01308ad9064f8695a5` against BD-A1-101, LA-E2-04, app API delta §3.4, LA-ADR-01 D2/D12 and plan §6.1. Blind review; the other reviewer's file was not read. **New counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+The default names a tool registration and gives two clear repair actions: make a new registration for the library or ask the operator. It reads correctly for both `lti-generic` and `brightspace`. Channel authors can find the exact optional key in LA-ADR-01 D2 (`docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md:144`), its substitution/fallback rule and distinction from the portal key in D12 (line 474), and the API case in `docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md:105`. The Canvas manifest supplies a concrete example. The schema and `registrationText` share one key list; redemption uses those helpers without a channel-id branch.
+
+Canvas keeps its existing description, with the frozen assertion in `redemption.test.ts` untouched. The staged-gone description still takes precedence, and `DEPLOYMENT_IN_USE` and the portal notice are unchanged. This fix does not resolve the separate portal observation from Round 3.
+
+Verification used a fresh private `git clone --no-hardlinks` at `/tmp/la-e2-04-r4-review-b-_vxc45g6/repo`, its own successful `npm ci`, and a cleared Vitest cache before every run. **162 checked-in tests in four files passed; the final run passed 164 including two private probes** that checked the generic/Brightspace defaults and accepted channel overrides. Restoring the old redemption engine failed the new generic collision test on the old sentence; removing the Canvas override failed its new byte-for-byte test. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All private changes were restored; the private checkout is clean.
+
+The five changed files are the K paths explicitly authorized to lane L2 by RQ-2. No forbidden path or additional behavior changed, and no LMS name was added to core. Earlier UNIT-AC evidence remains in the preceding rounds; QA retains stack/browser acceptance. Only this report was edited in integration; no Docker, stack, commit or push was run.
+
+## Round 5
+
+**Verdict: APPROVE.** Reviewed `094ad03` and `070a8cb` at merges `048cc5e` and `e65457445001a6a6636afbea7c55d66870211737`, against BD-A1-102, app API delta §3.4, LA-ADR-01 D12 and LA-ADR-04 D8's LA-IC-20 exception. Blind review; the other reviewer's file was not read. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+**Rounds 3–4 portal observation — CLOSED.** Only the staged-gone branch adds `details.reason: 'staged_gone'` (`services/cogniate-app/src/app/redemption.ts:230`). The portal's shared text-selection helper skips channel/generic replacement for a non-empty reason (`apps/portal/src/connect/provider-errors.tsx:34`), so both notice components preserve the server's cause and repair instruction. No channel-id or connection-state rule is needed. The optional `reason` field is documented in `ErrorDetails`; the tested empty-string choice preserves the existing fallback.
+
+A private host-only probe captured the actual injected PUT refusal, passed its JSON through the real portal `api()` parser with mocked fetch, then rendered both notice components under `lti-generic`. Both displayed the exact staged-gone description, error code and trace id, without the generic collision sentence. The checked-in tests also cover reason-bearing answers for all five text keys and retain the action text.
+
+The ordinary collision, site-rule and deployment responses still have no reason on these codes. Existing Moodle, Canvas and Blackboard text assertions pass, including the unchanged Canvas portal sentence without the server's operator clause; the strings match the frozen M2 error catalogue at `tests/e2e/M2/lib/m2.ts:35`. No baseline assertion or LA-IC-20 record was changed. M2 browser acceptance was not run; that remains QA's check.
+
+Verification used a fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r5-review-b-5q2750dq/repo`, its own successful `npm ci`, and a cleared Vitest cache before every run. **170 checked-in tests in five files passed; the final run passed 171 including the route-to-portal probe.** Restoring the old server engine failed the new reason assertion; restoring the old portal helper failed the server-description regression. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All private changes and the temporary response fixture were removed; the private checkout is clean.
+
+Ownership follows the dispatch: K engine/test by lane L2 RQ-2, portal helper/test/type by lane P. No forbidden path, new core LMS name or behavior outside BD-A1-102 was added. Earlier UNIT-AC evidence remains in the preceding rounds. Only this report was edited in integration; no Docker, stack, commit or push was run.

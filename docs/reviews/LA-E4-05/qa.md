@@ -1,5 +1,5 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 1
+Verdict: PASS (K0 + UNIT + K1-SIM `AC-01..05` all PASS)
+Round: 2
 
 # LA-E4-05 Worker process mode and the production refusal: QA verification
 
@@ -23,7 +23,7 @@ Independence: QA-3 did not read product source (`services/**`, `packages/**`, `a
 | AC-LA-E4-05-02 | PASS (UNIT + K0) | `worker.k0.test.ts` + `services/cogniate-app/src/worker-main.test.ts > LA-E4-05 process entries > AC-LA-E4-05-02: npm run worker sends a pending score while the web runner is off` | as AC-01 | `services/cogniate-app/src/worker-main.ts` exists, `services/cogniate-app/package.json` and root `package.json` define the `worker` script, and running `npm run worker` alone (with the web runner off) sends the pending score so the row becomes `sent`. `k0/e4-05-unit-rows.log`, `unit-rows-worker-main.log` |
 | AC-LA-E4-05-03 | PASS (UNIT + K0) | `worker.k0.test.ts` + `services/cogniate-app/src/worker-main.test.ts > LA-E4-05 process entries > AC-LA-E4-05-03: production web refuses a live other role with either instance id` + `AC-LA-E4-05-03: production worker refuses a live other role with either instance id` + `AC-LA-E4-05-03: simultaneous production web and worker starts allow only one role` + `AC-LA-E4-05-03: default web/worker warns for the other role and still runs` + `AC-LA-E4-05-03: production web/worker ignores a stale other-role heartbeat` (7 tests) | as AC-01 | In the `production` profile, starting a `worker` while a live `web` runner row exists (or starting a `web` runner while a live `worker` row exists, or simultaneous starts) exits `1` with `config_refused {reason: "job_runner_twice"}`; stale heartbeats are ignored and non-production profiles log a warning and continue. `k0/e4-05-unit-rows.log`, `unit-rows-worker-main.log` |
 | AC-LA-E4-05-04 | PASS (UNIT + K0) | `worker.k0.test.ts` + `services/cogniate-app/src/worker-main.test.ts > LA-E4-05 process entries > AC-LA-E4-05-04: two runner processes with distinct ids POST each due score once on one database` | as AC-01 | Two runner processes with distinct `JOB_INSTANCE_ID` values on one SQLite database send each due row once with zero duplicate score POSTs. `k0/e4-05-unit-rows.log`, `unit-rows-worker-main.log` |
-| AC-LA-E4-05-05 | pending: Docker window (K1-SIM) | `golden.k1sim.test.ts > AC-LA-E4-05-05` | SIM slot golden capture + `LA_LEVEL=k1sim` | Pending Docker window. |
+| AC-LA-E4-05-05 | PASS (K1-SIM) | `golden.k1sim.test.ts > AC-LA-E4-05-05` (`1/1` PASS in `42ms`) + Slot 3B Step 3B.1 (`qalead-la-10`) & Slot 3A (`qalead-la-3`) | `LA_LEVEL=k1sim LA_GOLDEN_BASELINE=tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 LA_GOLDEN_CAPTURE=~/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/golden-capture-80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5-port9443 LA_EXPECTED_DELTA=LA-IC-01..LA-IC-21 LA_RUN_DIR=~/cogniate-qa-runs/LA/run22-golden-k1sim/LA-E4-05 vitest run --config tests/ltiaas/tasks-core/LA-E4-05/vitest.config.mts` | Verified on Wave-End Gate **Slot 3B** capture (`qalead-la-10` at `80133d6b` / product code `02f5d420`): on the SIM lane with default settings (runner in web process), golden `G3` score rows equal the `G-BASE` baseline (`g3Diffs: []` in `e4-05-ac05-golden-diff-paths.json`; `~/cogniate-qa-runs/LA/run22-golden-k1sim/LA-E4-05/vitest.log`). |
 
 ### R0 `npm run check` counts at `5b5b3a2` (`k0/e4-05-check-clean.log`)
 
@@ -42,4 +42,4 @@ Independence: QA-3 did not read product source (`services/**`, `packages/**`, `a
 
 ## Regression and time
 
-R0 (`npm run check` on the clean clone): PASS. Golden G3 compare (`AC-05`): `pending: Docker window`. Measured time of `worker.k0.test.ts`: `162.77s` (`R0 & worker entry point` `1ms`, `UNIT rows` `11.10s`, `npm run check` in `beforeAll` `151.67s`); `worker-main.test.ts` (10 tests): `8.78s`.
+R0 (`npm run check` on the clean clone): PASS. Golden G3 compare (`AC-05`): PASS (`42ms` on Slot 3B `qalead-la-10` capture at `80133d6b` / product code `02f5d420`). Measured time of `worker.k0.test.ts`: `162.77s` (`R0 & worker entry point` `1ms`, `UNIT rows` `11.10s`, `npm run check` in `beforeAll` `151.67s`); `worker-main.test.ts` (10 tests): `8.78s`; `golden.k1sim.test.ts`: `42ms`.

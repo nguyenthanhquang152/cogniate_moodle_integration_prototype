@@ -1,7 +1,20 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E5-09 Key provider status, re-wrap job, legacy refusal: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 3 on `qa2-la-sim-r3`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r3`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-09-01 .. 05 & BD-A2-50 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-09/key-provider.test.ts` (5 `K1-SIM` tests: `AC-LA-E5-09-01` .. `05` including `BD-A2-50` trace join) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r3 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch3.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3 --replace-tests` | All 5 `K1-SIM` tests pass (`container-LA-E5-09`, `5/5` passed in `13,816 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r3-4209dcb-2026-10-23T05-11-11-546Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-3.log`). |
+| AC-LA-E5-09-06 .. 08 | PASS (UNIT) | `services/lti-service/src/jobs/key-rewrap.test.ts`, `packages/shared/src/key-provider.test.ts` | `npx --no-install vitest run services/lti-service/src/jobs/key-rewrap.test.ts packages/shared/src/key-provider.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 2 below. |
+
+---
+
+## Round 2 (host-only at `5b5b3a2`)
 
 Tester: QA-2 (Round 1: task `task_756d65316a50` / `ctx_eb2462bb36b5`; Round 2: task `task_00bf4a549499` / `ctx_4528c07049d5`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-09.md` (with `BD-A2-36`, `BD-A2-38`, `BD-A2-42`, `BD-A2-43`, `BD-A2-50`). Suite: `tests/ltiaas/tasks-ops/LA-E5-09/` (QA-2 test-first, updated for `BD-A2-50` trace join in Round 2).
 

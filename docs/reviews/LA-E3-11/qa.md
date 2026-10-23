@@ -1,13 +1,13 @@
 # QA Review — `LA-E3-11` (AGS extras: submission times, `scoringUserId`, URL-keyed members)
 
 - **Reviewer**: QA-4 (independent test author & verifier, lane L)
-- **Round**: 1
+- **Round**: 2
 - **Task**: `LA-E3-11` (`docs/architecture/ltiaas/tasks/LA-E3-11.md`)
 - **Author**: Author-2 (`lti-author`)
-- **Merge Commit / Integration SHA**: `151f6a9` / `aa3b214` (code identical to `836d579`)
-- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/clone` (detached at `aa3b2141e96b6723b5af8fa40ed86904970f4dc0`, `--no-hardlinks`, push URL `DISABLED`)
-- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/logs`
-- **Verdict**: **PASS (K0 / UNIT green; K1-SIM suites authored and ready for Docker window)**
+- **Merge Commit / Integration SHA**: `151f6a9` / `aa3b214` (Round 1 K0/UNIT); `d12b7b94` (`QA_TEST_SHA=f4846bb0`, Round 2 Docker Slot 5 K1-SIM)
+- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/clone` (detached at `d12b7b948cb1337ca1b9c53715df87d6270081d5`, `--no-hardlinks`, push URL `DISABLED`)
+- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/logs` (`LA-E3-11-k1sim.log`, `all-17-k1sim.log`)
+- **Verdict**: **PASS (K0 + UNIT + K1-SIM all green)**
 
 ---
 
@@ -47,10 +47,10 @@ No files outside the task scope (`tests/**`, `docs/**`, or exclusive files owned
 
 | AC ID | Kind | Spec Requirement | QA Suite / Test Case | Status |
 | --- | --- | --- | --- | --- |
-| `AC-LA-E3-11-01` | `K1-SIM` | Score call with `submission.startedAt`, `submission.submittedAt`, and `scoringUserId` returns `204` (`POST /api/lineitems/:id/scores`) and `200 {"ok":true}` (`POST /api/scores`); simulator receives all three fields unchanged. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-01: score with submission.startedAt, submission.submittedAt and scoringUserId returns 204 (/api/lineitems/:id/scores) and 200 {"ok":true} (/api/scores) and forwards all three fields unchanged` (plus unit coverage in `ags.test.ts > accepts optional submission times and scoring user IDs without changing their values`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E3-11-02` | `K1-SIM` | Score call with `"https://ext.example/rubric": {"criterion":"A","points":4}` forwards that member unchanged in the outbound score JSON; a non-URL or `http://` extra key is not forwarded. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-02: score with https://ext.example/rubric forwards the URL-keyed member unchanged and drops non-URL or http:// extra keys` (plus unit coverage in `ags.test.ts > keeps each JSON extension value` & `keeps absolute HTTPS keys and drops all other unknown members`) | `pending: Docker window` (UNIT verified) |
+| `AC-LA-E3-11-01` | `K1-SIM` | Score call with `submission.startedAt`, `submission.submittedAt`, and `scoringUserId` returns `204` (`POST /api/lineitems/:id/scores`) and `200 {"ok":true}` (`POST /api/scores`); simulator receives all three fields unchanged. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-01 & AC-LA-E3-11-02` (`2/2` K1-SIM tests pass in `72ms`; `LA-E3-11-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E3-11-02` | `K1-SIM` | Score call with `"https://ext.example/rubric": {"criterion":"A","points":4}` forwards that member unchanged in the outbound score JSON; a non-URL or `http://` extra key is not forwarded. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-01 & AC-LA-E3-11-02` (`LA-E3-11-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
 | `AC-LA-E3-11-03` | `UNIT` | Score call with 9 URL-keyed members or a URL-keyed value of 4097 UTF-8 JSON bytes returns `400 INVALID_REQUEST` before any outbound call. | `ags-extras.k0.test.ts > AC-LA-E3-11-03 & AC-LA-E3-11-05 (UNIT)`, `ags.test.ts > accepts eight URL-keyed members and refuses a ninth (AC-03)`, `ags.test.ts > measures the JSON value as UTF-8 bytes, including JSON quoting and escapes (AC-03)`, `services.test.ts > refuses a ninth extension or a value over 4 KB before any outbound call (LA-E3-11 AC-03)` | **PASS** |
-| `AC-LA-E3-11-04` | `K1-SIM` | Score call with `submission.startedAt: "not-a-date"` returns `400 INVALID_REQUEST` before any outbound call. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-04: score with submission.startedAt: "not-a-date" returns 400 INVALID_REQUEST before any outbound call` (plus unit coverage in `ags.test.ts > refuses invalid optional fields`) | `pending: Docker window` (UNIT verified) |
+| `AC-LA-E3-11-04` | `K1-SIM` | Score call with `submission.startedAt: "not-a-date"` returns `400 INVALID_REQUEST` before any outbound call. | `ags-extras.k1sim.test.ts > AC-LA-E3-11-04` (`LA-E3-11-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
 | `AC-LA-E3-11-05` | `UNIT` | Line-item create, update, read, and list preserve URL-keyed members returned by or sent to the platform. | `ags-extras.k0.test.ts > AC-LA-E3-11-03 & AC-LA-E3-11-05 (UNIT)`, `compat.test.ts > keeps URL-keyed line item members on POST, PUT, GET and list (LA-E3-11 AC-05)` | **PASS** |
 
 ---

@@ -17,15 +17,20 @@ const manifest = {
       profiles: ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'canvas-sim-cloud'],
       defaultProfile: 'canvas-cloud-production',
     },
+    {
+      // LA-ADR-05 D6 (LA-IC-14): the registration stages an inactive platform; the operator grant still proves ownership.
+      method: 'dynamic', authority: 'operatorGrant',
+      profiles: ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'canvas-sim-cloud'],
+      defaultProfile: 'canvas-cloud-production',
+    },
   ],
   capabilities: {
-    // ADR-009 and the developer key JSON of today (LA-E3-07 changes this list, LA-IC-04).
+    // A2 LA-ADR-05 D4 (LA-E3-07, LA-IC-04): the four AGS scopes, no NRPS scope. The developer key JSON uses this list.
     'registration.scopes': [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     'deployments.multiple': true,
     'setup.artifacts': ['developer-key-json'],
@@ -38,6 +43,8 @@ const manifest = {
   // Check 14 (D6): a launch with family `canvas` must come from a Canvas profile.
   lti: { guardedFamilies: [{ family: 'canvas', level: 'launch' }], toolConfiguration: 'channel' },
   setup: {
+    // LA-ADR-08 D4, D6 (LA-E6-04): the "Check connection" button; the check proves the developer key of this school.
+    connectionCheck: true,
     createFields: [
       { key: 'siteUrl', label: 'Canvas URL', kind: 'origin', required: true },
       { key: 'serviceUrl', label: 'Canvas service URL', kind: 'origin', required: false },
@@ -47,6 +54,11 @@ const manifest = {
       { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'manual' },
       { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'manual' },
       { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'manual' },
+      // A staged Dynamic Registration (LA-ADR-05 D6, A1 BD-A1-103): the portal pre-fills both ids from the staged
+      // platform (app API delta §3.4).
+      { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'dynamic' },
     ],
   },
   texts: {

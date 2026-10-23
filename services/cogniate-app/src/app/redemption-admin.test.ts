@@ -166,6 +166,8 @@ describe('the grant collision text (BD-A1-101)', () => {
     const r = await put(second, manualBody(await issue(second, { boundValues: VALUES })));
     expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
       'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.']);
+    // BD-A1-102: the ordinary collision has no details.reason (the portal keeps its channel or generic text).
+    expect(r.json.details).not.toHaveProperty('reason');
     expect(grantsOfConnection(t.db, second.id).map((g) => g.redeemedAt)).toEqual([null]);
   });
 });
@@ -229,6 +231,8 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     const r = await put(c, { clientId: 'client-1', deploymentId: 'dep-1', grantCode: code });
     expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
       'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.']);
+    // BD-A1-102: the cause is also a details field, so the portal shows this description.
+    expect(r.json.details.reason).toBe('staged_gone');
     expect(creates()).toEqual([]);
     expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
     expect(grantsOfConnection(t.db, c.id).map((g) => g.redeemedAt)).toEqual([null]);
@@ -268,6 +272,78 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     const r = await put(c, Object.fromEntries(dynamicFields.map((f) => [f.key, prefill[f.key] ?? ''])));
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(t.lti.platforms.get(platform.id)!.active).toBe(true);
+  });
+
+});
+
+describe('A1 BD-A1-107 (G2): the staged Canvas redemption (fixed endpoints, a grant without bound values)', () => {
+  const CANVAS_SITE = 'https://school-a.canvas.sim.test';
+  const CANVAS_ISSUER = 'https://canvas.sim.test';
+
+  async function stagedCanvas() {
+    const ctx = await setup();
+    const created = await ctx.call('POST', '/app-api/connections', { name: 'Canvas', siteUrl: CANVAS_SITE, method: 'dynamic', lms: 'canvas', profile: 'canvas-sim-cloud' });
+    expect(created.status, JSON.stringify(created.json)).toBe(201);
+    const c = created.json;
+    const reg = t.lti.addRegistration({ url: CANVAS_ISSUER, familyCode: 'canvas', stage: { url: CANVAS_ISSUER, profile: 'canvas-sim-cloud', siteUrl: CANVAS_SITE, serviceUrl: CANVAS_SITE } });
+    const page = await t.app.inject({ method: 'POST', url: '/tool/register', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: TEST_URLS.app },
+      payload: new URLSearchParams({ registrationId: reg, ref: new URL(c.registrationUrl).searchParams.get('ref')! }).toString() });
+    expect(page.body).toContain('data-connection-status="pending"');
+    const platform = [...t.lti.platforms.values()].at(-1)!;
+    const library = String(t.db.prepare('SELECT id FROM library WHERE name = ?').get(THANH.library)!.id);
+    const tryIssue = (over: Partial<IssueInput> = {}) =>
+      ctx.op.issue({ library, connection: c.id, site: c.siteUrl, clientId: platform.clientId, deploymentId: platform.deploymentIds[0]!, note: 'ticket', traceId: 't', ...over });
+    const codeOf = (lines: string[]) => lines.find((l) => l.startsWith('Approval code'))!.split(': ')[1]!;
+    return { ...ctx, c, platform, deploymentId: platform.deploymentIds[0]!, tryIssue, codeOf };
+  }
+
+  it('app:grant issue gives a code with no bound values; the refusals issue nothing', async () => {
+    const { c, platform, tryIssue } = await stagedCanvas();
+    const refusals: Array<[Partial<IssueInput>, string]> = [
+      [{ acceptStaged: true }, 'A staged registration with fixed endpoints binds no values. Issue the grant without --accept-staged.'],
+      [{ clientId: 'client-other' }, '--client-id is not the client id of the staged platform.'],
+      [{ deploymentId: 'dep-other' }, '--deployment-id is not a deployment of the staged platform.'],
+    ];
+    for (const [over, line] of refusals) {
+      const r = await tryIssue(over);
+      expect([r.exitCode, r.lines.at(-1)]).toEqual([1, line]);
+    }
+    // A staged platform that changed after the registration (another site, switched on, another client id).
+    for (const change of [{ siteUrl: 'https://school-b.canvas.sim.test' }, { active: true }, { clientId: 'client-changed' }]) {
+      const saved = { siteUrl: platform.siteUrl, active: platform.active, clientId: platform.clientId };
+      Object.assign(platform, change);
+      const r = await tryIssue();
+      expect([r.exitCode, r.lines.at(-1)]).toEqual([1, 'The staged platform changed after the registration. Make a new connection.']);
+      Object.assign(platform, saved);
+    }
+    expect(grantsOfConnection(t.db, c.id)).toEqual([]);
+    const ok = await tryIssue();
+    expect(ok.exitCode, ok.lines.join('\n')).toBe(0);
+    expect(grantsOfConnection(t.db, c.id).map((g) => g.boundValues)).toEqual([null]);
+  });
+
+  it('(4f) the staged body { clientId, deploymentId, grantCode }: no S1 create, S2 adopts, S3 activates; registered with the approved deployment', async () => {
+    const { c, platform, deploymentId, tryIssue, codeOf, put, creates } = await stagedCanvas();
+    const r = await put(c, { clientId: platform.clientId, deploymentId, grantCode: codeOf((await tryIssue()).lines) });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json).toMatchObject({ status: 'registered', bindingAuthority: 'operatorGrant' });
+    expect(creates()).toEqual([]);
+    expect(t.lti.calls).toContain(`GET platforms ${CANVAS_ISSUER} ${platform.clientId}`);
+    const activation = t.lti.calls.filter((x) => x.startsWith('PATCH platform'));
+    expect(activation).toHaveLength(1);
+    expect(JSON.parse(activation[0]!.replace(/^PATCH platform \S+ /, ''))).toMatchObject({ active: true });
+    const stored = getConnectionAnyLibrary(t.db, c.id)!;
+    expect([stored.ltiPlatformId, platform.active, approvalOf(t.db, platform.id, deploymentId)?.connectionId]).toEqual([platform.id, true, c.id]);
+  });
+
+  it.each(['siteUrl', 'serviceUrl'] as const)('a staged %s that differs from the connection after the issue is not adopted; the platform stays inactive', async (key) => {
+    const { c, platform, deploymentId, tryIssue, codeOf, put } = await stagedCanvas();
+    const code = codeOf((await tryIssue()).lines);
+    platform[key] = 'https://school-b.canvas.sim.test';
+    const r = await put(c, { clientId: platform.clientId, deploymentId, grantCode: code });
+    expect([r.status, r.json.details.message]).toEqual([409, 'PLATFORM_IN_USE']);
+    expect([platform.active, getConnectionAnyLibrary(t.db, c.id)!.status, grantsOfConnection(t.db, c.id).map((g) => g.redeemedAt)]).toEqual([false, 'pending', [null]]);
+    expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
   });
 });
 

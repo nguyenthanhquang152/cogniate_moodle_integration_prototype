@@ -13,11 +13,12 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
-import type { Logger, LogLevel } from '@cogniate/shared';
+import type { LocalKeyProvider, Logger, LogLevel } from '@cogniate/shared';
 import { ConfigRefusedError } from '@cogniate/shared';
 import type { DeliveryOutcome } from '@cogniate/tracking';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
+import { missingAppKeyVersions } from './sealing.ts';
 import { observeDispatchSends } from '../kernel/records/outbox.ts';
 import { recordReporters } from '../kernel/records/records.ts';
 
@@ -58,19 +59,21 @@ const migrations = new Map(readdirSync(migrationDir).filter((name) => name.endsW
   name, createHash('sha256').update(readFileSync(new URL(name, migrationDir))).digest('hex'),
 ]));
 
-export type ReadinessReason = 'database' | 'migrations';
+export type ReadinessReason = 'database' | 'migrations' | 'key_version_missing';
 
 /**
- * Read-only checks of the app itself (BD-A2-88): the database answers and every migration file is applied unchanged.
+ * Read-only checks of the app itself (BD-A2-88): the database answers, every migration file is applied unchanged, and
+ * (with the app key provider, LA-E5-22, BD-A2-88 D3) the key ring has every key version that a stored value uses.
  * The LTI service is not checked: its outage must not make the app not ready (runbooks read /readyz of both services).
  */
-export function readiness(db: Db): ReadinessReason[] {
+export function readiness(db: Db, keys?: Pick<LocalKeyProvider, 'versions'>): ReadinessReason[] {
   try { db.prepare('SELECT 1').get(); }
   catch { return ['database']; }
   try {
     const applied = new Map(db.prepare('SELECT name, sha256 FROM schema_migration').all().map((r) => [String(r.name), String(r.sha256)]));
-    return applied.size !== migrations.size || [...migrations].some(([name, hash]) => applied.get(name) !== hash) ? ['migrations'] : [];
+    if (applied.size !== migrations.size || [...migrations].some(([name, hash]) => applied.get(name) !== hash)) return ['migrations'];
   } catch { return ['migrations']; }
+  return keys && missingAppKeyVersions(db, keys).length > 0 ? ['key_version_missing'] : [];
 }
 
 // ---------------------------------------------------------------- metrics
@@ -209,11 +212,11 @@ export function appMetricsFor(db: Db, now: () => number = Date.now): AppMetrics 
 // ---------------------------------------------------------------- listener
 
 /** The operator app: GET /metrics and GET /readyz only. The caller listens on operatorListenerConfig(). */
-export function buildOperatorListener(deps: { db: Db; metrics: AppMetrics }): FastifyInstance {
+export function buildOperatorListener(deps: { db: Db; metrics: AppMetrics; keys?: Pick<LocalKeyProvider, 'versions'> }): FastifyInstance {
   const app = Fastify({ logger: false });
   app.get('/metrics', async (_req, reply) => reply.type(OPENMETRICS_TYPE).header('cache-control', 'no-store').send(deps.metrics.render()));
   app.get('/readyz', async (_req, reply) => {
-    const reasons = readiness(deps.db);
+    const reasons = readiness(deps.db, deps.keys);
     return reply.code(reasons.length ? 503 : 200).header('cache-control', 'no-store')
       .send(reasons.length ? { status: 'not_ready', reasons } : { status: 'ready' });
   });

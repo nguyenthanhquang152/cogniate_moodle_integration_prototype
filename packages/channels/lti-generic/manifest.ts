@@ -6,7 +6,8 @@ import type { ChannelManifest } from '@cogniate/channel-kernel';
 const manifest = {
   id: 'lti-generic',
   family: 'lti13',
-  names: { text: 'your LMS', label: 'Other LTI 1.3 platform' },
+  // A1 BD-A1-111: the text name is 'LMS', because the core templates say 'your {LMS}' and 'this {LMS} site'.
+  names: { text: 'LMS', label: 'Other LTI 1.3 platform' },
   card: {
     title: 'LTI 1.3', description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.', mark: 'LTI', color: 'green',
     category: 'LMS Publishing', order: 4,
@@ -33,10 +34,12 @@ const manifest = {
     'records.reporters': ['lti-ags'],
     'records.readBack': true,
   },
-  // No product family is guarded: a named channel guards its own family (LA-ADR-02 D1). The kernel adapter gives the
-  // tool rows; 'none' until the K0 kit accepts 'channel' for a channel without app.ts (Lead provisional call, to A1).
-  lti: { guardedFamilies: [], toolConfiguration: 'none' },
+  // No product family is guarded: a named channel guards its own family (LA-ADR-02 D1). 'channel': without app.ts, the
+  // kernel admin-value adapter gives the tool rows (A1 BD-A1-85).
+  lti: { guardedFamilies: [], toolConfiguration: 'channel' },
   setup: {
+    // LA-ADR-08 D4, D6 (LA-E6-04): the "Check connection" button; the check proves the bound platform values.
+    connectionCheck: true,
     createFields: [{ key: 'siteUrl', label: 'LMS site URL', kind: 'origin', required: true }],
     // The strict body of the kernel admin-value adapter (app API delta §3.4). The issuer may have a path; its default
     // is the site URL, and a posted value replaces it.
@@ -57,14 +60,15 @@ const manifest = {
     ],
   },
   texts: {
+    // A1 BD-A1-112: the text name is bare ('LMS'); these channel texts add "your" where the name needs an article.
     adminSteps: [
-      'In {LMS}, open the administration page for LTI 1.3 tools.',
-      'Add {tool} as a new LTI 1.3 tool. If {LMS} supports Dynamic Registration, paste the registration URL. Else enter the tool values below in {LMS}.',
-      'For a manual connection, copy the Platform ID (issuer), the Client ID, the Deployment ID and the three platform URLs from {LMS} into Cogniate.',
+      'In your {LMS}, open the administration page for LTI 1.3 tools.',
+      'Add {tool} as a new LTI 1.3 tool. If your {LMS} supports Dynamic Registration, paste the registration URL. Else enter the tool values below in your {LMS}.',
+      'For a manual connection, copy the Platform ID (issuer), the Client ID, the Deployment ID and the three platform URLs from your {LMS} into Cogniate.',
       'Ask your Cogniate operator for an approval code. The operator checks the values with your {LMS} administrator first. The code works once and expires.',
     ],
-    teacherSteps: ['In {LMS}, add an LTI 1.3 activity, select {tool}, and select the Cogniate course.'],
-    disconnect: 'This stops launches through this connection. Cogniate items in {LMS} courses stop working.',
+    teacherSteps: ['In your {LMS}, add an LTI 1.3 activity, select {tool}, and select the Cogniate course.'],
+    disconnect: 'This stops launches through this connection. Cogniate items in your {LMS} courses stop working.',
     // The profile shares no platform, so it is always ready.
     notReady: null,
   },

@@ -28,7 +28,7 @@ import { transaction } from '../domain/db.ts';
 import type { BindingTarget, GrantPurpose, PlatformBodyValues, RedemptionRequest } from '../kernel/ports.ts';
 import { ApiError, providerNotReady } from './api-errors.ts';
 import type { LocalTarget, ReadinessCause } from './binding-targets.ts';
-import { differingBoundFields, grantAdminValues, holdsBoundValues, localTarget, platformAdminValues, s1ReadinessCause, sharedReadiness, stagedCall, stagedRegistration } from './binding-targets.ts';
+import { adminValueStaged, differingBoundFields, grantAdminValues, holdsBoundValues, localTarget, platformAdminValues, s1ReadinessCause, sharedReadiness, stagedCall, stagedRegistration } from './binding-targets.ts';
 
 export interface RedemptionEngine {
   /** Redeem a grant (or answer a finalized repeat). Throws the contract ApiError on any refusal. */
@@ -118,9 +118,10 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       if (grant.purpose !== req.purpose) return invalid('purpose');
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
-      // 5 (LA-ADR-02 D6), first part: an admin-value binding (typed admin values, or a staged registration) needs a grant
-      // with bound values, and only such a binding takes one.
-      const staged = req.purpose === 'initial' && stagedRegistration(connection);
+      // 5 (LA-ADR-02 D6), first part: an admin-value binding (typed admin values, or a staged registration of an
+      // admin-value channel) needs a grant with bound values, and only such a binding takes one. A staged fixed-endpoint
+      // connection (Canvas) has none: its target is the fixed target of the snapshot (A1 BD-A1-107).
+      const staged = req.purpose === 'initial' && adminValueStaged(channels, connection);
       const bound = grantAdminValues(grant.boundValues);
       if ((staged || req.values.adminValues !== undefined) !== (bound !== null)) return mismatch(['connection']);
       // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it. An admin-value
@@ -222,12 +223,14 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
-    const inUse = (description?: string): never => {
+    const inUse = (stagedGone = false): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
+        // BD-A1-97, BD-A1-102: the cause in the description and in details.reason (the portal then shows this text).
+        : stagedGone ? new ApiError('PLATFORM_IN_USE', STAGED_GONE, { details: { reason: 'staged_gone' } })
         // BD-A1-101: the channel's texts.registration.PLATFORM_IN_USE with {LMS} filled, else the core default.
-        : new ApiError('PLATFORM_IN_USE', description ?? fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
+        : new ApiError('PLATFORM_IN_USE', fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
     };
     const stagedChanged = (fields: string[]): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
@@ -321,7 +324,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
             if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
             if (guard === 'stop') { stop = true; break; }
             // A staged registration has no S1 create, so no record means that its staged platform is gone.
-            return inUse(staged ? STAGED_GONE : undefined);
+            return inUse(staged);
           }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;

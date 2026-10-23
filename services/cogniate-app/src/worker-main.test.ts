@@ -26,10 +26,13 @@ function fixture() {
   seedBase(db);
   const apiKeyFile = join(dir, 'api-key');
   writeFileSync(apiKeyFile, 'unit-api-key');
+  // LA-E5-22 (A2 BD-A2-91): production takes the app master key only from a file with no group or world access.
+  const masterKeyFile = join(dir, 'app-master-key');
+  writeFileSync(masterKeyFile, key.toString('hex'), { mode: 0o600 });
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH, NODE_OPTIONS: `--import=${preload}`, NODE_NO_WARNINGS: '1',
     PUBLIC_LTI_URL: 'https://127.0.0.1', PUBLIC_APP_URL: 'https://app.test', PUBLIC_CONTENT_URL: 'https://content.test',
-    APP_MASTER_KEY: key.toString('hex'), DATA_DIR: dir, LTI_API_KEY_FILE: apiKeyFile,
+    APP_MASTER_KEY_FILE: masterKeyFile, DATA_DIR: dir, LTI_API_KEY_FILE: apiKeyFile,
     OUTBOUND_PRIVATE_HOST_ALLOWLIST: '127.0.0.1', LOG_DIR: join(dir, 'logs'), STACK_PROFILE: 'production', PORT: '0', CONTENT_PORT: '0',
     BUILD_QUEUE_DIR: join(dir, 'builds'), OPERATOR_PORT: '0',
   };

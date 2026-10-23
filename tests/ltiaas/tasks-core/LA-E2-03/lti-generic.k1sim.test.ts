@@ -1,6 +1,6 @@
 // LA-E2-03 K1-SIM acceptance tests (pending: Docker window):
 // - AC-LA-E2-03-03: `GET /app-api/lms-providers` lists `lti-generic` after the three baseline entries with
-//   `channelName: "your LMS"` and `registration` `[{dynamic, self}, {manual, operatorGrant}]`; the baseline entries are
+//   `channelName: "LMS"` and `registration` `[{dynamic, self}, {manual, operatorGrant}]`; the baseline entries are
 //   unchanged. `GET /api/providers` lists the `lti-generic` profile after the baseline real profiles and before the
 //   simulation profiles.
 // - AC-LA-E2-03-04: `POST /app-api/connections {lms: "lti-generic", method: "manual", siteUrl}` with an IP literal,
@@ -83,7 +83,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
     const genericEntry = lmsList[genericIdx];
     expect(genericEntry.channel).toBe('lti-generic');
     expect(genericEntry.lms).toBe('lti-generic');
-    expect(genericEntry.channelName).toBe('your LMS');
+    expect(genericEntry.channelName).toBe('LMS');
     expect(genericEntry.label).toBe('Other LTI 1.3 platform');
     expect(genericEntry.registration).toEqual([
       { method: 'dynamic', authority: 'self', profiles: ['lti-generic'] },
@@ -128,8 +128,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
         method: 'manual',
         siteUrl: badSiteUrl,
       });
-      expect(badRes.status, `siteUrl ${badSiteUrl} refused with 422`).toBe(422);
-      expect(badRes.json?.error?.code ?? badRes.json?.code).toBe('INVALID_SITE_URL');
+      expectStatus(badRes, 422, 'INVALID_SITE_URL');
       const details = badRes.json?.error?.details ?? badRes.json?.details;
       expect(details?.rule, `siteUrl ${badSiteUrl} includes details.rule`).toBeDefined();
     }
@@ -161,7 +160,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
 
     const cfgRes = await app(s, 'GET', `${connPath(conn.json.id)}/tool-configuration`);
     expectStatus(cfgRes, 200);
-    const rows = (cfgRes.json?.rows ?? cfgRes.json?.fields ?? []) as Array<{
+    const rows = (Array.isArray(cfgRes.json) ? cfgRes.json : (cfgRes.json?.rows ?? cfgRes.json?.fields ?? [])) as Array<{
       key: string;
       label: string;
       value: string;

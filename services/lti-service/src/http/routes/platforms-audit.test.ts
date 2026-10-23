@@ -23,9 +23,9 @@ const body = (over: Record<string, unknown> = {}) => ({
 describe('audit events of /api/platforms*', () => {
   it('uses the actor from authentication for successful and refused changes', async () => {
     const h = await harness();
-    const caller = auth.authenticate(h.db, `Bearer ${h.apiKey}`, ['bearer'], h.clock.now, () => { throw new Error('authentication failed'); });
+    const caller = (await auth.authenticate(h.db, `Bearer ${h.apiKey}`, ['bearer'], h.clock.now, () => { throw new Error('authentication failed'); }));
     const actor = { type: 'api_key' as const, id: 'key-id-from-auth' };
-    const spy = vi.spyOn(auth, 'authenticate').mockReturnValue({ ...caller, actor });
+    const spy = vi.spyOn(auth, 'authenticate').mockResolvedValue({ ...caller, actor });
     try {
       expect((await call(h, 'POST', '/api/platforms', body())).statusCode).toBe(201);
       expect((await call(h, 'POST', '/api/platforms', body())).statusCode).toBe(409);

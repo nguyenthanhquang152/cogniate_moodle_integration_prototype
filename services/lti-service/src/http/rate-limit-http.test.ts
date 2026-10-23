@@ -11,7 +11,7 @@ afterEach(async () => { vi.restoreAllMocks(); for (const close of cleanup.splice
 async function fixture() {
   const h = await harness();
   cleanup.push(async () => { await h.app.close(); h.db.close(); });
-  const limiter = rateLimiterFor(h.db, capturingLogger().logger);
+  const limiter = (await rateLimiterFor(h.db, capturingLogger().logger));
   const ltik = createLaunch(h.db, { toolAccountId: 'cogniate', platformId: h.platform.id, deploymentId: '1', messageType: 'LtiResourceLinkRequest', claims: {} }, 3600, h.clock.now).ltik;
   const api = (credential = ltik, scheme = 'LTIK-AUTH-V2') => h.app.inject({ url: '/api/idtoken', headers: { authorization: `${scheme} ${h.apiKey}:${credential}` } });
   return { ...h, limiter, api };

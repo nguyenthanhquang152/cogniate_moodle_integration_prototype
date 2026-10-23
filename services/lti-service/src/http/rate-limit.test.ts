@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../api-errors.ts';
 import { openDb } from '../db/index.ts';
 import { ensureAccount, getAccount, updateAccount } from '../store/accounts.ts';
 import { capturingLogger, URLS } from '../testkit.ts';
@@ -66,6 +67,25 @@ function fixture(env?: string) {
   const limiter = new RateLimiter(db, logger, () => clock.now, env ?? '');
   return { db, limiter, lines, clock };
 }
+
+describe('admin default (BD-A2-108, WE-F1)', () => {
+  it('gives one API key 600 admin requests at one instant, refuses the 601st, refills 20 tokens per second, and keeps keys apart', () => {
+    const { db, limiter, clock } = fixture();
+    try {
+      ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
+      const account = getAccount(db, 'cogniate')!;
+      expect(account.limits).toBeNull();
+      for (let i = 0; i < 600; i++) limiter.check('admin', 'key_first', account);
+      let refused: unknown;
+      try { limiter.check('admin', 'key_first', account); } catch (err) { refused = err; }
+      expect(refused).toBeInstanceOf(ApiError);
+      expect(refused).toMatchObject({ code: 'RATE_LIMITED', details: { limit: { class: 'admin', ratePerMinute: 1200, burst: 600 } } });
+      expect(() => limiter.check('admin', 'key_second', account)).not.toThrow();
+      clock.now += 1000;
+      expect(() => limiter.check('admin', 'key_first', account)).not.toThrow();
+    } finally { db.close(); }
+  });
+});
 
 describe('class policy', () => {
   it('AC-LA-E5-03-10: IPv6 addresses share a /64 bucket, but not two prefixes', () => {

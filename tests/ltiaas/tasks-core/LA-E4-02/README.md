@@ -36,4 +36,13 @@ At the run of the LA-E4-02 SHA, QA-3 records:
    - For each of the seven UNIT ACs (`AC-LA-E4-02-01`, `AC-LA-E4-02-02`, `AC-LA-E4-02-03`, `AC-LA-E4-02-04`, `AC-LA-E4-02-11`, `AC-LA-E4-02-12`, `AC-LA-E4-02-13`), `docs/reviews/LA-E4-02/qa.md` lists the passing test names that cite the AC id (for `AC-LA-E4-02-04`, also checking that the A-LAB-19 P2 confirmation case is covered; for `AC-LA-E4-02-13`, checking `BD-A1-10` item 2 per-row throw isolation and next-row progression on the same partition). If no test name cites an AC id, `qa.md` states that explicitly and Reviewer-B maps the test.
 3. **K0, K1-SIM and MOODLE-LIVE rows:**
    - `AC-LA-E4-02-05` (K0 `no-score-sync`) runs in the same no-Docker clone via `npm run fitness:rules -- --stdin --as <path>`.
-   - `AC-LA-E4-02-06` to `-09` (K1-SIM) and `AC-LA-E4-02-10` (MOODLE-LIVE) require booked Docker slots and are recorded as `pending: Docker window` until the window opens.
+   - `AC-LA-E4-02-08` (K1-SIM golden `G3` compare, no Docker once a golden capture exists) runs via:
+     ```sh
+     LA_LEVEL=k1sim \
+     LA_GOLDEN_BASELINE=tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 \
+     LA_GOLDEN_CAPTURE=<path-to-slot3b-golden-capture> \
+     LA_EXPECTED_DELTA=LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21 \
+     LA_RUN_DIR=<private-run-dir> \
+     npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E4-02/vitest.config.mts --reporter=verbose
+     ```
+   - `AC-LA-E4-02-06` (`U1-SIM` in `tests/host/run-u1-sim.mjs` + `M1 --phase migration` + `services/cogniate-app/src/kernel/records/migration.test.ts`), `AC-LA-E4-02-07` (`M1 --phase migration` and `snapshot-upgrade`), and `AC-LA-E4-02-09` (`R1`: `M1 --phase sim` + `M2`) run in Wave-End Gate **Slot 3B** (`LA-E7-08`), and `AC-LA-E4-02-10` (`T5a`, `T5b` with `LD-6` `record_dispatch` fixture, `T7 × 1`) runs in **Slot 8** (`LA-E7-09`; simulator counterpart `R2-sim` in **Slot 6**).

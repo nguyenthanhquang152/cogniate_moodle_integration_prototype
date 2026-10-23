@@ -1,0 +1,32 @@
+# P4 dispatch: QA-4 (Antigravity), run 13: LA-IC-14 K0 change + LD-9 records LA-IC-14 and LA-IC-04, then LA-E3-09 R1 (host-only)
+
+Same terminal session and rules. Your run-12 files are committed (la-qa f87e070). Lead process call (one-time grant): the lead QA is inside its Docker slots, so YOU make these lead-QA-owned changes now: tests/ltiaas/k0/contract.test.ts, tests/ltiaas/golden/expected/LA-IC-14.json and LA-IC-04.json, and their rows in tests/ltiaas/TEST-STRATEGY.md §4.7 and tests/ltiaas/golden/README.md §5. Tell the lead QA nothing; I do.
+Step 1 (first; small; send a status message "QA-4 K0 LA-IC-14 ready" with the file list as soon as it is done, then go on):
+- Lane L's LA-E3-09 (Canvas Dynamic Registration, branch nguyenthanhquang152/la-l, SHAs 7433884 + 0dc350f; not merged yet) sets the Canvas dynamicRegistration trait. With it, K0 fails one case: tests/ltiaas/k0/contract.test.ts K-LEGACY.canvas (M1_BASELINE_LEGACY_FLAGS.canvas.dynamicRegistration false; now true). This is the intended change LA-IC-14 (LA-ADR-04 D8 row: "the Canvas legacy flag dynamicRegistration becomes true, Canvas gets the dynamic method, and a Canvas method: dynamic create is accepted (staged with a grant)"; changed outputs: K0 legacy projection of Canvas; GET /app-api/lms-providers Canvas methods; frozen tests tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218, :241, :257, QA Q-LAD-16). Change the K0 expectation for canvas to true with an LA-IC-14 comment, and write tests/ltiaas/golden/expected/LA-IC-14.json in the format of the other LA-IC records (changed outputs, frozen tests that move, scan ranges).
+- LA-IC-04 (LA-ADR-04 D8 row: no NRPS scope in any channel: Canvas JSON scopes, the DR request scope, Moodle manual row 13 'Do not use this service'; changed outputs: Canvas JSON, Moodle tool rows, DR request; frozen tests: M1 Canvas JSON rows, T4b1 and T7 tool-row checks): lane K's LA-E3-07 (a390edb, merged dc98c43). Write tests/ltiaas/golden/expected/LA-IC-04.json the same way.
+- Learn from LD-9 round 5 (docs/reviews/LA-LD9/reviewer-a.md and reviewer-b.md, Round 5): a fixture with a query-bearing URL was missed in LA-IC-03; scan every fixture that the change touches.
+- Verify in a NEW clone of integration HEAD with L's two commits merged on top (git merge --no-ff 0dc350f in your clone only): K0 all green with your change.
+Step 2 (after my reply with the integration SHA that holds L's merge and your K0 change): LA-E3-09 Round 1: spec docs/architecture/ltiaas/tasks/LA-E3-09.md; A2 BD-A2-89 (P1: site origin = configuration URL origin; service origin = token endpoint origin; a configuration URL on a fixed Canvas host is refused at complete: 400 INVALID_REQUEST details.reason configuration_on_fixed_host); A1 BD-A1-105 (dynamicRegistration.toolConfigurationExtensions: three Canvas members). Write the test-first suite (your folder), run the host rows. K1-SIM rows (K1-REG R3 for Canvas; LA-E3-09 AC-03 the end-to-end redemption) stay pending (your Docker slot 5). Write docs/reviews/LA-E3-09/qa.md.
+One worker_done at the end.
+
+## DOCKER BAN (stop-the-line rule)
+
+LA is HOST-ONLY until the Lead sends an explicit Docker window. Another run on this machine has exclusive Docker windows, and two LA overlaps already broke its validation. Do NOT run docker, docker compose, npm run stack:*, any host runner that starts a stack (tests/host/run-*.mjs, run-golden.sh, run-api.mjs against a stack), or any script that calls them. Before any command that might touch Docker, ask the Lead with the preamble ask command. A Docker command before the window is a stop-the-line violation: the Lead stops your session. Work that needs a stack is recorded as "pending: Docker window".
+
+# Common rules for LA build test authors (P4: QA, QA-2, QA-3, QA-4)
+
+Milestone LA. You are an independent QA test author (Claude Code Opus 5.5, effort xhigh). You are never an Author, Architect or Reviewer. The Lead coordinates Orca run run_06d07dc77faf.
+
+Read first: CLAUDE.md; docs/team/charter.md; docs/team/ltiaas/charter-LA.md; docs/team/ltiaas/plan.md §6.1 (LD-1..LD-19; LD-18: you write docs/reviews/LA-<task>/qa.md for your tasks); tests/ltiaas/TEST-STRATEGY.md; docs/architecture/ltiaas/tasks/README.md §2 (your folder, your compose project prefix, the allowed command forms (a)-(k)), §3 (public surfaces), §6 (evidence); the task specs in your brief.
+
+Workspace: the shared QA worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa (branch nguyenthanhquang152/la-qa). Write only in your own folder (tasks README §2 table) and, for each task you verify, docs/reviews/LA-<task id>/qa.md. Do not commit, stash, checkout or reset; the Lead commits by path.
+
+Test-first: write each test from the task spec ACs, the contracts and the design only. Do not read Author notes, Author worker_done bodies, the Authors' lane branches or product source code to write tests (memory rule: QA never greps service source; use contracts, design, tests and infra for facts). If you read product source by mistake, disclose it in qa.md and in your worker_done.
+
+Runs: when the Lead gives you an integration SHA to verify, clone that SHA into a NEW folder outside the repo (for example ~/cogniate-qa-runs/LA/<task>/r<round>/) with `git clone --no-hardlinks`, use only your own compose project prefix (tasks README §2) with its own PUBLIC_PORT and STACK_SUBNET, and run there. Docker: check `docker ps` and free memory first; another run's QA uses Docker on this machine (projects qa-multi-*): never touch, stop or remove containers or volumes you did not create; if memory is short, ask the Lead for a slot. Remove your own stack at the end. Private evidence (secrets) stays in the run folder, born with umask 077.
+
+qa.md (one per task, per round; base charter §6): first lines "Verdict: PASS | FAIL" and "Round: n"; the SHA; one row per AC (PASS, FAIL or pending; test id; command; artifact path); the measured time of each new suite. Keep it short and proportional (charter-LA §5).
+
+Done report (one worker_done, --outcome succeeded even when the verdict is FAIL; the verdict is in qa.md): three sentences: what you wrote or ran, the verdict and counts, what is left. --files-modified, --report-path. Then stop. Next tasks come as new dispatches.
+
+Orca: follow your preamble; heartbeats at its cadence; read only your own messages at each checkpoint. Messages from a shell: body from a file, "$(cat file)". STE (about 80%).

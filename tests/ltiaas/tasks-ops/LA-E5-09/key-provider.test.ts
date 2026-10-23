@@ -162,7 +162,7 @@ async function ensureSimulatorDeployment() {
 
 async function launchLearnerWithScopes(label: string, scopes: string[]) {
   const resource = `qa2-e509-rl-${label}-${runId}`;
-  const lineitems = `${SITE_URL}/learn/api/public/v1/lti/courses/course-1/lineItems`;
+  const lineitems = `${SITE_URL}/learn/api/v1/lti/courses/course-1/lineItems`;
   const lineitem = `${lineitems}/${encodeURIComponent(resource)}`;
   const launched = await launch({
     deploymentId: DEPLOYMENT_ID,
@@ -186,7 +186,7 @@ async function launchLearnerWithScopes(label: string, scopes: string[]) {
 }
 
 async function signAndReturnDeepLink(label: string) {
-  const resource = `qa2-e509-dl-${label}-${runId}`;
+  const resource = `pub_qa2_e509_dl_${label}_${runId}`;
   const dlLaunch = await launch({
     deploymentId: DEPLOYMENT_ID,
     siteHost: SITE_HOST,
@@ -205,6 +205,8 @@ async function signAndReturnDeepLink(label: string) {
           type: 'ltiResourceLink',
           title: `QA2 E509 DL ${label}`,
           url: `${urls.lti}/lti/launch/${ACCOUNT}?resource=${encodeURIComponent(resource)}`,
+          lineItem: { scoreMaximum: 100, label: `QA2 E509 DL ${label}` },
+          window: { targetName: '_blank' },
         },
       ],
     },
@@ -278,7 +280,7 @@ it('AC-LA-E5-09-01 on a stack with only LTI_MASTER_KEY, GET /operator/v1/key-pro
 
 it('AC-LA-E5-09-02 after QA writes infra/.secrets/lti/keyring.json = {active: "k2", keys: {legacy: <LTI_MASTER_KEY>, k2: <new>}} and restarts the LTI service, activeVersion is k2; after POST .../signing-keys, sealedCount of k2 grows by 1 (AP-06-24)', async () => {
   const act = await hostAction(
-    { action: 'qa2-e509-write-keyring-and-restart' } as KeyringAction,
+    'qa2-e509-write-keyring-and-restart' as HostAction,
     180_000,
   );
   assert.equal(act.code, 0, 'host action qa2-e509-write-keyring-and-restart succeeded');

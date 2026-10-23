@@ -27,18 +27,18 @@ async function setup() {
     claims: { sub: `user-${n}`, [CLAIM.ags]: AGS, [CLAIM.resourceLink]: { id: 'rl-3' }, ...claims },
     expiresAt: 0, siteOrigin: null, serviceOrigin: null, bindingGeneration: 0, ...over,
   });
-  const key = (l: LaunchRecord) => serviceKeyForLaunch(db, MASTER_KEY, l, 1000);
+  const key = async (l: LaunchRecord) => (await serviceKeyForLaunch(db, MASTER_KEY, l, 1000));
   return { db, platform, launch, key };
 }
 
 describe('serviceKeyForLaunch without a context (LA-ADR-05 D2)', () => {
   it('two launches of the same activity get the same key; context "c1" gives another (AC-LA-E3-03-07)', async () => {
     const s = await setup();
-    const first = s.key(s.launch());
-    const second = s.key(s.launch());
+    const first = (await s.key(s.launch()));
+    const second = (await s.key(s.launch()));
     expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(second).toBe(first);
-    const withContext = s.key(s.launch({ [CLAIM.context]: { id: 'c1' } }));
+    const withContext = (await s.key(s.launch({ [CLAIM.context]: { id: 'c1' } })));
     expect(withContext).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(withContext).not.toBe(first);
     expect(findServiceKey(s.db, 'cogniate', first!)).toMatchObject({ deploymentId: '1', contextId: '', resourceLinkId: 'rl-3', agsClaim: AGS });
@@ -47,9 +47,9 @@ describe('serviceKeyForLaunch without a context (LA-ADR-05 D2)', () => {
 
   it('the scope keeps the deployment and the resource link: each gives another key', async () => {
     const s = await setup();
-    const base = s.key(s.launch());
-    const otherDeployment = s.key(s.launch({}, { deploymentId: '2' }));
-    const otherLink = s.key(s.launch({ [CLAIM.resourceLink]: { id: 'rl-4' } }));
+    const base = (await s.key(s.launch()));
+    const otherDeployment = (await s.key(s.launch({}, { deploymentId: '2' })));
+    const otherLink = (await s.key(s.launch({ [CLAIM.resourceLink]: { id: 'rl-4' } })));
     expect(new Set([base, otherDeployment, otherLink]).size).toBe(3);
     expect(s.db.prepare('SELECT deployment_id, context_id, resource_link_id FROM service_key ORDER BY deployment_id, resource_link_id').all()).toEqual([
       { deployment_id: '1', context_id: '', resource_link_id: 'rl-3' },
@@ -60,23 +60,23 @@ describe('serviceKeyForLaunch without a context (LA-ADR-05 D2)', () => {
 
   it('an NRPS claim alone also gives a key; no AGS and no NRPS gives none', async () => {
     const s = await setup();
-    expect(s.key(s.launch({ [CLAIM.ags]: undefined, [CLAIM.nrps]: NRPS }))).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(s.key(s.launch({ [CLAIM.ags]: undefined }))).toBeUndefined();
+    expect((await s.key(s.launch({ [CLAIM.ags]: undefined, [CLAIM.nrps]: NRPS })))).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await s.key(s.launch({ [CLAIM.ags]: undefined })))).toBeUndefined();
   });
 
   it('a context claim that is not an object counts as no context, as in GET /api/idtoken', async () => {
     const s = await setup();
-    const none = s.key(s.launch());
+    const none = (await s.key(s.launch()));
     expect(none).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    for (const context of [null, 'c1', ['c1']]) expect(s.key(s.launch({ [CLAIM.context]: context }))).toBe(none);
+    for (const context of [null, 'c1', ['c1']]) expect((await s.key(s.launch({ [CLAIM.context]: context })))).toBe(none);
   });
 
   it('a context object without a string id, or a launch without a resource link id, gives no key (as before)', async () => {
     const s = await setup();
-    expect(s.key(s.launch({ [CLAIM.context]: {} }))).toBeUndefined();
-    expect(s.key(s.launch({ [CLAIM.context]: { id: 7 } }))).toBeUndefined();
-    expect(s.key(s.launch({ [CLAIM.resourceLink]: undefined }))).toBeUndefined();
-    expect(s.key(s.launch({ [CLAIM.resourceLink]: { title: 'x' } }))).toBeUndefined();
+    expect((await s.key(s.launch({ [CLAIM.context]: {} })))).toBeUndefined();
+    expect((await s.key(s.launch({ [CLAIM.context]: { id: 7 } })))).toBeUndefined();
+    expect((await s.key(s.launch({ [CLAIM.resourceLink]: undefined })))).toBeUndefined();
+    expect((await s.key(s.launch({ [CLAIM.resourceLink]: { title: 'x' } })))).toBeUndefined();
     expect(s.db.prepare('SELECT COUNT(*) AS n FROM service_key').get()).toEqual({ n: 0 });
   });
 });

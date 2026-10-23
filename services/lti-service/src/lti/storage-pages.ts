@@ -77,6 +77,19 @@ export interface StorageCheckPageData {
   stateHash: string;
   target: string;
   origin: string;
+  /** The tool URL that the check redirects to (BD-A2-103); only its origin is used, in the CSP. */
+  toolUrl: string;
+}
+
+/**
+ * BD-A2-103: CSP3 form-action also covers the redirect chain of the form submission, so the page allows the one tool
+ * origin of its 303. Only a plain https origin is used (a host of letters, digits, dots and hyphens, an optional port):
+ * a URL origin can keep characters such as ";" or ",", which must never reach the header. Else: 'self' only.
+ */
+export function formActionSources(toolUrl: string): string {
+  let origin: string;
+  try { origin = new URL(toolUrl).origin; } catch { return "'self'"; }
+  return /^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/.test(origin) ? `'self' ${origin}` : "'self'";
 }
 
 const CHECK_SCRIPT = `(() => {
@@ -122,7 +135,7 @@ const CHECK_SCRIPT = `(() => {
 /** The page carries only the check token and the key digit, never the state value or the launch claims. */
 export function storageCheckPage(data: StorageCheckPageData): { status: 200; headers: Record<string, string>; html: string } {
   const nonce = randomToken();
-  const { stateHash, ...publicData } = data;
+  const { stateHash, toolUrl, ...publicData } = data;
   const json = scriptJson({ ...publicData, key: `cog_state_${stateHash[0]}`, messageId: randomToken() });
   return {
     status: 200,
@@ -130,7 +143,7 @@ export function storageCheckPage(data: StorageCheckPageData): { status: 200; hea
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store',
       'referrer-policy': 'same-origin',
-      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action 'self'; base-uri 'none'`,
+      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action ${formActionSources(toolUrl)}; base-uri 'none'`,
     },
     html: `<!doctype html>
 <html lang="en">

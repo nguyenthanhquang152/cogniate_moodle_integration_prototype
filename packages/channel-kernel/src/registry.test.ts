@@ -77,8 +77,9 @@ describe('baseline channels (product root)', () => {
     expect(ids).toContain('lti-generic');
     expect(JSON.stringify(registry.legacyCapabilities('moodle'))).toBe(JSON.stringify(
       { dynamicRegistration: true, operatorApproval: false, webServices: true, courseShell: true, addDeployment: false, canvasConfiguration: false }));
+    // LA-IC-14 (LA-E3-15): Canvas has the `dynamic` method, so its legacy flag `dynamicRegistration` is true.
     expect(JSON.stringify(registry.legacyCapabilities('canvas'))).toBe(JSON.stringify(
-      { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true }));
+      { dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true }));
     expect(JSON.stringify(registry.legacyCapabilities('blackboard'))).toBe(JSON.stringify(
       { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false }));
   });
@@ -246,7 +247,8 @@ describe('lti-generic (LA-E2-03)', () => {
     const app = await loadChannelFolders([PRODUCT_ROOT], 'app');
     expect(generic(app).appAdapter).toBeUndefined();
     const registry = buildChannelRegistry(app, { simulations: false });
-    expect(registry.textName('lti-generic')).toBe('your LMS');
+    // A1 BD-A1-111: the text name is 'LMS'; the templates add "your" or "this".
+    expect(registry.textName('lti-generic')).toBe('LMS');
     expect(registry.legacyCapabilities('lti-generic')).toEqual({ dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false });
     expect(registry.capabilities('lti-generic')).toMatchObject({
       'registration.dynamic': true, 'binding.authority': { dynamic: 'self', manual: 'operatorGrant' }, 'deployments.multiple': true, 'content.multiple': true,

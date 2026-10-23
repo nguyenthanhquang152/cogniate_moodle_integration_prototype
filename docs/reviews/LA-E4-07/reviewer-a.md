@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E4-07 review: Reviewer-A
 
@@ -31,3 +31,16 @@ Reviewed `0ad8858`, `bb648ff`, `018abeb` and `f7841a1` (merge `be7698d`) against
 Ownership matches the dispatched R work and named L2/S RQ-2 edits. No QA-owned test, migration, redemption product file or unrelated infrastructure line changed, and no LMS dispatch branch was added. Only this review file was written in the integration worktree. No Docker, stack, stack-starting runner or commit was used, and no other reviewer's file was opened. K1-SIM and K-HYG remain QA gates.
 
 Private evidence: `reviewer-a-focused.log`, `reviewer-a-probes.log`, `reviewer-a-*-mutant.log`, `reviewer-a-reason-fix.log`, `reviewer-a-restored.log`, `reviewer-a-typecheck.log`, and the saved `metrics.reviewer-a.test.ts` in the clone. Its tracked product files are restored.
+
+## Round 2
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `5b89f42` against finding -01, AC-01/-05/-07 and §8a. **A-LA-E4-07-01 (BLOCKER): CLOSED.** Refusal reasons now use the specified pattern independently of job names. The tests cover hyphens, invalid starts, uppercase, empty strings and the 64/65-character boundary; unknown channels still become empty. The existing `record-dispatch` metric assertion proves that hyphenated job names still work. Process tests now explicitly check that runner-off omits send and job samples while store samples remain.
+
+Verification in fresh private clone `/tmp/la-review-a-e861834b245d` at `dccba4113dfcbfcce28abf5e0d58e97b09bd028b`, with its own `npm ci` and a deleted Vitest cache before each run:
+
+- **40/40 tests pass:** 30 committed metric/process tests and all 10 Round 1 private probes, including the original failure case. App typecheck passes.
+- Restoring only the old reason-rule use causes **exactly two failures**: the new committed hyphen case and the original private probe. After restoration, both metric suites pass **27/27**. All tracked private changes were restored.
+
+The fix changes only the allowed metric module and adjacent R unit tests; no ownership or scope issue was found. Only this review file changed in the integration worktree. Evidence is in the private clone's `reviewer-a-focused.log`, `reviewer-a-old-reason-rule.log`, `reviewer-a-restored.log` and `reviewer-a-typecheck.log`. No Docker, stack, commit or other reviewer's file was used. K1-SIM and K-HYG remain QA gates.

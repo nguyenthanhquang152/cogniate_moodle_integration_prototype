@@ -8,6 +8,7 @@
 import type { IntervalJob, RetentionResult } from '@cogniate/shared';
 import type { Db } from './db.ts';
 import { transaction } from './db.ts';
+import { deleteExpiredConnectionEvents } from './connection-events.ts';
 
 export const DAY_MS = 86_400_000;
 
@@ -30,7 +31,7 @@ export function cleanupExpired(db: Db, now: number): RetentionResult[] {
 /** Retention shares the runner lease with on-demand and other-process runs. */
 export function retentionJob(db: Db): IntervalJob {
   return { name: 'retention', everyMs: 600_000, runAtStart: true, async run(ctx) {
-    const rows = cleanupExpired(db, ctx.now());
+    const rows = [...cleanupExpired(db, ctx.now()), deleteExpiredConnectionEvents(db, ctx.now())];
     const counts = Object.fromEntries(rows.map((row) => [row.table, row.deleted]));
     for (const row of rows) if (row.deleted > 0) ctx.logger.info('retention_cleanup', { trace_id: ctx.traceId, ...row });
     return { result: 'ok', counts };

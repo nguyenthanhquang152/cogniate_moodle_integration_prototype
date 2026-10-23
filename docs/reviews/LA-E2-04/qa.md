@@ -1,5 +1,5 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 3
+Verdict: PASS (K0 + UNIT + K1-SIM)
+Round: 5
 
 # LA-E2-04 E2-K Operator grant bound values, `--accept-staged`, redemption checks and the staged registration page: QA verification
 
@@ -21,12 +21,12 @@ Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E2-04/` from `docs/archi
 | --- | --- | --- | --- | --- |
 | AC-LA-E2-04-01 | PASS (K0 + UNIT) | `tests/ltiaas/tasks-core/LA-E2-04/grant-staged.k0.test.ts` + `services/cogniate-app/src/app/operator-bound-values.test.ts > AC-LA-E2-04-01: bound values on an admin-value channel, and the baseline flag rule` (2 tests) | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_RUN_DIR=~/cogniate-qa-runs/LA/run14/r1/k0/LA-E2-04 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E2-04/vitest.config.mts --reporter=verbose` | `connection-grant issue` for an `lti-generic` connection without the seven bound flags (or `--accept-staged`) exits 1 and stores no row; a bound flag on a fixed-endpoint (`moodle`/`blackboard`) connection exits 1 and stores no row. `e2-04-unit-by-ac.log` |
 | AC-LA-E2-04-02 | PASS (K0 + UNIT) | `grant-staged.k0.test.ts` + `services/cogniate-app/src/app/operator-bound-values.test.ts > AC-LA-E2-04-02: bound values before the code, and foreign hosts` (2 tests) | same | `connection-grant issue` prints the bound values before the code, marks each value whose host differs from the issuer host, exits 1 without `--confirm-foreign-hosts` (storing nothing), and issues the grant when `--confirm-foreign-hosts` is passed. `e2-04-unit-by-ac.log` |
-| AC-LA-E2-04-03 | pending: Docker window (K1-SIM; UNIT part PASS) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-03` (SIM) + `services/cogniate-app/src/app/redemption-admin.test.ts > AC-LA-E2-04-03: the manual admin-value redemption` (4 tests) | SIM Docker slot / same | K1-SIM part pending Docker window. Host unit tests verify the manual redemption checks all 7 bound values before spending the grant (`422 GRANT_MISMATCH` with `details.fields`, grant stays unredeemed, no LTI platform created) and that matching values redeem once, create an active `lti-generic` platform + deployment (`exclusive_platform`), and transition the connection to `connected`. `e2-04-unit-by-ac.log` |
-| AC-LA-E2-04-04 | pending: Docker window (K1-SIM; UNIT part PASS) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-04` (SIM) + `services/cogniate-app/src/app/redemption-admin.test.ts > the staged registration redemption (AC-LA-E2-04-04 unit part)` (3 tests) | SIM Docker slot / same | K1-SIM part pending Docker window. Host unit tests verify the full chain (staged `/tool/register` page -> `--accept-staged` -> short `{grantCode}` body activates the existing staged platform with `PATCH /api/platforms/:id {active: true}` and no second create), refuses the full manual body on a staged connection, and returns `422 GRANT_MISMATCH` if staged platform values changed after grant issuance (`BD-A1-92`). `e2-04-unit-by-ac.log` |
+| AC-LA-E2-04-03 | PASS (K1-SIM + UNIT) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-03` (SIM) + `services/cogniate-app/src/app/redemption-admin.test.ts > AC-LA-E2-04-03: the manual admin-value redemption` (4 tests) | `COMPOSE_PROJECT_NAME=qa3-la-sim-r2 PUBLIC_PORT=9453 STACK_SUBNET=172.21.0.0/16 node tests/ltiaas/tasks-core/run-slot4-batch1.mjs --sha e1e4fabf451276d6b5d2c07cb28024ad8ef6f271` | K1-SIM on `e1e4fab` (`qa3-la-sim-r2`, `356ms`): manual `lti-generic` redemption refuses differing `jwksUrl` with `422 GRANT_MISMATCH` (`details.fields = ["jwksUrl"]`, grant stays unredeemed, no LTI platform created) and registers an active platform on equal values (`200`, `status: 'registered'`, `active: true`). `suite-LA-E2-04.log`, `e2-04-unit-by-ac.log` |
+| AC-LA-E2-04-04 | PASS (K1-SIM + UNIT) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-04` (SIM) + `services/cogniate-app/src/app/redemption-admin.test.ts > the staged registration redemption (AC-LA-E2-04-04 unit part)` (3 tests) | same | K1-SIM on `e1e4fab` (`qa3-la-sim-r2`, `1,303ms`): end-to-end staged registration (I-SELF-breaking DR with `secondTokenHost: true` -> `pending` `operatorGrant` connection + staged `/tool/register` page -> `app:grant issue --accept-staged --confirm-foreign-hosts` -> `PUT /app-api/connections/:id/platform {clientId, deploymentId, grantCode}` activates the staged platform without creating a second platform -> learner launch and score `8/10` sent). `suite-LA-E2-04.log`, `e2-04-unit-by-ac.log` |
 | AC-LA-E2-04-05 | PASS (K0 + UNIT) | `grant-staged.k0.test.ts` + `services/cogniate-app/src/tool-pages/register-staged.test.ts` (4 tests) + `services/cogniate-app/src/tool-pages/lms-texts.test.ts` (16 tests) + `services/cogniate-app/src/clients/lti-client.test.ts` | same | When `POST /api/registration/complete` returns `active: false` (`endpointsOnIssuerOrigin: false`), `/tool/register` stores `target_kind = 'exclusive_platform'` and `target_ref = platform.id` (`BD-A1-91`), leaves the connection in `pending` (`last_error = null`), renders the staged page (does not call `LMS_REGISTRATION_COMPLETE` or `window.close()`), and maps `REGISTRATION_UPDATE_NOT_ALLOWED` to `manifest.texts.registration.UPDATE_NOT_ALLOWED` (`BD-A1-59`, `BD-A1-87`). `e2-04-unit-by-ac.log` |
 | AC-LA-E2-04-06 | PASS (K0 + UNIT) | `grant-staged.k0.test.ts` + `services/cogniate-app/src/app/operator-bound-values.test.ts > the staged registration (AC-LA-E2-04-06; --accept-staged)` (2 tests) | same | `connection-grant issue --accept-staged` on a connection without an inactive staged platform exits 1 and stores nothing (`BD-A1-91`: checks `target_kind === 'exclusive_platform'`, `status === 'pending'`, `platform.active === false`, `platform.bindingRef === connection.id`). `e2-04-unit-by-ac.log` |
 | AC-LA-E2-04-07 | PASS (K0 + UNIT) | `grant-staged.k0.test.ts` + `services/cogniate-app/src/app/redemption-admin.test.ts > AC-LA-E2-04-07: suspend and release pick the record kind from the stored target_kind` (1 test) | same | Suspend and release dispatch on the stored `connection.target_kind` (`exclusive_platform` vs `deployment`) rather than the channel's `issuerKind` (`LA-ADR-04` D4 rule 5), suspending and deleting the `exclusive_platform` record cleanly. `e2-04-unit-by-ac.log` |
-| AC-LA-E2-04-08 | pending: Docker window (K1-SIM) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-08` | SIM Docker slot | Pending Docker window. |
+| AC-LA-E2-04-08 | PASS (K1-SIM) | `grant-staged.k1sim.test.ts > AC-LA-E2-04-08` | `COMPOSE_PROJECT_NAME=qa3-la-sim-r2 PUBLIC_PORT=9453 STACK_SUBNET=172.21.0.0/16 node tests/ltiaas/tasks-core/run-slot4-batch1.mjs --sha e1e4fabf451276d6b5d2c07cb28024ad8ef6f271` | K1-SIM on `e1e4fab` (`qa3-la-sim-r2`, `1,250ms`): full K1 kit for `lti-generic` on the generic simulator provider (K1-LAUNCH, K1-DL, K1-AGS with assertion `aud` from `{platformValue}`, K1-NRPS, K1-REG R1-R6, and K1-CAP) passes. `suite-LA-E2-04.log` |
 
 ## Other checks
 
@@ -115,3 +115,45 @@ Tester: QA-3 (Orca task `task_ff4caf16fc2d`, dispatch `ctx_21fbb77c9fe0`), 2026-
   - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
 - **Targeted unit + portal suite (`e2-04-unit-by-ac.log`):** `6` files, `93/93` passed (`4.63s`).
 - **Measured time:** `LA-E2-04` K0 suite `98.57s` (`4/4` K0 tests passed). `K1-SIM` rows (`AC-03`, `-04`, `-08`) remain `pending: Docker window` (Docker slot 4).
+
+## Round 4
+
+Tester: QA-3 (Orca task `task_029beaadd9c2`, dispatch `ctx_3952ce74962a`), 2026-10-23. Scope: Round 4 host-only verification of `BD-A1-101` (`2434c26`) and `BD-A1-102` (`048cc5e`, `e654574`) per `cogniate-app-api-delta.md` §3.4 and `LA-ADR-04` D8.
+
+Independence: QA-3 authored the Round 4 checks in `tests/ltiaas/tasks-core/LA-E2-04/grant-staged.k0.test.ts` from `build-decisions-A1.md` (`BD-A1-101`, `BD-A1-102`) and `cogniate-app-api-delta.md` §3.4 without reading product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (test files `services/cogniate-app/src/app/redemption-admin.test.ts` and `apps/portal/src/connect/provider-errors.test.tsx` were inspected solely for test harness conventions).
+
+| Item | Value |
+| --- | --- |
+| SHA | `e65457445001a6a6636afbea7c55d66870211737` (integration `e654574`; holds `BD-A1-101` `2434c26` + `BD-A1-102` `048cc5e` & `e654574`) |
+| Lane and slot | lane K (`2434c26`, `048cc5e` via L2 RQ-2) + lane P (`e654574`); no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-03`, `-04`, `-08` remain `pending: Docker window`, slot 4) |
+| Clone | `~/cogniate-qa-runs/LA/run19/clone`: `git clone --no-hardlinks --no-checkout`, detached at `e65457445001a6a6636afbea7c55d66870211737`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run19/k0/LA-E2-04/` (umask 077): `vitest.log`, `e2-04-check-clean.log`, `e2-04-unit-by-ac.log`, `e2-04-r2-summary.json`, `~/cogniate-qa-runs/LA/run19/k0/head-sha.txt`, `~/cogniate-qa-runs/LA/run19/k0/status-after.txt` (`0` bytes) |
+
+### Round 4 checks (`BD-A1-101` + `BD-A1-102`)
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| (a) `BD-A1-101` ordinary `PLATFORM_IN_USE` collision description (`texts.registration.PLATFORM_IN_USE`) | PASS | `grant-staged.k0.test.ts > Round 2..4` + `services/cogniate-app/src/app/redemption-admin.test.ts > the grant collision text (BD-A1-101)` + `packages/channel-kernel/src/manifest.test.ts` | An ordinary `PLATFORM_IN_USE` collision on `lti-generic` (and `brightspace`) returns `409 PLATFORM_IN_USE` with the core default `"This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator."`; the `canvas` manifest keeps `"This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."` (`e2-04-r2-summary.json`, `e2-04-unit-by-ac.log`). |
+| (b) `BD-A1-102` staged-gone `details.reason: "staged_gone"` vs ordinary collision | PASS | `grant-staged.k0.test.ts > BD-A1-97, BD-A1-101, BD-A1-102` + `redemption-admin.test.ts` | Staged-gone `409 PLATFORM_IN_USE` carries `details.reason = "staged_gone"` and `details.description = "The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator."`; the ordinary `409 PLATFORM_IN_USE` collision has no `details.reason` (`e2-04-r2-summary.json`). |
+| (c) `BD-A1-102` portal shows the server description when `details.reason` is present | PASS | `apps/portal/src/connect/provider-errors.test.tsx > an answer with details.reason keeps the server description (BD-A1-102)` (2 tests) | `ChannelErrorNotice`, `ProviderErrorNotice`, `channelErrorText`, and `providerErrorMessage` show the server description byte for byte across all channels (`moodle`, `canvas`, `lti-generic`, `null`) when `details.reason` is present (`"staged_gone"`), and keep the channel or generic collision text when `details.reason` is absent or empty (`e2-04-unit-by-ac.log`). |
+
+### R0 `npm run check` and suite timings at `e654574`
+
+- **R0 `npm run check` (`e2-04-check-clean.log`):**
+  - Vitest (`test:unit`): `191` files; `3,081` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail (after 1 transient `sqlite-lock-probe.test.mjs` flake on the prior run).
+  - K0 (`test:k0`): `3` files; `149` passed.
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Targeted unit + portal suite (`e2-04-unit-by-ac.log`):** `8` files (`operator-bound-values.test.ts`, `redemption-admin.test.ts`, `register-staged.test.ts`, `lms-texts.test.ts`, `lti-client.test.ts`, `packages/channel-kernel/src/manifest.test.ts`, `apps/portal/src/channels/shell.test.tsx`, `apps/portal/src/connect/provider-errors.test.tsx`), `116/116` passed (`2.90s`).
+- **Measured time:** `LA-E2-04` K0 suite `119.93s` (`4/4` K0 tests passed).
+
+## Round 5 (Slot 4 K1-SIM on `e1e4fab`)
+
+Tester: QA-3 (Orca task `task_e59ce20f8f0f`, dispatch `ctx_e6263da242a0`), 2026-10-23. Scope: Slot 4 K1-SIM verification of `AC-LA-E2-04-03`, `AC-LA-E2-04-04`, and `AC-LA-E2-04-08` on `e1e4fabf451276d6b5d2c07cb28024ad8ef6f271` (`qa3-la-sim-r2`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`).
+
+- `AC-LA-E2-04-03`: PASS (`356ms`).
+- `AC-LA-E2-04-04`: PASS (`1,303ms`).
+- `AC-LA-E2-04-08`: PASS (`1,250ms`).
+- Artifacts: `~/cogniate-qa-runs/LA/qa3-slot4-e1e4fab/qa3-la-sim-r2-e1e4fabf-2026-10-23T06-01-51-680Z/suite-LA-E2-04.log`.
