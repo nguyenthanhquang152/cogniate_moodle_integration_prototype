@@ -1,6 +1,6 @@
 # P4 dispatch: lead QA (Antigravity): DOCKER-YES wave-end slot 8 (MOODLE-LIVE, your part) on WAVE-END SHA 8fadb828
 
-Same terminal session and rules. Your slot 3C files are committed (see the Lead's commit after your worker_done).
+Same terminal session and rules. Your slot 3C files are committed (la-qa 43fedff7). WE-F6 (M1-08.canvas.login-redirect): A2 BD-A2-110 says the 200 storage-first login is right; QA-3 writes the LD-9 test change now; one more short M1 sim run (slot 3D) follows after slot 8 and its review.
 DOCKER-YES: from now to 75 minutes after you start the first stack (your part is about 57 min). One stack at a time; only qalead-la-30..36; PUBLIC_PORT 9543; STACK_SUBNET 172.21.0.0/16; before/after Docker records (umask 077: docker ps -a, networks, the 32 volume records with inspect); owned-only cleanup; a host ps watcher and your own `docker events` watcher from launch. Never touch the sto-* containers; list them apart.
 Source: src-wave-end-3 at WAVE_TEST_SHA_3 (tag la-gate-test-3; product 8fadb828). Do not change it.
 Run GATE-RUN-PLAN §5 (slot 8, Lead QA part) with the new source and SHAs: 8.1 T7 x1 (qalead-la-30); 8.2 R2-lite: T2a, T2b, T3a, T3b (31), T3c (32), T4b1, T4b2 (33), T5a, T5b, T6 (34), T8 (35), T4a (36); 8.3 AC-LA-E5-13-06 (the 6 frozen isolation ACs from 8.1-8.2). Map each result to the 12 task MOODLE-LIVE rows of §5 (LA-E1-05, -07, -08, -09, -10, LA-E2-01, -02, LA-E3-05, -07, LA-E4-02, -03, LA-E5-22, LA-E5-13).
