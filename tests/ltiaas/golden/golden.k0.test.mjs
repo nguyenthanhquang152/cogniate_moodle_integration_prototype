@@ -409,6 +409,8 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120,154-163')));
   assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/M1/common/00-profiles.test.ts:115-130')));
   assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/T4b1/1-connect.spec.ts:96-124')));
+  assert.ok(!ic04.ld9.qaTaskTestChanges.some((s) => s.includes('describe.skipIf(!process.env.LA_DOCKER_WINDOW)')));
+  assert.ok(ic04.ld9.qaTaskTestChanges.some((s) => s.includes('tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts:1-99')));
   const cand04 = structuredClone(base);
   cand04.G1.canvasConfiguration['jwk=inline'].scopes.pop();
   cand04.G1.canvasConfiguration['jwk=url'].scopes.pop();
@@ -427,6 +429,9 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.ok(ic14.ld9.scanChecked.length >= 9);
   assert.ok(ic14.ld9.frozenTestsTouched.every((s) => s.includes('tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:')));
   assert.ok(ic14.ld9.qaTaskTestChanges.some((s) => s.includes('tests/ltiaas/k0/contract.test.ts:596-605')));
+  assert.ok(ic14.ld9.qaTaskTestChanges.some((s) => s.includes('tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k0.test.ts')));
+  assert.ok(ic14.ld9.scanChecked.some((s) => s.includes('packages/channels/canvas/portal/CanvasCreate.tsx:13-17')));
+  assert.ok(!ic14.ld9.scanChecked.some((s) => s.includes('packages/channels/canvas/portal/canvas.tsx')));
   const cand14 = structuredClone(base);
   cand14.G1.acceptance.lmsProviders.lms[1].capabilities.dynamicRegistration = true;
   cand14.G1.acceptance.lmsProviders.lms[1].methods.push('dynamic');
@@ -448,12 +453,51 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
 
   // LA-IC-01: 259 exact-value paths (0 wildcards, 0 type-only rules), current integration HEAD values, and negative controls.
   const ic01 = loadExpectedDelta('LA-IC-01');
+  const repoRoot = path.resolve(here, '../../..');
   assert.equal(ic01.id, 'LA-IC-01');
   assert.equal(ic01.changes.length, 259);
   assert.equal(ic01.ld9.goldenFields.length, 259);
-  assert.deepEqual(ic01.ld9.frozenTestsTouched, []);
-  assert.equal(ic01.ld9.authorUnitTestChanges.length, 7);
-  assert.equal(ic01.ld9.qaTaskTestChanges.length, 9);
+  assert.equal(ic01.ld9.frozenTestsTouched.length, 7);
+  for (const entry of ic01.ld9.frozenTestsTouched) {
+    assert.ok(entry.includes('Pending on integration at 195930c1'), `LA-IC-01 frozenTestsTouched must record pending status: ${entry}`);
+    assert.ok(entry.includes('LA-E0-04'), `LA-IC-01 frozenTestsTouched must name LA-E0-04 owner: ${entry}`);
+    assert.ok(entry.includes('f0a7b306'), `LA-IC-01 frozenTestsTouched must cite f0a7b306: ${entry}`);
+    assert.ok(entry.includes('wave-end gate'), `LA-IC-01 frozenTestsTouched must state wave-end gate landing: ${entry}`);
+  }
+  assert.ok(!ic01.ld9.scanResult.includes('landed in LA-E0-02 prior to G-BASE'));
+  assert.ok(ic01.ld9.scanResult.includes('LA-E0-04 (LD-1) open-world rewrite list'));
+  assert.equal(ic01.ld9.authorUnitTestChanges.length, 10);
+  assert.equal(ic01.ld9.qaTaskTestChanges.length, 11);
+  for (const entry of ic01.ld9.qaTaskTestChanges) {
+    const head = entry.split(' (')[0];
+    for (const part of head.split(' and ')) {
+      const rel = part.trim().split(':')[0];
+      assert.ok(fs.existsSync(path.join(repoRoot, rel)), `LA-IC-01 QA test reference must exist on disk: ${rel}`);
+    }
+  }
+  if (fs.existsSync(path.join(repoRoot, 'packages/channel-kernel'))) {
+    for (const entry of ic01.ld9.authorUnitTestChanges) {
+      const head = entry.split(' (')[0];
+      for (const part of head.split(' and ')) {
+        const rel = part.trim().split(':')[0];
+        assert.ok(fs.existsSync(path.join(repoRoot, rel)), `LA-IC-01 Author test reference must exist on disk: ${rel}`);
+      }
+    }
+  }
+  for (const stale of [
+    'packages/channels/lti-generic/channel.test.ts',
+    'services/cogniate-app/src/app/connect.test.ts',
+    'golden-baseline.k1sim.test.ts',
+    'LA-E1-06/connections.k0.test.ts',
+    'LA-E1-06/connections.k1sim.test.ts',
+    'lti-generic-app.k0.test.ts',
+    'lti-generic-app.k1sim.test.ts',
+  ]) {
+    assert.ok(
+      ![...ic01.ld9.authorUnitTestChanges, ...ic01.ld9.qaTaskTestChanges].some((s) => s.includes(stale)),
+      `LA-IC-01 must not cite stale/non-existent test path: ${stale}`,
+    );
+  }
   assert.ok(ic01.ld9.scanChecked.length >= 8);
   for (const ch of ic01.changes) {
     assert.ok(!ch.path.includes('*'), `LA-IC-01 must not use wildcard paths: ${ch.path}`);
