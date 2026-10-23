@@ -15,9 +15,10 @@ import { approvalsOfConnection } from '../domain/bindings.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
-import { ownedProfiles, setupOf } from '../kernel/setup.ts';
+import { ownedProfiles, servedByKernel, setupOf } from '../kernel/setup.ts';
+import { usableProfileRow } from '../kernel/setup/admin-value.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
-import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
+import { activeShared, providerProfiles, snapshotOf, stagedRegistration } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
 import { toolContext, toolUrls } from '../kernel/setup/common.ts';
 import { toolName } from '@cogniate/channel-kernel/setup';
@@ -53,13 +54,14 @@ export const registrationUrl = (urls: PublicUrls, ref: string): string => `${too
 
 /**
  * The connection DTO (app contract §4, §4.2). `libraryName` fills the tool name into a lastError action line.
- * `approvedDeploymentIds`: Canvas and Blackboard list only deployments with a committed approval (connectionDto).
+ * `approvedDeploymentIds`: Canvas and Blackboard list only deployments with a committed approval (connectionDto). A
+ * pending staged registration lists the deployments of its staged platform: the portal pre-fills them (app API delta §3.4).
  */
 export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer, channels: ChannelRegistry, libraryName = '', approvedDeploymentIds?: string[]) {
   const showRef = c.status === 'pending' && c.method === 'dynamic' && c.refTokenEncrypted !== null;
   const platform = c.platform === null ? null : {
     ...c.platform,
-    ...(c.bindingAuthority === 'operatorGrant' && approvedDeploymentIds ? { deploymentIds: approvedDeploymentIds } : {}),
+    ...(c.bindingAuthority === 'operatorGrant' && approvedDeploymentIds && !(c.status === 'pending' && stagedRegistration(c)) ? { deploymentIds: approvedDeploymentIds } : {}),
     // M1: the site and service origins (for Moodle both equal the connection siteUrl).
     siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
   };
@@ -78,8 +80,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     lastError: c.lastError ? {
       code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),
       // The same title and action line as the register page of that code (one text table, register-texts.ts).
-      title: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.title ?? null,
-      action: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.action ?? null,
+      title: registerErrorText(c.lastError.code, toolName(libraryName), channels, c.channel)?.title ?? null,
+      action: registerErrorText(c.lastError.code, toolName(libraryName), channels, c.channel)?.action ?? null,
     } : null,
   };
 }
@@ -119,7 +121,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
   // M1 (§4.3): LMS types, methods, capabilities and profiles, built from GET /api/providers. LA S1: only the rows that
   // an adapter owns (app API delta §2).
   api.get('/lms-providers', async (req) => {
-    const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId, channels);
+    const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId, channels).filter((p) => usableProfileRow(channels, p, logger, req.traceId));
     return {
       lms: channels.channels().filter((m) => m.availability !== 'simulation-only' || rows.some((p) => channels.channelOfProfile(p.id) === m.id)).map((m) => {
         const adapter = setupOf(channels, m.id);
@@ -157,15 +159,26 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const sharing = adapter.sharingOf(profileId);
     if (!sharing) return invalid('profile');
     if (registration.authority === 'self') {
-      // The Moodle rules of §4 do not change (no LTI call).
-      const checked = adapter.checkCreate({ siteUrl: b.siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
+      // The Moodle rules of §4 do not change (no LTI call). A channel of the kernel admin-value adapter first passes
+      // site rules 1–4 (app API delta §3.1): no IP literal, no localhost, none of our hosts.
+      let siteUrl = b.siteUrl;
+      if (servedByKernel(channels, channel)) {
+        const r = checkSiteUrl(b.siteUrl, { ownHosts, profileFixedHosts: [] });
+        if (!r.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: siteUrl breaks rule ${r.rule} of the site rules.`, { details: { rule: r.rule, field: 'siteUrl' } });
+        siteUrl = r.origin;
+        // BD-A1-79: the profile must be reported, and as an admin profile.
+        const row = (await providerProfiles(lti, req.traceId)).find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel);
+        if (!row || !usableProfileRow(channels, row, logger, req.traceId)) return invalid('profile');
+      }
+      const checked = adapter.checkCreate({ siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
       if (!checked.ok) return invalid(checked.field);
       const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
       const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: checked.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
       return reply.code(201).send(dto(req, c));
     }
     const rows = await providerProfiles(lti, req.traceId);
-    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profiles[p.id] !== undefined);
+    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profiles[p.id] !== undefined
+      && usableProfileRow(channels, p, logger, req.traceId));
     if (!profile) return invalid('profile');
     if (b.serviceUrl !== undefined && !adapter.profiles[profileId]?.serviceUrl) return invalid('serviceUrl');
     const suffixes = adapter.profiles[profile.id]?.refusedHostSuffixes;
@@ -202,7 +215,8 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
 
   api.post<IdParams>('/connections/:id/registration-url', async (req) => {
     const c = connectionOf(req);
-    if (c.status !== 'pending' || c.method !== 'dynamic' || !channels.capabilities(c.channel)['registration.dynamic']) throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending dynamic connection has a registration URL.');
+    // A staged registration keeps its platform and waits for the operator grant: no new registration URL.
+    if (c.status !== 'pending' || c.method !== 'dynamic' || c.platform !== null || !channels.capabilities(c.channel)['registration.dynamic']) throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending dynamic connection has a registration URL.');
     const ref = newRef(masterKey, deps.refTtlSeconds, now());
     if (!replaceRef(db, c.libraryId, c.id, ref.stored, now())) throw new ApiError('CONNECTION_NOT_PENDING');
     return { registrationUrl: registrationUrl(urls, ref.token), expiresAt: new Date(ref.stored.expiresAt).toISOString() };

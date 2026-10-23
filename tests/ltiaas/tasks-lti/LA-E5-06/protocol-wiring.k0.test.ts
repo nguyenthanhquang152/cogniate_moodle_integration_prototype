@@ -105,6 +105,41 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
       insideAccounts.code,
       "F5 must allow '/lti/launch/' inside services/lti-service/src/accounts/resolver.ts",
     ).toBe(0);
+
+    // A-LA-E5-06-02 (Round 2): end-of-literal and relative forms
+    const endOfLiteralProbe = checkF5OnText(
+      'services/lti-service/src/lti/probe.ts',
+      "export const u = '/lti/launch';\n",
+    );
+    expect(
+      endOfLiteralProbe.code !== 0,
+      "F5 must reject end-of-literal '/lti/launch' in services/lti-service/src/lti/probe.ts",
+    ).toBe(true);
+    expect(
+      endOfLiteralProbe.output.includes('protocol-urls'),
+      "F5 output names 'protocol-urls' for end-of-literal form",
+    ).toBe(true);
+
+    const relativeProbe = checkF5OnText(
+      'services/lti-service/src/lti/probe.ts',
+      "export const u = 'lti/launch/' + id;\n",
+    );
+    expect(
+      relativeProbe.code !== 0,
+      "F5 must reject relative form 'lti/launch/' in services/lti-service/src/lti/probe.ts",
+    ).toBe(true);
+    expect(
+      relativeProbe.output.includes('protocol-urls'),
+      "F5 output names 'protocol-urls' for relative form",
+    ).toBe(true);
+
+    const f5UnitRes = spawnSync('node', ['--test', 'infra/scripts/fitness/protocol-urls.test.mjs'], {
+      cwd: TARGET_ROOT,
+      env: plainEnv(),
+      encoding: 'utf8',
+      timeout: 60_000,
+    });
+    expect(f5UnitRes.status, 'infra/scripts/fitness/protocol-urls.test.mjs exits 0').toBe(0);
   });
 
   it('Static check: lti/codes.ts defines TOOL_ACCOUNT_SUSPENDED, REGISTRATION_SESSION_LIMIT and RATE_LIMITED page codes and action lines', () => {
@@ -145,15 +180,22 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
     ).toBe(true);
 
     // 2. Status gates: suspended -> TOOL_ACCOUNT_SUSPENDED (403), closed -> UNKNOWN_TOOL_ACCOUNT (404)
+    const accountStatusPath = 'services/lti-service/src/lti/account-status.ts';
+    const accountStatusSrc = fs.existsSync(path.join(TARGET_ROOT, accountStatusPath))
+      ? readRepoFile(accountStatusPath)
+      : '';
     expect(
       protocolRouteSrc.includes('TOOL_ACCOUNT_SUSPENDED') ||
         loginSrc.includes('TOOL_ACCOUNT_SUSPENDED') ||
-        launchSrc.includes('TOOL_ACCOUNT_SUSPENDED'),
-      'protocol routes / handlers return TOOL_ACCOUNT_SUSPENDED for suspended accounts',
+        launchSrc.includes('TOOL_ACCOUNT_SUSPENDED') ||
+        accountStatusSrc.includes('TOOL_ACCOUNT_SUSPENDED'),
+      'protocol routes / handlers / account-status.ts return TOOL_ACCOUNT_SUSPENDED for suspended accounts',
     ).toBe(true);
     expect(
-      regRouteSrc.includes('TOOL_ACCOUNT_SUSPENDED') || regLtiSrc.includes('TOOL_ACCOUNT_SUSPENDED'),
-      'registration route / handler returns TOOL_ACCOUNT_SUSPENDED for suspended accounts',
+      regRouteSrc.includes('TOOL_ACCOUNT_SUSPENDED') ||
+        regLtiSrc.includes('TOOL_ACCOUNT_SUSPENDED') ||
+        accountStatusSrc.includes('TOOL_ACCOUNT_SUSPENDED'),
+      'registration route / handler / account-status.ts returns TOOL_ACCOUNT_SUSPENDED for suspended accounts',
     ).toBe(true);
 
     // 3. Session cap: checkRegistrationSessionCap + REGISTRATION_SESSION_LIMIT (409)
@@ -180,6 +222,7 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
       'services/lti-service/src/lti/login.ts',
       'services/lti-service/src/lti/launch.ts',
       'services/lti-service/src/lti/registration.ts',
+      'services/lti-service/src/lti/account-status.ts',
       'services/lti-service/src/http/routes/protocol.ts',
       'services/lti-service/src/http/routes/registration.ts',
       'services/lti-service/src/lti/codes.ts',
@@ -190,18 +233,19 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
       expect(isF1Core(relPath), `${relPath} is an F1 core path`).toBe(true);
       const src = readRepoFile(relPath);
       const f5 = checkF5OnText(relPath, src);
-      expect(f5.code, `${relPath} passes F5 check; output:\n${f5.output}`).toBe(0);
+      expect(f5.code, `${relPath} passes F5 check`).toBe(0);
     }
 
-    // codes.ts and store/registrations.ts have 0 baseline F1 hits
+    // codes.ts, account-status.ts, store/registrations.ts and protocol.ts have 0 baseline F1 hits
     for (const zeroF1Path of [
       'services/lti-service/src/lti/codes.ts',
+      'services/lti-service/src/lti/account-status.ts',
       'services/lti-service/src/store/registrations.ts',
       'services/lti-service/src/http/routes/protocol.ts',
     ]) {
       const src = readRepoFile(zeroF1Path);
       const f1 = checkF1OnText(zeroF1Path, src);
-      expect(f1.code, `${zeroF1Path} passes F1 check; output:\n${f1.output}`).toBe(0);
+      expect(f1.code, `${zeroF1Path} passes F1 check`).toBe(0);
       expect(f1.rawHits, `${zeroF1Path} must have 0 F1 hits`).toEqual([]);
     }
   });
@@ -224,6 +268,8 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
         'services/lti-service/src/lti',
         'services/lti-service/src/accounts',
         'services/lti-service/src/store',
+        'services/lti-service/src/http/routes/protocol.test.ts',
+        'services/lti-service/src/http/routes/registration.test.ts',
       ],
       {
         cwd: TARGET_ROOT,
@@ -233,6 +279,7 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
       },
     );
     const unitOutput = `${unitRes.stdout ?? ''}${unitRes.stderr ?? ''}`;
-    expect(unitRes.status, `lti, accounts & store unit tests exit 0; output:\n${unitOutput}`).toBe(0);
+    expect(unitRes.status, 'lti, accounts, store & route unit tests exit 0').toBe(0);
+    expect(unitOutput.length > 0, 'unit test output is non-empty').toBe(true);
   });
 });

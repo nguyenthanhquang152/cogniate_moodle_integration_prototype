@@ -372,7 +372,10 @@ describe('redemption faults and races (§4.7.1 outcome table; AC-M1-37 unit leve
     expect((await putCanvas(a, k1, 'dA', g1.code)).status).toBe(502);
     const platform = [...t.lti.platforms.values()].find((p) => p.profile === 'canvas-sim-cloud')!;
     expect(platform.active).toBe(true);
-    expect(code(await putCanvas(a, k2, 'dA', g2.code))).toBe('PLATFORM_IN_USE');
+    const inUse = await putCanvas(a, k2, 'dA', g2.code);
+    // LA-E1-12: the channel text name fills the M1 Canvas text byte for byte.
+    expect([code(inUse), inUse.json.details.description]).toEqual(['PLATFORM_IN_USE',
+      'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.']);
     expect((await call('DELETE', `/app-api/connections/${k1.id}`, a)).status).toBe(204);
     expect(events('binding_fenced').at(-1)).toMatchObject({ result: 'fenced' });
     const ok = await putCanvas(a, k2, 'dA', g2.code);
@@ -529,7 +532,8 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     expect(rows.json.map((r: Json) => r.key)).toEqual(['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields', 'grade_service', 'membership_service', 'placement']);
     expect(rows.json[0].value).toBe(BB);
     const providers = (await call('GET', '/app-api/lms-providers', a)).json.lms;
-    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+    // Open world: the baseline entries first; new channels may follow.
+    expect(providers.slice(0, 3).map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
     expect(providers[2].profiles).toEqual([
       { id: 'blackboard', label: 'Blackboard Learn', simulation: false, ready: false, clientId: null },
       { id: 'blackboard-sim', label: 'Blackboard Learn (simulation)', simulation: true, ready: true, clientId: BB },
@@ -1137,13 +1141,17 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
+    // A channel without app.ts gets the kernel admin-value adapter (A1 BD-A1-79), so no adapter means a channel that
+    // is not in the registry.
     const lookup = vi.spyOn(TEST_CHANNELS, 'appAdapter').mockReturnValue(null);
+    const manifest = vi.spyOn(TEST_CHANNELS, 'channel').mockReturnValue(null);
     try {
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
       lookup.mockRestore();
+      manifest.mockRestore();
     }
   });
 

@@ -4,10 +4,11 @@ import { BlackboardBinding } from "./BlackboardBinding.tsx";
 import { createElement as h } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "@cogniate/portal-sdk";
+import { ChannelScope, MemoryRouter } from "@cogniate/portal-sdk";
 import type { Connection, LmsProvider } from "@cogniate/portal-sdk";
 import { BlackboardTeacherSteps, BlackboardWizard } from "./BlackboardWizard.tsx";
 import steps from "./steps.ts";
+import manifest from "../manifest.ts";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -32,10 +33,11 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const field = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
-const wizard = (props: Partial<Parameters<typeof BlackboardWizard>[0]>) => render(h(MemoryRouter, null, h(BlackboardWizard, {
+// The connect route sets the channel scope; the error texts of this channel come from its manifest (BD-A1-63).
+const wizard = (props: Partial<Parameters<typeof BlackboardWizard>[0]>) => render(h(MemoryRouter, null, h(ChannelScope, { manifest }, h(BlackboardWizard, {
   provider: provider([["blackboard", false], ["blackboard-sim", true]]), connection: null, libraryName: "School", opener: "blackboard-connect",
   onCreated: vi.fn(), onChanged: vi.fn(), sdk: createPortalSdk(() => undefined), ...props,
-})));
+}))));
 
 it("has 4 step data entries, none verified", () => {
   expect(steps.steps.map((s) => s.id)).toEqual(["blackboard-site", "blackboard-register", "blackboard-approval", "blackboard-teacher"]);

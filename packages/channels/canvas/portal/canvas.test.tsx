@@ -11,6 +11,7 @@ import { CanvasBinding } from "./CanvasBinding.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
 import steps from "./steps.ts";
+import manifest from "../manifest.ts";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -182,11 +183,16 @@ it("keeps configuration actions unavailable when fetching fails and permits a re
 
 it("maps every specified provider repair code and site rule without exposing a submitted code", () => {
   const codes = ["INVALID_PLATFORM_VALUES", "GRANT_INVALID", "GRANT_MISMATCH", "GRANT_IN_USE", "PLATFORM_IN_USE", "DEPLOYMENT_IN_USE", "DEPLOYMENT_FIXED", "CONNECTION_NOT_PENDING", "PROVIDER_NOT_READY", "LTI_SERVICE_ERROR"];
-  for (const message of codes) expect(providerErrorMessage(new ApiError(422, { message }, "trace-123"))).toBeTruthy();
-  for (let rule = 1; rule <= 5; rule++) expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule }))).toBeTruthy();
+  for (const message of codes) expect(providerErrorMessage(new ApiError(422, { message }, "trace-123"), manifest)).toBeTruthy();
+  for (let rule = 1; rule <= 5; rule++) expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule }), manifest)).toBeTruthy();
   expect(providerErrorFields(new ApiError(422, { field: "siteUrl", fields: { deploymentId: "invalid" } }))).toEqual(["deploymentId", "siteUrl"]);
-  expect(providerErrorMessage(new ApiError(502, { message: "LTI_SERVICE_ERROR" }, "trace-123"))).toBe("Cogniate could not save the connection. Try again. Trace id: trace-123");
-  expect(providerErrorMessage(new ApiError(409, { message: "DEPLOYMENT_FIXED" }))).toBe("This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.");
+  expect(providerErrorMessage(new ApiError(502, { message: "LTI_SERVICE_ERROR" }, "trace-123"), manifest)).toBe("Cogniate could not save the connection. Try again. Trace id: trace-123");
+  // The Canvas texts come from its manifest texts.errors, byte for byte (BD-A1-63).
+  expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule: 1 }), manifest)).toBe("Enter only the address, for example https://school.instructure.com. No path.");
+  expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule: 5 }), manifest)).toBe("This is an Instructure-hosted address. Choose an Instructure-hosted Canvas type.");
+  expect(providerErrorMessage(new ApiError(409, { message: "PLATFORM_IN_USE" }), manifest)).toBe("This Canvas developer key is already connected to Cogniate. Make a new developer key for this library.");
+  // Canvas has no own DEPLOYMENT_FIXED text: the generic text, not the Blackboard text (LA-IC-20).
+  expect(providerErrorMessage(new ApiError(409, { message: "DEPLOYMENT_FIXED" }), manifest)).toBe("This connection already reserved another deployment. Disconnect it, then make a new connection.");
 });
 
 it("keeps all pre-move instruction bytes from the manifest", () => {

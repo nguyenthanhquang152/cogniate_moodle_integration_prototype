@@ -7,8 +7,9 @@ import { api, idPath } from "../api.ts";
 import { Card } from "../ui/card.tsx";
 import { Button } from "../ui/button.tsx";
 import { Input, Select } from "../ui/input.tsx";
-import { CopyButton, ErrorNotice } from "../ui.tsx";
+import { CopyButton } from "../ui.tsx";
 import { ToolConfiguration } from "../connect/ToolConfiguration.tsx";
+import { ChannelErrorNotice } from "../connect/provider-errors.tsx";
 import { channelText } from "./registry.ts";
 
 import { verificationAuthority, VerificationInstructions } from "./verification.tsx";
@@ -138,7 +139,7 @@ const defaultSteps: Record<WizardStep, React.ComponentType> = {
 export function ManifestBinding(props: WizardProps) {
   const state = useWizard(props);
   return <WizardContext.Provider value={state}><form className="flex flex-col gap-5" onSubmit={state.submit}>
-    <CollectStep /><VerifyStep /><ErrorNotice error={state.error} />
+    <CollectStep /><VerifyStep /><ChannelErrorNotice error={state.error} />
   </form></WizardContext.Provider>;
 }
 export function ManifestWizard({ module, ...props }: WizardProps & { module?: ChannelUiModule }) {
@@ -149,6 +150,6 @@ export function ManifestWizard({ module, ...props }: WizardProps & { module?: Ch
       const Default = defaultSteps[step];
       return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : <Default />}</Card>;
     })}
-    <ErrorNotice error={state.error} />
+    <ChannelErrorNotice error={state.error} />
   </form></WizardContext.Provider>;
 }

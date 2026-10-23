@@ -4,6 +4,12 @@ import { z } from 'zod';
 import type { ProfileSource } from '@cogniate/channel-kernel';
 import { FRAME_NAME } from './storage.ts';
 
+/**
+ * LA-ADR-02 D2: the issuer kind that the issuer value gives. A fixed URL is `fixed`; a `{siteUrl}` template or an
+ * admin value (null) is `per-tenant`. The same rule as the reserved issuers (index.ts).
+ */
+export const issuerKindOf = (issuer: string | null): 'per-tenant' | 'fixed' => (issuer !== null && !issuer.startsWith('{') ? 'fixed' : 'per-tenant');
+
 const storageOrigin = z.string().refine((value) => {
   if (value === 'authOrigin') return true;
   try { const url = new URL(value); return url.protocol === 'https:' && url.origin === value; }
@@ -17,6 +23,16 @@ export const profileSourceSchema = z.strictObject({
   platformStorage: z.strictObject({
     targetFrame: z.string().regex(FRAME_NAME, 'Expected from-login, _parent or a frame name of 1 to 64 letters, digits, _ or -.'),
     origin: storageOrigin,
+  }).nullable().optional(),
+  // E2 traits (LA-ADR-02 D2). Optional in a profile file: the registry supplies the default (registry.ts).
+  issuerKind: z.enum(['per-tenant', 'fixed']).optional(),
+  endpointOrigins: z.enum(['issuer', 'any-https']).nullable().optional(),
+  clientAssertionAud: z.strictObject({ value: z.enum(['{tokenEndpoint}', '{platformValue}']), form: z.enum(['string', 'array']) }).optional(),
+  assertionDeploymentId: z.boolean().optional(),
+  dynamicRegistration: z.strictObject({
+    issuerRule: z.enum(['origin', 'path-prefix', 'profile']),
+    configurationPath: z.string().regex(/^\/[^?#\s]*$/, 'Expected a path that starts with "/", with no query or fragment.').optional(),
+    registrationToken: z.enum(['scope-jwt', 'opaque-bearer']),
   }).nullable().optional(),
   wireLms: z.string().min(1).nullable().optional(),
   listOrder: z.number().int().nonnegative(),
@@ -42,6 +58,26 @@ export const profileSourceSchema = z.strictObject({
     if ((profile[field] === null) !== (profile.endpoints === 'admin')) {
       ctx.addIssue({ code: 'custom', path: [field], message: profile.endpoints === 'admin' ? 'Expected null for endpoints "admin".' : 'Expected a fixed value or template for endpoints "fixed".' });
     }
+  }
+  // LA-ADR-02 D2 (Reviewer-B B-LAD-14): a given trait must agree with the profile values. The issuer kind is checked
+  // only when the issuer itself fits the endpoints value, so that one wrong issuer gives one message.
+  const issuerFits = (profile.issuer === null) === (profile.endpoints === 'admin');
+  if (issuerFits && profile.issuerKind !== undefined && profile.issuerKind !== issuerKindOf(profile.issuer)) {
+    ctx.addIssue({ code: 'custom', path: ['issuerKind'], message: `Expected "${issuerKindOf(profile.issuer)}" for this issuer value.` });
+  }
+  if (profile.endpointOrigins !== undefined && (profile.endpointOrigins === null) !== (profile.endpoints === 'fixed')) {
+    ctx.addIssue({ code: 'custom', path: ['endpointOrigins'], message: profile.endpoints === 'fixed' ? 'Expected null for endpoints "fixed".' : 'Expected "issuer" or "any-https" for endpoints "admin".' });
+  }
+  // Legacy flag (provisional Lead call 2a): flags.clientAssertionAudArray stays until QA removes it with this rule.
+  if (profile.clientAssertionAud !== undefined && (profile.clientAssertionAud.form === 'array') !== profile.flags.clientAssertionAudArray) {
+    ctx.addIssue({ code: 'custom', path: ['clientAssertionAud', 'form'], message: `Expected "${profile.flags.clientAssertionAudArray ? 'array' : 'string'}" to agree with flags.clientAssertionAudArray.` });
+  }
+  // A-LA-E2-01-04: a stored audience is an admin value; a fixed profile has no such value (LA-ADR-02 D2).
+  if (profile.clientAssertionAud?.value === '{platformValue}' && profile.endpoints === 'fixed') {
+    ctx.addIssue({ code: 'custom', path: ['clientAssertionAud', 'value'], message: 'Expected "{tokenEndpoint}" for endpoints "fixed".' });
+  }
+  if (profile.dynamicRegistration?.configurationPath !== undefined && profile.dynamicRegistration.issuerRule !== 'path-prefix') {
+    ctx.addIssue({ code: 'custom', path: ['dynamicRegistration', 'configurationPath'], message: 'Expected a configurationPath only with issuerRule "path-prefix".' });
   }
 }) satisfies z.ZodType<ProfileSource>;
 

@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import { ApiError, api, idPath } from "@cogniate/portal-sdk";
 import { useApi } from "@cogniate/portal-sdk";
 import type { Connection, ToolRow } from "@cogniate/portal-sdk";
-import { CopyButton, ErrorNotice, Loading } from "@cogniate/portal-sdk";
+import { ChannelErrorNotice, CopyButton, ErrorNotice, Loading } from "@cogniate/portal-sdk";
 import { platformFields, validatePlatform } from "./validation.ts";
 import type { PlatformKey, PlatformValues } from "./validation.ts";
 import { MoodleSteps } from "./MoodleSteps.tsx";
@@ -147,7 +147,7 @@ export function ManualSetup({
               </label>
             ))}
           </div>
-          <ErrorNotice error={error} />
+          <ChannelErrorNotice error={error} />
           <Button variant="primary" className="self-start" disabled={busy}>
             {busy ? "Connecting…" : "Connect Moodle"}
           </Button>

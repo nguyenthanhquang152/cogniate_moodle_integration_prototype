@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as kernel from '@cogniate/channel-kernel';
 import type { AppConfig } from '../config.ts';
 import type * as PackageStore from '../domain/package-store.ts';
-import { TEST_URLS } from '../testkit.ts';
+import { TEST_CHANNELS, TEST_URLS } from '../testkit.ts';
 import { CHANNEL_ROOT, buildAppChannelRegistry } from './registry.ts';
 
 // Execute main.ts and its real listener builder. Only the external resources are replaced.
@@ -45,6 +45,9 @@ vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
   const original = await importOriginal<typeof kernel>();
   return { ...original, loadChannelFolders: vi.fn(original.loadChannelFolders) };
 });
+
+/** The product channel ids in registry order (the testkit registry loads the same constant root). */
+const PRODUCT_IDS = TEST_CHANNELS.channels().map((m) => m.id);
 
 const tempRoots: string[] = [];
 const startLines: LogLine[] = [];
@@ -130,7 +133,11 @@ describe('AC-LA-E1-02-05: a failing load check stops the app start with one chan
   it('a valid extra root loads next to the product channels, and nothing is logged', async () => {
     const sink = logSink();
     const registry = await buildAppChannelRegistry([CHANNEL_ROOT, testRoot(testManifest())], createLogger({ service: 'cogniate-app', write: sink.write }));
-    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'zz-test']);
+    // Open world: the product channels (any number) in registry order, and the extra channel.
+    const ids = registry.channels().map((m) => m.id);
+    expect(ids.slice(0, 3)).toEqual(['moodle', 'canvas', 'blackboard']);
+    expect(ids.filter((id) => id !== 'zz-test')).toEqual(PRODUCT_IDS);
+    expect(ids).toContain('zz-test');
     expect(sink.lines).toEqual([]);
   });
 });
@@ -147,5 +154,7 @@ it('AC-LA-E1-02-06: the app start loads one constant root; no environment variab
   expect(createOutboundClient).toHaveBeenCalledOnce();
   expect(vi.mocked(kernel.loadChannelFolders).mock.calls).toEqual([[[CHANNEL_ROOT], 'app']]);
   const loaded = await vi.mocked(kernel.loadChannelFolders).mock.results[0]!.value;
-  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+  // Only the product channels (an open world list), never the channel of the extra root.
+  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(PRODUCT_IDS);
+  expect(PRODUCT_IDS).not.toContain('zz-test');
 });

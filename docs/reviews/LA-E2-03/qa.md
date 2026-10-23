@@ -1,0 +1,43 @@
+Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
+Round: 1
+
+# LA-E2-03 E2-K Kernel admin-value setup adapter, `FieldSpec.default` and the `lti-generic` channel: QA verification
+
+Tester: QA-3 (Orca task `task_9b05d182d78f`, dispatch `ctx_3c190ff75ff7`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E2-03.md` (with `LA-ADR-01` D2/D4/D5, `LA-ADR-02` D1/D3/D8, `LA-ADR-05` D1 rule 1a / D3b / D4, `cogniate-app-api-delta.md` §1/§2/§3.1/§3.3/§3.4, and `BD-A1-23`, `BD-A1-79`, `BD-A1-80`, `BD-A1-86`). Suite: `tests/ltiaas/tasks-core/LA-E2-03/` (QA-3 test-first).
+
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. Aligned the `listOrder` assertion in `tests/ltiaas/tasks-core/LA-E2-03/lti-generic.k0.test.ts` (`AC-LA-E2-03-11`) to verify `profile.listOrder > baselineMaxOrder` (`80 > 70`, per `BD-A1-23` load check 7) and that in sorted provider order real profiles precede simulation profiles.
+
+| Item | Value |
+| --- | --- |
+| SHA | `6689a185faa90c444de2e1c540a476bccb4dcf01` (integration `6689a18`, code `0e6bace`; holds `LA-E2-03` merge `ddfd4c6` + fix round `3777e7c`) |
+| Lane and slot | lane K; no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-03`, `-04`, `-05`, `-07` marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/run14/r1/clone`: `git clone --no-hardlinks --no-checkout`, detached at `6689a185faa90c444de2e1c540a476bccb4dcf01`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run14/r1/k0/LA-E2-03/` (umask 077): `e2-03-check-clean.log`, `e2-03-ac01-09-10-manifest.json`, `e2-03-ac11-profile.json`, `e2-03-ac02-k0-canary.log`, `e2-03-unit-rows.log` |
+
+## Acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E2-03-01 | PASS (K0 + UNIT) | `tests/ltiaas/tasks-core/LA-E2-03/lti-generic.k0.test.ts > AC-LA-E2-03-01, AC-LA-E2-03-09, AC-LA-E2-03-10` + `packages/channel-kernel/src/registry.test.ts > lti-generic (LA-E2-03) > loads with no app.ts, after the baseline channels, with the D3 capabilities and legacy flags` | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_RUN_DIR=~/cogniate-qa-runs/LA/run14/r1/k0/LA-E2-03 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E2-03/vitest.config.mts --reporter=verbose` | `lti-generic` manifest (`id: "lti-generic"`, `family: "lti13"`, `names: { text: "your LMS", label: "Other LTI 1.3 platform" }`, `registration: [{ dynamic, self }, { manual, operatorGrant }]`) passes the schema; capabilities match LA-ADR-02 D3 (`deployments.multiple: true`, `content.multiple: true`, `launch.windowHint: true`, `records.reporters: ["lti-ags"]`, `records.readBack: true`, `registration.scopes`: 4 AGS scopes); legacy flags are `dynamicRegistration: true`, `operatorApproval: true`, `addDeployment: true`, `webServices: false`, `courseShell: false`, `canvasConfiguration: false`. `e2-03-ac01-09-10-manifest.json` |
+| AC-LA-E2-03-02 | PASS (K0) | `lti-generic.k0.test.ts > AC-LA-E2-03-02: E2-K exit check (LA-ADR-02 D8): a canary folder with an admin-value profile and no app.ts passes K0` | same | Scratch admin-value canary channel `zz-admin-canary` (manifest + `lti-profiles.ts` with `endpoints: "admin"`, no `app.ts`) passes K0 (`3` files, `139` tests). `e2-03-ac02-k0-canary.log` |
+| AC-LA-E2-03-03 | pending: Docker window (K1-SIM) | `lti-generic.k1sim.test.ts > AC-LA-E2-03-03` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/cogniate-app/src/app/lti-generic.test.ts > the provider list gives lti-generic after the three baseline entries, with its name, methods and profile` and `services/cogniate-app/src/app/connections.test.ts > AC-LA-E1-01-02` (`e2-03-check-clean.log`). |
+| AC-LA-E2-03-04 | pending: Docker window (K1-SIM) | `lti-generic.k1sim.test.ts > AC-LA-E2-03-04` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/cogniate-app/src/app/lti-generic.test.ts > a manual or dynamic create passes site rules 1–4 and stores the channel, its profile and the method authority` (`e2-03-check-clean.log`). |
+| AC-LA-E2-03-05 | pending: Docker window (K1-SIM) | `lti-generic.k1sim.test.ts > AC-LA-E2-03-05` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/cogniate-app/src/app/lti-generic.test.ts > the tool configuration gives the eight generic rows; the strict body refuses unknown, missing and off-site values` (`e2-03-check-clean.log`). |
+| AC-LA-E2-03-06 + `B-LA-E2-03-01` | PASS (K0 + UNIT) | `lti-generic.k0.test.ts > AC-LA-E2-03-06 & AC-LA-E2-03-08` + `services/cogniate-app/src/kernel/setup/admin-value.test.ts` (5 tests, including `B-LA-E2-03-01: the generic form with a blank Token audience parses with no audience; a blank required input stays bad`) + `services/cogniate-app/src/app/redemption-admin.test.ts > B-LA-E2-03-01` | same | Admin-value strict body refuses unknown or missing fields, malformed URLs, and an `issuer` whose origin differs from `siteUrl`; `FieldSpec.default` (`"{siteUrl}"`) fills when omitted/blank, validates through the field rule (`3777e7c`), and is replaced by a posted value; a blank optional `tokenAudience` from the generic form body is treated as absent (`B-LA-E2-03-01`). `e2-03-unit-rows.log`, `e2-03-check-clean.log` |
+| AC-LA-E2-03-07 | pending: Docker window (K1-SIM) | `lti-generic.k1sim.test.ts > AC-LA-E2-03-07` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/lti-service/src/http/routes/platforms.test.ts` (active vs staged `POST /api/platforms` for `lti-generic`) and `services/cogniate-app/src/app/lti-generic.test.ts` (`e2-03-check-clean.log`). |
+| AC-LA-E2-03-08 | PASS (K0 + UNIT) | `lti-generic.k0.test.ts > AC-LA-E2-03-06 & AC-LA-E2-03-08` + `packages/channel-kernel/src/registry.test.ts > lti-generic (LA-E2-03) > AC-LA-E2-03-08: load check 6 stops the start for an lti-generic variant with manual -> self` | same | Load check 6 stops startup for an `lti-generic` manifest variant with `manual -> self` (not in `MANUAL_SELF_LEGACY_CHANNELS`). `e2-03-unit-rows.log` |
+| AC-LA-E2-03-09 | PASS (K0) | `lti-generic.k0.test.ts > AC-LA-E2-03-01, AC-LA-E2-03-09, AC-LA-E2-03-10` | same | `capabilities('lti-generic')['content.multiple'] === true` (LA-ADR-05 D3b). `e2-03-ac01-09-10-manifest.json` |
+| AC-LA-E2-03-10 | PASS (K0) | `lti-generic.k0.test.ts > AC-LA-E2-03-01, AC-LA-E2-03-09, AC-LA-E2-03-10` | same | `capabilities('lti-generic')['registration.scopes']` equals the 4 AGS scopes (`lineitem`, `lineitem.readonly`, `result.readonly`, `score`) and contains no NRPS scope (LA-ADR-05 D4). `e2-03-ac01-09-10-manifest.json` |
+| AC-LA-E2-03-11 | PASS (K0) | `lti-generic.k0.test.ts > AC-LA-E2-03-11: lti-generic profile has platformStorage = { targetFrame: "from-login", origin: "authOrigin" } and the LA-ADR-02 D3 profile shape` | same | `lti-generic` profile has `platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' }` (LA-ADR-05 D1 rule 1a), `endpoints: 'admin'`, `issuerKind: 'per-tenant'`, `endpointOrigins: 'any-https'`, `clientAssertionAud: { value: '{platformValue}', form: 'string' }`, `dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' }`, `privacyFloor: 'allowlist'`, and `listOrder: 80` (`> 70` per `BD-A1-23`; sorted after baseline real profiles and before simulation profiles). `e2-03-ac11-profile.json` |
+
+## Other checks
+
+- **QA test alignment (`AC-LA-E2-03-11`):** Updated `tests/ltiaas/tasks-core/LA-E2-03/lti-generic.k0.test.ts` so the `listOrder` assertion checks `profile.listOrder > baselineMaxOrder` (`80 > 70`, per `BD-A1-23` load check 7) and verifies the sorted provider order (`(a.simulation ? 1 : 0) - (b.simulation ? 1 : 0) || a.listOrder - b.listOrder`) places `lti-generic` after baseline real profiles and before simulation profiles.
+- **R0 `npm run check` at `6689a18` (`e2-03-check-clean.log`):**
+  - Vitest (`test:unit`): `178` files; `2,879` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail.
+  - K0 (`test:k0`): `3` files; `134` passed.
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Measured time:** `LA-E2-03` K0 suite `106.0s` (`4/4` tests passed, including `npm run check`, canary K0 check, and targeted unit run). `K1-SIM` rows (`AC-03`, `-04`, `-05`, `-07`) are `pending: Docker window`.

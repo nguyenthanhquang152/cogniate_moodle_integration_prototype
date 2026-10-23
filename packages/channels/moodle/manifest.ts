@@ -58,6 +58,12 @@ const manifest = {
     ],
   },
   texts: {
+    // The portal error texts (BD-A1-63; before: apps/portal/src/connect/provider-errors.tsx). Other keys: the generic text.
+    errors: {
+      SITE_RULE_1: 'Enter only the address, for example https://school.instructure.com. No path.',
+      // BD-A1-81: the manual form keeps today's server sentence (LEGACY_SELF_BINDING_TEXT.collision) byte for byte.
+      PLATFORM_IN_USE: 'This {LMS} tool is already registered with Cogniate. In {LMS}, make a new tool for this library and use its values.',
+    },
     registered: 'Registered — activate in {LMS}',
     // The Dynamic Registration steps of the portal (apps/portal/src/connect/moodle-steps.json, Moodle 5.2.4).
     adminSteps: [
@@ -72,6 +78,17 @@ const manifest = {
     disconnect: 'This stops launches through this connection. The tool stays in {LMS}.',
     // The standard profile is always ready.
     notReady: null,
+    // BD-A1-59: the Dynamic Registration help sentences with Moodle menu paths, byte for byte the LA-E1-10 texts
+    // (LTI service registration pages) and the app register page text of UPDATE_NOT_ALLOWED.
+    registration: {
+      UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > {LMS} > Connect) and paste it in {LMS} (Manage tools > Add LTI Advantage).',
+      INVALID_REQUEST: 'Start the registration again from {LMS} (Site administration > Plugins > Activity modules > External tool > Manage tools).',
+      ISSUER_MISMATCH: 'The platform configuration is not from this {LMS} site. Start the registration again from Manage tools on the site itself.',
+      INVALID_OPENID_CONFIGURATION: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
+      REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.',
+      UPDATE_NOT_ALLOWED: 'Go back in {LMS} and choose Register as a new external tool.',
+      TOOL_MAY_EXIST: "{LMS} may have saved a Pending tool. In Manage tools, delete the Pending tool '{tool}', then connect again.",
+    },
   },
 } satisfies ChannelManifest;
 

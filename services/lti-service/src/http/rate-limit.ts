@@ -197,8 +197,8 @@ export function recordAuthFailure(limiter: RateLimiter, address: string, traceId
 }
 
 /**
- * BD-A2-20: call before registration's outbound fetch; store clientKey with the new session.
- * Concurrent starts may pass together; the hard registration bucket bounds that overlap.
+ * BD-A2-20, BD-A2-72: call before registration's outbound fetch, then again in the transaction that inserts the session
+ * (with no await between the two), so the cap is exact also for parallel starts. Store clientKey with the new session.
  * Completion clears client_key. Old rows without a key and expired rows do not count.
  */
 export function checkRegistrationSessionCap(db: Db, limiter: RateLimiter, address: string, accountId: string, now: number) {

@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  ROOT, artifact, f1Hits, f1Text, git, isF1Core, npmCheck, requireRunDir, requireScratchClone, scriptEchoes,
+  ROOT, artifact, f1Hits, f1Text, git, isF1Core, npmCheck, requireRunDir, requireScratchClone, run, scriptEchoes,
   type RunResult,
 } from '../LA-E1-04/fitness';
 
@@ -155,5 +155,81 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
       'e1-09-ac06-f1-zero.json',
       `${JSON.stringify({ baseSha, headSha, fileReports, deltas }, null, 2)}\n`,
     );
+  });
+
+  it('BD-A1-56, BD-A1-57 (LA-IC-19), AC-LA-E1-09-02..04: app error table removes 5 Moodle-only codes, LA-IC-19 410 RUNTIME_EXPIRED scan finds 0 affected frozen tests, and UNIT rows pass', async () => {
+    // 1. BD-A1-56: the 5 Moodle-only error codes (`MOODLE_WS_ERROR`, `MBZ_NOT_SUPPORTED`, `WS_TOKEN_INVALID`,
+    //    `WS_FUNCTIONS_MISSING`, `MBZ_BUILD_LIMIT`) are removed from `services/cogniate-app/src/app/api-errors.ts`.
+    const apiErrorsSrc = fs.readFileSync(
+      path.join(ROOT, 'services/cogniate-app/src/app/api-errors.ts'),
+      'utf8',
+    );
+    for (const removedCode of [
+      'MOODLE_WS_ERROR',
+      'MBZ_NOT_SUPPORTED',
+      'WS_TOKEN_INVALID',
+      'WS_FUNCTIONS_MISSING',
+      'MBZ_BUILD_LIMIT',
+    ]) {
+      expect(apiErrorsSrc, `api-errors.ts does not hold ${removedCode} (BD-A1-56)`).not.toContain(removedCode);
+    }
+
+    // 2. BD-A1-57 / LA-IC-19: scan frozen tests (`tests/acceptance/**`, `tests/e2e/**`, `tests/ltiaas/golden/capture.golden.ts`)
+    //    for `RUNTIME_EXPIRED`; only `tests/acceptance/T5a/6-negative.spec.ts` (Moodle live, where Moodle bytes are
+    //    unchanged and only `status === 410` + `code === 'RUNTIME_EXPIRED'` are asserted) references it.
+    const frozenHits = git([
+      'grep',
+      '-n',
+      'RUNTIME_EXPIRED',
+      '--',
+      'tests/acceptance',
+      'tests/e2e',
+      'tests/ltiaas/golden/capture.golden.ts',
+    ])
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(frozenHits.length).toBeGreaterThan(0);
+    for (const line of frozenHits) {
+      expect(
+        line.startsWith('tests/acceptance/T5a/6-negative.spec.ts:'),
+        `only T5a/6-negative.spec.ts (Moodle) references RUNTIME_EXPIRED: ${line}`,
+      ).toBe(true);
+    }
+
+    // 3. Author UNIT rows for AC-LA-E1-09-02 (including LA-IC-19, B-LA-E1-09-01, BD-A1-59), AC-LA-E1-09-03,
+    //    AC-LA-E1-09-04, BD-A1-56, and BD-A1-62 (http_request path = route template or <unmatched>) pass.
+    const unitRes = await run(
+      'npx',
+      [
+        '--no-install',
+        'vitest',
+        'run',
+        '--reporter=verbose',
+        'apps/player/src/lms-name.test.ts',
+        'packages/channel-kernel/src/legacy-wire.test.ts',
+        'packages/channel-kernel/src/manifest.test.ts',
+        'packages/tracking/src/status-text.test.ts',
+        'services/cogniate-app/src/app/portal.test.ts',
+        'services/cogniate-app/src/http-request-log.test.ts',
+        'services/cogniate-app/src/tool-pages/embedded-session-help.test.ts',
+        'services/cogniate-app/src/tool-pages/lms-texts.test.ts',
+      ],
+      { timeoutMs: 3 * 60_000 },
+    );
+    artifact('e1-09-unit-rows.log', unitRes.output);
+    expect(unitRes.code, `LA-E1-09 unit suites exit 0:\n${unitRes.output}`).toBe(0);
+    for (const marker of [
+      'AC-LA-E1-09-02',
+      'AC-LA-E1-09-03',
+      'AC-LA-E1-09-04',
+      'LA-IC-19',
+      'BD-A1-30',
+      'B-LA-E1-09-01',
+      'BD-A1-59',
+      '<unmatched>',
+    ]) {
+      expect(unitRes.output, `unit test output cites ${marker}`).toContain(marker);
+    }
   });
 });

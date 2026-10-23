@@ -34,17 +34,22 @@ export async function deactivateOrphan(deps: { db: Db; lti: LtiClient; logger: L
 }
 
 
-/** BD-A1-35: core owns the two frozen descriptions; a channel supplies only a closed reason. */
+/** BD-A1-35: core owns the descriptions (the two frozen ones and the issuer one); a channel supplies only a closed reason. */
 export function invalidBindingBody(result: Extract<PlatformBodyResult, { ok: false }>, channelName: string): never {
   throw new ApiError('INVALID_PLATFORM_VALUES', result.reason === 'origin'
     ? `The URLs must be https and on the ${channelName} site of this connection.`
-    : 'Some values are missing or not valid.', { details: { fields: result.fields } });
+    : result.reason === 'issuerOrigin'
+      ? 'The issuer must have the same https origin as the site URL of this connection.'
+      : 'Some values are missing or not valid.', { details: { fields: result.fields } });
 }
 
-/** Both authorities suspend atomically and fence the reloaded, disabled connection. */
-export async function suspendBinding(deps: AuthorityDeps, c: Connection, traceId: string) {
+/**
+ * Both authorities suspend atomically and fence the reloaded, disabled connection. `record` runs inside the same
+ * transaction (the audit event of the command).
+ */
+export async function suspendBinding(deps: AuthorityDeps, c: Connection, traceId: string, record?: () => void) {
   const { db, now, logger } = deps;
-  transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
+  transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); record?.(); });
   logger.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
   return deps.cleanup?.fenceOut(getConnection(db, c.libraryId, c.id)!, traceId) ?? [];
 }

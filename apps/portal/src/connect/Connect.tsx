@@ -4,7 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft } from "lucide-react";
 import { ConnectionSetup } from "./ConnectionSetup.tsx";
 import { ProviderSetup } from "./ProviderSetup.tsx";
-import { useChannels } from "../channels/context.tsx";
+import { ChannelScope, useChannels } from "../channels/context.tsx";
 import { visibleChannels } from "../channels/registry.ts";
 import { useApi } from "../hooks.ts";
 import type { LmsProvidersResponse } from "../types.ts";
@@ -59,11 +59,14 @@ export function Connect() {
           <p>Bring your course library to your {manifest.names.text} site.</p>
         </div>
       </div>
-      {connectionId ? (
-        <ConnectionSetup key={`${lms}:${connectionId}`} id={connectionId} lms={lms} opener={opener} />
-      ) : <ProviderSetup key={`${lms}:new`} lms={lms} connection={null} opener={opener}
-        onCreated={(connection) => navigate(`/integrations/${lms}/${connection.id}`, { replace: true, state: { opener } })}
-        onChanged={() => undefined} />}
+      {/* The route's channel is also the connection's channel: ConnectionSetup shows no connection of another channel. */}
+      <ChannelScope manifest={manifest}>
+        {connectionId ? (
+          <ConnectionSetup key={`${lms}:${connectionId}`} id={connectionId} lms={lms} opener={opener} />
+        ) : <ProviderSetup key={`${lms}:new`} lms={lms} connection={null} opener={opener}
+          onCreated={(connection) => navigate(`/integrations/${lms}/${connection.id}`, { replace: true, state: { opener } })}
+          onChanged={() => undefined} />}
+      </ChannelScope>
     </div>
   );
 }

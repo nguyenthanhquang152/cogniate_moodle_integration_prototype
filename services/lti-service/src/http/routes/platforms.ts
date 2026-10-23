@@ -1,13 +1,15 @@
 // Platforms admin API (contract §3.9, Bearer) with the M1 provider profiles (§9.3 to §9.6, §9.15). Every change writes
 // one audit event (LA-ADR-06 D4, contract delta §5): ok in the change transaction, or refused after a 4xx.
-import { canonicalOrigin } from '@cogniate/shared';
+import { canonicalOrigin, originHost } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
-import { BINDING_REF, DEPLOYMENT_ID, checkPlatformUrls, checkProfileSiteUrl, checkRotation } from '../../lti/platform-rules.ts';
+import {
+  BINDING_REF, DEPLOYMENT_ID, checkActiveAudience, checkAnyHttpsPlatform, checkAudienceHost, checkPlatformUrls, checkProfileSiteUrl, checkRotation,
+} from '../../lti/platform-rules.ts';
 import type { ProviderProfile } from '../../profiles/index.ts';
 import {
-  fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
+  allFixedHosts, fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
 } from '../../profiles/index.ts';
 import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
 import { withAudit } from '../../store/audit.ts';
@@ -23,12 +25,16 @@ import { invalid } from '../validation.ts';
 
 const url = z.string().min(1).max(2048);
 const ref = z.string().regex(BINDING_REF, '1 to 64 characters [A-Za-z0-9_-]');
+// BD-A2-73: extra `aud` values of launch check 5, compared exactly (not URLs). 1 to 2,048 characters, at most 20.
+const trustedAudiences = z.array(z.string().min(1).max(2048)).max(20);
 
 /** Every field that a create may have; the per-profile rules below decide which are required or allowed. */
 const PlatformCreateBase = z.object({
   url: url.optional(),
   clientId: z.string().min(1).max(255),
-  trustedAudiences: z.array(z.string()).optional(),
+  trustedAudiences: trustedAudiences.optional(),
+  // LA-ADR-02 D2: the stored assertion audience of a {platformValue} profile (contract delta §4.6).
+  clientAssertionAud: z.string().min(1).max(2048).optional(),
   name: z.string().min(1).max(255),
   authenticationEndpoint: url.optional(),
   accesstokenEndpoint: url.optional(),
@@ -50,7 +56,7 @@ const AdminCreate = z.object({
 });
 
 const PlatformPatch = z.object({
-  trustedAudiences: z.array(z.string()).optional(),
+  trustedAudiences: trustedAudiences.optional(),
   name: z.string().min(1).max(255).optional(),
   active: z.boolean().optional(),
   deploymentIds: z.array(z.string().min(1).max(255)).min(1).max(100).optional(),
@@ -75,6 +81,7 @@ const DeploymentPatch = z.object({
 });
 
 const bad = (field: string) => new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`);
+const ADMIN_FIELDS = { url: 'url', authenticationEndpoint: 'authenticationEndpoint', accesstokenEndpoint: 'accesstokenEndpoint', jwksUrl: 'authConfig.key' } as const;
 
 export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteContext, 'db' | 'urls' | 'logger' | 'profiles' | 'now' | 'auth'>): void {
   const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
@@ -96,11 +103,16 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     accesstokenEndpoint: p.tokenEndpoint, authConfig: { method: 'JWK_SET', key: p.jwksUrl },
     publicKey: activePublicKeyPem(ctx.db, p.toolAccountId), active: p.active, deploymentIds: p.deploymentIds,
     productFamilyCode: p.productFamilyCode, trustedAudiences: p.trustedAudiences,
+    // E2 (contract delta §4.6): null for old rows.
+    clientAssertionAud: p.clientAssertionAud, grantedScopes: p.grantedScopes,
     // M1 (§9.4)
     profile: p.profile, siteUrl: p.siteUrl, serviceUrl: p.serviceUrl, bindingRef: p.bindingRef, deployments: p.deployments.map((d) => deploymentView(p, d)),
   });
 
-  /** §3.9 and §2.4 for admin-supplied endpoints, plus the reserved issuers (§9.4). */
+  /**
+   * §3.9 and §2.4 for admin-supplied endpoints, plus the reserved issuers (§9.4). The trait endpointOrigins chooses the
+   * URL rules (LA-ADR-02 D2): `issuer` keeps today's rules; `any-https` takes the rules of contract delta §4.6.1.
+   */
   function planAdmin(raw: CreateBody, profile: ProviderProfile): NewPlatform {
     const parsed = AdminCreate.safeParse(raw);
     if (!parsed.success) throw invalid(parsed.error);
@@ -108,13 +120,23 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     if (raw.serviceUrl !== undefined) throw bad('serviceUrl');
     const b = parsed.data;
     if (b.authConfig.method !== 'JWK_SET') throw new ApiError('UNSUPPORTED_AUTH_METHOD', 'Only authConfig.method JWK_SET is supported.');
-    checkPlatformUrls({ url: b.url, authenticationEndpoint: b.authenticationEndpoint, accesstokenEndpoint: b.accesstokenEndpoint, jwksUrl: b.authConfig.key },
-      { url: 'url', authenticationEndpoint: 'authenticationEndpoint', accesstokenEndpoint: 'accesstokenEndpoint', jwksUrl: 'authConfig.key' });
-    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(b.url).origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+    const urls = { url: b.url, authenticationEndpoint: b.authenticationEndpoint, accesstokenEndpoint: b.accesstokenEndpoint, jwksUrl: b.authConfig.key };
+    const staged = raw.active === false && raw.bindingRef !== undefined;
+    const hosts = { ownHosts: ownOrigins.map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles) };
+    if (profile.endpointOrigins === 'any-https') {
+      checkAnyHttpsPlatform({ ...urls, clientAssertionAud: raw.clientAssertionAud }, staged, hosts, ADMIN_FIELDS);
+    } else {
+      checkPlatformUrls(urls, ADMIN_FIELDS);
+      if (reservedIssuerOrigins(ctx.profiles).includes(new URL(b.url).origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+      // BD-A2-84: the audience of a {platformValue} profile obeys rule 2 too, staged or active.
+      if (raw.clientAssertionAud !== undefined) checkAudienceHost(raw.clientAssertionAud, hosts);
+    }
+    // BD-A1-82 (B-LA-E2-01-01): for every admin profile, whatever its endpoint origin rule.
+    checkActiveAudience({ accesstokenEndpoint: b.accesstokenEndpoint, clientAssertionAud: raw.clientAssertionAud }, staged);
     return {
       issuer: b.url, clientId: b.clientId, name: b.name, authEndpoint: b.authenticationEndpoint, tokenEndpoint: b.accesstokenEndpoint,
       jwksUrl: b.authConfig.key, deploymentIds: b.deploymentIds, active: raw.active ?? true, productFamilyCode: raw.productFamilyCode ?? null,
-      profile: profile.id, bindingRef: raw.bindingRef ?? null, trustedAudiences: raw.trustedAudiences ?? [],
+      profile: profile.id, bindingRef: raw.bindingRef ?? null, trustedAudiences: raw.trustedAudiences ?? [], clientAssertionAud: raw.clientAssertionAud ?? null,
     };
   }
 
@@ -189,11 +211,14 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       const b = parsed.data;
       const profile = findProfile(b.profile ?? 'standard', ctx.profiles);
       if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${b.profile}.`);
+      // Only a {platformValue} profile reads a stored assertion audience (LA-ADR-02 D2).
+      if (b.clientAssertionAud !== undefined && profile.clientAssertionAud.value !== '{platformValue}') throw bad('clientAssertionAud');
       const plan = profile.endpoints === 'admin' ? planAdmin(b, profile) : planProvider(b, profile);
       try {
         const p = audit.change(() => createPlatform(ctx.db, account.id, plan),
           (created) => ({ target: { type: 'platform', id: created.id }, details: { profile: created.profile, active: created.active } }));
-        if (profile.endpoints !== 'admin') ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
+        // Every profile except the issuer-origin admin plan (`standard`, unchanged) logs the create (contract delta §4.6.1 rule 6).
+        if (profile.endpointOrigins !== 'issuer') ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
         return reply.code(201).send(view(p));
       } catch (err) {
         if (err instanceof SharedPlatformExistsError) throw new ApiError('SHARED_PLATFORM_EXISTS', `This account already has a ${profile.id} platform.`);
@@ -350,7 +375,8 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       profiles: listProfiles(ctx.profiles).map((p) => {
         const shared = isSharedProfile(p) ? findSharedPlatform(ctx.db, account.id, p.id) : null;
         return {
-          id: p.id, lms: p.lms, channel: p.channel, label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
+          id: p.id, lms: p.lms, channel: p.channel, endpoints: p.endpoints, issuerKind: p.issuerKind, endpointOrigins: p.endpointOrigins, // E2 traits (contract delta §4.7)
+          label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
           accesstokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.jwksUrl, siteUrlOn: p.siteUrlOn, serviceUrl: p.serviceUrl, simulation: p.simulation,
           sharedPlatform: shared ? { id: shared.id, clientId: shared.clientId, active: shared.active } : null,
         };

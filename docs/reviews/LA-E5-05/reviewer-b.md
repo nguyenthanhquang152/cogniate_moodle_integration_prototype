@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-05 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -93,3 +93,14 @@ Also good: `OperatorTransportError` (`operator-client.ts:11`) lets `bootstrap.ts
   - `401` line: "…Put the current operator key in host file infra/.secrets/lti-operator-key and run npm run seed. If no operator key is available any more, run npm run lti:bootstrap -w services/lti-service -- --account <id> --replace-operator-key. This revokes every operator key, also the keys of other operators."
   - Wrapper help `:7`: "revoke every operator key and save a replacement for OPERATOR_NAME". Add the same clause at `:53`.
   - Change the expected text in `operator-client.test.ts:38`.
+
+## Round 3
+
+Reviewer-B: Codex GPT-6-Astra xhigh, same lens B. Verdict: **APPROVE**. Reviewed `dc88b7d` against the task and round-2 finding B-LA-E5-05-04. Verification used a private `git clone --no-hardlinks` at `c2426eb`. No other reviewer's report was read; no Docker or stack was run.
+
+Counts this round: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** B-LA-E5-05-04 is **closed**.
+
+- `services/lti-service/src/cli/operator-client.ts:39` now orders recovery correctly: use the current key, or ask another operator for a key; only when no operator has a working key should the user run `--replace-operator-key`. The text explicitly says this revokes every operator key, including other operators' and scripts' keys, and drops the misleading word `safely`.
+- The wrapper header at `infra/scripts/lti-bootstrap.sh:7` and its missing-original refusal at `:55` give the same last-choice rule and consequence. No execution, key-storage or stdout behavior changed.
+- The eight operator-client tests passed within the dispatch's **109-test** focused run. All **five** wrapper tests passed using the fake `lib.sh` transport, with no Docker invocation. Restoring the pre-fix client and wrapper in the private clone caused one expected failure in each suite; the new assertions pin the recovery order and revoke-all consequence. All mutations were restored. Root type checking and focused ESLint passed.
+- The four-file diff stays within S1's client, wrapper and colocated tests. No forbidden endpoint, seed, app or QA-owned file changed; no LMS name or branch was added. This closes the text finding; live CLI/seed acceptance and regression evidence remain QA-owned as in earlier rounds.

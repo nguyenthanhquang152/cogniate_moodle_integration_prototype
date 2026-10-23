@@ -25,3 +25,5 @@ export type { CanonicalOrigin, SiteRule, SiteRuleInput, SiteUrlCheck } from './o
 export { ADMIN_ROLES, canSelectContent, hasAdminRole, hasContextLearnerRole, hasContextStaffRole, isGradedLaunch } from './roles.ts';
 export { KeyProviderError, LEGACY_KEY_VERSION, associatedData, bindKeyProvider, blobKeyVersion, createLocalKeyProvider, keyProviderFor, legacyKeyRing, parseKeyRing } from './key-provider.ts';
 export type { KeyHandle, KeyProvider, KeyRing, KeyVersion, LocalKeyProvider, LocalKeyProviderOptions, MacPurpose, SealedBlob } from './key-provider.ts';
+export { afterCommit } from './migrations.ts';
+export { ConfigRefusedError, SECRET_FILE_MODE_MESSAGE, readSecretFile, readSecretSetting } from './config.ts';

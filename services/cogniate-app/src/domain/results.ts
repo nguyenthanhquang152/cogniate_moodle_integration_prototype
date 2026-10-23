@@ -103,8 +103,8 @@ function gradebookOf(db: Db, resourceLinkId: string, userSub: string): { resultS
 export function gradebookDiffers(gradebook: { resultScore: number | null; resultMaximum: number | null } | null, best: { scoreGiven: number | null; scoreMaximum: number | null },
   lastSyncStatus: SyncStatus | undefined): boolean {
   if (!gradebook || gradebook.resultScore === null || lastSyncStatus !== 'sent' || best.scoreGiven === null || !best.scoreMaximum) return false;
-  const moodle = gradebook.resultScore / (gradebook.resultMaximum || 100);
-  return Math.abs(moodle - best.scoreGiven / best.scoreMaximum) > 1e-9;
+  const gradebookRatio = gradebook.resultScore / (gradebook.resultMaximum || 100);
+  return Math.abs(gradebookRatio - best.scoreGiven / best.scoreMaximum) > 1e-9;
 }
 
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */

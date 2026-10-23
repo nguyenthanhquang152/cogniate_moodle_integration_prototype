@@ -1,11 +1,15 @@
 import type { OutboundClient, OutboundResponse } from '@cogniate/shared';
 import { createLogger } from '@cogniate/shared';
+import { decodeJwt } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '../db/index.ts';
 import { openDb } from '../db/index.ts';
+import type { ProfileRegistry, ProviderProfile } from '../profiles/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
+import type { NewPlatform } from '../store/platforms.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
+import { testProfileRegistry } from '../testkit.ts';
 import { createTokenClient } from './token-client.ts';
 import type { TokenResultObserver } from './token-client.ts';
 
@@ -114,5 +118,125 @@ describe('token result observer (LA-E5-17 RQ-1)', () => {
       await expect(s.tokens.getToken(s.platform, ['other-scope'], 'failure')).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
       expect(s.request).toHaveBeenCalledTimes(2);
     }
+  });
+});
+
+const testRegistry = await testProfileRegistry();
+
+describe('client assertion and scopes from the profile traits (LA-ADR-02 D2)', () => {
+  const ok = response(200, { access_token: 'token', expires_in: 3600 });
+  const base = testRegistry;
+  /** zz-admin with the given traits: a test admin-value profile ({platformValue}, deployment claim). */
+  const registryWith = (traits: Partial<ProviderProfile>): ProfileRegistry => ({
+    ...base, listProfiles: (simulation) => base.listProfiles(simulation).map((p) => (p.id === 'zz-admin' ? { ...p, ...traits } : p)),
+  });
+  async function client(platform: Partial<NewPlatform>, registry?: ProfileRegistry) {
+    const db = openDb(':memory:');
+    databases.push(db);
+    const masterKey = Buffer.alloc(32, 5);
+    ensureAccount(db, { id: 'tool', name: 'Tool', appUrl: 'https://tool.test' });
+    await ensureToolKey(db, masterKey, 'tool');
+    const created = createPlatform(db, 'tool', {
+      issuer: 'https://platform.test', clientId: 'client', name: 'Platform', authEndpoint: 'https://platform.test/auth',
+      tokenEndpoint: 'https://platform.test/token', jwksUrl: 'https://platform.test/jwks', deploymentIds: ['1'], active: true, ...platform,
+    });
+    const request = vi.fn<OutboundClient['request']>().mockResolvedValue(ok);
+    const tokens = createTokenClient({
+      db, masterKey, outbound: { allowlist: [], request }, logger: createLogger({ service: 'lti-service', dir: '', write: () => {} }), now: () => NOW,
+      ...(registry ? { profiles: { simulation: true, registry } } : {}),
+    });
+    const sent = (call = 0) => new URLSearchParams(String(request.mock.calls[call]![1]!.body));
+    return { platform: created, tokens, request, sent, assertion: (call = 0) => decodeJwt(sent(call).get('client_assertion')!) };
+  }
+
+  it('AC-LA-E2-01-06: aud is the token URL as a string (standard) or as an array (Blackboard)', async () => {
+    const standard = await client({});
+    await standard.tokens.getToken(standard.platform, ['scope'], 't');
+    expect(standard.assertion().aud).toBe('https://platform.test/token');
+    const blackboard = await client({ profile: 'blackboard' });
+    await blackboard.tokens.getToken(blackboard.platform, ['scope'], 't');
+    expect(blackboard.assertion().aud).toEqual(['https://platform.test/token']);
+  });
+
+  it('AC-LA-E2-01-06: {platformValue} uses the stored clientAssertionAud, else the token URL', async () => {
+    const registry = registryWith({ clientAssertionAud: { value: '{platformValue}', form: 'string' } });
+    const stored = await client({ profile: 'zz-admin', clientAssertionAud: 'https://auth.example.test/token' }, registry);
+    await stored.tokens.getToken(stored.platform, ['scope'], 't');
+    expect(stored.assertion().aud).toBe('https://auth.example.test/token');
+    expect(stored.request.mock.calls[0]![0]).toBe('https://platform.test/token');
+    const empty = await client({ profile: 'zz-admin' }, registry);
+    await empty.tokens.getToken(empty.platform, ['scope'], 't');
+    expect(empty.assertion().aud).toBe('https://platform.test/token');
+    // A {tokenEndpoint} profile never sends a stored value.
+    const standard = await client({ clientAssertionAud: 'https://auth.example.test/token' });
+    await standard.tokens.getToken(standard.platform, ['scope'], 't');
+    expect(standard.assertion().aud).toBe('https://platform.test/token');
+  });
+
+  it('AC-LA-E2-01-06: the deployment_id claim only with assertionDeploymentId, one token per deployment', async () => {
+    const claim = 'https://purl.imsglobal.org/spec/lti/claim/deployment_id';
+    const on = await client({ profile: 'zz-admin' }, registryWith({ assertionDeploymentId: true }));
+    await on.tokens.getToken(on.platform, ['scope'], 't', { deploymentId: '7' });
+    expect(on.assertion()[claim]).toBe('7');
+    await on.tokens.getToken(on.platform, ['scope'], 't', { deploymentId: '8' });
+    expect(on.assertion(1)[claim]).toBe('8');
+    await on.tokens.getToken(on.platform, ['scope'], 't', { deploymentId: '7' }); // cached for deployment 7
+    expect(on.request).toHaveBeenCalledTimes(2);
+    const off = await client({ profile: 'zz-admin' }, registryWith({ assertionDeploymentId: false }));
+    await off.tokens.getToken(off.platform, ['scope'], 't', { deploymentId: '7' });
+    expect(off.assertion()).not.toHaveProperty([claim]);
+    const standard = await client({});
+    await standard.tokens.getToken(standard.platform, ['scope'], 't', { deploymentId: '7' });
+    expect(standard.assertion()).not.toHaveProperty([claim]);
+  });
+
+  it('A-LA-E2-02-03: a changed token URL, client id or audience does not reuse a cached token', async () => {
+    const registry = registryWith({ clientAssertionAud: { value: '{platformValue}', form: 'string' } });
+    const c = await client({ profile: 'zz-admin', clientAssertionAud: 'https://auth.idp.test/token' }, registry);
+    c.request.mockImplementation(async (url) => response(200, { access_token: `token-for-${url}-${c.request.mock.calls.length}`, expires_in: 3600 }));
+    const first = await c.tokens.getToken(c.platform, ['scope'], 't1');
+    expect(await c.tokens.getToken(c.platform, ['scope'], 't2')).toBe(first); // the same set: cached
+    // A registration update keeps the platform id and changes the credentials.
+    const moved = { ...c.platform, tokenEndpoint: 'https://platform.test/new-token', clientAssertionAud: null };
+    const second = await c.tokens.getToken(moved, ['scope'], 't3');
+    expect(second).not.toBe(first);
+    expect(c.request.mock.calls.at(-1)![0]).toBe('https://platform.test/new-token');
+    expect(c.assertion(1).aud).toBe('https://platform.test/new-token');
+    const reissued = { ...moved, clientId: 'client-2' };
+    expect(await c.tokens.getToken(reissued, ['scope'], 't4')).not.toBe(second);
+    expect(c.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('A-LA-E2-02-03: a request in flight for the old credentials does not serve or fill the new ones', async () => {
+    const c = await client({});
+    let releaseOld!: () => void;
+    const held = new Promise<void>((resolve) => { releaseOld = resolve; });
+    // The old token URL answers only when the test releases it.
+    c.request.mockImplementation(async (url) => {
+      if (url === 'https://platform.test/token') { await held; return response(200, { access_token: 'old-token', expires_in: 3600 }); }
+      return response(200, { access_token: 'new-token', expires_in: 3600 });
+    });
+    const oldPending = c.tokens.getToken(c.platform, ['scope'], 'old');
+    const moved = { ...c.platform, tokenEndpoint: 'https://platform.test/new-token' };
+    expect(await c.tokens.getToken(moved, ['scope'], 'new')).toBe('new-token');
+    releaseOld();
+    expect(await oldPending).toBe('old-token');
+    expect(await c.tokens.getToken(moved, ['scope'], 'new-again')).toBe('new-token');
+    expect(c.request.mock.calls.map((call) => call[0]).sort()).toEqual(['https://platform.test/new-token', 'https://platform.test/token']);
+  });
+
+  it('AC-LA-E2-01-07: granted scopes limit the token request; NULL asks for the requested scopes', async () => {
+    const granted = await client({ grantedScopes: ['score', 'lineitem'] });
+    await granted.tokens.getToken(granted.platform, ['score'], 't');
+    expect(granted.sent().get('scope')).toBe('score');
+    await granted.tokens.getToken(granted.platform, ['score', 'result'], 't2');
+    expect(granted.sent(0).get('scope')).toBe('score');
+    expect(granted.request).toHaveBeenCalledTimes(1); // the same scope set: cached
+    await expect(granted.tokens.getToken(granted.platform, ['result'], 't3')).rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', status: 403 });
+    expect(granted.request).toHaveBeenCalledTimes(1);
+    const old = await client({});
+    expect(old.platform.grantedScopes).toBeNull();
+    await old.tokens.getToken(old.platform, ['score', 'result'], 't');
+    expect(old.sent().get('scope')).toBe('result score');
   });
 });

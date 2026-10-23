@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 4
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -95,3 +95,104 @@ Reviewer-B2 (same lens B), in a later dispatch. List: `tests/ltiaas/golden/expec
 ## Not checked
 
 - The G4 picker text change of LA-E3-05 (pending; a new list round when it lands).
+
+## Round 2
+
+## LA-IC-13, LA-IC-15 and NIT checks
+
+Reviewer-B: Codex GPT-6-Astra xhigh, same ownership lens. Reviewed `aa3b214` in a private `git clone --no-hardlinks`, against plan §6.1 LD-9, LA-ADR-04 D8, the LA-E3-12 and LA-E4-03 changes (`a2dfc04`, `a285bdb`), and the earlier findings above. No Reviewer-A file was opened. Only this review file changed in the integration worktree; no Docker, stack, commit or frozen-test edit.
+
+| List | Verdict | Current findings / follow-up |
+| --- | --- | --- |
+| LA-IC-13 | **APPROVE** | 1 new MINOR, B-LD9-04: correct the scan and source descriptions |
+| LA-IC-15 | **APPROVE** | 1 new MINOR, B-LD9-05: correct the design and test references |
+| LA-IC-12 | **APPROVE** | Approval-path update checked; no new finding |
+| LA-IC-16 | **APPROVE** | B-LD9-01 and B-LD9-02 closed |
+| LA-IC-17 | **APPROVE** | Corrected capture range and explanation checked; no new finding |
+| LA-IC-18 | **APPROVE** | Index rows added; B-LD9-03 remains open (NIT) |
+
+### Verification
+
+- `node --test tests/ltiaas/golden/golden.k0.test.mjs`: **12/12 passed** at `aa3b214`. Restoring the pre-change comparator in the private clone made the new opt-in assertion fail: **11 passed, 1 failed**, with `Without LA-IC-16 in expected, allowlist diff must not be auto-explained`. The comparator was restored after the check.
+- **15 independent checks passed** against the stored G-BASE capture and the real JSON delta files. LA-IC-15 accepts the two exact replacements. It rejects an omitted expected file, one missing replacement, the wrong channel name, a changed error prefix, another field, and an additional Moodle or third-channel `lastError` change. The Moodle and third-channel cases use explicitly synthetic paired fixtures because G3 has only Blackboard and Canvas. The CLI reports the extra field by its exact path and exits 1. LA-IC-13 authorizes no changed field. LA-IC-16 does not explain a change without its delta file, even when `simHosts` is supplied as an option.
+- Source scans covered `tests/acceptance`, `tests/e2e`, the simulator launch builder, and the golden capture. Neither product merge changes a `tests/**` file. This is a host-only comparison and source review, not a fresh live G1–G4 capture or M1/M2/K2 run. There is no `tests/e2e/ltiaas/` K2 suite at the reviewed SHA; the LA-E1-11 QA report still marks K2 U1/U2 pending. Existing U1/U2 and M2 source checks were inspected, without claiming that pending K2 work passed.
+
+### LA-IC-13 — zero golden and frozen-test changes confirmed
+
+The captured score requests use numeric values; the baseline simulator launch builder supplies one client-id audience and NRPS `service_versions: ['2.0']` (`tests/sim/core/provider.mjs:66,76`). The capture does not record a platform DTO, so its additional `trustedAudiences` property is not a golden field. Registration helpers do call `/api/platforms`; the distinction is that their whole DTO is not captured or asserted. Frozen platform tests read selected properties. I found no frozen assertion that expects rejection of `scoreGiven: null` or success for a non-2.0 NRPS version.
+
+One existing negative audience test **does** send an untrusted second audience: `tests/acceptance/T2b/qa-platform.test.ts:82-90`. It removes `azp` and already expects `INVALID_ISSUER_OR_AUDIENCE`; the new check preserves that answer. Thus no frozen assertion needs to change, but the record's explanation of this case must be corrected. The six Author test filenames match `git diff a2dfc04^1 a2dfc04 --name-only`.
+
+### B-LD9-04 — MINOR — LA-IC-13 records incorrect evidence for a correct zero-change conclusion
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-13.json:8` (design links), `:16` (Author test descriptions), `:30` (scan descriptions), `:44` (summary); the no-extra-audience claim is repeated in TEST-STRATEGY §4.7 and golden README §5.
+- **Problem:** A maintainer cannot reproduce several claims from the cited source. The comparison is safe because `changes` is empty, and the independent scan supports zero changed assertions; these are evidence and navigation defects, safe to defer.
+- **Evidence:** `:35` says T2b does not use a multi-audience array, although `qa-platform.test.ts:87` explicitly does. The cited M1 score tests send `7/10` and exercise upstream `400/422 PLATFORM_REJECTED_REQUEST`, not `11/10 -> INVALID_SCORE`. T3a's cited range tests line-item isolation and authorization, not the claimed negative/NaN/boolean/string score table. The DTO is `trustedAudiences`, not `trusted_audiences`; check 5 reports `INVALID_ISSUER_OR_AUDIENCE`, not `INVALID_ID_TOKEN`; `ags.test.ts:8-16` tests `parseScore`, not an HTTP `200 ok:true` answer. The ADR-07 filename does not exist, and the ADR-05/contract anchors do not name the actual headings.
+- **Suggested fix:** Rebuild each description from the cited lines. Explain that the existing two-audience case remains negative because `azp` is absent. Use LA-ADR-05 `#d10-small-spec-gaps-could`, `LA-ADR-07-security-and-tenancy.md#d8-trusted-audiences-could`, and the actual contract headings (§4.3 Scores / §3.6, §4.4 Memberships / §3.7, §4.6 Platforms / §3.9 and §9.4). Correct the test/API names and propagate the qualified audience claim to both index rows; keep `changes: []`.
+
+### LA-IC-15 — exactly two golden changes confirmed
+
+The full new values match the two G3 `B-conflict.results[0].scoreSyncs[0].lastError` paths, with no wildcard or broad string rule. Baseline G3 has exactly two occurrences of the old Moodle suffix (`G3.json:363,1076`); the conflict status DTOs in G4 omit `lastError` (`G4.json:121-136,312-327`). The capture reads the results after the conflict and leaves G4 status unchanged.
+
+T6's Moodle text assertion remains valid, and T5b checks `PLATFORM_CONFLICT` on a Moodle row. M1's named tests exercise 400/422 failures; M2's named result flows test sent rows. The reporter constructs the suffix from the channel text name (`services/cogniate-app/src/drivers/lti-ags/index.ts:70`), and its unit table includes the unchanged Moodle string alongside Canvas and Blackboard (`reporter.test.ts:55-57`). No additional frozen assertion change is needed.
+
+### B-LD9-05 — MINOR — LA-IC-15 sends maintainers to the wrong decision and test evidence
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-15.json:8`, `:16`, `:28`; `tests/ltiaas/TEST-STRATEGY.md:451`; golden README §5 LA-IC-15 row.
+- **Problem:** The exact delta is correct, but the supporting references misidentify the authorizing decision, the changed test, and the captured lines.
+- **Evidence:** `BD-A1-21` concerns the `ProfileSource` type import. **BD-A1-27** authorizes this conflict-text change; the strategy diff replaces that correct number with 21. `packages/tracking/src/tracking.test.ts` did not gain `recordRuntimeScore`/optional `lmsName` coverage in `a285bdb`: its change replaces `syncResult` cases with `dispatchResult` cases, and the named function is absent. The JSON cites G3 lines 93/315 and G4 lines 45–56/144–155; the actual conflict locations at the reviewed SHA are G3 363/1076 and G4 121–136/312–327.
+- **Suggested fix:** Restore BD-A1-27 in the JSON and both indexes; describe the tracking policy test change accurately or omit it from the conflict-text evidence. Keep `reporter.test.ts` as the direct channel-name test, and correct the capture references (or use the stable JSON paths already present in `goldenFields`). No change to the two expected values is required.
+
+### Earlier NIT and metadata checks
+
+- **B-LD9-01 closed:** `compareCaptures` now explains the allowlist only through a supplied expected-delta entry. Both the regression test and the old-comparator failure prove this. Other allowlists, non-simulator order, duplicate hosts and unlisted hosts remain strict in the passing suite.
+- **B-LD9-02 closed:** LA-IC-16 now lists eight scan locations and a result. The referenced health checks read status/profile/knobs rather than allowlist contents; an independent search found no frozen `outbound_allowlist` assertion.
+- **LA-IC-12 / LA-IC-16 approval-path follow-up closed:** the updated strings name existing review files, including this LD-9 review. I checked path existence only for Reviewer-A targets and did not inspect their contents or infer their verdicts.
+- **LA-IC-17 scan-range follow-up closed:** `capture.golden.ts:194-200` creates pending Moodle connections without an app platform PUT; `acceptance/lib/qa-platform.ts:43` registers the QA platform directly. The revised explanation now states this distinction.
+- **LA-IC-18 index-row follow-up closed, B-LD9-03 still open:** TEST-STRATEGY §4.7 and golden README §5 now list all three visible changes and explain why no assertion moves. However, `aa3b214` does not change `LA-IC-18.json`; its three changes are still buried in the same long `scanResult`, without the short summary or separate entries requested by B-LD9-03. This remains a non-blocking NIT, not a new finding.
+
+## Round 3
+
+## LA-IC-19
+
+Verdict: **APPROVE — 1 new MINOR (B-LD9-06), 0 BLOCKER/MAJOR.** Reviewed `04af91d`, LA-ADR-04 D8 / BD-A1-57 and the LA-E1-09 runtime text change. Same Reviewer-B lens; no Reviewer-A file was opened. Earlier LD-9 findings retain their round-2 status.
+
+The **0 golden / 0 frozen-test changes** conclusion holds. The record gives twelve scan locations, the shipping commit, the affected description and the reason Moodle stays unchanged. `T5a/6-negative.spec.ts:75-84` is the only frozen runtime-expiry case found: it launches Moodle and checks status 410 plus `RUNTIME_EXPIRED`, not the description. The other cited runtime helpers and M1/M2 flows exercise active sessions. The golden capture records no `RUNTIME_EXPIRED` response; the similar Moodle text in G4 belongs to other error codes and must not be changed by this list. No existing frozen assertion needs a rewrite.
+
+Host-only verification in the private `deef75e` clone: **12/12 golden K0 tests** and **11/11 `lms-texts.test.ts` tests** pass. An independent comparison with only LA-IC-19 passes for an unchanged capture and rejects an altered G4 refusal action as an unexplained difference, confirming that `changes: []` authorizes nothing. The T5 runner was read only; no Docker, stack, host stack runner, live capture or browser suite was run. A named K2 suite is not present at this SHA, so the scan of existing frozen sources is not a K2 execution result.
+
+### B-LD9-06 — MINOR — Correct the runtime route and test-coverage descriptions
+
+- **File:** `tests/ltiaas/TEST-STRATEGY.md:455`; `tests/ltiaas/golden/expected/LA-IC-19.json:9`, `:13`, `:34`.
+- **Problem:** The list is repeatable and its empty delta is correct, but its supporting description overstates which route returns 410 and which channel names the Author test asserts.
+- **Evidence:** The strategy includes `GET /rt/{token}` in the changed 410-body routes. That route deliberately returns **404 HTML** for an expired token (`content-host/server.ts:189-191`); only state GET and commit POST use the 410 JSON helper. The existing unit test explicitly expects the expired root route to remain 404. The JSON says the cited Author test asserts Moodle, Canvas, Blackboard and custom-name expiry bodies, but `lms-texts.test.ts:102-124` asserts only Moodle and the custom `your LMS` channel. Its ADR-01 anchor `#d12-lms-display-names-in-core-text-must` also does not exist; the heading is `D12. Texts`.
+- **Suggested fix:** Describe only `GET /rt/{token}/state` and `POST /rt/{token}/commit` as the changed 410 JSON routes, and state that the root route retains its 404 response. Describe the actual Moodle/custom-channel checks without claiming extra assertions, and use `#d12-texts`. Keep `changes: []` and the frozen-test count at zero; no product change or additional baseline waiver is needed.
+
+## Round 4
+
+## LA-IC-20
+
+Verdict: **APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (B-LD9-07).** Same Reviewer-B ownership lens, Codex GPT-6-Astra xhigh. Reviewed the LA-IC-20 record and its K0 check in `b3807f4`, plus the LA-IC-18 split in `1babba9`, against plan §6.1 LD-9, LA-ADR-04 D8 and BD-A1-63/69. Pinned verification: `d768eec`. No Reviewer-A file was opened; no Docker, stack, live capture or browser acceptance suite was run.
+
+The **0 golden / 0 frozen-test changes** conclusion is supported. The record names the five error keys, their exact generic replacements and which baseline manifests retain the old bytes. The old helper used the same Canvas/Blackboard wording for every channel; the new helper selects manifest text, then falls back to generic text:
+
+| Channel | Keys that keep their old text | Keys that now use generic text |
+| --- | --- | --- |
+| Moodle | `SITE_RULE_1` | `SITE_RULE_5`, `PLATFORM_IN_USE`, `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` |
+| Canvas | `SITE_RULE_1`, `SITE_RULE_5`, `PLATFORM_IN_USE` | `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` |
+| Blackboard | `SITE_RULE_1`, `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` | `SITE_RULE_5`, `PLATFORM_IN_USE` |
+| No channel, or a channel without error overrides | None | All five |
+
+My independent frozen-suite scan agrees with the record. M2 checks site rules 1/5 and `PLATFORM_IN_USE` on Canvas, and `DEPLOYMENT_IN_USE` on Blackboard, so those exact strings stay valid. T4b1 and M1 check API codes; T6's invalid-platform case checks an inline error without matching its wording. G1–G4 capture API data and tool/player pages, not these portal notices. `ChannelScope` wraps both connect-route slots, and the author tests cover create and manage routes. The reviewed LD-9 changes touch QA metadata and the golden unit test, with no frozen assertion, comparator relaxation or new product branch.
+
+### B-LD9-07 — NIT — Correct the inline-error helper citation
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-20.json:34`; repeated in TEST-STRATEGY §4.7 and golden README §5.
+- **Problem/evidence:** The scan cites `tests/acceptance/lib/portal.ts:89-99` for `hasInlineError`, but those lines contain the colour helpers. `hasInlineError` is at lines **177–181**, both at `b3807f4` and the reviewed HEAD. Its implementation supports the stated conclusion: it counts invalid fields and nonempty alerts without matching provider-error text. Only navigation is wrong.
+- **Suggested fix:** Change the range to `177-181` in the record and both indexes; keep the function name and the zero-change conclusion.
+
+### LA-IC-18 follow-up and verification
+
+- **B-LD9-03 closed.** `1babba9` adds a short summary and three `visibleChanges` entries, each with what changed, before/after values, source location and why no assertion moves. The publish modal, logo colour and logo title are now independently readable. The empty delta is unchanged. Other earlier findings are outside this dispatch and retain their last reviewed status.
+- In a private `git clone --no-hardlinks`: **12/12 golden K0 tests** and **100/100 author tests across all seven files named by LA-IC-20 passed**. Six independent comparator checks confirmed that LA-IC-18 and LA-IC-20 each accept the unchanged stored capture and reject an altered API issuer or G4 string.
+- Restoring only the pre-`8e061ce` provider-error helper made **six of its seven new tests fail**, covering all three baseline channels, the generic fallback, placeholder filling and context-bound notices. The unchanged generic-independent text test still passed. The source was restored and the private clone was clean. This verifies the listed unit evidence; it does not claim execution of M2, T6 or K2.

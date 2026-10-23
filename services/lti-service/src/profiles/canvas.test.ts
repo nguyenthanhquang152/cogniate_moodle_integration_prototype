@@ -18,9 +18,11 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
     });
     expect(profile.sources.length).toBeGreaterThan(0);
   }
-  expect(listProfiles({ simulation: false }).map((p) => p.id)).toEqual([
-    'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
-  ]);
+  // Open world: the baseline real profiles first; every new real profile follows (lti-generic since LA-E2-03).
+  const real = listProfiles({ simulation: false });
+  expect(real.slice(0, 6).map((p) => p.id)).toEqual(['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard']);
+  expect(real.map((p) => p.id)).toContain('lti-generic');
+  expect(real.some((p) => p.simulation)).toBe(false);
   expect(listProfiles({ simulation: true }).slice(-2).map((p) => p.id)).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
   expect(findProfile('canvas-sim-cloud', { simulation: false })).toBeNull();
   expect(reservedIssuerOrigins({ simulation: false })).toContain('https://canvas.instructure.com');
