@@ -99,7 +99,11 @@ export function fakeProviders(): LtiProviderProfile[] {
   return [
     { id: 'standard', lms: null, label: 'Standard LTI 1.3 platform', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
       accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null },
-    bb('blackboard', 'blackboard.com', false), bb('blackboard-sim', 'blackboard.sim.test', true),
+    bb('blackboard', 'blackboard.com', false),
+    // LA-E2-03: the admin-value profile of the lti-generic channel (wire lms = the channel id for a new profile).
+    { id: 'lti-generic', lms: 'lti-generic', label: 'Other LTI 1.3 platform', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
+      accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null },
+    bb('blackboard-sim', 'blackboard.sim.test', true),
     { id: 'canvas-sim-cloud', lms: 'canvas', label: 'Canvas cloud (simulation)', sharing: 'exclusive', issuer: 'https://canvas.sim.test',
       authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
       jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks', siteUrlOn: 'platform', serviceUrl: true, simulation: true, sharedPlatform: null },

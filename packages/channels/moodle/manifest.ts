@@ -61,6 +61,8 @@ const manifest = {
     // The portal error texts (BD-A1-63; before: apps/portal/src/connect/provider-errors.tsx). Other keys: the generic text.
     errors: {
       SITE_RULE_1: 'Enter only the address, for example https://school.instructure.com. No path.',
+      // BD-A1-81: the manual form keeps today's server sentence (LEGACY_SELF_BINDING_TEXT.collision) byte for byte.
+      PLATFORM_IN_USE: 'This {LMS} tool is already registered with Cogniate. In {LMS}, make a new tool for this library and use its values.',
     },
     registered: 'Registered — activate in {LMS}',
     // The Dynamic Registration steps of the portal (apps/portal/src/connect/moodle-steps.json, Moodle 5.2.4).

@@ -15,7 +15,7 @@ import { approvalsOfConnection } from '../domain/bindings.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
-import { ownedProfiles, setupOf } from '../kernel/setup.ts';
+import { ownedProfiles, servedByKernel, setupOf } from '../kernel/setup.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
 import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
@@ -157,8 +157,15 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const sharing = adapter.sharingOf(profileId);
     if (!sharing) return invalid('profile');
     if (registration.authority === 'self') {
-      // The Moodle rules of §4 do not change (no LTI call).
-      const checked = adapter.checkCreate({ siteUrl: b.siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
+      // The Moodle rules of §4 do not change (no LTI call). A channel of the kernel admin-value adapter first passes
+      // site rules 1–4 (app API delta §3.1): no IP literal, no localhost, none of our hosts.
+      let siteUrl = b.siteUrl;
+      if (servedByKernel(channels, channel)) {
+        const r = checkSiteUrl(b.siteUrl, { ownHosts, profileFixedHosts: [] });
+        if (!r.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: siteUrl breaks rule ${r.rule} of the site rules.`, { details: { rule: r.rule, field: 'siteUrl' } });
+        siteUrl = r.origin;
+      }
+      const checked = adapter.checkCreate({ siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
       if (!checked.ok) return invalid(checked.field);
       const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
       const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: checked.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);

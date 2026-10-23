@@ -317,7 +317,7 @@ describe("manifest portal shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByText("The server refused the Deployment ID.")).toBeTruthy();
   });
-  it("the Moodle manual form shows the generic PLATFORM_IN_USE text and keeps the server text of other errors", async () => {
+  it("the Moodle manual form shows the Moodle PLATFORM_IN_USE text (BD-A1-81) and keeps the server text of other errors", async () => {
     current = connection(channelRegistry.channel("moodle")!, { method: "manual", bindingAuthority: "self" });
     const collision = "This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.";
     const reserved = "This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.";
@@ -331,8 +331,8 @@ describe("manifest portal shell", () => {
     };
     for (const [label, value] of Object.entries(values)) fireEvent.change(await screen.findByLabelText(label), { target: { value } });
     fireEvent.click(screen.getByRole("button", { name: "Connect Moodle" }));
-    expect(await screen.findByText(genericInUse)).toBeTruthy();
-    expect(screen.queryByText(collision)).toBeNull();
+    expect(await screen.findByText(collision)).toBeTruthy();
+    expect(screen.queryByText(genericInUse)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Connect Moodle" }));
     expect(await screen.findByText(reserved)).toBeTruthy();
   });

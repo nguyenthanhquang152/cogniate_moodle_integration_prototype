@@ -29,6 +29,8 @@ const generic: Record<ErrorTextKey, string> = {
   DEPLOYMENT_IN_USE: "This LMS site is already connected to Cogniate.",
   DEPLOYMENT_FIXED: "This connection already reserved another deployment. Disconnect it, then make a new connection.",
 };
+// BD-A1-81: the Moodle manifest has its own PLATFORM_IN_USE text (today's server sentence).
+const moodleInUse = "This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.";
 const keys = Object.keys(errors) as ErrorTextKey[];
 const channel = (id: string): ChannelManifest => channelRegistry.channel(id)!;
 // A data-only channel with no texts.errors, and one with its own text.
@@ -37,11 +39,12 @@ const named: ChannelManifest = { ...plain, texts: { ...plain.texts, errors: { PL
 
 describe("provider error texts from the channel manifest (BD-A1-63, LA-IC-20)", () => {
   it.each([
-    ["moodle", ["SITE_RULE_1"]],
+    ["moodle", ["SITE_RULE_1", "PLATFORM_IN_USE"]],
     ["canvas", ["SITE_RULE_1", "SITE_RULE_5", "PLATFORM_IN_USE"]],
     ["blackboard", ["SITE_RULE_1", "DEPLOYMENT_IN_USE", "DEPLOYMENT_FIXED"]],
   ])("gives %s its own texts byte for byte and the generic text for the other keys", (id, own) => {
-    for (const key of keys) expect(providerErrorMessage(errors[key], channel(id)), key).toBe(own.includes(key) ? m1[key] : generic[key]);
+    const ownText = (key: ErrorTextKey) => (id === "moodle" && key === "PLATFORM_IN_USE" ? moodleInUse : m1[key]);
+    for (const key of keys) expect(providerErrorMessage(errors[key], channel(id)), key).toBe(own.includes(key) ? ownText(key) : generic[key]);
   });
   it("gives the generic texts with no channel and with a channel that has no texts.errors", () => {
     for (const key of keys) {
@@ -77,7 +80,7 @@ describe("provider error texts from the channel manifest (BD-A1-63, LA-IC-20)", 
     };
     expect(notice(channel("blackboard"), errors.DEPLOYMENT_IN_USE)).toContain(m1.DEPLOYMENT_IN_USE);
     expect(notice(channel("canvas"), errors.PLATFORM_IN_USE)).toContain(m1.PLATFORM_IN_USE);
-    expect(notice(channel("moodle"), errors.PLATFORM_IN_USE)).toContain(generic.PLATFORM_IN_USE);
+    expect(notice(channel("moodle"), errors.PLATFORM_IN_USE)).toContain(moodleInUse);
     expect(notice(null, errors.SITE_RULE_5)).toContain(generic.SITE_RULE_5);
     expect(notice(undefined, errors.DEPLOYMENT_FIXED)).toContain(generic.DEPLOYMENT_FIXED);
     expect(notice(channel("blackboard"), errors.DEPLOYMENT_FIXED)).toEqual([m1.DEPLOYMENT_FIXED, "Code: DEPLOYMENT_FIXED"]);
@@ -106,7 +109,7 @@ describe("channel texts only, for forms that show the server texts (A-LA-E1-12-0
     };
     for (const code of ["INVALID_PLATFORM_VALUES", "PROVIDER_NOT_READY", "LTI_SERVICE_ERROR"])
       expect(shown(channel("moodle"), server(409, code))).toEqual([`Server text of ${code}.`, "Server action.", `Code: ${code}`, "Trace id: trace-2"]);
-    expect(shown(channel("moodle"), server(409, "PLATFORM_IN_USE"))).toEqual([generic.PLATFORM_IN_USE, "Server action.", "Code: PLATFORM_IN_USE", "Trace id: trace-2"]);
+    expect(shown(channel("moodle"), server(409, "PLATFORM_IN_USE"))).toEqual([moodleInUse, "Server action.", "Code: PLATFORM_IN_USE", "Trace id: trace-2"]);
     expect(shown(channel("blackboard"), server(409, "DEPLOYMENT_IN_USE"))).toEqual([m1.DEPLOYMENT_IN_USE, "Server action.", "Code: DEPLOYMENT_IN_USE", "Trace id: trace-2"]);
     expect(shown(null, new Error("Network down"))).toEqual(["Network down"]);
   });
