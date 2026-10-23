@@ -13,7 +13,17 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 03:50 UTC
+### Current directive — 2026-10-23, 04:24 UTC
+
+Both fresh M1 C6/C9 rounds and their equality judgment are accepted: 394/394 PASS per round, all seven dead-handler preconditions PASS, clean scans and operational closure.
+The 94 carried C4 rows remain separate. [E-R7](r7-m1-verification-2026-10-23.md) records the exact final evidence and Lead decision.
+M2 grant `msg_1d96a40f0530` permits one fresh r7 invocation through 04:31 UTC with the reviewed private monitor. T7 still requires a separate grant after M2 acceptance.
+
+LA's final host boundary is 04:45 UTC (`msg_df3821742ef0`). Return the host earlier if finished. After return, no LTI Docker phases or window requests are permitted through 07:45 UTC.
+Final conformance, guide evidence updates, independent Docs QA and two final reviews remain host-only. No product edits, push or main merge are authorized.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. This host boundary is not a project completion promise.
+
+### Prior directive — 2026-10-23, 03:50 UTC
 
 M1 Round 1 is accepted: 394/394 PASS with independent seven-case, sink and browser-scan verification, clean W4/32-volume comparison and LA whole-window confirmation.
 [E-R7](r7-m1-verification-2026-10-23.md) records the exact evidence and Round 2 grant `msg_d0ead4f3d22c` through 04:20 UTC.

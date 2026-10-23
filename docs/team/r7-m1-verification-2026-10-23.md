@@ -86,3 +86,36 @@ Round 1 grant `msg_01cc4a7ce777` is closed. Round 2 grant `msg_d0ead4f3d22c` per
 Its full 32-record preflight compares against the accepted Round 1 W4 above; any pre-formal-start bridge replacement requires explicit reconciliation before launch.
 LA extended the exclusive host hold through 04:35 UTC in `msg_29fd0b045101`. After LTI returns the host, no new LTI Docker phase is planned through 07:35 UTC; conformance, Docs and reviews are host-only.
 M2 and T7 still require separate grants. No runtime or final completion is implied by the Round 2 grant.
+
+## Both rounds and equality accepted — 2026-10-23, 04:24 UTC
+
+The Lead accepts Round 2 from Common QA `msg_33e8bb4c54ea` and independent Gemini `msg_ce2003da6f74`.
+Run `qa-multi-r1-4008afb9-2026-10-23T03-55-11-800Z` ran 03:55:11–04:20:06 UTC; final scan closure was 04:20:35 UTC.
+All 394 fresh cases and 400 summary entries passed, with zero failures, skips or retries. All seven dead-handler preconditions passed.
+The independent equality check found no case-ID or verdict difference between the two rounds. Sink and shared browser-artifact scans passed.
+The M1 ledger is 394 fresh C6/C9 rows plus 94 carried C4 rows. It is not a fresh 488-row run.
+
+| Round 2 evidence | SHA-256 |
+| --- | --- |
+| Phase `summary.json` | `d194e24c6ac24cf39e44386d56b32f65e76f175851ed2b697740c31c01726bce` |
+| Phase `m1-case-results.json` | `fd4109c7bc97ee126e7038f9a921d52cf11a0eabbe5f9fcdba05e992b70833a6` |
+| V5 `m1-sim-c6-c9-r2/public/w4-end.json` | `9db85395a43e207f31abd78fb4c6c66f76c28b02f0780103a5a1ecfa009c57be` |
+| V5 `m1-sim-c6-c9-r2/public/w4-compare.json` | `12c0b3b90839f5f642810aa4e0555fa90b0e705df87fbe0cf2df67d7d04f8c3b` |
+| V5 `evidence-index-m1-sim-c6-c9-r2.tsv` | `bf8e126df0c8c716b7e9f5199822280a693f61e8b9000879330da0db89473ebf` |
+| C8 preparation root `judge/round2-c9-v5/sim394-judge.json` | `b772a382776a7664344aea1bc919d755d07b965765ccf3ad2163b1db96070d41` |
+| C8 preparation root `judge/round2-c9-v5/dead-handler-7cases.json` | `13d71c0b795c8e11edf5e2f4f8e6f8f291d3c99d1623ca534d5a4fdf41775337` |
+| C8 preparation root `judge/compare-sim394-c9-v5-rounds.json` | `bb42dea49ee036113b410a73f169fd811cb1a49a03d74a165fec03b5da6edb5e` |
+
+The Lead verified all 707 index entries, all 17 independent input bindings, empty final containers and the exit of all five owned processes.
+All 32 complete volume records are identical across Round 1 W4, Round 2 W3 and Round 2 W4. The formal-window bridge did not change.
+LA confirmed no mutation during 03:51:41–04:20:35 UTC in `msg_d645ad7dc42d`. Its prose header says 04:26Z, but the receipt is 04:23:32Z; use the receipt time.
+The Round 2 grant and its extension are closed. Published raw and derived files stay frozen; later receipts use separate addenda.
+
+Independent QA also mapped ADR-012 revisions 3.3–3.7 in `judge/c4-adr012-carried-evidence-mapping.json`, SHA-256 `e29e7cc589af465b66d19d1326455bfcc6bbdc7ce680ccc3479babbe27915ae6`.
+The Lead verified 35 primary bindings. Architect `msg_cf01809a27c7` accepts the mapping as satisfying the three pending evidence questions.
+All 72 AC-M1-41 rows are within the carried 94 and passed in both C4 rounds. Conditional `c-host-negative` executed its fault branch and passed in both rounds; it proves fault detection, not safe bind-mount locking.
+Measured G-1 identity limits, Docker's lack of a volume generation ID, unit-only `content_check_failed` and host-only lost-lock fault injection remain explicit.
+Final ADR implementation acceptance waits for the final runtime packet and Architect conformance.
+
+M2 is separately granted once in `msg_1d96a40f0530` through 04:31 UTC, using the accepted Round 2 W4 and frozen v5 invocation.
+T7 remains ungranted. LA's final host return is 04:45 UTC; no LTI Docker phases or new window requests are permitted after return through 07:45 UTC.
