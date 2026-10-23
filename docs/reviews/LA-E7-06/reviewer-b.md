@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 3
+Round: 4
 
 ## Round 1
 
@@ -241,3 +241,48 @@ The guide describes the manifest but not the new artifact schema or the requirem
 - Actual sixth-file probe: **12 PASS, 1 FAIL**, as above. Log: `/tmp/reviewer-b-e706r3-canary.log`. The temporary fixture was removed afterward; the private clone's tracked files are unchanged.
 - QA fix `cfcdc0ca` edits only the kit and its QA report. No product, frozen suite, simulator or selector file is changed by that fix. The host suite-neutrality check passes. No Docker, stack, host stack runner or K1-SIM suite was run; the live ACs remain **pending**.
 - Blind review maintained. Only this review file was edited in the integration worktree; no commit was made. This is Round 3 with blocking findings, for the Lead's charter round-limit handling.
+
+## Round 4
+
+Verdict: **CHANGES_REQUESTED**. Reviewer-B: Codex GPT-6-Astra xhigh. Reviewed QA fix `30b5eb24`, integration pin `3a8b0e6f65d809e564dcbad71e2db1b4a5ad8deb`, using `af36ad31..3a8b0e6f` scoped to the kit and QA report. **2 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** No new finding IDs; the remaining defects continue -02 and -07.
+
+### Round 3 disposition
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E7-06-01 | **CLOSED.** Artifact suite identity is required. My anonymous/reused artifact negatives and named current-wave positive control pass, alongside missing-wave and contradictory-outcome controls. K0 covers both channel and full-run evaluators. The README now states the artifact schema, producer and directory rule. |
+| B-LA-E7-06-02 | **OPEN, partial fix.** L9 now selects A/B explicitly and asserts different library IDs. L4 derives an expectation before launch, and L7 waits for each learner. However, L4 selects the wrong guard fixtures, L7 still accepts duplicate rows and a wrong line-item path, and A3 can return before dispatch. Counterexamples below. |
+| B-LA-E7-06-06 | **CLOSED.** Canary expectations now use the discovered input set. The unchanged full host command passes **16/16** after adding only a real sixth fixture, with no shared test/list edit. |
+| B-LA-E7-06-07 | **OPEN, partial fix.** Profile/grant keys, flat DTO parsing, the single `waitSync` return object, normal picker handoff and the registration URL flow are improved. The picker adapter now fabricates a 200 for a redirect loop, and L10 still sends an incompatible storage-check request. |
+
+Previously closed -03, -04, -05 and -08 remain closed. The explicit protocol-control selection also removes the former first-fixture fallback. These source findings do not replace the pending live acceptance run.
+
+### B-LA-E7-06-02 — BLOCKER — the revised case checks still fail or miss required behaviour
+
+**File:line:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:188`, `:194`, `:387`; `tests/ltiaas/kit/lib/fixtures.ts:1568`, `:1705`, `:1751`; `tests/ltiaas/kit/suites/k1-ags.k1sim.test.ts:262`.
+
+**Problem and evidence:** The new helper tests pass, but they do not exercise these conditions in the actual cases:
+
+- **L4 foreign-fixture selection:** A launch guard is inferred from `manual === 'operatorGrant' && !registration.dynamic`. Blackboard is the only shipped match; when Blackboard is the target, it is excluded and `launchGuardedForeign` is undefined. Executing the actual Blackboard L4 callback with host stubs throws `Cannot read properties of undefined (reading 'sim')` before any launch call. The “registration-guarded” selector picks Moodle for Canvas, but Moodle declares `guardedFamilies: []` (`packages/channels/moodle/manifest.ts:39`). The helper nevertheless treats `moodle` as registration-guarded and requires a warning. Registration capability is not family-guard metadata.
+- **L7 placement and target:** `verifyContextlessSharedPlacement` still checks distinct resource-link strings, not one placement. Adding a second result row for the same learner and resource-link ID returns `ok: true`. Changing both score-record paths to another line item on the same publication also returns `ok: true`: `path` is passed by L7 but never checked. The shipped “duplicate placement” control changes the resource-link ID, so it does not cover the original concern of multiple placements for the same ID.
+- **A3 retry timing:** `waitSync(..., 'pending')` accepts a newly queued sync with `tries: 0`. A3 immediately requires `tries >= 1`. A host execution of the unchanged frozen helper with that valid pre-dispatch row returns it at once. The case can fail before the simulator's 503 response occurs, despite correct retry behaviour.
+
+**Suggested fix:** Select foreign families from the declared guard levels, with an explicit missing-fixture diagnostic, and validate the actual selected combinations. Use a placement observation that distinguishes duplicate placements for the same resource link, reject duplicate result rows, and compare the dispatch path with the launch line item. For A3, wait for the target sync to show an attempted dispatch before asserting retry state. Add controls for these exact counterexamples and align the README assertion map with what is proved.
+
+### B-LA-E7-06-07 — BLOCKER — transport results and storage-check inputs remain incompatible
+
+**File:line:** `tests/ltiaas/kit/lib/runtime.ts:1241`; `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:609`, `:644`, `:654`.
+
+**Problem and evidence:** Two concrete contract errors remain:
+
+1. `openPickerOnChannel` changes a picker response from 303 to 200 when its `Location` points to itself. With a redirect-loop stub, the helper returns `status: 200` while its own `page.status` is 303. The shared HTTP client follows no redirects; no successful page was received. The normal 303 handoff → 200 page and a 403 refusal both pass my separate controls. The loop must remain a failure, including for L8's status-only staff-picker assertion.
+2. L10's supposed successful storage-check sends `state` with no `Origin` header. The public LTI API delta §2.2 requires form fields `check`, `value` and an Origin equal to the LTI origin. Executing the actual Canvas L10 callback with contract-shaped responses captures `{ check: 'chk-host', value: '', state: 'host-state' }` and only an `accept` header; a contract-shaped `400 INVALID_STATE` response then fails its expected 303. The wrong-value case repeats this request shape, and the missing-row case uses `pendingId` instead of `check`, so its refusals cannot establish the intended validation order either.
+
+**Suggested fix:** Preserve actual HTTP status and reject redirect loops. Send the storage-check body's documented fields and Origin, and distinguish wrong value, replay and unknown check with otherwise valid requests. Exercise these adapters/case callbacks with contract-shaped host responses; source-string checks and typechecking cannot detect these errors.
+
+### Verification and scope
+
+- Private `git clone --no-hardlinks` at the reviewed pin: `/tmp/review-b-e706-r4-mwv0u9p0`. Dependencies installed there only. Shipped kit K0: **16/16 PASS**; the same command with `channels/review-canary.json`: **16/16 PASS**; kit TypeScript check: **PASS**. Logs: `/tmp/reviewer-b-e706r4-k0.log`, `/tmp/reviewer-b-e706r4-canary.log`, `/tmp/reviewer-b-e706r4-typecheck.log`. Removed the canary; clone tracked files remain unchanged.
+- Replayed my Round 3 harness with only the pin/path updated: **17/18**, with the sole failure being the obsolete expectation that A3's return is an array. A3 now uses the sync object. The original picker stub always returned 303; I separated that into a redirect-loop negative and supplied an actual 200 for the valid-page control. The **17 applicable historical checks pass** in `/tmp/reviewer-b-e706r4-probes.cjs` and `.log`; the unchanged replay is retained as `/tmp/reviewer-b-e706r4-historical-probes.cjs` and `.log`.
+- Additional pinned-source checks, including the actual L4 and L10 callbacks with external clients stubbed: **8 corrective predicates fail, 6 controls pass**. Source and full output: `/tmp/reviewer-b-e706r4-focused-probes.cjs` and `.log`. No HTTP, child-process stack action or K1-SIM execution occurred.
+- QA fix `30b5eb24` stays within kit/QA-report ownership; product, frozen tests and simulator paths are unchanged. The K0 suite-neutrality check passes. Blind review maintained; only this review file was edited in the integration worktree, with no commit. This review follows the last allowed fix round; the two open BLOCKERs require the Lead's product-owner escalation under charter-LA §5.
