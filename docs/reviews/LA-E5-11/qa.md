@@ -1,7 +1,47 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E5-11 App audit writer, operator policy, `app:audit list`: QA verification
+
+## Round 3 (fix round 2, `19844f2` at `2a15f5b`)
+
+Tester: QA-2 (Orca task `task_d8da4ccfd3e5`, dispatch `ctx_bcd74cb4daf3`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-11.md` (with `BD-A2-29`, `BD-A2-45`, `BD-A2-55`, `BD-A2-59`, `BD-A2-62`, `BD-A2-63`, `A-LA-E5-11-01`, `B-LA-E5-11-02`, `LA-ADR-07` D4). Suite: `tests/ltiaas/tasks-ops/LA-E5-11/`.
+
+Independence: QA-2 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files to write `tests/ltiaas/tasks-ops/LA-E5-11/` or during this host-only run on `2a15f5b`. QA-2 verified all host-only UNIT, K0 and suite checks in an isolated `--no-hardlinks` clone of `2a15f5b`.
+
+| Item | Value |
+| --- | --- |
+| SHA | `2a15f5b47744e3a3d4c3c43d5a63d695a680d3b7` (integration `2a15f5b`; holds `LA-E5-11` fix round 2 `19844f2`) |
+| Lane and slot | lane S1; no Docker (`HOST-ONLY`; `K1-SIM` row marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/qa2-r8-2a15f5b/clone`: `git clone --no-hardlinks`, detached at `2a15f5b47744e3a3d4c3c43d5a63d695a680d3b7`, push URL `DISABLED`, `npm ci` at root and `tests/` |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/qa2-r8-2a15f5b/logs/` (umask 077): `npm-ci-root.log`, `npm-ci-tests.log`, `check.log`, `e5-11-r3-unit.log`, `qa-suites-host.log`, `task-commits-stat.txt`, `head.txt`, `status-after.txt` |
+
+### Round 3 acceptance criteria and fix rows
+
+| AC / Item | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-11-01 .. 07 | PASS (UNIT) | `services/cogniate-app/src/app/audit.test.ts`, `services/cogniate-app/src/app/operator-policy.test.ts`, `services/cogniate-app/src/cli/audit.test.ts`, `services/cogniate-app/src/domain/domain.test.ts` (77 tests) | `npx --no-install vitest run --reporter=verbose services/cogniate-app/src/app/audit.test.ts services/cogniate-app/src/app/operator-policy.test.ts services/cogniate-app/src/cli/audit.test.ts services/cogniate-app/src/domain/domain.test.ts` | All 77 unit tests for migration `015_audit_event.sql`, operator policy (`AC-02..05`, `BD-A2-59`, `BD-A2-63`), app audit writer (`AC-06`, `BD-A2-45`, `BD-A2-55`, `B-LA-E5-11-02`), and `app:audit list` (`AC-07`, `BD-A2-62`) pass on `2a15f5b` (`e5-11-r3-unit.log`). |
+| AC-LA-E5-11-08 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-11/app-audit.test.ts > AC-LA-E5-11-08` | `npx --prefix tests tsc --noEmit -p tests/ltiaas/tasks-ops/LA-E5-11/tsconfig.json && npx --prefix tests vitest list --config tests/ltiaas/tasks-ops/LA-E5-11/vitest.config.mts` | Waits for a SIM Docker window (`docker compose exec cogniate-app npm run app:audit -- list` on a fresh stack exits 0 and prints no line). Passed at unit level in `cli/audit.test.ts` (`e5-11-r3-unit.log`, `qa-suites-host.log`). |
+| LA-ADR-07 D4 exact `app:audit` refusal texts and `--help` usage line (`19844f2`) | PASS (UNIT) | `services/cogniate-app/src/cli/audit.test.ts > app:audit list (AC-LA-E5-11-07) > gives <code name> with its fixed message` (6 cases: `arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`) + `prints the usage on stdout with exit 0 for --help and -h, and opens no database` | as AC-01 | `19844f2` aligns all 6 `audit_list_refused` messages and the `--help` / `-h` stdout usage line (`Usage: npm run app:audit -- list [--connection <id>] [--action <action>] [--since <iso>] [--limit <1..500>]\n`) character-for-character with `LA-ADR-07` D4. `e5-11-r3-unit.log` |
+
+### R0 `npm run check` counts at `2a15f5b` (`check.log`)
+
+| Suite | LA-E0-01 (`1b17261`) | Round 1 (`d40826d`) | Round 2 (`836d579`) | Round 3 (`2a15f5b`) |
+| --- | --- | --- | --- | --- |
+| Vitest (`test:unit`) | 97 files; 1,351 passed, 5 skipped | 155 files; 2,498 passed, 5 skipped | 169 files; 2,743 passed, 5 skipped | 180 files; 2,854 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 197 pass, 0 fail | 243 pass, 0 fail (23 suites) | 252 pass, 0 fail (23 suites) | 254 pass, 0 fail (23 suites) |
+| K0 (`test:k0`) | — | 3 files; 121 passed | 3 files; 121 passed | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | — | `F1 PASS: 20 files with hits, 74 hits` | `F1 PASS: 9 files with hits, 29 hits` | `F1 PASS: 1 files with hits, 2 hits` |
+| F5 (`fitness:rules`) | — | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` |
+
+### Round 3 other checks and timing
+
+- **File scope (`19844f2`):** Touches only `services/cogniate-app/src/cli/audit.ts` and `services/cogniate-app/src/cli/audit.test.ts` (`task-commits-stat.txt`).
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/qa2-r8-2a15f5b/clone` is empty after the run (`status-after.txt`, 0 bytes).
+- **Timing:** Focused 4-file unit run (`e5-11-r3-unit.log`, 77 tests): `1.21 s`. QA-2 host-only suite checks (`tsc --noEmit`, `vitest list` 1 `K1-SIM` case, `node --check run.mjs`): PASS (`qa-suites-host.log`).
+
+---
 
 ## Round 2 (fix round 1, `75f50c3`, `060c24d`, `f6738ee`, `b93993f` at `836d579`)
 
@@ -33,22 +73,6 @@ Independence: QA-2 did not read product source (`services/**`, `packages/**`, `a
 | BD-A2-62 (`app:audit --help` and `-h` exit 0) | PASS (UNIT) | `services/cogniate-app/src/cli/audit.test.ts > app:audit list (AC-LA-E5-11-07) > prints the usage on stdout with exit 0 for --help and -h, and opens no database` | as AC-01 | `app:audit --help` and `-h` print the usage line on stdout, exit `0`, and open or create no database (`060c24d`). `e5-11-r2-unit.log` |
 | BD-A2-63 (`evidenceRequired: false` in production) | PASS (UNIT) | `services/cogniate-app/src/app/operator-policy.test.ts > operator policy (LA-E5-11 AC-02..05, BD-A2-45) > BD-A2-63: evidenceRequired false skips only the missing-evidence checks in production; the default stays true` | as AC-01 | `OperatorPolicyInput.evidenceRequired` defaults to `true` (missing evidence in `production` gives `evidence_channel_missing` / `evidence_ref_missing`). With `evidenceRequired: false` (used by `app:grant revoke`), `production` still requires a listed `--operator` and valid config, skips only `evidence_channel_missing` and `evidence_ref_missing`, and still validates any supplied evidence values (`b93993f`). `e5-11-r2-unit.log` |
 
-### R0 `npm run check` counts at `836d579` (`check.log`)
-
-| Suite | LA-E0-01 (`1b17261`) | Round 1 (`d40826d`) | Round 2 (`836d579`) |
-| --- | --- | --- | --- |
-| Vitest (`test:unit`) | 97 files; 1,351 passed, 5 skipped | 155 files; 2,498 passed, 5 skipped | 169 files; 2,743 passed, 5 skipped |
-| Infra (`test:infra`, `node --test`) | 197 pass, 0 fail | 243 pass, 0 fail (23 suites) | 252 pass, 0 fail (23 suites) |
-| K0 (`test:k0`) | — | 3 files; 121 passed | 3 files; 121 passed |
-| F1 (`fitness:lms-names`) | — | `F1 PASS: 20 files with hits, 74 hits` | `F1 PASS: 9 files with hits, 29 hits` |
-| F5 (`fitness:rules`) | — | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` |
-
-### Round 2 other checks and timing
-
-- **File scope (`75f50c3`, `060c24d`, `f6738ee`, `b93993f`):** Touches only `services/cogniate-app/src/app/{audit,audit.test,operator-policy,operator-policy.test}.ts` and `services/cogniate-app/src/cli/{audit,audit.test}.ts` (`task-commits-stat.txt`).
-- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/qa2-r7-836d579/clone` is empty after the run (`status-after.txt`, 0 bytes).
-- **Timing:** Focused 4-file unit run (`e5-11-r2-unit.log`, 77 tests): `1.43 s`. QA-2 host-only suite checks (`tsc --noEmit`, `vitest list` 1 `K1-SIM` case, `node --check run.mjs`): PASS (`qa-suites-host.log`).
-
 ---
 
 ## Round 1 (at `d40826d`)
@@ -77,22 +101,3 @@ Independence: QA-2 did not read product source (`services/**`, `packages/**`, `a
 | AC-LA-E5-11-06 | PASS (UNIT) | `services/cogniate-app/src/app/audit.test.ts > app audit insert and list (AC-LA-E5-11-06) > round-trips the event with its connection separate from its grant target and redacts app secrets at any depth` + `measures UTF-8 bytes after redaction and truncates above 4096 without blocking a change (BD-A2-45)` + `withAudit transaction rules T0–T5 and described actions` (8 cases) | as AC-01 | The writer stores `details.evidence_channel`, `details.evidence_ref` and `details.note_present: true` without storing note text or secrets, enforces synchronous `withAudit` rules T0–T5, and replaces `details` above 4,096 UTF-8 bytes after `redact()` with `{"truncated": true}` (`BD-A2-45`). `e5-11-unit.log` |
 | AC-LA-E5-11-07 | PASS (UNIT) | `services/cogniate-app/src/cli/audit.test.ts > app:audit list (AC-LA-E5-11-07) > prints only the newest two events of a connection and leaves the database bytes and ledger unchanged` + `combines action and ISO since filters inclusively` + `returns no lines for an initialized empty database, including through a symlinked entry path` + `refuses invalid arguments ... before creating or opening a database` (15 cases) + `never creates a missing database` + `does not migrate an old database during a read` | as AC-01 | `app:audit list --connection <id> --limit 2` prints at most 2 JSON lines for that connection, newest first, and writes no audit event or database modification. `e5-11-unit.log` |
 | AC-LA-E5-11-08 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-11/app-audit.test.ts > AC-LA-E5-11-08` | `npx --prefix tests tsc --noEmit -p tests/ltiaas/tasks-ops/LA-E5-11/tsconfig.json && npx --prefix tests vitest list --config tests/ltiaas/tasks-ops/LA-E5-11/vitest.config.mts` | Waits for a SIM Docker window (`docker compose exec cogniate-app npm run app:audit -- list` on a fresh stack exits 0 and prints no line). Empty-database CLI execution passes now in `services/cogniate-app/src/cli/audit.test.ts > returns no lines for an initialized empty database, including through a symlinked entry path` (`e5-11-unit.log`, `e5-11-qa-host.log`). |
-
-### R0 `npm run check` counts at `d40826d` (`check.log`)
-
-| Suite | LA-E0-01 (`1b17261`) | At `d40826d` |
-| --- | --- | --- |
-| Vitest (`test:unit`) | 97 files; 1,351 passed, 5 skipped | 155 files; 2,498 passed, 5 skipped |
-| Infra (`test:infra`, `node --test`) | 197 pass, 0 fail | 243 pass, 0 fail (23 suites) |
-| K0 (`test:k0`) | — | 3 files; 121 passed |
-| F1 (`fitness:lms-names`) | — | `F1 PASS: 20 files with hits, 74 hits` |
-| F5 (`fitness:rules`) | — | `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` |
-
-## Other checks
-
-- **File scope (`586bd01`):** Touches `services/cogniate-app/src/domain/migrations/015_audit_event.sql`, `services/cogniate-app/src/app/{audit,audit.test,operator-policy,operator-policy.test}.ts`, `services/cogniate-app/src/cli/{audit,audit.test}.ts`, `services/cogniate-app/src/domain/domain.test.ts`, and the RQ-2 script line in `services/cogniate-app/package.json` (`task-merges-stat.txt`). Does not touch `operator.ts`, `cli/grant.ts`, `cli/binding.ts`, or any LTI service file.
-- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/qa2-r5-d40826d/clone` is empty after the run (`status-after.txt`, 0 bytes).
-
-## Regression and time
-
-R0 (`npm run check` on the clean clone): PASS (`48.35 s` unit, `0.70 s` K0). Focused 4-file unit run (`e5-11-unit.log`, 57 tests): `1.09 s`. QA-2 host-only suite checks (`tsc --noEmit`, `vitest list` 1 `K1-SIM` case, `node --check run.mjs`): PASS (`1.6 s`). `AC-LA-E5-11-08` (`K1-SIM`) and SIM area regressions are `pending: Docker window`.

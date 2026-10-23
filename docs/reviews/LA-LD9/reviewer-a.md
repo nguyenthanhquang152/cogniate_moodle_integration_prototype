@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -172,3 +172,35 @@ G4's `status-conflict` responses have no `lastError`. T6's exact Moodle suffix r
 - **LA-IC-16 scan record confirmed.** The new `scanChecked` and `scanResult` identify the health/capture readers. Reading the named files and searching the frozen acceptance/e2e suites confirms that none asserts `outbound_allowlist` contents. The only golden allowance remains `G1.acceptance.ltiHealth.outbound_allowlist`.
 - **A-LA-LD9-03 closed.** LA-IC-17 now describes the pending Moodle connections at `capture.golden.ts:194-200` and direct QA platform registration at `qa-platform.ts:43`; the two summary tables match.
 - **A-LA-LD9-04 remains partly open (NIT).** Both LA-IC-18 table rows are present. However, `tests/ltiaas/golden/expected/LA-IC-18.json:15` still cites `00-blackboard-not-ready.m2.ts:10-49` (35 lines), and `:18` still cites `03-blackboard-wizard.m2.ts:37-115` (110 lines). Use `10-35` and `37-110`, or name the whole files. The delta list stays approved.
+
+
+## Round 3
+
+## LA-IC-19
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Date: 2026-10-23. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 new NIT (A-LA-LD9-07).** Earlier lists and their finding statuses are unchanged by this review.
+
+Reviewed `04af91d` and its expected-delta record against BD-A1-57, LA-ADR-01 D12, LA-ADR-04 D8 and plan §6.1 LD-9. The product implementation is the LA-E1-09 channel-aware expired-session text. Source and stored-capture verification used private clone `/tmp/la-reviewer-a-ctx-e1c7d3f9bf5b` at `ce2a3ba`; no Docker, stack or browser acceptance runner ran. No other reviewer's file was opened; approval-path checks tested existence only.
+
+### Zero golden and frozen-test changes confirmed
+
+- `goldenFields: []`, `frozenTestsTouched: []` and `changes: []` are correct. The capture script exercises active runtime sessions to create outcomes, but does not store an expired content-host response in G1–G4. The stored captures contain no `RUNTIME_EXPIRED` value. Existing 410 tool-page responses are separate errors, not this runtime response.
+- The only frozen test explicitly triggering `RUNTIME_EXPIRED` is `tests/acceptance/T5a/6-negative.spec.ts:75-84` (AC-T5-15). It launches a Moodle activity, waits past the TTL and checks only status 410 and the error code. The Moodle description also remains byte-for-byte equal. M1/M2 helpers complete active sessions; the cited browser checks do not assert an expired Canvas/Blackboard response.
+- I checked the cited source ranges and searched `tests/acceptance`, `tests/e2e`, `tests/host`, `tests/fixtures` and the golden tree. All listed ranges exist. No stored G-BASE or frozen acceptance/e2e/host file changes in `04af91d`; only the LD-9 record, the two summary tables and the comparator unit test change.
+- The coordinator's earlier scope clarification still applies: LA K2 (`tests/e2e/ltiaas/`) has not yet landed. This approval covers the existing frozen suites, including M1/M2 and T1–T8/U1–U2; it is not evidence from an unlanded K2 suite or a new live capture.
+
+### Verification
+
+- `node --test tests/ltiaas/golden/golden.k0.test.mjs`: **12/12 pass**, including IC-19 metadata and the combined expected-delta comparison.
+- **Five private comparison probes pass**: G-BASE self-comparison with IC-19 succeeds, while an extra field in each of G1, G2, G3 and G4 independently fails. The empty delta cannot allow a golden difference.
+- `lms-texts.test.ts` passes in the shared **239-test** focused run. Its runtime case pins exact Moodle/custom-channel descriptions for expired state requests, the custom-channel expired commit description, unknown-token 404 and expired runtime-page 404. This supports the unchanged Moodle assertion used by the scan.
+
+### Finding
+
+**A-LA-LD9-07 (NIT): IC-19 overstates the tested channel cases and includes a route that returns 404.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-19.json:13,21,34`; `tests/ltiaas/TEST-STRATEGY.md:455`.
+- Evidence: the runtime case at `services/cogniate-app/src/tool-pages/lms-texts.test.ts:101-125` tests Moodle and the custom `your LMS` channel, not separate Canvas and Blackboard expired responses. `content-host/server.ts:189-191` returns HTML 404 for an expired `GET /rt/:token`; only `/state` and `/commit` use the 410 error at `:185-187,200-208`. The strategy row incorrectly includes the runtime page among the 410 routes. Also, the golden script uses active runtime responses to drive the scenario; it does not capture those response bodies as the `scanChecked` wording suggests.
+- Suggested fix: describe the actual Moodle/custom cases, list only the state and commit routes for the 410 change, and say that golden setup uses active runtime sessions without capturing expired responses. Keep the empty golden/frozen change lists. This is evidence-text cleanup and does not require a product change or a frozen-test edit.
+
+Only this review file was changed for this item.

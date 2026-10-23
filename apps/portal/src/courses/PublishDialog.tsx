@@ -1,3 +1,4 @@
+import { PUBLICATION_OPTION } from "@cogniate/channel-kernel";
 import { useChannels } from "../channels/context.tsx";
 import { createPortalSdk } from "../sdk/index.ts";
 import { useNavigate } from "react-router";
@@ -54,7 +55,7 @@ export function PublishDialog({
           connectionId: form.get("connectionId"),
           versionId: form.get("versionId"),
           ...(canCreateCourse && createCourse
-            ? { createMoodleCourse: {} }
+            ? { [PUBLICATION_OPTION]: {} }
             : {}),
         },
       });

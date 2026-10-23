@@ -139,6 +139,42 @@ describe('progress records (LA-E4-04)', () => {
     } finally { db.close(); }
   });
 
+  /** A final attempt of an older release with no learning record (its score never made a score sync to copy). */
+  function legacyFinal(db: ReturnType<typeof openDb>) {
+    db.prepare(`UPDATE attempt SET created_at = 100, updated_at = 500, outcome = 'passed', score_given = 60, score_maximum = 100, cmi_or_progress = ?`)
+      .run(JSON.stringify({ core: { lesson_status: 'passed', lesson_location: 'p1', score: { raw: '60', min: '', max: '100' }, session_time: '', exit: '' },
+        suspend_data: '', comments: '', interactions: [], objectives: [] }));
+  }
+  const scorm = (location: string, raw: string) => ({ event: 'commit', cmi: { core: { lesson_status: 'passed', lesson_location: location, score: { raw, max: '100' } } } });
+
+  it('AC-LA-E4-04-05: a legacy final attempt without records takes its stored updated_at as the submission time, and keeps it', () => {
+    const { db, commit } = fixture();
+    try {
+      legacyFinal(db);
+      commit(scorm('p2', '75'), 2000);
+      commit(scorm('p3', '80'), 3000);
+      expect(recordsOf(db)).toEqual([
+        rec('submitted', 'passed', 60, 500, 100, 500),
+        rec('progressed', 'passed', 75, 2000, 100, 500), rec('final', 'passed', 75, 2000, 100, 500),
+        rec('progressed', 'passed', 80, 3000, 100, 500), rec('final', 'passed', 80, 3000, 100, 500),
+      ]);
+      expect(db.prepare("SELECT created_at FROM learning_record WHERE kind = 'submitted'").all()).toEqual([{ created_at: 2000 }]);
+      expect(db.prepare('SELECT r.kind FROM record_dispatch d JOIN learning_record r ON r.id = d.record_id').all()).toEqual([{ kind: 'final' }, { kind: 'final' }]);
+    } finally { db.close(); }
+  });
+
+  it('AC-LA-E4-04-05: the first commit writes the legacy submission even when it changes nothing else', () => {
+    const { db, commit } = fixture();
+    try {
+      legacyFinal(db);
+      // Same progress and score: no progressed or final record, but the commit moves updated_at to 2000.
+      commit(scorm('p1', '60'), 2000);
+      expect(db.prepare('SELECT updated_at FROM attempt').get()).toEqual({ updated_at: 2000 });
+      commit(scorm('p2', '60'), 3000);
+      expect(recordsOf(db)).toEqual([rec('submitted', 'passed', 60, 500, 100, 500), rec('progressed', 'passed', 60, 3000, 100, 500)]);
+    } finally { db.close(); }
+  });
+
   it('previews write no progress record', () => {
     const { db, commit } = fixture(true);
     try {

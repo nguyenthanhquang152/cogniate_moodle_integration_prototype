@@ -33,12 +33,22 @@ function runCallbacks(callbacks: Array<() => void>): void {
 }
 
 /**
+ * BD-A2-74 (LA-ADR-06 D4 T0): product code opens every transaction through transaction(). The helper cannot see the
+ * COMMIT or ROLLBACK of a transaction that it did not open, so it refuses to work inside one.
+ */
+function refuseUnmanagedTransaction(db: Db): void {
+  if (db.isTransaction && !commitScopes.get(db)?.length) throw new TypeError('transaction opened outside transaction()');
+}
+
+/**
  * Run fn once after the outermost COMMIT of the current transaction() scope (BD-A2-60; LA-ADR-06 D4 T0). In a
  * SAVEPOINT scope, fn waits in the buffer of that scope: RELEASE moves it to the parent scope, ROLLBACK TO drops it.
- * ROLLBACK drops every buffer. With no open scope, fn runs at once (autocommit, or a transaction that this helper
- * did not open). fn must be synchronous; an error in fn is caught.
+ * ROLLBACK drops every buffer. In autocommit (no open transaction), fn runs at once. Inside a transaction that
+ * transaction() did not open, it throws a TypeError and registers nothing (BD-A2-74). fn must be synchronous; an error
+ * in fn is caught.
  */
 export function afterCommit(db: Db, fn: () => void): void {
+  refuseUnmanagedTransaction(db);
   const scopes = commitScopes.get(db);
   if (scopes && scopes.length > 0) scopes[scopes.length - 1]!.push(fn);
   else runCallbacks([fn]);
@@ -52,7 +62,7 @@ function openScope(db: Db): Array<() => void> {
   return buffer;
 }
 
-/** Remove the innermost scope. Gives the parent buffer, or null when it was the last scope. */
+/** Remove the innermost scope. Gives the parent buffer, or null when it was the outermost scope. */
 function closeScope(db: Db): Array<() => void> | null {
   const scopes = commitScopes.get(db) ?? [];
   scopes.pop();
@@ -76,9 +86,12 @@ function assertSynchronous(result: unknown): void {
  * ROLLBACK TO and RELEASE, then the error goes to the outer transaction. A thenable result is an error (D4 T2).
  * Do async work before this call: the guard cannot stop work that the callback already started.
  * afterCommit() callbacks of a scope follow the scope: they run after the outermost COMMIT, or are dropped on rollback.
+ * Every enclosing transaction must come from this helper: inside a transaction opened with raw SQL it throws a
+ * TypeError before any write (BD-A2-74).
  */
 export function transaction<T>(db: Db, fn: () => T): T {
   if (db.isTransaction) {
+    refuseUnmanagedTransaction(db);
     const name = `nested_${++savepoints}`;
     db.exec(`SAVEPOINT ${name}`);
     const buffer = openScope(db);
@@ -98,13 +111,9 @@ export function transaction<T>(db: Db, fn: () => T): T {
       } catch { /* Keep the first error if rollback or release fails (D4 T5). */ }
       throw err;
     } finally {
+      // A released savepoint commits nothing yet: its callbacks wait for the parent scope, which always exists here.
       const parent = closeScope(db);
-      // A released savepoint commits nothing yet: its callbacks wait for the parent. With no parent scope (an outer
-      // transaction that this helper did not open), they run now, as afterCommit() does.
-      if (released) {
-        if (parent) parent.push(...buffer);
-        else runCallbacks(buffer);
-      }
+      if (released) parent?.push(...buffer);
     }
   }
   db.exec('BEGIN IMMEDIATE');

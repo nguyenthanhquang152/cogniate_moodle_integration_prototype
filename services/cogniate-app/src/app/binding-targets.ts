@@ -62,8 +62,8 @@ export function sharedReadiness(row: LtiProviderProfile | undefined, snap: Compl
   return null;
 }
 
-/** Canvas `app:grant issue` (§4.8): the profile row still has the saved issuer (`{siteUrl}` filled with the canonical site). */
-export const canvasIssuerMatches = (row: LtiProviderProfile | undefined, c: { siteUrl: string; serviceUrl: string }, snap: CompleteSnapshot): boolean =>
+/** `app:grant issue` of an exclusive platform (§4.8): the profile row still has the saved issuer (`{siteUrl}` filled). */
+export const exclusiveIssuerMatches = (row: LtiProviderProfile | undefined, c: { siteUrl: string; serviceUrl: string }, snap: CompleteSnapshot): boolean =>
   row !== undefined && filledIssuer(row, c, '') === snap.issuer;
 
 /**

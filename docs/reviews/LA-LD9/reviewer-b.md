@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -150,3 +150,20 @@ T6's Moodle text assertion remains valid, and T5b checks `PLATFORM_CONFLICT` on 
 - **LA-IC-12 / LA-IC-16 approval-path follow-up closed:** the updated strings name existing review files, including this LD-9 review. I checked path existence only for Reviewer-A targets and did not inspect their contents or infer their verdicts.
 - **LA-IC-17 scan-range follow-up closed:** `capture.golden.ts:194-200` creates pending Moodle connections without an app platform PUT; `acceptance/lib/qa-platform.ts:43` registers the QA platform directly. The revised explanation now states this distinction.
 - **LA-IC-18 index-row follow-up closed, B-LD9-03 still open:** TEST-STRATEGY §4.7 and golden README §5 now list all three visible changes and explain why no assertion moves. However, `aa3b214` does not change `LA-IC-18.json`; its three changes are still buried in the same long `scanResult`, without the short summary or separate entries requested by B-LD9-03. This remains a non-blocking NIT, not a new finding.
+
+## Round 3
+
+## LA-IC-19
+
+Verdict: **APPROVE — 1 new MINOR (B-LD9-06), 0 BLOCKER/MAJOR.** Reviewed `04af91d`, LA-ADR-04 D8 / BD-A1-57 and the LA-E1-09 runtime text change. Same Reviewer-B lens; no Reviewer-A file was opened. Earlier LD-9 findings retain their round-2 status.
+
+The **0 golden / 0 frozen-test changes** conclusion holds. The record gives twelve scan locations, the shipping commit, the affected description and the reason Moodle stays unchanged. `T5a/6-negative.spec.ts:75-84` is the only frozen runtime-expiry case found: it launches Moodle and checks status 410 plus `RUNTIME_EXPIRED`, not the description. The other cited runtime helpers and M1/M2 flows exercise active sessions. The golden capture records no `RUNTIME_EXPIRED` response; the similar Moodle text in G4 belongs to other error codes and must not be changed by this list. No existing frozen assertion needs a rewrite.
+
+Host-only verification in the private `deef75e` clone: **12/12 golden K0 tests** and **11/11 `lms-texts.test.ts` tests** pass. An independent comparison with only LA-IC-19 passes for an unchanged capture and rejects an altered G4 refusal action as an unexplained difference, confirming that `changes: []` authorizes nothing. The T5 runner was read only; no Docker, stack, host stack runner, live capture or browser suite was run. A named K2 suite is not present at this SHA, so the scan of existing frozen sources is not a K2 execution result.
+
+### B-LD9-06 — MINOR — Correct the runtime route and test-coverage descriptions
+
+- **File:** `tests/ltiaas/TEST-STRATEGY.md:455`; `tests/ltiaas/golden/expected/LA-IC-19.json:9`, `:13`, `:34`.
+- **Problem:** The list is repeatable and its empty delta is correct, but its supporting description overstates which route returns 410 and which channel names the Author test asserts.
+- **Evidence:** The strategy includes `GET /rt/{token}` in the changed 410-body routes. That route deliberately returns **404 HTML** for an expired token (`content-host/server.ts:189-191`); only state GET and commit POST use the 410 JSON helper. The existing unit test explicitly expects the expired root route to remain 404. The JSON says the cited Author test asserts Moodle, Canvas, Blackboard and custom-name expiry bodies, but `lms-texts.test.ts:102-124` asserts only Moodle and the custom `your LMS` channel. Its ADR-01 anchor `#d12-lms-display-names-in-core-text-must` also does not exist; the heading is `D12. Texts`.
+- **Suggested fix:** Describe only `GET /rt/{token}/state` and `POST /rt/{token}/commit` as the changed 410 JSON routes, and state that the root route retains its 404 response. Describe the actual Moodle/custom-channel checks without claiming extra assertions, and use `#d12-texts`. Keep `changes: []` and the frozen-test count at zero; no product change or additional baseline waiver is needed.

@@ -437,3 +437,15 @@ Changes for the Lead to route:
 - **L:** the `preflightCreateLineItem` export (RQ-1 for LA-E5-16); the `trustedAudiences` bound (LA-E3-12 follow-up).
 - **S1:** the preflight call before the claim, with the two unit tests; the stale cap comment.
 - **Docs:** the troubleshooting guide entry.
+
+## 36. Round 35: raw outer transactions, the no-context fingerprint, revoke by empty context, 2026-10-23
+
+Routed in dispatch `ctx_448b587c3245`. The item 1 answer went to the Lead first (`msg_48ebe238e32a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-74 | A-LA-E5-17-03 (MAJOR): the commit hook treats an empty helper scope as autocommit even when `db.isTransaction` is true, so an audit count inside a raw outer transaction publishes at once and survives the outer rollback. | **Rule (a): a loud error.** Transactions open only through `transaction()`. With `db.isTransaction` true and no helper scope, `afterCommit()` and the nested `transaction()` path throw a `TypeError` before any write; both "run now" branches for that case go. Autocommit still runs at once. Four tests for S1. Optional Should: an F5 rule (lane P) against raw transaction statements outside `migrations.ts`. | LA-ADR-06 D4 T0; LA-E5-17 design notes | Checked: no product file opens a raw transaction (only `migrations.ts`; the app hits are comments, and `worker-main.ts` uses the helper). So production does not change, and the app (same helper) is not affected. As with the T2 guard, misuse becomes a failing test, not a silently wrong counter. |
+| BD-A2-75 | (Provisional.) The fingerprint target uses `contextId: ""` for a launch without a context, in both schemes. | **Ratified.** | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | One activity, one fingerprint (LA-ADR-05 D2: no context = `""`). |
+| BD-A2-76 | L2 (LA-E3-03): the service-key revoke body has `contextId` `min(1)`, so no revoke by the empty context. Acceptable, or accept `""`? | **Changed (a later small S2 item, not a gate):** `contextId: ""` = only the keys of launches without a context; absent = no context filter. Until then, the workaround is to revoke by `resourceLinkId`. | LA-ADR-06 D8 "Revoke"; contract delta (both revoke rows); LA-E5-15 design notes | `""` is a real context value in the data model, and BD-A2-47 made `contextId` a filter. |
+
+Changes for the Lead to route: **S1** (next LA-E5-17 round): the guard and its four tests; the `""` target (LA-E5-16). **S2** (later): `contextId: ""` in the revoke schema. **P** (optional): the F5 raw-transaction rule.
