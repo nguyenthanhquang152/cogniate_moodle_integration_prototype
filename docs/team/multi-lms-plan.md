@@ -13,7 +13,12 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 12:23 UTC
+### Current directive — 2026-10-23, 13:10 UTC
+
+The active user goal is to complete all remaining tasks. [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md) authorizes the reversible copied-tool implementation by the retained Codex executor and independent Gemini qualification. A separate Claude review follows. No Savoy pause, runtime exception or Docker launch is assumed.
+This preparation proceeds without waiting for the earlier scheduling choice. Keep all accepted checks and frozen product/test inputs. Final T7 runtime and all final conformance, guide and review gates remain required. No push or main merge is authorized.
+
+### Prior directive — 2026-10-23, 12:23 UTC
 
 Claude's bounded T7 route plan and clarification are complete in `t6-09-failure-plan.md` sections 15–16. They remain a proposal; E-R6 is still in force and E-R8 is not approved.
 The user scheduling choice is pending: authorize a coordinated 25-minute Savoy pause, or keep Savoy running and qualify copied QA tools with a focused review (estimated 2–3 hours). Neither path has a runtime grant.

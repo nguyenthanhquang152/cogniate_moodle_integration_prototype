@@ -7,7 +7,12 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current host status — 2026-10-23, 12:23 UTC
+### Current host status — 2026-10-23, 13:10 UTC
+
+Shared-host tool preparation is active: retained Codex owns implementation and fixes; independent Gemini owns qualification; a separate Claude review follows. [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md) records this bounded decision. It assumes no Savoy pause and grants no Docker runtime.
+T7 remains NOT RUN/PENDING. M1, M2 and legacy remain accepted. Final conformance, guides, Docs QA and blind reviews remain after T7.
+
+### Prior host status — 2026-10-23, 12:23 UTC
 
 Claude's route plan is complete. The user choice is pending: a coordinated 25-minute Savoy pause, or new QA tools and focused review for concurrent activity (estimated 2–3 hours). No route or runtime grant is assumed.
 Gemini recorded its prepared state and settled the bounded attempt on that external block. T7 is NOT RUN/PENDING, with zero Docker calls and no test failure. Both sessions are retained. M1, M2 and legacy remain accepted; final conformance, guides, Docs QA and blind reviews follow T7. See [remaining work](remaining-work-2026-10-22.md).

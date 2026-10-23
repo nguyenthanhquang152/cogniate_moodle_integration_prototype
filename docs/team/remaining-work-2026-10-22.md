@@ -2,7 +2,13 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 12:23 UTC
+## Current checkpoint — 2026-10-23, 13:10 UTC
+
+The user set the active goal to complete all remaining tasks. The Lead selects reversible shared-host tool preparation under [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md), without changing Savoy's owner's no-pause instruction. The earlier scheduling choice no longer blocks this preparation. No runtime exception or grant is approved yet.
+The retained Codex executor implements the complete copied-tool change in one session (`ctx_980764b0c00c`). Independent Gemini is active on requirements-derived tests and verification (`ctx_ecf89d43aa55`). A separate Claude focused review follows the frozen candidate. Existing product code, tests, accepted checks and original QA tools remain unchanged.
+After tool qualification: approve the exact runtime route, coordinate LA's hold, run T7 once, then final conformance/ADR status, guide updates, independent Docs QA, two blind final reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 12:23 UTC
 
 Claude completed the bounded route plan and clarification in [the failure plan, sections 15–16](../reviews/M3/t6-09-failure-plan.md). The Lead verified both appended sections and all preserved prefixes. This is a planning deliverable; E-R8 is not approved and no tool or runtime grant exists.
 The user has been asked to choose between a coordinated 25-minute Savoy pause, or continued Savoy activity with new copied QA tools and a focused review (Claude estimates 2–3 hours for that work). The pause needs the owner's authorization because Savoy's coordinator declined it. Neither choice is assumed.
