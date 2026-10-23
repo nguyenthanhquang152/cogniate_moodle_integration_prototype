@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 ## Round 1
 
@@ -56,3 +56,17 @@ Reviewer-B: Codex GPT-6-Astra xhigh. Reviewed the addendum's Round 2 and `tests/
 ### Verification boundary
 
 Evidence: `/tmp/reviewer-b-ld9r2-checks.json`, `/tmp/reviewer-b-ld9r2-overlay-probe.json`, `/tmp/reviewer-b-ld9r2-restore-control.json`; extracted patches: `/tmp/reviewer-b-ld9r2-patch-{1,2,3,4}.diff`. The private clone is `/tmp/review-b-ld9-r2-9tiku93i`. The frozen source remains clean at `8ad1292687431b05bad6b5c070ab722e67714526`. No addendum was installed in a gate source, no commit was made, and no Docker, stack, host stack runner or live suite was run. Gate PASS remains pending. Only this review file was edited in integration; the other reviewer's file was not opened.
+
+## Round 3
+
+Verdict: **APPROVE**. Reviewer-B: Codex GPT-6-Astra xhigh. Source-procedure-only review of `tests/ltiaas/GATE-RUN-PLAN.md` §3C at `1b5469f769e7b5fe362a100825d04ed1f499ab42`. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.**
+
+**B-LA-E7-08-LD9-02 is closed.** Independent read-only checks in `src-wave-end-2`, all with `GIT_OPTIONAL_LOCKS=0`, confirmed:
+
+- HEAD and `la-gate-test-base-c1` are `bf8153404449dbfef47698ceb82fa0262e9d9c48`; its sole parent and `la-wave-end-product-2` are `93ab0c50467772f7f1c4b5fa9feb137048305c43`.
+- `bf815340:tests` and `8ad12926:tests` both equal tree `f42d4150b7b11ba2b2e63898ee317e6dea3f9430`; the test-tree diff is empty and exits 0.
+- `git diff --exit-code 93ab0c50 bf815340 -- . ':!tests'` is empty and exits 0. Working status is clean.
+
+The procedure now uses `git restore --staged --worktree` and checks both working-tree and staged equality before commit 1. `set -euo pipefail` makes the standalone restore, equality, patch and commit commands stop on failure. The addendum remains a separate commit 2, preceded by `git apply --check`; no amend is allowed. The previous three-hunk approval and closure of B-LA-E7-08-LD9-01 remain valid.
+
+Evidence: `/tmp/reviewer-b-ld9r3-readonly-checks.json` (nine successful read-only checks). Commit 2 was still pending at inspection; this review does not claim it was created or that the live gate passed. No file was written in either gate source, and no Docker, stack, host runner or live suite was executed. Only this review file was edited in integration; no commit was made and the other reviewer's file was not opened.

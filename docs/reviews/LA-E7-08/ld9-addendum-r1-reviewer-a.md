@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 ## Round 1
 
@@ -63,3 +63,24 @@ The required `?ref=[A-Za-z0-9_-]{43}$` suffix, exact migration-ledger comparison
 - `/tmp/la-review-a-7d961f442a6b`: `git clone --no-hardlinks` from the frozen source, detached at `8ad1292687431b05bad6b5c070ab722e67714526`. **4/4 patch checks PASS** (three individual hunks plus combined patch), full-file exact-change verification PASS, `git diff --check` PASS. Extracted patches, `reviewer-r2-apply-checks.json` and `reviewer-r2-applied.diff` retain the evidence.
 - `/tmp/la-review-a-7d961f442a6b-overlay`: a separate private clone at `0f821dad` for the overlay reproduction and exact-restore control. `reviewer-overlay-diff.log` retains the 24-path failure. No install or test runner was needed.
 - No Docker, stack, host stack runner, commit, or modification to either the frozen source or integration tests. Only this review file changed in integration; concurrent work was left untouched. Reviewer-B's file was not opened. Live re-gate results and the final named candidate/test SHAs remain outside this host-only review.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Source-procedure review at integration `1b5469f769e7b5fe362a100825d04ed1f499ab42`. **APPROVE — 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT open.** The three addendum hunks retain their Round 2 approval; this round does not change their scope.
+
+**A-LA-E7-08-03 (MAJOR): CLOSED.** Independent read-only checks in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2`, with `GIT_OPTIONAL_LOCKS=0`, confirmed:
+
+- HEAD is overlay commit `bf8153404449dbfef47698ceb82fa0262e9d9c48`; its sole parent is product SHA `93ab0c50467772f7f1c4b5fa9feb137048305c43`.
+- Both `bf815340:tests` and `8ad12926:tests` resolve to **`f42d4150b7b11ba2b2e63898ee317e6dea3f9430`**; the full test-tree diff is empty, exit 0.
+- `git diff --name-only 93ab0c50 bf815340 -- . ':!tests'` is empty, and the worktree is clean. The overlay changes no product file.
+- §3C(a) now uses exact-tree `git restore`, checks the working tree and index against the frozen SHA, and places clone, restore, comparison, patch and commit commands under `set -euo pipefail`. It keeps the overlay and approved addendum as two normal commits, with no amend. Commit 2 and its tag were still absent when checked. One nonblocking SHA-read exception remains below.
+
+### A-LA-E7-08-04 — MINOR — Export assignments hide failed SHA reads
+
+**Locations:** `tests/ltiaas/GATE-RUN-PLAN.md:251`, `:267`, `:325` at `1b5469f7`.
+
+**Problem and evidence:** `export NAME=$(git rev-parse …)` returns the status of `export`, hiding a failed command substitution from `set -e`. A read-only probe of the exact §3C(c) pattern against the currently absent `la-gate-test-addendum-r2` tag printed Git's fatal error, then continued with the unresolved tag name as the variable value and exited 0. Thus the script does not stop on every SHA-read failure. This does not invalidate the verified overlay or the approved hunks, and the documented precondition still requires Commit 2 before the run.
+
+**Suggested fix:** Separate assignment from export and verify a commit, for example `WAVE_TEST_SHA_2=$(git -C "$SRC_WAVE_2" rev-parse --verify 'la-gate-test-addendum-r2^{commit}')`, then `export WAVE_TEST_SHA_2`. Apply the same pattern to the HEAD reads. The separated-assignment control stopped at the missing tag with exit 128 and did not execute the following command.
+
+**Boundary:** No files were written in either gate source; no Docker, stack runner, install, commit, tag or patch application was run. Only this review file changed in integration, and Reviewer-B's file was not opened. Commit 2, its final test SHA and live re-gate evidence remain pending QA work; this approval is for the reviewed source procedure and addendum scope.
