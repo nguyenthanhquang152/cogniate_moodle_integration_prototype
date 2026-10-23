@@ -13,7 +13,7 @@ describe('E2 profile traits (LA-ADR-02 D2, AC-LA-E2-01-01)', () => {
   it('gives every baseline profile its D2 values', () => {
     expect(profileDefinition('standard')).toMatchObject({
       endpoints: 'admin', issuerKind: 'per-tenant', endpointOrigins: 'issuer', clientAssertionAud: TOKEN_STRING, assertionDeploymentId: false,
-      dynamicRegistration: { issuerRule: 'path-prefix', configurationPath: '/mod/lti/openid-configuration.php', registrationToken: 'moodle-scope-jwt' },
+      dynamicRegistration: { issuerRule: 'path-prefix', configurationPath: '/mod/lti/openid-configuration.php', registrationToken: 'scope-jwt' },
     });
     for (const id of ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-sim-cloud']) {
       expect(profileDefinition(id), id).toMatchObject({

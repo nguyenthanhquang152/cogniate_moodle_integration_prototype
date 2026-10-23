@@ -32,7 +32,7 @@ export const profileSourceSchema = z.strictObject({
   dynamicRegistration: z.strictObject({
     issuerRule: z.enum(['origin', 'path-prefix', 'profile']),
     configurationPath: z.string().regex(/^\/[^?#\s]*$/, 'Expected a path that starts with "/", with no query or fragment.').optional(),
-    registrationToken: z.enum(['moodle-scope-jwt', 'opaque-bearer']),
+    registrationToken: z.enum(['scope-jwt', 'opaque-bearer']),
   }).nullable().optional(),
   wireLms: z.string().min(1).nullable().optional(),
   listOrder: z.number().int().nonnegative(),
