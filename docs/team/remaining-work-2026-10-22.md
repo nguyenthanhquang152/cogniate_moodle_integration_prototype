@@ -2,7 +2,22 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 15:51 UTC
+## Current checkpoint — 2026-10-23, 16:27 UTC
+
+C10 T7 started at 16:26:20 UTC. The runner started at 16:26:41 UTC. The four-file repair has independent Gemini checks and both Claude approvals. Fresh preflight passed. Grant `msg_28bc7b21d064` requires cleanup by 16:48 UTC and host return by 16:50 UTC. The earlier failed invocation remains FAILED.
+
+The remaining sequence is concrete:
+
+1. Finish this T7 invocation and judge all functional, screenshot, secret-scan and operational evidence.
+2. Apply prepared Architect conformance and narrow prototype ADR status updates after acceptance.
+3. Apply the same Codex executor's prepared guide changes.
+4. Run independent Gemini Docs QA and both blind Claude reviews together, then record Lead closure.
+
+M1, M2 and legacy checks remain accepted; no repeat is required. Their import closures exclude the four C10 files. Their typecheck globs include the E2E files; C10 typecheck passed. This runtime previously took about 15 minutes. Final document checks still follow, so the host deadline is not a project completion promise.
+
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:51 UTC
 
 T7 failed with one root interaction failure and seven cascades in cycle 2. Cycles 1 and 3 passed 17 tests each. The demo passed in 12.41 seconds; all four confirmation/refusal checks passed. Cleanup and boundary checks passed, including all 32 complete volume records. The host was returned at 15:44 UTC. LA confirmed no mutation during the full window.
 

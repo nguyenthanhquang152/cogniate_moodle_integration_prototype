@@ -7,7 +7,15 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current host status — 2026-10-23, 15:51 UTC
+### Current host status — 2026-10-23, 16:27 UTC
+
+C10 is running under grant `msg_28bc7b21d064`. The detached receipt records launch at 16:26:20 UTC. The test runner started at 16:26:41 UTC. Cleanup is due by 16:48 UTC; the agreed host return is 16:50 UTC. No runtime PASS is claimed yet.
+
+The four-file T7 repair is committed at `97b68af4`. Independent Gemini static and synthetic checks passed. Both Claude reviews approve the exact repair and launcher. The fresh preflight passed, including all 32 complete protected volume records. The Lead accepted it in `msg_903b04fa87ab`. See [E-R8](r8-t7-shared-host-verification-2026-10-23.md).
+
+The retained Architect prepares the final conformance record against C10. Final application waits for accepted T7 evidence. Then the same Codex executor applies prepared guides. Independent Docs QA and two blind reviews run on the final document revision. M1, M2 and legacy results remain accepted at their recorded revisions. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior host status — 2026-10-23, 15:51 UTC
 
 T7 failed. The three cycles recorded 17/0, 9/8 and 17/0 PASS/FAIL, each with the permitted demo-only skip. The demo passed with preparation in 12.41 seconds; all four confirmation/refusal checks passed. Operational cleanup passed at 15:43:18 UTC. All 32 protected volume records match, and no owned runtime resource remains. The Lead returned the host at 15:44 UTC. LA confirmed no mutation during the full window. See the [E-R8 attempt record](r8-t7-shared-host-verification-2026-10-23.md).
 Claude identified one root failure and seven cascades: the Save button stayed outside the viewport after a full-page screenshot. The exact Moodle script mechanism remains inferred. Gemini QA owns a bounded repair in two T7 test files. The same Codex executor prepares an identity-only launcher update and holds its prepared guides. A proposed 16:15–16:40 UTC slot needs repair review, actual handoff, fresh preflight and a new grant. No Docker work is currently authorized.

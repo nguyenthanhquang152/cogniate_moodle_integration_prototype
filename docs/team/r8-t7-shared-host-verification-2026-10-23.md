@@ -89,3 +89,22 @@ The Lead accepted Claude's decision `msg_ba13e8d4561a` and granted the same QA b
 
 LA supplied a fresh early handoff at 16:07:25 UTC in `msg_7b06bc025fc0`, holding through 16:40 UTC subject to readiness by 16:15. The Lead verified all four file hashes in `/tmp/la/handoff-1608/` and compared all 32 complete protected volume records with the accepted M2 predecessor. All match. The one extra anonymous volume is not added to the baseline. Fresh preflight and runtime grants still remain required.
 
+### C10 repair, preflight and runtime grant
+
+C10 is `97b68af439b6565f891042b20497b18aadca6a24`, with tests tree `ec2d86f590902ee99997d6ed2b78599dc3006072`. The exact four-file repair has 24 insertions and five deletions. Product files remain equal to C6. Gemini's checks passed: typecheck, the unchanged 18-test list, the old-leak reproduction, the repaired redaction and deliberate-leak controls. The complete QA report prefixes remain intact. M1, M2 and legacy import closures exclude these four files. Their typecheck globs include E2E files; C10 typecheck passed. The accepted M2 execution remains C8.
+
+Both independent Claude reviews APPROVE:
+
+- [Reviewer A](../reviews/M3/t7-c10-reviewer-a.md): 16,756 bytes, SHA-256 `bc58a4fc720579924cfd6eb8a30d750e0fa30075cdbb3575ceadb2cbd2de8912`.
+- [Reviewer B](../reviews/M3/t7-c10-reviewer-b.md): 16,126 bytes, SHA-256 `50a5954a14daa378ff6ffef5e644b1512a9771c737a9ca30327ea8b379ce5d83`.
+
+The Lead accepts A-T7C10-01 as a deferred MINOR. The remaining picker screenshot must be checked in each new trace. Required checks also cover all A4/B4/B5 sticky-footer clicks and the four named form/picker PNGs. All review NITs are nonblocking; no optional code change is made.
+
+The new launcher is `notes/scripts/run-t7-window-v3-c10.sh`: 27,486 bytes, mode 0700, SHA-256 `a9ac8f5632ad67cdd9d0e25da07f61c143589944826e8e6bab68cc5ac1fb8f96`. Its seven approved identity substitutions reverse exactly to the original launcher. The finalization manifest has 12 entries, all verified by the Lead: SHA-256 `42a81af79df2e57f8298bb7c2ce8ccc371a1b83083df8f540b27e6fee1df2327`. Qualified operational tools and the detached launcher are unchanged.
+
+Stage A grant `msg_554a615fa08f` authorized one fresh external preflight in `notes/t7-external-preflight-c10-20261023T1615Z`. All five commands exited 0. W3 at 16:19:46 UTC is 31,717 bytes, SHA-256 `474e50d9e39b9b7b9dd35f42a72a228390a22df8f49309bb52c91a9a4ba48694`. Reconciliation is 4,880 bytes, SHA-256 `8240ff76b4cdb7d031f74d132ed4dcd4e04ee0d781161dece3b4e7c622092244`. The Lead verified complete identity, settings and all 32 protected volume records. Only the permitted bridge Id/Created and old-collector host/none IPAM representation differ. Two foreign containers and two extra volumes have full SC/SV attribution. Lead acceptance: `msg_903b04fa87ab`.
+
+The readiness response arrived after the earlier cutoff. LA explicitly revised the slot in `msg_0459f8a6f66d`: launch by 16:30 UTC and return by 16:50 UTC. No extension was assumed. Stage B grant `msg_28bc7b21d064` authorizes one invocation, with cleanup due by 16:48 UTC. QA consumed it in `delivery_df0be9bf28fa`.
+
+The new root is `t7-attempt-c10-20261023T1615Z`. Detached outputs use `notes/t7-runtime-c10-20261023T1615Z`. The receipt records launch at 16:26:20 UTC, supervisor PID 30198, a new session and no PTY. It is 1,581 bytes, SHA-256 `e90218969c42346221264f160a0ae5c4563f5e1099d53805067b5ea08f481670`. T0 binds the real grant and delivery IDs. The prelaunch guard is 5,014 bytes, SHA-256 `ca4640aaa21e17d52abff2e44ab49b9eb72f3dd33438623e01ab2f1f6cfedfca`, with no problems. Both C10 checkouts are pristine. The runner started at 16:26:41 UTC as `qa-e2e-m3-r3-97b68af4-2026-10-23T16-26-41-657Z`. Final runtime and cleanup results remain pending.
+
