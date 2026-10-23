@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -204,3 +204,42 @@ Reviewed `04af91d` and its expected-delta record against BD-A1-57, LA-ADR-01 D12
 - Suggested fix: describe the actual Moodle/custom cases, list only the state and commit routes for the 410 change, and say that golden setup uses active runtime sessions without capturing expired responses. Keep the empty golden/frozen change lists. This is evidence-text cleanup and does not require a product change or a frozen-test edit.
 
 Only this review file was changed for this item.
+
+## Round 4
+
+## LA-IC-20
+
+Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed the IC-20 record in `b3807f4`, product merge `2877245` and the IC-18 split in `1babba9`, against BD-A1-63/69, LA-ADR-04 D8, LA-E1-12 and plan §6.1 LD-9. Blind review; no Reviewer-B file read.
+
+**Verdict: APPROVE. This list has 0 BLOCKER, 0 MAJOR, 0 MINOR and 1 NIT (A-LA-LD9-08).** Earlier lists retain their recorded status except A-LA-LD9-04, closed below.
+
+### Channel and key changes confirmed
+
+Compared the five original strings in `8e061ce^:apps/portal/src/connect/provider-errors.tsx` with the current manifest values and generic fallback. “Same” below means the original bytes, after filling `{LMS}`; “generic” means the exact fallback recorded in IC-20.
+
+| Key | Moodle | Canvas | Blackboard | No channel / channel without own text |
+| --- | --- | --- | --- | --- |
+| `SITE_RULE_1` | Same | Same | Same | Generic |
+| `SITE_RULE_5` | Generic | Same | Generic | Generic |
+| `PLATFORM_IN_USE` | Generic | Same | Generic | Generic |
+| `DEPLOYMENT_IN_USE` | Generic | Generic | Same | Generic |
+| `DEPLOYMENT_FIXED` | Generic | Generic | Same | Generic |
+
+The core receives the route's manifest through `ChannelScope` for both create and manage routes. The record correctly distinguishes a channel's own text from its fallback; it does not claim all five texts stay unchanged on every baseline channel. The other site rules and server-side `LEGACY_APP_ERROR_TEXT` stay unchanged.
+
+### Frozen readers and golden scope
+
+- M2's exact text assertions are Canvas site rules 1/5 and `PLATFORM_IN_USE`, plus Blackboard `DEPLOYMENT_IN_USE`. All use the owning channel, so their strings remain equal. The additional Blackboard assertion at line 106 is an API error-code check. No frozen browser assertion checks `DEPLOYMENT_FIXED` or a generic fallback case.
+- T6 AC-T6-05 checks inline error presence for invalid Moodle platform fields. T4b1 adoption and the M1 refusals check API status/codes, not portal notice strings. U1/U2 connect successfully. Searches across the frozen acceptance/e2e/host suites confirm no further reader of the five changed portal texts.
+- G1–G4 capture API DTOs, simulator records, tool pages and player responses; they never render the portal error component. Thus `goldenFields: []`, `frozenTestsTouched: []` and `changes: []` are correct. No stored G-BASE or frozen acceptance/e2e/host file changes in the reviewed record/product commits. This is a source and stored-capture review, not a new live capture or browser run; `tests/e2e/ltiaas/` is not present at the reviewed SHA.
+
+### IC-18 split and earlier finding
+
+**A-LA-LD9-04 closed.** The two ranges now end at the real file boundaries (`10-35`, `37-110`), and both human-readable tables have the IC-18 row. The split separately describes (a) LMS names in the publish result/checkbox, (b) Blackboard's Connect logo changing red to blue, and (c) the aria-hidden logo title. Each has a before/after and its zero-change reason. Moodle's visible text stays the same; M2 Canvas/Blackboard cannot enter the course-shell result view; no frozen selector, colour assertion or screenshot comparison reads the other two changes. The empty golden and frozen-change lists remain correct.
+
+### Verification and finding
+
+- Private clone `/tmp/la-review-a-e702-ic20.ewzZy1/` at `d768eec`: **100/100 tests in the seven named Author test files pass**, including channel/key parity, generic/custom contexts and create/manage route wiring. Golden K0: **12/12 pass**. Ten private comparator probes pass: each of IC-18 and IC-20 accepts a G-BASE self-compare but rejects an added field independently in G1, G2, G3 and G4. Neither empty record permits a golden difference.
+- **A-LA-LD9-08 (NIT): the IC-20 inline-error helper reference points to unrelated code.** Where: `tests/ltiaas/golden/expected/LA-IC-20.json:34`, copied into golden README §5 (`:138`) and TEST-STRATEGY §4.7 (`:456`). The cited `tests/acceptance/lib/portal.ts:89-99` contains the card-grid return and colour helpers; `hasInlineError` is at `:176-181`. The actual helper does check only invalid-field/alert presence, so the zero-change conclusion is right. Update the three references to `176-181` or the function name; no frozen assertion or product change is needed.
+
+Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used.

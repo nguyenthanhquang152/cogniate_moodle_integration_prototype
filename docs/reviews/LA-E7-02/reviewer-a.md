@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # LA-E7-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -154,3 +154,15 @@ Round: 3
     - In `loadHostManifest`, refuse a host that repeats inside one `aliases` list or one `allowlist`, as before `19059aa`.
     - Change the table case to "refuses repeated alias and allowlist host inside one entry", with expected `false`. Remove the merge lines.
     - Run the shared table test against the current `lib.sh`, and update the qa.md counts.
+
+## Round 4
+
+Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed the LA-E7-02 part of `1babba9` against the task spec, README §4b, BD-A1-53 and plan §6.1. Blind review; no Reviewer-B file read.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+- **A-LA-E7-02-05 closed.** `loadHostManifest` now refuses a repeated alias and a repeated allowlist host before returning the manifest. Both errors name the host and provider; the old merge assignments are removed. The table now expects refusal, and separate assertions exercise each duplicate check. README and the round-four QA record match the new rule.
+- Private clone at `d768eec`: all **58 simulator self-tests pass**, including all **27 shared table cases** against the checkout's current `infra/scripts/lib.sh`. Two extra private table cases isolate alias-only and allowlist-only repetition; both readers refuse both (29/29 cases agree). The shell test substitutes a fake `docker` executable and sources only the manifest reader; it starts no stack.
+- Restoring `1babba9^`'s loader in the private clone fails the changed repeated-host table case. Removing either new guard separately also fails its explicit assertion. All temporary edits were restored; logs are under `/tmp/la-review-a-e702-ic20.ewzZy1/`.
+- The fix changes only invalid-manifest handling; the committed manifest and provider defaults are unchanged. No infra, product or frozen M1/M2 file changes in this fix. Earlier findings remain closed or transferred as recorded in round three. The companion LA-E7-05 changes in the batch are outside this item.
+- Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used. The task's K1-SIM ACs and live M1/M2 regression still need QA evidence; these host checks do not claim that gate.
