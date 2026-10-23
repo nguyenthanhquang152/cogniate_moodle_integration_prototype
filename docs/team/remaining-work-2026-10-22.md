@@ -2,10 +2,10 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 13:10 UTC
+## Current checkpoint — 2026-10-23, 14:03 UTC
 
 The user set the active goal to complete all remaining tasks. The Lead selects reversible shared-host tool preparation under [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md), without changing Savoy's owner's no-pause instruction. The earlier scheduling choice no longer blocks this preparation. No runtime exception or grant is approved yet.
-The retained Codex executor implements the complete copied-tool change in one session (`ctx_980764b0c00c`). Independent Gemini is active on requirements-derived tests and verification (`ctx_ecf89d43aa55`). A separate Claude focused review follows the frozen candidate. Existing product code, tests, accepted checks and original QA tools remain unchanged.
+The initial candidate is frozen and its 42 bindings pass the Lead's checks. Independent Gemini QA (`ctx_ecf89d43aa55`) and Claude review (`ctx_d41f3cb69570`) are active. Claude found two required tool corrections: valid null metadata on built-in networks and distinct exit codes for consumed attempts. The same Codex executor (`ctx_980764b0c00c`) prepares fixes in a separate copy while qualification continues. Existing product code, tests, accepted checks and original QA tools remain unchanged.
 After tool qualification: approve the exact runtime route, coordinate LA's hold, run T7 once, then final conformance/ADR status, guide updates, independent Docs QA, two blind final reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
 
 ## Historical checkpoint — 2026-10-23, 12:23 UTC
