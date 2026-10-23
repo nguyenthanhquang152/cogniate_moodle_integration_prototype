@@ -203,21 +203,54 @@ describe('LA-E2-03 kernel admin-value setup adapter and lti-generic channel (K0 
       origin: 'authOrigin',
     });
 
-    // listOrder is above every baseline real profile and below the simulation profiles.
+    // Load check 7 (BD-A1-23): non-baseline profile listOrder is > the largest baseline listOrder (70, simulations included),
+    // and sorted provider order places real channels before simulations (so lti-generic is after baseline real profiles and before simulation profiles).
     const allProfiles = ltiLoaded.flatMap((c) => c.ltiProfiles ?? []);
-    const baselineReal = allProfiles.filter(
-      (p) => !p.simulation && ['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard'].includes(p.id),
+    const baselineMaxOrder = Math.max(
+      ...allProfiles
+        .filter((p) =>
+          [
+            'standard',
+            'canvas-cloud-production',
+            'canvas-cloud-beta',
+            'canvas-cloud-test',
+            'canvas-self-hosted',
+            'blackboard',
+            'blackboard-sim',
+            'canvas-sim-cloud',
+            'canvas-sim-self',
+          ].includes(p.id),
+        )
+        .map((p) => p.listOrder),
     );
-    const simProfiles = allProfiles.filter((p) => p.simulation);
-    for (const bp of baselineReal) {
-      expect(profile!.listOrder, `lti-generic listOrder (${profile!.listOrder}) > ${bp.id} (${bp.listOrder})`).toBeGreaterThan(
-        bp.listOrder,
-      );
+    expect(
+      profile!.listOrder,
+      `lti-generic listOrder (${profile!.listOrder}) > baseline max (${baselineMaxOrder}) per BD-A1-23`,
+    ).toBeGreaterThan(baselineMaxOrder);
+
+    const sortedProfiles = [...allProfiles].sort((a, b) => {
+      const aSim = Boolean(a.simulation);
+      const bSim = Boolean(b.simulation);
+      if (aSim !== bSim) return aSim ? 1 : -1;
+      if (a.listOrder !== b.listOrder) return a.listOrder - b.listOrder;
+      return a.id.localeCompare(b.id);
+    });
+    const genericIdx = sortedProfiles.findIndex((p) => p.id === 'lti-generic');
+    expect(genericIdx, 'lti-generic present in sorted provider order').toBeGreaterThanOrEqual(0);
+    for (const bpId of [
+      'standard',
+      'canvas-cloud-production',
+      'canvas-cloud-beta',
+      'canvas-cloud-test',
+      'canvas-self-hosted',
+      'blackboard',
+    ]) {
+      const bpIdx = sortedProfiles.findIndex((p) => p.id === bpId);
+      expect(genericIdx, `lti-generic index (${genericIdx}) > baseline real ${bpId} (${bpIdx})`).toBeGreaterThan(bpIdx);
     }
-    for (const sp of simProfiles) {
-      expect(profile!.listOrder, `lti-generic listOrder (${profile!.listOrder}) < ${sp.id} (${sp.listOrder})`).toBeLessThan(
-        sp.listOrder,
-      );
+    for (const sp of sortedProfiles.filter((p) => p.simulation)) {
+      const spIdx = sortedProfiles.findIndex((p) => p.id === sp.id);
+      expect(genericIdx, `lti-generic index (${genericIdx}) < simulation ${sp.id} (${spIdx})`).toBeLessThan(spIdx);
     }
 
     artifact('e2-03-ac11-profile.json', `${JSON.stringify(profile, null, 2)}\n`);
