@@ -67,6 +67,16 @@ The independent Claude review found two required tool corrections. F-01 rejects 
 
 The Lead checked the saved real-host network records and F-01's pure probe without calling Docker. Codex prepares both fixes and regressions in a separate private copy while the 42 frozen candidate bindings remain unchanged. This allows QA and review to finish against stable input. The complete findings batch and independent verdicts remain pending; no runtime grant exists.
 
+## Consolidated source review — 2026-10-23, 14:05 UTC
+
+Claude completed its initial source review in `msg_d8f69572efe4`: CHANGES_REQUESTED. F-01 and F-02 remain required. F-03 also requires source hashes inside lane test evidence, with a separate binding record for the unchanged legacy self-test. The Lead includes MINOR M-1 in the same fix batch: a failed W4 capture must retain its raw failure, stop the sampler and attempt the remaining comparison reports before exiting unsuccessfully. This does not allow a failed capture to pass.
+
+The Lead defers optional M-2: automatic scanning of previous grant and preflight identifiers. The Lead must instead verify fresh identifiers and a fresh preflight explicitly for each authorized attempt. No reuse is authorized.
+
+The six NITs are accepted as nonblocking for this T7-only route: non-atomic root creation before the window-directory claim, the fixed T7 subnet, the `expectedCount32` output label, the start-capture error wording, the copied self-test header and the disclosed scratch files outside the deployable manifest. Use unique absent attempt paths. Keep scratch evidence separate from qualified runtime files. These deferrals do not waive functional or isolation checks.
+
+Codex reported 24 passing author checks for the prepared F-01/F-02 fixes in `msg_b3435514e5c2`. It now extends that separate copy for F-03 and M-1. The initial candidate remains frozen while independent QA finishes. All fixes stay in the same executor session. Independent QA and focused review of the corrected candidate remain required.
+
 ## Required result
 
 1. Positive attribution uses sufficient captured metadata and the section 16 joint predicates. Names or anonymous-volume labels alone are insufficient. Unexplained activity fails closed.
