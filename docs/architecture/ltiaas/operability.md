@@ -295,8 +295,8 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`. Write down the `traceId` and the time of the answer.
    - `202`: a run started.
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 5 again.
-   - `409 JOB_RUNNING`: a run is in progress. Wait one minute, then do step 6.
-6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run).
+   - `409 JOB_RUNNING`: another run holds the job (a timed run or another request). This request started nothing, and its `traceId` does not find the other run. Wait one minute, then do step 5 again. Repeat until the answer is `202` (BD-A2-107).
+6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run). The log line `key_rewrap_failed {trace_id, error}` with that trace id means that the run did not start after the `202`: do step 5 again (BD-A2-107).
    - `complete`: check `GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 7.
    - `partial` (`stopReason` `lease`, `stopping` or `legacy_remains`): the run stopped safely. Do step 5 again until the outcome is `complete`.
    - `failed` with `unreadable` above 0: `unreadableVersions` names a key version that the ring does not have. Put that version back from escrow into the key-ring file, restart the LTI service, and do step 5 again.
@@ -381,9 +381,9 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
 2. Run one job: `POST /operator/v1/jobs/<name>/run`. Write down the `traceId` and the time of the answer.
    - `202`: the run started. Go to step 3.
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 2 again.
-   - `409 JOB_RUNNING`: a run of that job is in progress. Wait one minute, then do step 3.
+   - `409 JOB_RUNNING`: another run of that job holds it (a timed run or another request). This request started nothing, and its `traceId` does not find the other run. Wait one minute, then do step 2 again. Repeat until the answer is `202` (BD-A2-107).
    - `404 NOT_FOUND`: the job name is wrong. Use a name from step 1.
-3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id` (BD-A2-85: the log line is the source; `GET /operator/v1/jobs` is only the list). If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
+3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id` (BD-A2-85: the log line is the source; `GET /operator/v1/jobs` is only the list). If the service could not start the run after the `202`, the log has `job_run_request_failed {job, error}` with that trace id: do step 2 again. (The re-wrap route of §6.3 logs `key_rewrap_failed` instead; BD-A2-107.)
    - `ok`: done. `counts` gives the work of the run.
    - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
    - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).

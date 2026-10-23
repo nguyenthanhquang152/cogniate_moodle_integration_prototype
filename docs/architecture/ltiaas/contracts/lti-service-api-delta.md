@@ -382,7 +382,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | --- | --- | --- | --- |
 | `rate_limited` | warn | `class`, `key_kind` (`address`, `api_key`, `operator_key`), `key_id`? (API key id or operator key id, never the key), `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s`, `trace_id` (the request that first hit the limit in that minute) | at most once per bucket per minute |
 | `trusted_proxy_unresolved` | warn | `host` | a `TRUSTED_PROXY_CIDRS` host name does not resolve at a refresh (trust for it drops at once); at most once per failing host per refresh (BD-A2-30, B-LA-E5-03-04) |
-| `job_run_request_failed` | error | `job`, `trace_id` | `POST /operator/v1/jobs/:name/run` (or the re-wrap route) answered `202`, but the runner could not start the run (BD-A2-82) |
+| `job_run_request_failed` | error | `job`, `trace_id`, `error` (the error class name) | `POST /operator/v1/jobs/:name/run` answered `202`, but the runner could not start the run (`runNow` rejected; BD-A2-82). Also for `key-rewrap` when it is started through this route |
+| `key_rewrap_failed` | error | `trace_id`, `error` (the error class name) | `POST /operator/v1/key-provider/rewrap` answered `202`, but the runner could not start the run (`runNow` rejected). The re-wrap route kept its own name from LA-E5-09 (BD-A2-107) |
 | `secret_file_mode_open` | warn | `setting` | a secret file has a group or world bit outside the `production` profile (BD-A2-78) |
 | `rate_limit_soft` | warn | `class`, `tool_account_id` | a soft class above its rate; at most once per minute |
 | `platform_rate_limited` | warn | `platform_id`, `status`, `retry_after_s` | a platform `429` or throttling `403` |
