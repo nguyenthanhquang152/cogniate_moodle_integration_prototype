@@ -1,9 +1,45 @@
 Verdict: PASS
-Round: 2
+Round: 4
 
-# LA-E0-03 Golden outputs G1–G4: QA (Round 2 — Slots 2 and 3A Complete)
+# LA-E0-03 Golden outputs G1–G4 & LD-9 Expected-Delta Records: QA (Round 4 — LD-9 Round 7 Metadata Fixes + Slots 2 and 3A Complete)
 
-Tester: lead QA (Orca task `task_0163f40d972e`, dispatch `ctx_fa2c527b7a28`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E0-03.md`. Design: `tests/ltiaas/TEST-STRATEGY.md` §4.5–§4.7, `tests/ltiaas/GATE-RUN-PLAN.md` §4.1–§4.2.
+Tester: lead QA (Orca task `task_632c6557b3a6`, dispatch `ctx_224034e0f7fb`; Round 3 in `task_9118512629f1`; Slots 2 & 3A in `task_0163f40d972e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E0-03.md`. Design: `tests/ltiaas/TEST-STRATEGY.md` §4.5–§4.7, `tests/ltiaas/GATE-RUN-PLAN.md` §4.1–§4.2. Reviews addressed: `docs/reviews/LA-LD9/reviewer-a.md` ("Round 7": `A-LA-LD9-15`, `A-LA-LD9-16`) and `docs/reviews/LA-LD9/reviewer-b.md` ("Round 7": `B-LD9-13`, `B-LD9-14`) at integration SHA `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`.
+
+## Round 4 Summary (LD-9 Round 7 Metadata Fixes, Host-Only)
+
+- **`B-LD9-13` (MAJOR, `LA-IC-01.json`, `README.md`, `TEST-STRATEGY.md`):**
+  - Replaced the incorrect claim that the `LD-1` open-world rewrites landed in `LA-E0-02` prior to `G-BASE` with the actual state at `G-BASE` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`) and on integration (`195930c1` / `7db4f2c5`): the `6` frozen files (`tests/acceptance/M1/common/00-profiles.test.ts:40-49`, `tests/acceptance/M1/common/90-simulation-gates.test.ts:19`, `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:255`, `tests/host/run-m1.mjs:296,301`, `tests/e2e/host/run-m2.mjs:124`, and `tests/e2e/M2/01-cards.m2.ts:11-21`) still hold closed-world assertions on integration; their open-world rewrite (plus shared helpers `tests/acceptance/lib/open-world.{mjs,d.mts}`) is owned by task **`LA-E0-04`** (`docs/reviews/LA-E0-04/qa.md`; whereas `LA-E0-02` records the baseline), is staged on `la-qa` in commit **`f0a7b306`**, and lands at the **wave-end gate** after `LD-1` list approval (`0` additional frozen-test edits are authorized by `LA-IC-01` after `LD-1`).
+- **`B-LD9-14` (MINOR) & `A-LA-LD9-16` (NIT) (`LA-IC-01.json`, `LA-IC-04.json`, `README.md`, `TEST-STRATEGY.md`):**
+  - Updated all `authorUnitTestChanges` (`10` entries) and `qaTaskTestChanges` (`11` entries) in `LA-IC-01.json` to existing file:line paths at `195930c1` (`packages/channel-kernel/src/{registry.test.ts:71-106,153-260,capabilities.test.ts:17-46,manifest.test.ts:9-170,legacy-wire.test.ts:5-25}`, `services/lti-service/src/profiles/{channel-registry.test.ts:41-183,traits.test.ts:14-104}`, `services/cogniate-app/src/app/{connections.test.ts:21-69,lti-generic.test.ts:23-85,connection-check.test.ts:40-90}`, `services/cogniate-app/src/kernel/setup/admin-value.test.ts:47-225`, `packages/channels/brightspace/channel.test.ts:11-80`, `tests/ltiaas/tasks-core/LA-E1-01/{check.k0,golden-g1.k1sim}.test.ts`, `tests/ltiaas/tasks-core/LA-E1-06/{migration-013.k0,golden-g1.k1sim}.test.ts`, `tests/ltiaas/tasks-lti/LA-E1-10/providers-and-texts.{k0,k1sim}.test.ts`, `tests/ltiaas/tasks-core/LA-E2-03/lti-generic.{k0,k1sim}.test.ts`), and explicitly noted that `LA-E1-01` and `LA-E1-06` `golden-g1.k1sim.test.ts` call `expectGoldenEqual` via `tests/ltiaas/tasks-core/LA-E1-01/golden-binding.ts:25-36` where `BINDING` is still `{}` pending QA-3 wiring `cliBinding`.
+  - Updated `LA-IC-04.json:26`, `README.md:133`, and `TEST-STRATEGY.md:441` so `tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts` accurately records that at `7db4f2c5:12-18` it was a plain `describe` placeholder asserting `expect(process.env.LA_DOCKER_WINDOW).toBe('1')` (with no `describe.skipIf` or simulator calls), and in `ff6ad387` / `8143e669` at `195930c1:1-99` it implements `AC-LA-E3-07-02` (`:30-52`), `AC-LA-E3-07-03` (`:54-78`), and `AC-LA-E3-07-06` (`:80-98`).
+- **`A-LA-LD9-15` (NIT, `LA-IC-14.json`, `README.md`, `TEST-STRATEGY.md`):**
+  - Updated `LA-IC-14.json:66` to cite `packages/channels/canvas/portal/CanvasCreate.tsx:13-17` and its conditional initializer `useState(methods.includes("manual") ? "manual" : methods[0] ?? "manual")`, and updated `LA-IC-14.json:42,50-51`, `README.md:136`, and `TEST-STRATEGY.md:450` to cite the landed `tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.{k0,k1sim}.test.ts` (`c19164fd` / `603107a4`).
+- **Verification (Host-Only, No Docker, at `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`):**
+  - `node --test tests/ltiaas/golden/golden.k0.test.mjs`: `12/12` PASS (`514 ms`, log `/Users/quangnguyen/cogniate-qa-runs/LA/LD9/r7/golden-k0.log`), including on-disk path resolution checks for every `LA-IC-01` `authorUnitTestChanges` and `qaTaskTestChanges` entry and regression assertions for `B-LD9-13`, `B-LD9-14`, `A-LA-LD9-15`, and `A-LA-LD9-16`.
+  - `npm run test:k0` in scratch clone `/Users/quangnguyen/cogniate-qa-runs/LA/LD9/r7/clone` (`195930c1`): `3` test files, `145/145` PASS (`1.69 s`, log `/Users/quangnguyen/cogniate-qa-runs/LA/LD9/r7/test-k0.log`).
+
+---
+
+## Round 3 Archive (LD-9 Round 6 Fixes, Host-Only)
+
+- **`LA-IC-01` (`A-LA-LD9-11` MAJOR, `A-LA-LD9-12` MAJOR, `B-LD9-10` MAJOR):**
+  - Replaced all wildcard (`[*]`) and type-only (`string`, `object`, `array`, `present`) rules in `tests/ltiaas/golden/expected/LA-IC-01.json` with `259` per-index / per-key exact `value` entries (`0` wildcard paths, `0` `rule` entries).
+  - Updated `LA-IC-01.json` to match current integration HEAD (`d26d7018`): `brightspace` (`lms[4]`) offers `methods: ["dynamic", "manual"]`, `capabilities.dynamicRegistration: true`, `channelCapabilities["registration.dynamic"]: true`, and `channelCapabilities["binding.authority"]: { "dynamic": "self", "manual": "operatorGrant" }` (`LA-E2-06`); `canvas` (`lms[1]`) and `lti-generic` (`lms[3]`) set `channelCapabilities["setup.connectionCheck"]: true` (`LA-E6-04`); `canvas` includes the `dynamic` registration entry (`LA-E3-15`); and `moodle`, `canvas`, and `blackboard` carry the 4 AGS scopes (`LA-E3-07`).
+  - Added the complete `ld9` metadata block (`epic`, `design`, `goldenFields`, `authorUnitTestChanges`, `qaTaskTestChanges`, `testChanges`, `frozenTestsTouched`, `scanChecked`, `scanResult`) to `LA-IC-01.json` and documented `LA-IC-01` in `tests/ltiaas/golden/README.md` §5 and `tests/ltiaas/TEST-STRATEGY.md` §4.7.
+  - Added `LA-IC-01` standalone, combined (`13` LD-9 records, `280` differences explained), and `10` negative-control checks in `tests/ltiaas/golden/golden.k0.test.mjs` proving that any mutated or missing `channel`, `channelCapabilities`, `bindingAuthority`, `endpointOrigins`, `registration`, `setup.connectionCheck`, or `brightspace` `dynamicRegistration` value fails `compareCaptures`.
+- **NITs / MINORs on `LA-IC-03`, `LA-IC-04`, `LA-IC-12`, `LA-IC-14`, `LA-IC-21` (`A-LA-LD9-10`, `A-LA-LD9-13..15`, `B-LD9-11..12`):**
+  - `LA-IC-03.json`, `README.md`, `TEST-STRATEGY.md`: noted that QA-4 landed the query-free `createMoodleDrScenario` update in `tests/ltiaas/tasks-lti/LA-E5-06/protocol-wiring.k1sim.test.ts` at `a27a5607` / `d12b7b94`.
+  - `LA-IC-04.json`, `README.md`, `TEST-STRATEGY.md`, `golden.k0.test.mjs`: updated the M1 Moodle configuration line range to `tests/acceptance/M1/common/00-profiles.test.ts:115-130` (row 13 at `:126`), clarified `moodle/app.test.ts` vs `moodle/manifest.ts`, noted `tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts` is a `LA_DOCKER_WINDOW` placeholder while `LA-E3-06` covers K1-SIM `complete.scopes`, and cited `registration.test.ts` for the 5-scope default fallback.
+  - `LA-IC-12.json`, `README.md`, `TEST-STRATEGY.md`, `golden.k0.test.mjs`: recorded that `LA-E3-05` (`8c65424` / `7c0ba57`, `picker.test.ts`, `launch.test.ts`) has landed and contributes the `2` `G4.{blackboard,canvas}.pages.picker.text` replacements (`0` frozen-test changes), and removed the legacy `ic12.changes.length === 0` branch in `golden.k0.test.mjs`.
+  - `LA-IC-14.json`: cited `d12b7b94` (`a27a5607`) for `LA-E3-09` and the QA-3 branch for `LA-E3-15`, fixed line ranges for `00-profiles.test.ts:82-145` and `03-snapshot-controls.test.ts:1-24`, and noted `LA-E3-16` (`4c9809ff` / `4d318919`) defaults `CanvasCreate` to `'manual'` so `02-canvas-wizard.m2.ts` continues through the manual path unchanged.
+  - `LA-IC-21.json`: aligned the `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts:149-348` description with `LA-IC-03.json`.
+- **Verification (Host-Only, No Docker):**
+  - `node --test tests/ltiaas/golden/golden.k0.test.mjs`: `12/12` PASS (`380 ms`).
+  - `npm run test:k0` in scratch clone `/Users/quangnguyen/cogniate-qa-runs/LA/LD9/r6/clone` (`d26d7018`): `3` test files, `145/145` PASS (`596 ms`).
+
+---
+
+## Round 2 Archive — Slots 2 and 3A Complete (2026-10-23)
 
 Independence: QA wrote the golden capture and compare tool (`tests/ltiaas/golden/**`) from the task spec, `TEST-STRATEGY.md` §4.6–§4.7, the public API contracts and the frozen M1 helpers. QA read no product source, no Author notes and no reviewer file.
 

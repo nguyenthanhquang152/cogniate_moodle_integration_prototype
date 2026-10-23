@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-23 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -42,3 +42,22 @@ Round: 1
 ### Verdict
 
 APPROVE for lens A. Every audited write is one synchronous transaction with its event and commit callbacks, and errors still map to the same codes inside the audited body. The job-lease preflight is kept, the job code moved verbatim, and no SQL is left outside `store/**`. The one MINOR finding is a gap in the boundary test.
+
+## Round 2
+
+- Reviewer: Claude Code Opus 5.5 xhigh (same session as round 1).
+- Diff: `git show 7c84167b` (merge `28be2a8a`). It changes one file, `services/lti-service/src/store/port-boundary.test.ts`. No product code changed.
+- I ran these in the private clone at `28be2a8a`. I deleted the Vitest cache before each run. No Docker.
+  - Vitest on `services/lti-service`: 96 files, 1322 tests pass. The boundary file has 20 tests.
+  - `npm run typecheck`: exit 0; ESLint on `store/`: clean.
+  - My round 1 planted files, re-run in the real source tree (below).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 2): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Finding | Status | Evidence at `28be2a8a` |
+| --- | --- | --- |
+| A-LA-E5-23-01 (MINOR): `afterCommit` not detected | **Closed** | `databaseCalls` now treats as hits: a bare `afterCommit(`, an `afterCommit` import alias (value imports only; a type-only import is skipped), and a member or computed `.afterCommit(`. `sqliteImports` now also refuses a value namespace import of a store module that has synchronous `Db`-first functions. Production and the planted controls run through the same `enforceBoundary` file walk, in a scratch root, so nothing is planted in the real tree. I put a scratch file `src/ra-planted.ts` in the real tree, one form at a time. The real-tree test then fails with exactly that hit for each form:<br>- `afterCommit(db, …)` → `ra-planted.ts: afterCommit`;<br>- `import { afterCommit as later }` → `afterCommit`;<br>- `db.prepare(…)` → `prepare`;<br>- `import * as accounts from './store/accounts.ts'` → `accounts.*`.<br>Without the file, the test is green (20 passed). The allowed forms (regex `exec`, type imports, pure helpers, the public `store/index.ts`, SQL in strings) and the exclusions (`store/`, `db/`, tests, testkit) have their own controls. A violation beside excluded files is still reported. |
+
+### Verdict (round 2)
+
+APPROVE for lens A. The boundary check now covers every call form that AC-01 names, and the namespace-import bypass too. Every planted form fails it, and the production scan stays green. No lens A finding is open.
