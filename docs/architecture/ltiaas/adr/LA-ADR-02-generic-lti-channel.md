@@ -90,6 +90,8 @@ Moodle (`standard`) manual connect stays `self` with `endpointOrigins: issuer` (
 | Verify | The two-phase grant redemption (app contract §4.7.1), target kind `exclusive_platform` with the admin values. Every value must equal the grant (D6). |
 | Enable | `registered`; the first valid launch sets `connected`. |
 
+Build rulings BD-A1-78 and BD-A1-80 ([build decisions A1](../build-decisions-A1.md)): `lti-generic` has no `setup.toolRows`, so the kernel adapter gives the generic row set of app delta §3.3; its manifest sets `FieldSpec.default` `'{siteUrl}'` on `issuer` only. `brightspace` (D4) lists its D2L rows in `setup.toolRows` and uses `FieldSpec.default` for its D2L constants.
+
 ### D4. D2L Brightspace channel `brightspace` (Must manual; Should DR)
 
 Facts and their status come from R2 §5.4. Each fact keeps its source note in `packages/channels/brightspace/README.md`.

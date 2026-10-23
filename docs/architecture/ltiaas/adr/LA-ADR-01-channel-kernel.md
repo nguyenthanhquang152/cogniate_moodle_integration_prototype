@@ -125,6 +125,9 @@ export interface ChannelManifest {
     bindingFields: FieldSpec[];                 // PUT …/platform body keys (strict), per method
     // No verify field: the shell takes the verify step from the binding authority (D9; Reviewer-B B-LAD-20).
     connectionCheck?: boolean;                // the "Check connection" panel (A2 LA-ADR-08 D4, Could)
+    toolRows?: readonly { key: string; label: string; value: string }[];  // BD-A1-78: rows of the kernel admin-value
+                                              // adapter; value = literal text + {toolName} {loginUrl} {launchUrl} {keysUrl}
+                                              // {deepLinkingUrl} {ltiHost} {scopes}; absent = the generic set (app delta §3.3)
   };
   storage?: {                                   // D5 "Tables": what the channel's app/ SQL may name (Q-LAD-25)
     tables: string[];                           // Moodle: ['mbz_build']
@@ -289,7 +292,7 @@ The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile
 
 `services/cogniate-app/src/kernel/ports.ts` holds every type that these sketches name (`ToolConfigurationContext`, `PlatformBodyContext`, `CreateRequestContext`, `InitialTargetContext`, `StagedCreate`, `BindingTarget`, `GrantPurpose`, `ToolRow`, `ProfileView`, `PlatformBodyValues`, `PortContext`, …). It is a public interface file with no logic: QA may read it and import its types (types only) as soon as step S5 creates it (QA Q-LAD-19).
 
-**Kernel admin-value setup adapter (E2-K; Reviewer-B B-LAD-05).** One kernel `ConnectionSetup` for channels whose profiles all have `endpoints: admin` and that have no `app.ts`: tool configuration rows from the manifest `setup` data; the strict body `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience?`, `grantCode` (field defaults from `FieldSpec.default`); the `exclusive_platform` target with the admin values; the staged create. `lti-generic` and `brightspace` use it, so neither has an `app.ts`.
+**Kernel admin-value setup adapter (E2-K; Reviewer-B B-LAD-05).** One kernel `ConnectionSetup` for channels whose profiles all have `endpoints: admin` and that have no `app.ts`: tool configuration rows from `setup.toolRows` (placeholders filled from the context `toolUrls` and `toolAccountId`; no row data = the generic row set of app delta §3.3; BD-A1-78); the strict body `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience?`, `grantCode` (field defaults from `FieldSpec.default`: literal text with the only placeholder `{siteUrl}`, filled with the connection site URL when the field is absent; a posted value always wins; the grant's bound values and the LTI profile rules still check the filled value; BD-A1-80); the `exclusive_platform` target with the admin values; the staged create. `lti-generic` and `brightspace` use it, so neither has an `app.ts`. The app gives this adapter to every channel without `app.ts`; the LTI service refuses admin values on a `fixed` profile at create, and from LA-E2-04 the app's first-use check (load check 5) makes a method unavailable when its profile reports `endpoints: fixed` (BD-A1-79).
 
 **Extension ports and the port context (P5–P7; Reviewer-B B-LAD-03).** Sketch, same file:
 
