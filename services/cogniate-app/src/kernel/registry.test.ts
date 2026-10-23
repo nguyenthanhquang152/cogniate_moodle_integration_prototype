@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LogLine } from '@cogniate/shared';
 import type * as Shared from '@cogniate/shared';
-import { PUBLIC_URL_ENV, createLogger, createOutboundClient, startService } from '@cogniate/shared';
+import { PUBLIC_URL_ENV, createLogger, createOutboundClient, legacyKeyRing, startService } from '@cogniate/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as kernel from '@cogniate/channel-kernel';
 import type { AppConfig } from '../config.ts';
@@ -17,7 +17,8 @@ import { CHANNEL_ROOT, buildAppChannelRegistry } from './registry.ts';
 // Stop after the entire app builder returns, before a socket opens. Registry checks do not depend on
 // the order of client/worker construction in that builder, and all config fields have valid values.
 vi.mock('../config.ts', () => ({ loadConfig: () => config }));
-vi.mock('../domain/db.ts', () => ({ openDb: vi.fn(() => ({})) }));
+// An empty database: the start-time key check of LA-E5-22 (loadAppKeyProvider) finds no sealed value.
+vi.mock('../domain/db.ts', () => ({ openDb: vi.fn(() => ({ prepare: () => ({ iterate: () => [].values(), all: () => [] }) })) }));
 vi.mock('../domain/package-store.ts', async (importOriginal) => {
   const original = await importOriginal<typeof PackageStore>();
   return { ...original, prepareStore: vi.fn(async (dir: string) => original.storePaths(dir)) };
@@ -53,7 +54,7 @@ const tempRoots: string[] = [];
 const startLines: LogLine[] = [];
 const config: AppConfig = {
   jobInstanceId: 'app-1', jobRunner: true,
-  urls: TEST_URLS, dataDir: tmpdir(), profile: 'default', masterKey: Buffer.alloc(32, 5),
+  urls: TEST_URLS, dataDir: tmpdir(), profile: 'default', masterKey: Buffer.alloc(32, 5), keyRing: legacyKeyRing(Buffer.alloc(32, 5)),
   ltiApiKeyFile: join(tmpdir(), 'app-registry-test-key'), ltiApiUrl: null,
   playerDir: join(tmpdir(), 'app-registry-test-player'), buildQueueDir: join(tmpdir(), 'app-registry-test-builds'),
 };

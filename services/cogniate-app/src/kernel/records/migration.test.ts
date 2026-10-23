@@ -72,7 +72,7 @@ describe('records migration', () => {
       }
       expect(db.prepare('SELECT * FROM score_sync ORDER BY rowid').all()).toEqual(before);
       const launch = upsertResourceLink(db, { connectionId: 'con', publicationId: 'pub', deploymentId: 'deployment', contextId: 'context',
-        resourceLinkId: 'rl_0', contextTitle: 'Changed', title: 'Changed', lineItemId: null, serviceKeyEncrypted: null }, 3000);
+        resourceLinkId: 'rl_0', contextTitle: 'Changed', title: 'Changed', lineItemId: null, sealServiceKey: null }, 3000);
       expect(launch).toEqual({ id: 'rl_0', created: false, rebound: null });
       expect(db.prepare('SELECT count(*) AS n FROM placement').get()!.n).toBe(links.length);
     } finally { db?.close(); rmSync(dir, { recursive: true, force: true }); }

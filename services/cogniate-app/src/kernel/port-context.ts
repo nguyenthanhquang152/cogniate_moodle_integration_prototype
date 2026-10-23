@@ -6,7 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { EXPORT_BUILD_SCOPE_SQL, PACKAGE_EXPORT_WIRE } from '@cogniate/channel-kernel';
 import { z } from 'zod';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import { decrypt, encrypt } from '@cogniate/shared';
+import { associatedData } from '@cogniate/shared';
+import { openText, sealText } from '../app/sealing.ts';
 import type { Db } from '../domain/db.ts';
 import type { BuildQueue, ChannelSql, PortContext } from './ports.ts';
 import type { LtiClient } from '../clients/lti-client.ts';
@@ -78,12 +79,17 @@ export interface PortContextDeps {
 
 /** Construct a new context for one port call; keys and the raw database stay in the kernel. */
 export function createPortContext(deps: PortContextDeps, libraryId: string, connectionId: string | null, traceId: string, libraryName: string): PortContext {
+  // LA-E5-22: an extension secret is a column of the bound connection row (app:connection:<column>:<library>:<id>).
+  const secretAad = (column: string): string => {
+    if (connectionId === null) throw new Error('An extension secret needs a bound connection.');
+    return associatedData('app', 'connection', column, libraryId, connectionId);
+  };
   return Object.freeze({
     libraryId, connectionId, traceId,
     sql: createChannelSql(deps.db, libraryId, connectionId),
     outbound: deps.outbound,
-    seal: async (value: string) => encrypt(deps.masterKey, value),
-    unseal: async (blob: Uint8Array) => decrypt(deps.masterKey, blob),
+    seal: async (value: string, column: string) => sealText(deps.masterKey, value, secretAad(column)),
+    unseal: async (blob: Uint8Array, column: string) => openText(deps.masterKey, blob, secretAad(column)),
     logger: deps.logger,
     now: deps.now,
     urls: Object.freeze({ ...deps.urls }), libraryName, ...toolContext(deps.urls),
