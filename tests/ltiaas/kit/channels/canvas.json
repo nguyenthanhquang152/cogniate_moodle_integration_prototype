@@ -1,0 +1,97 @@
+{
+  "id": "canvas",
+  "source": "LA-ADR-01 §D3 channel capability table + §D6 + §D11; LA-ADR-02 §D3/§D7; LA-ADR-05 §D1..D7; LA-ADR-07 §D3; LA-ADR-08 §D4; ADR-011 §5–§6; LA-IC-01; LA-IC-14; TEST-STRATEGY.md §2.4–§2.6",
+  "simProvider": "canvas-sim-cloud",
+  "simProfile": "canvas-sim-cloud",
+  "capabilities": {
+    "binding.authority": { "manual": "operatorGrant", "dynamic": "operatorGrant" },
+    "content.multiple": false,
+    "content.ungraded": false,
+    "deployments.multiple": true,
+    "export.packages": [],
+    "launch.topLevelContinue": true,
+    "launch.windowHint": true,
+    "platform.sharing": "exclusive",
+    "publish.createCourse": false,
+    "records.readBack": true,
+    "records.reporters": ["lti-ags"],
+    "registration.dynamic": true,
+    "registration.scopes": [
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+    ],
+    "setup.artifacts": ["developer-key-json"],
+    "setup.connectionCheck": true,
+    "site.serviceOrigin": true,
+    "siteApi.token": false
+  },
+  "coveredBy": {},
+  "notBuilt": {
+    "content.ungraded": "LA-ADR-05 §D5 / LA-E3-08 (waiting for LA-H22; TEST-STRATEGY.md §9.2 item 11)"
+  },
+  "expect": {
+    "legacyFlags": {
+      "dynamicRegistration": true,
+      "operatorApproval": true,
+      "webServices": false,
+      "courseShell": false,
+      "addDeployment": true,
+      "canvasConfiguration": true
+    },
+    "toolConfigurationKeys": [
+      "key_name",
+      "redirect_uris",
+      "method",
+      "lti_json"
+    ]
+  },
+  "sim": {
+    "siteUrl": "https://canvas.school-a.sim.test",
+    "serviceUrl": "https://school-a.canvas.sim.test",
+    "siteHost": "school-a.canvas.sim.test",
+    "pageHost": "canvas.school-a.sim.test",
+    "issuer": "https://canvas.sim.test",
+    "family": "canvas",
+    "deployments": ["dep-canvas-kit-1", "dep-canvas-kit-2"],
+    "authEndpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+    "tokenEndpoint": "https://school-a.canvas.sim.test/login/oauth2/token",
+    "jwksUrl": "https://sso.canvas.sim.test/api/lti/security/jwks",
+    "tokenAudience": "https://school-a.canvas.sim.test/login/oauth2/token",
+    "tokenAudienceKind": "string",
+    "dlDataMode": "query",
+    "dlRequiresSub": false,
+    "privacyFloor": "allowlist",
+    "supportsCustomClaims": true,
+    "supportsDynamicRegistrationOnSim": true,
+    "supportsStagedRegistrationOnSim": true
+  },
+  "sources": {
+    "id": "LA-ADR-01 §D3 table (column canvas)",
+    "simProvider": "ADR-011 §5 + tests/sim/README.md (canvas-sim-cloud)",
+    "simProfile": "ADR-011 §5 + LA-IC-01 (profile canvas-sim-cloud)",
+    "capabilities.binding.authority": "LA-ADR-01 §D3 table + LA-ADR-05 §D1 (manual: operatorGrant, dynamic: operatorGrant)",
+    "capabilities.content.multiple": "LA-ADR-01 §D3 table + LA-ADR-05 §D3 (false)",
+    "capabilities.content.ungraded": "LA-ADR-01 §D3 table + LA-ADR-05 §D5 (false; notBuilt until LA-E3-08)",
+    "capabilities.deployments.multiple": "LA-ADR-01 §D3 table (true)",
+    "capabilities.export.packages": "LA-ADR-01 §D3 table ([])",
+    "capabilities.launch.topLevelContinue": "LA-ADR-01 §D3 table (true)",
+    "capabilities.launch.windowHint": "LA-ADR-01 §D3 table (true)",
+    "capabilities.platform.sharing": "LA-ADR-01 §D3 table (exclusive)",
+    "capabilities.publish.createCourse": "LA-ADR-01 §D3 table (false)",
+    "capabilities.records.readBack": "LA-ADR-01 §D3 table (true)",
+    "capabilities.records.reporters": "LA-ADR-01 §D3 table ([\"lti-ags\"])",
+    "capabilities.registration.dynamic": "LA-ADR-01 §D3 table + LA-ADR-05 §D1 + LA-IC-14 (true)",
+    "capabilities.registration.scopes": "LA-ADR-01 §D3 table + LA-ADR-05 §D4 (4 AGS scopes, no NRPS scope)",
+    "capabilities.setup.artifacts": "LA-ADR-01 §D3 table ([\"developer-key-json\"])",
+    "capabilities.setup.connectionCheck": "LA-ADR-08 §D4 + cogniate-app-api-delta.md §3.7 (true)",
+    "capabilities.site.serviceOrigin": "LA-ADR-01 §D3 table (true)",
+    "capabilities.siteApi.token": "LA-ADR-01 §D3 table (false)",
+    "coveredBy": "TEST-STRATEGY.md §2.5 (empty; all positive capabilities run on canvas-sim-cloud)",
+    "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
+    "expect.legacyFlags": "LA-ADR-01 §D11 + LA-IC-14 (dynamicRegistration: true after LA-E3-09)",
+    "expect.toolConfigurationKeys": "ADR-011 §6 + cogniate-app-api.md §4.5 + LA-IC-01",
+    "sim": "ADR-011 §5 + LA-ADR-05 §D1 + LA-ADR-07 §D3 + tests/sim/README.md"
+  }
+}
