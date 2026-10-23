@@ -2,7 +2,22 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 02:54 UTC
+## Current checkpoint — 2026-10-23, 03:25 UTC
+
+M1 Round 1 is running under grant `msg_01cc4a7ce777` on the approved C6/C9 inputs.
+It started at 03:12:17 UTC. QA reports healthy containers and progressing acceptance tests; no final result is claimed.
+LA confirmed its stack is down and reserved 03:07–04:22 UTC for serial LTI runtime in `msg_8c651b7c1586`.
+Round 2, M2 and T7 each still need their own grant and the preceding run's accepted closure.
+
+The private monitor repair passed 39 mock checks across 54 scenarios. The focused Claude review has no code BLOCKER or MAJOR so far; its final invocation review is pending.
+The frozen M2 v5 script uses a fresh `qa-e2e-sim-r7` namespace and a grant-bound preceding W4. T7 uses its frozen v2 script.
+M2 attempt 3 remains NOT ACCEPTED. Product C6 and tests C8/C9 are unchanged.
+
+Remaining sequence: finish both 394-row M1 rounds and independent equality judgment; run repaired-monitor M2 and T7; final conformance; guide evidence updates, Docs QA and two final reviews.
+The 04:22 UTC boundary is the host reservation, not a project completion promise. Final documents and reviews follow runtime.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:54 UTC
 
 Both independent Claude reviews approve C9 and v5 (`e81fb2b`, `4b571d9`). E-R7 at `65f812a` selects two fresh 394-row M1 rounds and 94 carried C4 rows.
 Common Gemini prepares those runs. Independent Gemini repairs the separate M2/T7 lane monitor in a fresh tool directory under Claude's §13 plan at `5c8f2dc`.
