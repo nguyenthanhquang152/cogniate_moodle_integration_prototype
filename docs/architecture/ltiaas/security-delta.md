@@ -50,7 +50,7 @@ New rows:
 | Response | `Content-Security-Policy` (main parts) | `Referrer-Policy` | Priority |
 | --- | --- | --- | --- |
 | LTI service login page (platform storage) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'` | `no-referrer` | Must |
-| LTI service storage-check page | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self'; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
+| LTI service storage-check page (`<T>` = the origin of the account's tool URL that the check redirects to: `launchUrl` or `deepLinkingUrl`; one origin, per request; BD-A2-103) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self' <T>; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
 | `POST /tool/picker/{id}/cancel` auto-submit | as `POST /tool/picker/{id}` auto-submit | `same-origin` | Must |
 | `PLACEMENT_NOT_GRADED` page (status `403`, also on the picker POST; BD-A2-87) | as the other `/tool/*` error pages | `same-origin` | Must |
 | Admin code page (Could) | as `GET /tool/picker/{id}`, with `form-action 'none'` | `same-origin` | Could |
