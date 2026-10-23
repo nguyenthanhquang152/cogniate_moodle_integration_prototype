@@ -20,11 +20,13 @@ const baselineCopy = () => structuredClone(baseline);
 const manifestOf = (entry: LoadedChannel) => entry.manifest as ChannelManifest;
 const standardEntry = (entries: LoadedChannel[]) => entries.find((entry) => manifestOf(entry).registration.some((method) => method.profiles.includes('standard')))!;
 const firstProfile = (entry: LoadedChannel) => entry.ltiProfiles![0] as Record<string, unknown>;
+const E2_TRAITS = ['issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'];
 
 function extraChannel(id: string): LoadedChannel {
   const entry = standardEntry(baselineCopy());
   const profile = { ...firstProfile(entry), id: `${id}-platform`, privacyFloor: 'allowlist', listOrder: 100 };
-  delete (profile as Record<string, unknown>).wireLms;
+  // A new channel: no frozen wire value, and the registry defaults for the E2 traits of the Moodle copy.
+  for (const field of ['wireLms', ...E2_TRAITS]) delete (profile as Record<string, unknown>)[field];
   return {
     folder: `/unit/${id}`,
     manifest: {

@@ -1,6 +1,6 @@
 // Platform URL rules (security §2.4), one pure function for the platforms API (T2a) and dynamic registration (T3b),
 // and the M1 profile rules of the platform and deployment endpoints (LTI contract §9.4 to §9.6, §9.15).
-import { checkSiteUrl } from '@cogniate/shared';
+import { checkSiteUrl, hostOf } from '@cogniate/shared';
 import type { SiteRuleInput } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 
@@ -32,6 +32,54 @@ export function checkPlatformUrls(p: PlatformUrls, fields: Record<keyof Platform
   const origin = new URL(p.url).origin;
   for (const key of ['authenticationEndpoint', 'accesstokenEndpoint', 'jwksUrl'] as const) {
     if (new URL(p[key]).origin !== origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${fields[key]} is not on the issuer origin.`);
+  }
+}
+
+/** The hosts and origins that the `any-https` rules refuse (contract delta §4.6.1). */
+export interface AnyHttpsRules {
+  /** Site rule 3: the hosts of the own public URLs. */
+  ownHosts: readonly string[];
+  /** The fixed hosts and fixed-issuer hosts of every loaded profile, any port (A-LAD-01). */
+  reservedHosts: readonly string[];
+  /** The reserved issuer origins (LTI contract §9.1). */
+  reservedIssuerOrigins: readonly string[];
+}
+
+const ENDPOINTS = ['authenticationEndpoint', 'accesstokenEndpoint', 'jwksUrl'] as const;
+
+/**
+ * Contract delta §4.6.1 for a profile with `endpointOrigins: any-https` (LA-ADR-02 D2, D2a), in the rule order of
+ * rule 5: rule 2 (endpoints), rule 3 (reserved issuer), rule 1 (issuer), rule 7 (I-SELF). The issuer may have a path.
+ * A staged create (inactive, with a bindingRef) may have endpoints and an assertion audience off the issuer origin.
+ * No URL is fetched here; later calls use the guarded client (rule 4).
+ */
+export function checkAnyHttpsPlatform(p: PlatformUrls & { clientAssertionAud?: string | undefined }, staged: boolean, rules: AnyHttpsRules,
+  fields: Record<keyof PlatformUrls, string>): void {
+  const reserved = rules.reservedHosts.map((h) => h.toLowerCase());
+  // Rule 2: each endpoint is https; its host passes site rules 2 and 3 and is not a reserved host.
+  for (const key of ENDPOINTS) {
+    if (!isHttpsUrl(p[key])) throw new ApiError('INVALID_REQUEST', `Invalid field: ${fields[key]} must be an https URL.`);
+    const site = checkSiteUrl(new URL(p[key]).origin, { ownHosts: rules.ownHosts, profileFixedHosts: [] });
+    if (!site.ok) throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${fields[key]} breaks rule ${site.rule} of the site rules.`);
+    if (reserved.includes(hostOf(p[key])!)) throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${fields[key]} is on a reserved host of a hosted LMS profile.`);
+  }
+  // Rule 3: the issuer origin is not a reserved issuer origin. A value that does not parse fails rule 1 next.
+  let issuer: URL | null = null;
+  try { issuer = new URL(p.url); } catch { /* rule 1 */ }
+  if (issuer && rules.reservedIssuerOrigins.includes(issuer.origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+  // Rule 1: https, no user info, no query, no fragment; a path is allowed. The origin passes site rules 1 to 3 and is
+  // not a fixed host of any loaded profile (rule 4 of the shared function).
+  const form = issuer !== null && issuer.protocol === 'https:' && issuer.username === '' && issuer.password === '' && !/[?#\\]/.test(p.url);
+  const site = form ? checkSiteUrl(issuer!.origin, { ownHosts: rules.ownHosts, profileFixedHosts: rules.reservedHosts }) : { ok: false as const, rule: 1 as const };
+  if (!site.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: ${fields.url} breaks rule ${site.rule} of the site rules.`, { details: { rule: site.rule, field: fields.url } });
+  // Rule 7 (I-SELF): an active platform keeps every endpoint and the assertion audience on the issuer origin.
+  if (staged) return;
+  const hint = 'A value off the issuer origin needs a staged create (active false, with a bindingRef).';
+  for (const key of ENDPOINTS) {
+    if (new URL(p[key]).origin !== issuer!.origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${fields[key]} is not on the issuer origin. ${hint}`);
+  }
+  if (p.clientAssertionAud !== undefined && p.clientAssertionAud !== p.accesstokenEndpoint) {
+    throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `clientAssertionAud is not the accesstokenEndpoint on the issuer origin. ${hint}`);
   }
 }
 
