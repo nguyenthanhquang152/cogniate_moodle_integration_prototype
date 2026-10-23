@@ -2,14 +2,17 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
+  selectProtocolControlFixture,
 } from '../lib/fixtures.js';
 import {
+  admin,
   ChannelBinding,
   commitGrade,
   endConnection,
   ensureKitRunInitialized,
   expectStatus,
   fetchSetupArtifactConfig,
+  host,
   idToken,
   launchOnChannel,
   openPlayOnChannel,
@@ -58,7 +61,8 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
 
       it(`${fixture.id}:K1-NRPS:N1 — No token request asks for NRPS scope; setup artifact JSON scopes and DR request scopes have the 4 AGS scopes only`, async () => {
         await runKitCase(fixture.id, 'K1-NRPS', 'N1', async () => {
-          // 1. Trigger a normal learner play + grade sync and verify zero token requests ask for NRPS scope
+          // 1. Trigger a normal learner play + grade sync with cold token cache and verify zero token requests ask for NRPS scope
+          expect((await host('m1-restart', { service: 'lti-service' })).code).toBe(0);
           const cursor = (await records()).cursor;
           const play = await openPlayOnChannel(binding, pub, {
             roles: [ROLE_LEARNER],
@@ -73,7 +77,13 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           );
           expect(tokenRecs.length).toBeGreaterThanOrEqual(1);
           for (const tr of tokenRecs) {
-            expect(String(tr.scope ?? '')).not.toContain(NRPS_SCOPE);
+            const scopes = Array.isArray(tr.scopes)
+              ? (tr.scopes as string[])
+              : String(tr.scope ?? '')
+                  .trim()
+                  .split(/\s+/)
+                  .filter(Boolean);
+            expect(scopes).not.toContain(NRPS_SCOPE);
           }
 
           // 2. Fixture registration.scopes has the 4 AGS scopes only and never NRPS
@@ -98,7 +108,7 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
 
           // 4. Dynamic Registration client registration request (when registration.dynamic is true) requests only the 4 AGS scopes
           if (fixture.capabilities['registration.dynamic']) {
-            const s = await session(uniqueId(`lib-n1-dr-${fixture.id}`));
+            const s = await session('A');
             const drCursor = (await records()).cursor;
             const dr = await runDynamicRegistrationHandshake(s, fixture);
             try {
@@ -106,15 +116,24 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
               expect(dr.response.status).toBe(200);
               const drRecs = await records(drCursor);
               const regReq = drRecs.records.find(
-                (r: Record<string, unknown>) => r.kind === 'dynamic-registration',
+                (r: Record<string, unknown>) =>
+                  r.kind === 'registration' || r.kind === 'dynamic-registration',
               );
               expect(regReq).toBeDefined();
-              const requestedScope = String(
-                (regReq!.body as Record<string, unknown> | undefined)?.scope ?? '',
-              );
-              expect(requestedScope).not.toContain(NRPS_SCOPE);
+              const requestedScopes = Array.isArray(regReq!.scopes)
+                ? (regReq!.scopes as string[])
+                : String(
+                    regReq!.scope ??
+                      (regReq!.body as Record<string, unknown> | undefined)
+                        ?.scope ??
+                      '',
+                  )
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean);
+              expect(requestedScopes).not.toContain(NRPS_SCOPE);
               for (const agsScope of fixture.capabilities['registration.scopes']) {
-                expect(requestedScope).toContain(agsScope);
+                expect(requestedScopes).toContain(agsScope);
               }
             } finally {
               await endConnection(s, dr.connection.id);
@@ -126,14 +145,13 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
   }
 
   describe('GLOBAL:K1-NRPS:N2 — GET /api/memberships answers for NRPS launch without personal fields, refuses 1.0, and propagates 429 Retry-After', () => {
-    const genericFixture =
-      allFixtures.find((f) => f.simProfile === 'lti-1p3-standard') ?? allFixtures[0];
+    const genericFixture = selectProtocolControlFixture(allFixtures);
     let nrpsBinding: ChannelBinding;
     let nrpsPub: PublicationRef;
 
     beforeAll(async () => {
       nrpsBinding = await setupChannelBinding(genericFixture, {
-        library: uniqueId('lib-global-nrps'),
+        library: 'A',
       });
       nrpsPub = await publication(nrpsBinding, 'scorm12');
     });
@@ -148,11 +166,19 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
       await runKitCase('GLOBAL', 'K1-NRPS', 'N2', async () => {
         const nrpsUrl = `${genericFixture.sim.serviceUrl}/nrps/memberships/ctx-1`;
 
-        // 1. Launch with NRPS 2.0 claim -> GET /api/memberships returns members without personal fields (lti-service-api-delta.md §4, §8)
+        // Enable NRPS scope on the protocol-control platform for the N2 service-layer test
+        await admin('PATCH', `/api/platforms/${nrpsBinding.platformId}`, {
+          scopes: [
+            ...genericFixture.capabilities['registration.scopes'],
+            NRPS_SCOPE,
+          ],
+        });
+
+        // 1. Launch with NRPS 2.0 claim -> GET /api/memberships returns members without personal fields (lti-service-api.md §3.3; lti-service-api-delta.md §4.4)
         const launched = await launchOnChannel(nrpsBinding, {
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
-          extraClaims: {
+          claims: {
             [NRPS_CLAIM]: {
               context_memberships_url: nrpsUrl,
               service_versions: ['2.0'],
@@ -162,7 +188,9 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
         expect(launched.response.status).toBe(303);
         const tok = await idToken(launched.ltik!);
         expectStatus(tok, 200);
-        const nrpsKey = tok.json.services?.nrps?.serviceKey as string;
+        expect(tok.json.services?.namesAndRoles?.available).toBe(true);
+        const nrpsKey = (tok.json.services?.serviceKey ??
+          tok.json.services?.nrps?.serviceKey) as string;
         expect(nrpsKey).toBeTruthy();
 
         const memRes = await service(nrpsKey, 'GET', '/api/memberships');
@@ -178,11 +206,11 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           expect(m.familyName).toBeUndefined();
         }
 
-        // 2. Launch with service_versions: ['1.0'] only -> refuses or omits NRPS serviceKey
+        // 2. Launch with service_versions: ['1.0'] only -> refuses or marks namesAndRoles unavailable
         const launched10 = await launchOnChannel(nrpsBinding, {
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
-          extraClaims: {
+          claims: {
             [NRPS_CLAIM]: {
               context_memberships_url: nrpsUrl,
               service_versions: ['1.0'],
@@ -192,15 +220,14 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
         expect(launched10.response.status).toBe(303);
         const tok10 = await idToken(launched10.ltik!);
         expectStatus(tok10, 200);
-        if (tok10.json.services?.nrps?.serviceKey) {
-          const res10 = await service(
-            tok10.json.services.nrps.serviceKey,
-            'GET',
-            '/api/memberships',
-          );
+        const key10 =
+          tok10.json.services?.serviceKey ??
+          tok10.json.services?.nrps?.serviceKey;
+        if (key10) {
+          const res10 = await service(key10, 'GET', '/api/memberships');
           expect(res10.status).toBeGreaterThanOrEqual(400);
         } else {
-          expect(tok10.json.services?.nrps?.serviceKey).toBeUndefined();
+          expect(tok10.json.services?.namesAndRoles?.available).toBe(false);
         }
 
         // 3. Upstream 429 with Retry-After is propagated by GET /api/memberships
@@ -208,7 +235,7 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
           nrpsAnswers: [{ status: 429, retryAfter: 45 }],
-          extraClaims: {
+          claims: {
             [NRPS_CLAIM]: {
               context_memberships_url: nrpsUrl,
               service_versions: ['2.0'],
@@ -218,12 +245,14 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
         expect(launched429.response.status).toBe(303);
         const tok429 = await idToken(launched429.ltik!);
         expectStatus(tok429, 200);
-        const nrpsKey429 = tok429.json.services?.nrps?.serviceKey as string;
+        const nrpsKey429 = (tok429.json.services?.serviceKey ??
+          tok429.json.services?.nrps?.serviceKey) as string;
         const res429 = await service(nrpsKey429, 'GET', '/api/memberships');
         expect(res429.status).toBe(429);
         expect(
           String(
             res429.headers['retry-after'] ??
+              res429.json?.details?.retryAfter ??
               res429.json?.error?.details?.retryAfter ??
               '',
           ),

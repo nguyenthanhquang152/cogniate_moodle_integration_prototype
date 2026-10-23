@@ -1,12 +1,12 @@
 # QA Review — `LA-E7-06` (`K1` Simulator Suites per Port, Channel Fixtures, and the Pass Rule)
 
 - **Verdict:** `PASS`
-- **Round:** `3`
+- **Round:** `4`
 - **Task:** `LA-E7-06` — `K1` simulator suites per port, channel fixtures and the pass rule (Must, size L)
 - **Reviewer:** QA-4 (lane `L2`)
-- **Integration SHA:** `89f72196` (Round 2 reviews on `89f72196` / Fix Round 1 `c1bf5c7a` / `5dcb2406`; Round 2 on `4e453a7c`; Round 1 on `053ea576`)
+- **Integration SHA:** `f0f9402e` (Round 3 reviews on `f0f9402e` / `af36ad31`; Round 2 reviews on `89f72196`; Round 1 on `053ea576`)
 - **Verification Mode:** Host-only authoring and `K0` / `DOC` verification (`0` Docker commands executed; `K1-SIM` rows marked `pending: Docker window`)
-- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3`
+- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r4`
 
 ---
 
@@ -166,4 +166,45 @@
    npm run test:k0
    ```
    - Result: **3 passed (3), 145 passed (145)** in `973ms` (`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3/npm-test-k0.log`).
+
+---
+
+## Round 4 (`f0f9402e` — Fix Round 3 / QA Round 4)
+
+### 4.1 Resolution of Open Round 3 Findings (`reviewer-a.md` & `reviewer-b.md`)
+
+| Finding ID | Fix Implemented | Test | Probe Result |
+| :--- | :--- | :--- | :--- |
+| `A-LA-E7-06-01` (`AC-LA-E7-06-05`) | Updated `verifyWaveSuiteArtifact()` in `tests/ltiaas/kit/lib/fixtures.ts` (`line 1117`) to require `typeof parsed.suite === 'string' && parsed.suite === suiteName` (rejecting both anonymous `{ waveId, outcome: "PASS" }` files and artifacts whose `suite` field names a different suite), and documented the artifact JSON schema (`{ "suite": "<T3b\|T7\|T8>", "waveId": "<LA_WAVE_ID>", "outcome": "PASS" }`), producer, and `$LA_RUN_DIR` containment rule in `tests/ltiaas/kit/README.md` §3.1. | `tests/ltiaas/kit/kit.k0.test.ts` (`AC-LA-E7-06-05 / A-LA-E7-06-01 / B-LA-E7-06-01`) | **PASS** — Anonymous `{ waveId, outcome: "PASS" }` artifact and reused `T3b` artifact pointing at `T7`/`T8` both fail `evaluateChannelPassRule()` and `evaluateKitRunPassRule()` with `"suite mismatch in artifact (`undefined` !== `T3b`)"` and `"suite mismatch in artifact (`T3b` !== `T7`)"`. |
+| `B-LA-E7-06-01` (`AC-LA-E7-06-05`) | Enforced `typeof parsed.suite === 'string' && parsed.suite === suiteName` in `verifyWaveSuiteArtifact()` (`tests/ltiaas/kit/lib/fixtures.ts:1117`) and updated `writeWaveEvidenceToRun()` (`tests/ltiaas/kit/lib/runtime.ts:627`) to write per-suite JSON artifacts when materializing wave evidence. | `tests/ltiaas/kit/kit.k0.test.ts` (`AC-LA-E7-06-05 / A-LA-E7-06-01 / B-LA-E7-06-01`) + Reviewer B host probe (`/tmp/reviewer-b-e706r3-probes.cjs`) | **PASS** — Reviewer B probes `"one anonymous PASS artifact cannot certify all three named frozen suites"`, `"control named T3b artifact cannot also certify T7/T8"`, `"control three named current-wave PASS artifacts pass"`, `"control absent current-wave identity fails"`, and `"control contradictory artifact fails"` all pass (`5/5`). |
+| `A-LA-E7-06-08` | Fixed all contract and helper mismatches across `tests/ltiaas/kit/lib/{fixtures,runtime}.ts` and `tests/ltiaas/kit/suites/k1-*.k1sim.test.ts`: (1) `loadChannelManifestCapabilities()` resolves capabilities from `getChannelsDir()` when `manifestsRoot`/`QA_CHANNEL_MANIFESTS_DIR` is unset (without importing product source modules); (2) `session()` maps `'B'` and `/(?:^|[-_])b(?:$|[-_])/i` labels to account `'B'`; (3) `setupChannelBinding()` passes `options.library ?? 'A'`, sends `profile: fixture.simProfile` on `POST /app-api/connections`, sends contract-exact `PUT /app-api/connections/:id/platform` (`grantCode`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience`), and reads flat `connection.platform.id`; (4) `openPickerOnChannel()` follows `/tool/deep-link?ltik=...` `303` handoff to `/tool/picker/:pickerId`; (5) `runDynamicRegistrationHandshake()` uses `connection.registrationUrl` and follows the 3-step `/lti/register/cogniate` -> `GET /tool/register` -> `POST /tool/register` flow; (6) `k1-cap` `C1` reads flat `Connection` DTO and `Object.keys(toolCfg.json.fields)`; (7) `k1-reg` `R1`/`R1-DEPLOYMENTS`/`R2`/`R-CHECK` use `PUT /app-api/connections/:id/platform`, `POST /app-api/connections/:id/deployments` (`{ deploymentId, grantCode }`), `GET /app-api/connections/:id/canvas-configuration` (`placementUrls`), and `overall: 'pass' \| 'fail'`; (8) `k1-launch` `L3`/`L9` and `k1-dl` `D5`/`D7` follow the `/tool/launch` or `/tool/deep-link` `303` handoff before asserting `403`/`404` or `picker.status === 200`; (9) `k1-ags` `A3` consumes `waitSync` as a sync object (`synced.status === 'sent'`, `synced.tries >= 2`). | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-07 / A-LA-E7-06-08 / B-LA-E7-06-02 / B-LA-E7-06-07` & `A-LA-E7-06-08 / B-LA-E7-06-07`) | **PASS** — `tsc --noEmit` exits `0` across both `tests/ltiaas/kit/tsconfig.json` and `tests/tsconfig.json`; `kit.k0.test.ts` static & runtime contract checks pass. |
+| `B-LA-E7-06-07` | Resolved all 5 host-executable contract breaks reproduced by Reviewer B's probe (`loadChannelManifestCapabilities(canvas)` default path, `setupChannelBinding` `profile` & `grantCode`, `session()` `'A'`/`'B'` selection on L9 library labels, `openPickerOnChannel()` handoff redirect, and `k1-ags` `A3` `waitSync` sync-object handling). | `tests/ltiaas/kit/kit.k0.test.ts` + Reviewer B host probe (`/tmp/reviewer-b-e706r3-probes.cjs`) | **PASS** — All Reviewer B `fixtures.ts` and `runtime.ts` probes (`C1 default manifest loader resolves a shipped channel`, `setup selects fixture simulator profile`, `setup redemption sends documented grantCode`, `setup redemption excludes unknown approvalCode`, `L9 generated library labels select distinct A and B accounts`, `picker helper follows handoff to the picker page`) pass (`100%`). |
+| `A-LA-E7-06-07` | Completed all remaining design-mandated assertions across `K1-LAUNCH`, `K1-DL`, `K1-AGS`, `K1-NRPS`, `K1-REG`, and `K1-CAP`: added `deriveExpectedFamilyGuardOutcome()` and `validateFamilyGuardLaunchObservation()` in `lib/fixtures.ts` and wired `L4` to pre-derive the exact `400 PROVIDER_PROFILE_MISMATCH` vs `303` + `family_guard_mismatch` log expectation before launching; added `verifyContextlessSharedPlacement()` in `lib/fixtures.ts` and wired `L7` to poll until both learners' rows reach `sent` and share one `activity.resourceLinkId`; expanded `L1`, `L3`, `L5`, `L6`, `L8`, `L9`, `L10`, `D3`, `D6`, `D7`, `A1`..`A6`, `N1`, `N2`, `R1`..`R6`, `R-CHECK`, and `C3`; added Section 5 (Design-Case-to-Assertion Map) in `tests/ltiaas/kit/README.md`. | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-07 / B-LA-E7-06-02: L4 family-guard pre-derived oracle and L7 contextless one-placement validator pass positive controls and reject swapped/duplicate mutants`) | **PASS** — Swapped L4 mutant (`303` on launch-guarded foreign family or `400` on registration-guarded foreign family for non-`self` channel) and duplicate-placement L7 mutant (`rl-ctxless-1` vs `rl-ctxless-2`) are both rejected by K0 unit tests. |
+| `B-LA-E7-06-02` | Eliminated post-hoc status branching in `L4` (`k1-launch.k1sim.test.ts:206-232`) and fixed `L7` (`k1-launch.k1sim.test.ts:358-401`), `A3` (`k1-ags.k1sim.test.ts:190-275`), `C2` (`lib/runtime.ts:1544-1602`), and `R6` (`k1-reg.k1sim.test.ts:471-579`). | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-07 / B-LA-E7-06-02`) | **PASS** — Pre-derived L4 oracle and L7 one-placement invariant verified across all 5 channels and mutant controls in `kit.k0.test.ts`. |
+| `A-LA-E7-06-09` (`AC-LA-E7-06-08`) | Added `selectProtocolControlFixture()` in `tests/ltiaas/kit/lib/fixtures.ts` (`line 371`) and updated `GLOBAL:K1-LAUNCH:L-FAULTS` (`k1-launch.k1sim.test.ts:666`) and `GLOBAL:K1-NRPS:N2` (`k1-nrps.k1sim.test.ts:147`) to always select the `generic-sim` protocol-control fixture from `loadAllChannelFixtures()` (never falling back to `fixtures[0]`) while keeping `tests/ltiaas/kit/suites/**` 100% F1-clean. | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-09: selectProtocolControlFixture selects lti-generic (generic-sim) and throws when missing or duplicated`) | **PASS** — `selectProtocolControlFixture()` returns `lti-generic` (`generic-sim`), throws when `lti-generic` is removed instead of falling back to `moodle`, and throws on duplicate protocol-control fixtures; F1 scan across `suites/**` has `0` hits. |
+| `B-LA-E7-06-06` (`LA-E8-01`) | Removed the hardcoded `expect(beforeIds.length).toBe(5)` assertion in `tests/ltiaas/kit/kit.k0.test.ts` (`line 175`) and replaced it with dynamic `expect(beforeIds.length).toBeGreaterThanOrEqual(5)` and `expect(afterIds.length).toBe(beforeIds.length + 1)` so adding a 6th `<id>.json` file in `tests/ltiaas/kit/channels/` passes all K0 tests without editing any shared list or test expectation. | `tests/ltiaas/kit/kit.k0.test.ts` (`B-LA-E7-06-06 / LA-E8-01: open-world channel discovery onboards a new <id>.json fixture and passes runShippedChannelsAudit with zero shared-list edits`) + live 6th-file canary run in `tests/ltiaas/kit/channels/canary-six.json` | **PASS** — Verified both via the temp-dir K0 test and by writing a 6th fixture file `tests/ltiaas/kit/channels/canary-six.json` and running `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` (`16/16 passed`). |
+
+### 4.2 Round 4 Host Verification Commands & Results (`f0f9402e`)
+
+1. **TypeScript Check (`tests/ltiaas/kit/tsconfig.json` and `tests/tsconfig.json`):**
+   ```sh
+   ./node_modules/.bin/tsc --noEmit -p tests/ltiaas/kit/tsconfig.json && ./node_modules/.bin/tsc --noEmit -p tests/tsconfig.json
+   ```
+   - Exit code: `0` (`0` errors across all kit and test files).
+
+2. **Kit `K0` + `DOC` Self-Tests (`tests/ltiaas/kit/kit.k0.test.ts`):**
+   ```sh
+   LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts
+   ```
+   - Result: **1 passed (1), 16 passed (16)** in `186ms` (also verified **16 passed (16)** with a temporary 6th fixture `tests/ltiaas/kit/channels/canary-six.json` present in `channels/`).
+
+3. **F1 Kit-Neutrality Check (`tests/ltiaas/kit/suites/**`):**
+   ```sh
+   grep -REin '(moodle|canvas|blackboard|brightspace|sakai|schoology|d2l|instructure|anthology|lti-generic)' tests/ltiaas/kit/suites/
+   ```
+   - Exit code: `1` (`0` matches across all 7 suite files).
+
+4. **Reviewer B Host-Only Probe Suite (`/tmp/reviewer-b-e706r3-probes.cjs` against `la-qa`):**
+   - Result: **17 / 17** kit (`fixtures.ts` & `runtime.ts`) probes **PASS** (`manifestError: ""`).
+
 

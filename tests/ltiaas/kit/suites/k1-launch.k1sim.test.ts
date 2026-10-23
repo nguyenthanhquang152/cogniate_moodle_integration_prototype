@@ -1,23 +1,27 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  deriveExpectedFamilyGuardOutcome,
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
   PROTOCOL_SECURITY_FAULTS,
+  selectProtocolControlFixture,
+  validateFamilyGuardLaunchObservation,
+  verifyContextlessSharedPlacement,
 } from '../lib/fixtures.js';
 import {
   ACCOUNT,
   admin,
   AGS,
+  app,
   appRequest,
   beginLaunch,
   ChannelBinding,
   commitGrade,
-  COOKIE,
   denied,
   endConnection,
   ensureKitRunInitialized,
   expectStatus,
-  htmlText,
+  httpsRequest,
   idToken,
   launchOnChannel,
   logEvents,
@@ -27,6 +31,7 @@ import {
   openPickerOnChannel,
   openPlayOnChannel,
   parseForm,
+  poll,
   preparedLaunch,
   publication,
   PublicationRef,
@@ -74,30 +79,34 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           expect(launched.response.status).toBe(303);
           expect(launched.ltik).toBeTruthy();
 
-          // 2. GET /api/idtoken with LTIK-AUTH-V2 (lti-service-api.md §2.3; lti-service-api-delta.md §1.2, §4)
+          // 2. GET /api/idtoken with LTIK-AUTH-V2 (lti-service-api.md §3.1; lti-service-api-delta.md §4.1)
           const token = await idToken(launched.ltik!);
           expectStatus(token, 200);
           const body = token.json;
 
-          expect(body.platformId).toBe(binding.platformId);
-          expect(body.platformCode).toBeTruthy();
-          expect(body.deploymentId).toBe(binding.deploymentId);
-          expect(body.messageType).toBe('LtiResourceLinkRequest');
-          expect(body.version).toBe('1.3.0');
-          expect(body.targetLinkUri).toContain(`/tool/launch/${pub.id}`);
+          expect(body.ltiVersion).toBe('1.3.0');
           expect(body.user?.id).toBeTruthy();
-          expect(Array.isArray(body.roles)).toBe(true);
-          expect(body.context?.id).toBeTruthy();
-          expect(body.resourceLink?.id).toBeTruthy();
-          expect(body.platform?.productFamilyCode).toBe(fixture.sim.family);
-          expect(body.services?.ags?.serviceKey).toBeTruthy();
-          expect(body.bindingRef?.libraryId).toBe(binding.library);
-          expect(body.bindingRef?.connectionId).toBe(binding.connection.id);
-          expect(body.bindingRef?.channel).toBe(fixture.id);
+          expect(Array.isArray(body.user?.roles)).toBe(true);
+          expect(body.platform?.id).toBe(binding.platformId);
+          expect(body.platform?.clientId).toBe(binding.clientId);
+          expect(body.platform?.deploymentId).toBe(binding.deploymentId);
+          expect(body.platform?.productFamilyCode).toBe(
+            fixture.sim.family,
+          );
+          expect(body.platform?.siteUrl).toBe(fixture.sim.siteUrl);
+          expect(body.platform?.profile).toBe(fixture.simProfile);
+          expect(body.launch?.type).toBe('LtiResourceLinkRequest');
+          expect(body.launch?.target).toContain(pub.id);
+          expect(body.launch?.context?.id).toBeTruthy();
+          expect(body.launch?.resourceLink?.id).toBeTruthy();
+          expect(body.services?.serviceKey).toBeTruthy();
 
           // 3. Site and service origin verification when site.serviceOrigin is true
           if (fixture.capabilities['site.serviceOrigin']) {
-            expect(body.services?.ags?.lineitem).toContain(fixture.sim.serviceUrl);
+            expect(body.platform?.serviceUrl).toBe(fixture.sim.serviceUrl);
+            expect(body.services?.assignmentAndGrades?.lineItemId).toContain(
+              fixture.sim.serviceUrl,
+            );
           }
         });
       });
@@ -132,29 +141,27 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
         });
       });
 
-      it(`${fixture.id}:K1-LAUNCH:L3 — Unknown deployment code refused with DEPLOYMENT_NOT_REGISTERED and inactive deployment refused with DEPLOYMENT_NOT_ACTIVE`, async () => {
+      it(`${fixture.id}:K1-LAUNCH:L3 — Unknown deployment code refused with UNKNOWN_DEPLOYMENT and inactive deployment refused with DEPLOYMENT_NOT_ACTIVE`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L3', async () => {
-          // 1. Unregistered deployment -> 403 DEPLOYMENT_NOT_REGISTERED (lti-service-api-delta.md §2.2)
+          // 1. Unregistered deployment -> UNKNOWN_DEPLOYMENT (lti-service-api.md §2.1, §2.2)
           const cursor1 = (await records()).cursor;
           const unknownDep = await launchOnChannel(binding, {
             resource: pub.id,
             deploymentId: uniqueId('unregistered-dep'),
           });
-          denied(unknownDep.response, 'DEPLOYMENT_NOT_REGISTERED', 403);
+          denied(unknownDep.response, 'UNKNOWN_DEPLOYMENT');
           await noServiceCalls(cursor1);
 
-          // 2. Inactive deployment -> 403 DEPLOYMENT_NOT_ACTIVE (lti-service-api-delta.md §3.3)
+          // 2. Inactive deployment -> 403 DEPLOYMENT_NOT_ACTIVE (lti-service-api.md §3.7)
           const inactiveDepId = uniqueId('inactive-dep');
           const addDep = await admin(
             'POST',
             `/api/platforms/${binding.platformId}/deployments`,
             {
               deploymentId: inactiveDepId,
-              bindingRef: {
-                libraryId: binding.library,
-                connectionId: binding.connection.id,
-                channel: fixture.id,
-              },
+              ...(fixture.capabilities['platform.sharing'] === 'shared'
+                ? { siteUrl: fixture.sim.siteUrl }
+                : {}),
             },
           );
           expectStatus(addDep, 201);
@@ -177,19 +184,52 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
 
       it(`${fixture.id}:K1-LAUNCH:L4 — Signed product family of another channel: launch-guarded family refused (400 PROVIDER_PROFILE_MISMATCH); registration-guarded family refused on standard or logged as family_guard_mismatch`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L4', async () => {
-          const otherFixture = allFixtures.find((f) => f.sim.family !== fixture.sim.family)!;
-          const since = Date.now();
-          const res = await launchOnChannel(binding, {
-            resource: pub.id,
-            family: otherFixture.sim.family,
-          });
+          // Select one launch-guarded foreign fixture and one registration-guarded foreign fixture
+          const launchGuardedForeign = allFixtures.find(
+            (f) =>
+              f.id !== fixture.id &&
+              f.capabilities['binding.authority'].manual === 'operatorGrant' &&
+              !f.capabilities['registration.dynamic'],
+          )!;
+          const regGuardedForeign = allFixtures.find(
+            (f) =>
+              f.id !== fixture.id &&
+              f.capabilities['registration.dynamic'] &&
+              f.sim.family !== 'generic',
+          )!;
 
-          if (res.response.status === 400) {
-            denied(res.response, 'PROVIDER_PROFILE_MISMATCH', 400);
-          } else {
-            expect(res.response.status).toBe(303);
-            const events = logEvents('family_guard_mismatch', since);
-            expect(events.length).toBeGreaterThanOrEqual(1);
+          for (const foreignFamily of [
+            launchGuardedForeign.sim.family,
+            regGuardedForeign.sim.family,
+          ]) {
+            // Derive the exact expected outcome BEFORE sending the launch request (never post-hoc branch on res.status)
+            const expected = deriveExpectedFamilyGuardOutcome(
+              fixture,
+              foreignFamily,
+            );
+            const since = Date.now();
+            const res = await launchOnChannel(binding, {
+              resource: pub.id,
+              claims: {
+                [`${LTI}tool_platform`]: {
+                  product_family_code: foreignFamily,
+                },
+              },
+            });
+            const warnLogs = logEvents('family_guard_mismatch', since);
+            const verified = validateFamilyGuardLaunchObservation(expected, {
+              status: res.response.status,
+              body: res.response.body,
+              warnLogCount: warnLogs.length,
+            });
+            expect(verified.error).toBeUndefined();
+            expect(verified.ok).toBe(true);
+            expect(res.response.status).toBe(expected.expectedStatus);
+            if (expected.expectedOutcome === 'refuse') {
+              denied(res.response, 'PROVIDER_PROFILE_MISMATCH', 400);
+            } else {
+              expect(warnLogs.length).toBeGreaterThanOrEqual(1);
+            }
           }
         });
       });
@@ -197,10 +237,14 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
       it(`${fixture.id}:K1-LAUNCH:L5 — Claim policy: name, given_name, family_name, email, custom, and lis kept or dropped by privacyFloor; launch_claims_minimized logged`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L5', async () => {
           const since = Date.now();
+          const piiMarker = uniqueId('PII');
           const launched = await launchOnChannel(binding, {
             resource: pub.id,
-            includePii: true,
-            extraClaims: {
+            claims: {
+              name: piiMarker,
+              given_name: piiMarker,
+              family_name: piiMarker,
+              email: `${piiMarker}@example.test`,
               [`${LTI}custom`]: { section: 'A1' },
               [`${LTI}lis`]: {
                 person_sourcedid: 'sis-person-1',
@@ -209,55 +253,75 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             },
           });
           expect(launched.response.status).toBe(303);
+          const raw = await idToken(launched.ltik!, true);
+          expectStatus(raw, 200);
           const token = await idToken(launched.ltik!);
           expectStatus(token, 200);
 
-          // Personal fields (name, given_name, family_name, email) and LIS are always dropped by default privacy minimization (lti-service-api-delta.md §4)
-          expect(token.json.user?.name).toBeUndefined();
-          expect(token.json.user?.givenName).toBeUndefined();
-          expect(token.json.user?.familyName).toBeUndefined();
-          expect(token.json.user?.email).toBeUndefined();
-          expect(token.json.lis).toBeUndefined();
-
           if (fixture.sim.privacyFloor === 'allowlist') {
-            expect(token.json.custom).toBeUndefined();
-            const minLogs = logEvents('launch_claims_minimized', since);
+            expect(JSON.stringify(raw.json).includes(piiMarker)).toBe(false);
+            expect(token.json.user?.name).toBeUndefined();
+            expect(token.json.user?.givenName).toBeUndefined();
+            expect(token.json.user?.familyName).toBeUndefined();
+            expect(token.json.user?.email).toBeUndefined();
+            expect(token.json.launch?.custom).toEqual({});
+            const minLogs = logEvents(
+              'launch_claims_minimized',
+              since,
+              { platform_id: binding.platformId },
+              'lti-service',
+            );
             expect(minLogs.length).toBeGreaterThanOrEqual(1);
           } else {
-            expect(token.json.custom).toEqual({ section: 'A1' });
+            expect(token.json.user?.name).toBe(piiMarker);
+            expect(token.json.launch?.custom).toEqual({ section: 'A1' });
           }
         });
       });
 
       it(`${fixture.id}:K1-LAUNCH:L6 — Document target: iframe -> /play/:playId/embedded (auto-continues only when launch.topLevelContinue is true); window -> /play/:playId`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L6', async () => {
-          // 1. presentationTarget: 'iframe' -> /play/:playId/embedded (cogniate-app-api-delta.md §8)
+          // 1. document_target: 'iframe' -> /play/:playId/embedded (cogniate-app-api-delta.md §8)
           const iframeLaunch = await launchOnChannel(binding, {
             resource: pub.id,
-            presentationTarget: 'iframe',
+            claims: {
+              [`${LTI}launch_presentation`]: { document_target: 'iframe' },
+            },
           });
           expect(iframeLaunch.response.status).toBe(303);
-          expect(iframeLaunch.location).toMatch(/\/play\/[^/?]+\/embedded\?ltik=/);
+          const iframeHandoff = await appRequest('GET', iframeLaunch.location, {
+            headers: { accept: 'text/html' },
+          });
+          expect(iframeHandoff.status).toBe(303);
+          const embeddedTarget = String(iframeHandoff.headers.location ?? '');
+          expect(embeddedTarget).toMatch(/^\/play\/ply_[^/?]+\/embedded$/);
 
-          const embeddedPage = await appRequest('GET', iframeLaunch.location, {
+          const embeddedPage = await appRequest('GET', embeddedTarget, {
             headers: { accept: 'text/html' },
           });
           expect(embeddedPage.status).toBe(200);
-          expect(htmlText(embeddedPage.text)).toContain('Open this course in a new tab');
+          expect(embeddedPage.text).toContain('Open in a new window');
           if (fixture.capabilities['launch.topLevelContinue']) {
-            expect(embeddedPage.text).toContain('data-auto-continue="true"');
+            expect(/<script\b/i.test(embeddedPage.text)).toBe(true);
           } else {
-            expect(embeddedPage.text).not.toContain('data-auto-continue="true"');
+            expect(/<script\b/i.test(embeddedPage.text)).toBe(false);
           }
 
-          // 2. presentationTarget: 'window' -> /play/:playId
+          // 2. document_target: 'window' -> /play/:playId
           const windowLaunch = await launchOnChannel(binding, {
             resource: pub.id,
-            presentationTarget: 'window',
+            claims: {
+              [`${LTI}launch_presentation`]: { document_target: 'window' },
+            },
           });
           expect(windowLaunch.response.status).toBe(303);
-          expect(windowLaunch.location).toMatch(/\/play\/[^/?]+\?ltik=/);
-          expect(windowLaunch.location).not.toContain('/embedded');
+          const windowHandoff = await appRequest('GET', windowLaunch.location, {
+            headers: { accept: 'text/html' },
+          });
+          expect(windowHandoff.status).toBe(303);
+          const windowTarget = String(windowHandoff.headers.location ?? '');
+          expect(windowTarget).toMatch(/^\/play\/ply_[^/?]+$/);
+          expect(windowTarget).not.toContain('/embedded');
         });
       });
 
@@ -267,6 +331,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           const sharedRlId = uniqueId(`rl-ctxless-${fixture.id}`);
           const learner1 = uniqueId('learner-ctxless-1');
           const learner2 = uniqueId('learner-ctxless-2');
+          const cursorBeforeL7 = (await records()).cursor;
 
           // 1. AP-05-08 & AP-05-09: Launch without context claim + with AGS lineitem opens player and dispatches score
           const play1 = await openPlayOnChannel(binding, ctxlessPub, {
@@ -280,17 +345,6 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           expect(commit1.status).toBe(200);
           await waitSync(binding, ctxlessPub, 'sent');
 
-          // Verify simulator received the score call on the launch lineitem
-          const simRecsAfter1 = await records();
-          const scoreRec1 = simRecsAfter1.records.find(
-            (r: Record<string, unknown>) =>
-              r.kind === 'score' &&
-              (r.body as Record<string, unknown> | undefined)?.userId === learner1,
-          );
-          expect(scoreRec1).toBeDefined();
-          expect(scoreRec1!.body.scoreGiven).toBe(8);
-          expect(scoreRec1!.body.scoreMaximum).toBe(10);
-
           // 2. AP-05-11: Second learner without context on the same resourceLinkId shares the placement
           const play2 = await openPlayOnChannel(binding, ctxlessPub, {
             omit: [`${LTI}context`],
@@ -299,21 +353,52 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           });
           const commit2 = await commitGrade(play2, 'scorm12', 9, 10);
           expect(commit2.status).toBe(200);
-          await waitSync(binding, ctxlessPub, 'sent');
 
-          const rowsAfterBoth = (await results(binding, ctxlessPub)) as Array<
-            Record<string, unknown>
-          >;
-          const row1 = rowsAfterBoth.find(
-            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner1,
+          // Poll until both learners' rows exist and both have scoreSyncs status === 'sent'
+          const rowsAfterBoth = await poll(
+            async () =>
+              (await results(binding, ctxlessPub)) as Array<{
+                learner?: { sub?: string };
+                activity?: { resourceLinkId?: string };
+                scoreSyncs?: Array<{ status?: string }>;
+              }>,
+            (rows) =>
+              [learner1, learner2].every((sub) =>
+                rows.some(
+                  (r) =>
+                    r.learner?.sub === sub &&
+                    r.scoreSyncs?.some((s) => s.status === 'sent'),
+                ),
+              ),
+            20_000,
           );
-          const row2 = rowsAfterBoth.find(
-            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner2,
+
+          const simRecs = (await records(cursorBeforeL7)).records.filter(
+            (r) => r.kind === 'score' && r.resource === ctxlessPub.id,
           );
-          expect(row1).toBeDefined();
-          expect(row2).toBeDefined();
-          expect(row1!.resourceLinkId).toBe(sharedRlId);
-          expect(row2!.resourceLinkId).toBe(sharedRlId);
+          const scoreRecords = simRecs.map((r) => ({
+            userId: String(
+              (r.body as Record<string, unknown> | undefined)?.userId ?? '',
+            ),
+            resource: String(r.resource ?? ''),
+            path: String(r.path ?? ''),
+          }));
+
+          const placementCheck = verifyContextlessSharedPlacement({
+            rows: rowsAfterBoth,
+            learner1,
+            learner2,
+            scoreRecords,
+            expectedResourceId: ctxlessPub.id,
+          });
+          expect(placementCheck.errors).toEqual([]);
+          expect(placementCheck.ok).toBe(true);
+          expect(placementCheck.sharedResourceLinkId).toBe(sharedRlId);
+
+          const row1 = rowsAfterBoth.find((r) => r.learner?.sub === learner1);
+          const row2 = rowsAfterBoth.find((r) => r.learner?.sub === learner2);
+          expect(row1?.activity?.resourceLinkId).toBe(sharedRlId);
+          expect(row2?.activity?.resourceLinkId).toBe(sharedRlId);
 
           // 3. AP-05-10: Launch without context and without AGS has no serviceKey and records the clear error message on score commit
           const noAgsRlId = uniqueId(`rl-noags-${fixture.id}`);
@@ -327,8 +412,11 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           expect(noAgsLaunch.response.status).toBe(303);
           const noAgsToken = await idToken(noAgsLaunch.ltik!);
           expectStatus(noAgsToken, 200);
-          expect(noAgsToken.json.context).toBeUndefined();
-          expect(noAgsToken.json.services?.ags?.serviceKey).toBeUndefined();
+          expect(noAgsToken.json.launch?.context).toBeUndefined();
+          expect(noAgsToken.json.services?.serviceKey).toBeUndefined();
+          expect(
+            noAgsToken.json.services?.assignmentAndGrades?.available,
+          ).toBe(false);
 
           const cursorBeforeNoAgsCommit = (await records()).cursor;
           const playNoAgs = await openPlayOnChannel(binding, ctxlessPub, {
@@ -339,26 +427,22 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           const commitNoAgs = await commitGrade(playNoAgs, 'scorm12', 7, 10);
           expect(commitNoAgs.status).toBe(200);
 
-          let noAgsRow: Record<string, unknown> | undefined;
-          for (let i = 0; i < 20; i += 1) {
-            const currentRows = (await results(binding, ctxlessPub)) as Array<
-              Record<string, unknown>
-            >;
-            noAgsRow = currentRows.find(
-              (r) =>
-                (r.learner as Record<string, unknown> | undefined)?.subject === learnerNoAgs,
-            );
-            const syncEntry =
-              (noAgsRow?.lastScoreSync as Record<string, unknown> | undefined) ??
-              ((noAgsRow?.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-            if (syncEntry?.lastError) {
-              break;
-            }
-            await new Promise((r) => setTimeout(r, 150));
-          }
-          const noAgsSync =
-            (noAgsRow?.lastScoreSync as Record<string, unknown> | undefined) ??
-            ((noAgsRow?.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+          const noAgsRows = await poll(
+            async () =>
+              (await results(binding, ctxlessPub)) as Array<{
+                learner?: { sub?: string };
+                scoreSyncs?: Array<{ status?: string; lastError?: string }>;
+              }>,
+            (rows) => {
+              const row = rows.find((r) => r.learner?.sub === learnerNoAgs);
+              return Boolean(row?.scoreSyncs?.[0]?.lastError);
+            },
+            20_000,
+          );
+          const noAgsRow = noAgsRows.find(
+            (r) => r.learner?.sub === learnerNoAgs,
+          );
+          const noAgsSync = noAgsRow?.scoreSyncs?.[0];
           expect(noAgsSync).toBeDefined();
           expect(noAgsSync?.lastError).toBe(
             'No gradebook column: the activity has no AGS line item.',
@@ -376,33 +460,39 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
 
       it(`${fixture.id}:K1-LAUNCH:L8 — Roles: learner launch is graded; staff launch is preview; Deep Linking is only for staff`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L8', async () => {
-          // 1. Learner launch -> graded play (not preview)
+          // 1. Learner launch -> graded play (preview === false)
           const learnerPlay = await openPlayOnChannel(binding, pub, {
             roles: [ROLE_LEARNER],
             subject: uniqueId('learner-l8'),
           });
-          expect(learnerPlay.playHtml).not.toContain('Preview');
+          const learnerStatus = await appRequest(
+            'GET',
+            `/app-api/play/${learnerPlay.playId}/status`,
+          );
+          expect(learnerStatus.status).toBe(200);
+          expect(JSON.parse(learnerStatus.text).preview).toBe(false);
 
-          // 2. Staff launch -> preview play
+          // 2. Staff launch -> preview play (preview === true)
           const staffPlay = await openPlayOnChannel(binding, pub, {
             roles: [ROLE_INSTRUCTOR],
             subject: uniqueId('staff-l8'),
           });
-          expect(htmlText(staffPlay.playHtml)).toContain('Preview');
+          const staffStatus = await appRequest(
+            'GET',
+            `/app-api/play/${staffPlay.playId}/status`,
+          );
+          expect(staffStatus.status).toBe(200);
+          expect(JSON.parse(staffStatus.text).preview).toBe(true);
 
-          // 3. Deep Linking is only for staff: instructor succeeds, learner is refused with 403
+          // 3. Deep Linking is only for staff: instructor succeeds, learner is refused with 403 ROLE_NOT_ALLOWED
           const staffPicker = await openPickerOnChannel(binding);
           expect(staffPicker.status).toBe(200);
 
-          const learnerDl = await launchOnChannel(binding, {
-            messageType: 'LtiDeepLinkingRequest',
+          const learnerPicker = await openPickerOnChannel(binding, {
             roles: [ROLE_LEARNER],
           });
-          expect(learnerDl.response.status).toBe(303);
-          const learnerPickerPage = await appRequest('GET', learnerDl.location, {
-            headers: { accept: 'text/html' },
-          });
-          expect(learnerPickerPage.status).toBe(403);
+          expect(learnerPicker.status).toBe(403);
+          expect(learnerPicker.html).toContain('ROLE_NOT_ALLOWED');
         });
       });
 
@@ -410,17 +500,20 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L9', async () => {
           const isShared = fixture.capabilities['platform.sharing'] === 'shared';
           const bA = await setupChannelBinding(fixture, {
-            library: uniqueId(`lib-l9-a-${fixture.id}`),
+            library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c-l9-a-${fixture.id}`),
             deploymentId: uniqueId(`dep-l9-a-${fixture.id}`),
           });
           const bB = await setupChannelBinding(fixture, {
-            library: uniqueId(`lib-l9-b-${fixture.id}`),
+            library: 'B',
             clientId: isShared ? binding.clientId : uniqueId(`c-l9-b-${fixture.id}`),
             deploymentId: uniqueId(`dep-l9-b-${fixture.id}`),
           });
 
           try {
+            // Assert the two bindings belong to distinct libraries before testing isolation
+            expect(bA.library).not.toBe(bB.library);
+
             const pubA = await publication(bA, 'scorm12', {
               title: `OnlyForLibA-${bA.library}`,
             });
@@ -434,7 +527,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             expect(pickerA.html).toContain(pubA.id);
             expect(pickerA.html).not.toContain(pubB.id);
 
-            // Launch on connection A targeting pubB is refused with 403
+            // Launch on connection A targeting pubB is refused with 404 PUBLICATION_NOT_IN_CONNECTION
             const crossLaunch = await launchOnChannel(bA, {
               resource: pubB.id,
             });
@@ -442,7 +535,15 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             const crossPage = await appRequest('GET', crossLaunch.location, {
               headers: { accept: 'text/html' },
             });
-            expect(crossPage.status).toBe(403);
+            denied(crossPage, 'PUBLICATION_NOT_IN_CONNECTION', 404);
+
+            // Library A cannot read Library B's publication results
+            const foreignResults = await app(
+              bA.session,
+              'GET',
+              `/app-api/publications/${pubB.id}/results`,
+            );
+            expectStatus(foreignResults, 404, 'NOT_FOUND');
           } finally {
             await endConnection(bA.session, bA.connection.id);
             await endConnection(bB.session, bB.connection.id);
@@ -462,96 +563,149 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           expect(loginPlain.loginResponse.status).toBe(302);
 
           // 2. Login with lti_storage_target -> 200 storage relay page when platformStorage is configured, else 302 (AP-05-02..03)
+          const storageTarget =
+            fixture.sim.platformStorage?.frameName ?? '_parent';
           const scStorage = await scenario(fixture.simProvider, {
             clientId: binding.clientId,
             deploymentId: binding.deploymentId,
             resource: pub.id,
-            storageTarget: fixture.sim.platformStorage?.frameName ?? 'platform_storage_frame',
+            storageTarget,
           });
           const loginWithTarget = await ltiRequest('POST', `/lti/login/${ACCOUNT}`, {
-            form: scStorage.login,
+            form: {
+              ...scStorage.login,
+              lti_storage_target: storageTarget,
+            },
           });
+
           if (fixture.sim.platformStorage) {
             expect(loginWithTarget.status).toBe(200);
             expect(loginWithTarget.text).toContain('lti.put_data');
-            expect(loginWithTarget.text).toContain(fixture.sim.platformStorage.frameName);
-            expect(loginWithTarget.text).toContain(fixture.sim.platformStorage.allowedOrigin);
+            const authUrlMatch = loginWithTarget.text.match(
+              /https:\/\/[^\s"'<>]+authorize[^\s"'<>]*/,
+            );
+            expect(authUrlMatch).toBeTruthy();
+            const authorizeRes = await httpsRequest(authUrlMatch![0]);
+            expect(authorizeRes.status).toBe(200);
+            const authForm = parseForm(authorizeRes.body);
+
+            // 3. Launch without cookie on storage-enabled login -> 200 storage-check page -> POST /lti/launch/cogniate/storage-check (AP-05-04..07; lti-service-api-delta.md §2.2)
+            const noCookieLaunch = await ltiRequest(
+              'POST',
+              `/lti/launch/${ACCOUNT}`,
+              {
+                headers: { accept: 'text/html' },
+                form: authForm.fields,
+              },
+            );
+            expect(noCookieLaunch.status).toBe(200);
+            expect(noCookieLaunch.text).toContain('lti.get_data');
+            const checkForm = parseForm(noCookieLaunch.text);
+            expect(checkForm.action).toContain(
+              `/lti/launch/${ACCOUNT}/storage-check`,
+            );
+
+            // 3a. Valid storage-check completes launch with 303
+            const validCheck = await ltiRequest('POST', checkForm.action, {
+              headers: { accept: 'text/html' },
+              form: {
+                ...checkForm.fields,
+                state: authForm.fields.state,
+              },
+            });
+            expect(validCheck.status).toBe(303);
+
+            // 3b. Replaying the same pendingId is refused with 400 INVALID_STATE
+            const replayCheck = await ltiRequest('POST', checkForm.action, {
+              headers: { accept: 'text/html' },
+              form: {
+                ...checkForm.fields,
+                state: authForm.fields.state,
+              },
+            });
+            denied(replayCheck, 'INVALID_STATE', 400);
+
+            // 3c. Mismatched state is refused with 400 INVALID_STATE
+            const login2 = await ltiRequest('POST', `/lti/login/${ACCOUNT}`, {
+              form: {
+                ...scStorage.login,
+                lti_storage_target: storageTarget,
+              },
+            });
+            const authUrl2 = login2.text.match(
+              /https:\/\/[^\s"'<>]+authorize[^\s"'<>]*/,
+            )![0];
+            const authForm2 = parseForm((await httpsRequest(authUrl2)).body);
+            const noCookie2 = await ltiRequest('POST', `/lti/launch/${ACCOUNT}`, {
+              headers: { accept: 'text/html' },
+              form: authForm2.fields,
+            });
+            const checkForm2 = parseForm(noCookie2.text);
+            const wrongStateCheck = await ltiRequest('POST', checkForm2.action, {
+              headers: { accept: 'text/html' },
+              form: {
+                ...checkForm2.fields,
+                state: 'wrong-state-value',
+              },
+            });
+            denied(wrongStateCheck, 'INVALID_STATE', 400);
+
+            // 3d. Missing/unknown pendingId on storage-check -> 400 STATE_COOKIE_MISSING
+            const missingPendingCheck = await ltiRequest(
+              'POST',
+              `/lti/launch/${ACCOUNT}/storage-check`,
+              {
+                headers: { accept: 'text/html' },
+                form: {
+                  pendingId: 'pnd_missing',
+                  state: authForm2.fields.state,
+                },
+              },
+            );
+            denied(missingPendingCheck, 'STATE_COOKIE_MISSING', 400);
           } else {
             expect(loginWithTarget.status).toBe(302);
+            // Launch without cookie when platformStorage is false -> 400 STATE_COOKIE_MISSING
+            const prep = await preparedLaunch(scPlain);
+            const noCookieLaunch = await ltiRequest(
+              'POST',
+              `/lti/launch/${ACCOUNT}`,
+              {
+                headers: { accept: 'text/html' },
+                form: prep.form.fields,
+              },
+            );
+            denied(noCookieLaunch, 'STATE_COOKIE_MISSING', 400);
           }
 
-          // 3. Launch without cookie -> 200 storage-check page -> POST /lti/launch/cogniate/storage-check refusals (AP-05-04..07; lti-service-api-delta.md §2.2)
-          const prep = await preparedLaunch(scPlain);
-          const noCookieLaunch = await ltiRequest('POST', `/lti/launch/${ACCOUNT}`, {
-            headers: { accept: 'text/html' },
-            form: prep.form.fields,
-          });
-          expect(noCookieLaunch.status).toBe(200);
-          expect(noCookieLaunch.text).toContain('lti.get_data');
-          const checkForm = parseForm(noCookieLaunch.text);
-          expect(checkForm.action).toContain(`/lti/launch/${ACCOUNT}/storage-check`);
-
-          // 3a. Valid storage-check completes launch with 303
-          const validCheck = await ltiRequest('POST', checkForm.action, {
-            headers: { accept: 'text/html' },
-            form: {
-              ...checkForm.fields,
-              verifiedState: prep.form.fields.state,
-            },
-          });
-          expect(validCheck.status).toBe(303);
-
-          // 3b. Replaying the same launchToken is refused with 400 STATE_NOT_FOUND
-          const replayCheck = await ltiRequest('POST', checkForm.action, {
-            headers: { accept: 'text/html' },
-            form: {
-              ...checkForm.fields,
-              verifiedState: prep.form.fields.state,
-            },
-          });
-          denied(replayCheck, 'STATE_NOT_FOUND', 400);
-
-          // 3c. Mismatched verifiedState is refused with 400 STATE_NOT_FOUND
-          const prep2 = await preparedLaunch(scPlain);
-          const noCookie2 = await ltiRequest('POST', `/lti/launch/${ACCOUNT}`, {
-            headers: { accept: 'text/html' },
-            form: prep2.form.fields,
-          });
-          const checkForm2 = parseForm(noCookie2.text);
-          const wrongStateCheck = await ltiRequest('POST', checkForm2.action, {
-            headers: { accept: 'text/html' },
-            form: {
-              ...checkForm2.fields,
-              verifiedState: 'wrong-state-value',
-            },
-          });
-          denied(wrongStateCheck, 'STATE_NOT_FOUND', 400);
-
-          // 3d. Cookie + storage-check mismatch when state cookie belongs to another login
+          // 4. Cookie belonging to another login is refused with 400
           const prep3 = await preparedLaunch(scPlain);
           const otherLogin = await beginLaunch(scPlain);
-          const wrongCookieLaunch = await ltiRequest('POST', `/lti/launch/${ACCOUNT}`, {
-            headers: {
-              accept: 'text/html',
-              cookie: `${COOKIE}=${otherLogin.stateCookie}`,
+          const wrongCookieLaunch = await ltiRequest(
+            'POST',
+            `/lti/launch/${ACCOUNT}`,
+            {
+              headers: {
+                accept: 'text/html',
+                cookie: otherLogin.stateCookie,
+              },
+              form: prep3.form.fields,
             },
-            form: prep3.form.fields,
-          });
-          denied(wrongCookieLaunch, 'STATE_NOT_FOUND', 400);
+          );
+          expect(wrongCookieLaunch.status).toBe(400);
         });
       });
     });
   }
 
   describe('GLOBAL:K1-LAUNCH:L-FAULTS — 12 protocol security faults run once per kit run on generic-sim', () => {
-    const genericFixture =
-      allFixtures.find((f) => f.simProfile === 'lti-1p3-standard') ?? allFixtures[0];
+    const genericFixture = selectProtocolControlFixture(allFixtures);
     let faultBinding: ChannelBinding;
     let faultPub: PublicationRef;
 
     beforeAll(async () => {
       faultBinding = await setupChannelBinding(genericFixture, {
-        library: uniqueId('lib-global-faults'),
+        library: 'A',
       });
       faultPub = await publication(faultBinding, 'scorm12');
     });

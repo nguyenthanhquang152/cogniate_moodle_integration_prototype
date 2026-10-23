@@ -13,6 +13,7 @@ import {
   ChannelFixture,
   computeExpectedCaseList,
   computeExpectedGlobalCaseList,
+  deriveExpectedFamilyGuardOutcome,
   deriveLegacyFlagsFromCapabilities,
   evaluateChannelPassRule,
   ExecutedCaseRecord,
@@ -22,12 +23,16 @@ import {
   listChannelFixtureIds,
   loadAllChannelFixtures,
   loadChannelFixture,
+  loadChannelManifestCapabilities,
   orderKitSuiteSpecs,
   parseOperatorGrantOutput,
   PROTOCOL_SECURITY_FAULTS,
   resolveKitLevel,
   resolveSelectedChannelIds,
+  selectProtocolControlFixture,
+  validateFamilyGuardLaunchObservation,
   verifyBilateralCapabilities,
+  verifyContextlessSharedPlacement,
   WaveEvidenceManifest,
 } from './lib/fixtures.js';
 import {
@@ -148,10 +153,11 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     expect(badLegacyAudit.errors.some((e) => e.includes('dynamicRegistration'))).toBe(true);
   });
 
-  it('B-LA-E7-06-06 / LA-E8-01: open-world channel discovery onboards a 6th <id>.json fixture and passes runShippedChannelsAudit with zero shared-list edits', () => {
+  it('B-LA-E7-06-06 / LA-E8-01: open-world channel discovery onboards a new <id>.json fixture and passes runShippedChannelsAudit with zero shared-list edits', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-canary-channels-'));
     try {
-      for (const id of listChannelFixtureIds()) {
+      const beforeIds = listChannelFixtureIds();
+      for (const id of beforeIds) {
         const src = path.join(__dirname, 'channels', `${id}.json`);
         fs.copyFileSync(src, path.join(tmpDir, `${id}.json`));
       }
@@ -174,20 +180,27 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
         'utf8',
       );
 
-      // Run the shipped audit function against the 6-file directory
-      const audited = runShippedChannelsAudit(tmpDir);
-      expect(audited.length).toBe(6);
-      expect(audited.map((f) => f.id)).toEqual([...BASELINE_CHANNEL_IDS, 'canary-lms']);
+      const expectedExtra = Array.from(
+        new Set([
+          ...beforeIds.filter(
+            (id) =>
+              !BASELINE_CHANNEL_IDS.includes(
+                id as (typeof BASELINE_CHANNEL_IDS)[number],
+              ),
+          ),
+          'canary-lms',
+        ]),
+      ).sort();
+      const expectedIds = [...BASELINE_CHANNEL_IDS, ...expectedExtra];
 
-      // Default selection and 'all' selection both include the 6th fixture automatically
-      expect(resolveSelectedChannelIds(undefined, tmpDir)).toEqual([
-        ...BASELINE_CHANNEL_IDS,
-        'canary-lms',
-      ]);
-      expect(resolveSelectedChannelIds('all', tmpDir)).toEqual([
-        ...BASELINE_CHANNEL_IDS,
-        'canary-lms',
-      ]);
+      // Run the shipped audit function against the directory with the new fixture
+      const audited = runShippedChannelsAudit(tmpDir);
+      expect(audited.length).toBe(expectedIds.length);
+      expect(audited.map((f) => f.id)).toEqual(expectedIds);
+
+      // Default selection and 'all' selection both include the onboarded fixture automatically
+      expect(resolveSelectedChannelIds(undefined, tmpDir)).toEqual(expectedIds);
+      expect(resolveSelectedChannelIds('all', tmpDir)).toEqual(expectedIds);
       expect(resolveSelectedChannelIds('canary-lms', tmpDir)).toEqual(['canary-lms']);
 
       const expectedCases = computeExpectedCaseList(canaryFixture);
@@ -462,6 +475,135 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
         });
         expect(validRes.errors).toEqual([]);
         expect(validRes.ok).toBe(true);
+
+        const globalPassRecords: ExecutedCaseRecord[] =
+          computeExpectedGlobalCaseList().map((g) => ({
+            id: g.id,
+            channelId: 'GLOBAL',
+            suite: g.suite,
+            code: g.code,
+            outcome: 'PASS' as const,
+            runId,
+          }));
+
+        // Positive control on evaluateKitRunPassRule: three per-suite files with matching suite, waveId, and outcome: PASS
+        const validKitRunRes = evaluateKitRunPassRule({
+          fixtures: [moodle],
+          executedRecords: [...records, ...globalPassRecords],
+          expectedRunId: runId,
+          currentWaveId: VALID_WAVE_ID,
+          waveEvidence: loadedContradictory,
+          runDir: validDir,
+        });
+        expect(validKitRunRes.ok).toBe(true);
+
+        // 7. Negative 1 (A-LA-E7-06-01 / B-LA-E7-06-01): an artifact file with NO `suite` field referenced for T3b, T7, T8 MUST fail both evaluateChannelPassRule and evaluateKitRunPassRule
+        const anonArtifactRel = 'artifacts/anonymous-ok.json';
+        fs.writeFileSync(
+          path.join(validDir, anonArtifactRel),
+          JSON.stringify({ waveId: VALID_WAVE_ID, outcome: 'PASS' }),
+          'utf8',
+        );
+        const anonManifest: WaveEvidenceManifest = {
+          waveId: VALID_WAVE_ID,
+          suites: {
+            T3b: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: anonArtifactRel,
+            },
+            T7: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: anonArtifactRel,
+            },
+            T8: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: anonArtifactRel,
+            },
+          },
+        };
+        const anonChannelRes = evaluateChannelPassRule({
+          fixture: moodle,
+          executedRecords: records,
+          expectedRunId: runId,
+          currentWaveId: VALID_WAVE_ID,
+          waveEvidence: anonManifest,
+          runDir: validDir,
+        });
+        expect(anonChannelRes.ok).toBe(false);
+        expect(anonChannelRes.passed).toBe(false);
+        expect(
+          anonChannelRes.errors.some((e) =>
+            e.includes('suite="undefined" !== expected "T3b"'),
+          ),
+        ).toBe(true);
+
+        const anonKitRunRes = evaluateKitRunPassRule({
+          fixtures: [moodle],
+          executedRecords: [...records, ...globalPassRecords],
+          expectedRunId: runId,
+          currentWaveId: VALID_WAVE_ID,
+          waveEvidence: anonManifest,
+          runDir: validDir,
+        });
+        expect(anonKitRunRes.ok).toBe(false);
+        expect(anonKitRunRes.passed).toBe(false);
+
+        // 8. Negative 2 (A-LA-E7-06-01 / B-LA-E7-06-01): a T3b artifact file reused for T3b, T7, and T8 MUST fail both evaluateChannelPassRule and evaluateKitRunPassRule
+        const reusedT3bRel = 'artifacts/T3b/summary.json';
+        const reusedManifest: WaveEvidenceManifest = {
+          waveId: VALID_WAVE_ID,
+          suites: {
+            T3b: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: reusedT3bRel,
+            },
+            T7: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: reusedT3bRel,
+            },
+            T8: {
+              outcome: 'PASS',
+              waveId: VALID_WAVE_ID,
+              artifactPath: reusedT3bRel,
+            },
+          },
+        };
+        const reusedChannelRes = evaluateChannelPassRule({
+          fixture: moodle,
+          executedRecords: records,
+          expectedRunId: runId,
+          currentWaveId: VALID_WAVE_ID,
+          waveEvidence: reusedManifest,
+          runDir: validDir,
+        });
+        expect(reusedChannelRes.ok).toBe(false);
+        expect(reusedChannelRes.passed).toBe(false);
+        expect(
+          reusedChannelRes.errors.some((e) =>
+            e.includes('suite="T3b" !== expected "T7"'),
+          ),
+        ).toBe(true);
+        expect(
+          reusedChannelRes.errors.some((e) =>
+            e.includes('suite="T3b" !== expected "T8"'),
+          ),
+        ).toBe(true);
+
+        const reusedKitRunRes = evaluateKitRunPassRule({
+          fixtures: [moodle],
+          executedRecords: [...records, ...globalPassRecords],
+          expectedRunId: runId,
+          currentWaveId: VALID_WAVE_ID,
+          waveEvidence: reusedManifest,
+          runDir: validDir,
+        });
+        expect(reusedKitRunRes.ok).toBe(false);
+        expect(reusedKitRunRes.passed).toBe(false);
       } finally {
         fs.rmSync(validDir, { recursive: true, force: true });
       }
@@ -949,17 +1091,22 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     expect(agsSrc).toContain('expect(sync429?.tries).toBe(0)');
     expect(agsSrc).toContain("logEvents('dispatch_throttled'");
 
-    // Verify L7 tests contextless score dispatch, shared resourceLinkId placement, and no-AGS clear message
+    // Verify L7 tests contextless score dispatch, shared resourceLinkId placement via verifyContextlessSharedPlacement, and no-AGS clear message
     const launchSrc = fs.readFileSync(
       path.join(SUITES_DIR, 'k1-launch.k1sim.test.ts'),
       'utf8',
     );
     expect(launchSrc).toContain('commitGrade(play1');
-    expect(launchSrc).toContain('expect(row1!.resourceLinkId).toBe(sharedRlId)');
-    expect(launchSrc).toContain('expect(row2!.resourceLinkId).toBe(sharedRlId)');
+    expect(launchSrc).toContain('verifyContextlessSharedPlacement(');
+    expect(launchSrc).toContain('expect(row1?.activity?.resourceLinkId).toBe(sharedRlId)');
+    expect(launchSrc).toContain('expect(row2?.activity?.resourceLinkId).toBe(sharedRlId)');
     expect(launchSrc).toContain(
       "'No gradebook column: the activity has no AGS line item.'",
     );
+    expect(launchSrc).toContain('expect(bA.library).not.toBe(bB.library)');
+    expect(launchSrc).toContain('deriveExpectedFamilyGuardOutcome(');
+    expect(launchSrc).toContain('validateFamilyGuardLaunchObservation(');
+    expect(launchSrc).toContain('selectProtocolControlFixture(allFixtures)');
 
     // Verify R6 tests off-origin staging (endpointsOnIssuerOrigin: false, active: false, PLATFORM_NOT_ACTIVE) and POST /api/platforms refusals
     const regSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-reg.k1sim.test.ts'), 'utf8');
@@ -968,6 +1115,177 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     expect(regSrc).toContain("denied(unapprovedLaunch.response, 'PLATFORM_NOT_ACTIVE', 403)");
     expect(regSrc).toContain('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN');
     expect(regSrc).toContain('PLATFORM_URL_NOT_IN_PROFILE');
+  });
+
+  it('A-LA-E7-06-08 / B-LA-E7-06-07: loadChannelManifestCapabilities resolves capabilities for all baseline channels without importing product source modules and throws on missing explicit root', () => {
+    for (const fixture of loadAllChannelFixtures()) {
+      const caps = loadChannelManifestCapabilities(fixture);
+      expect(Object.keys(caps).sort()).toEqual([...CAPABILITY_KEYS].sort());
+      expect(caps).toEqual(fixture.capabilities);
+    }
+
+    const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-empty-manifests-'));
+    try {
+      expect(() =>
+        loadChannelManifestCapabilities(loadChannelFixture('moodle'), emptyRoot),
+      ).toThrow(/Channel manifest not found or invalid/);
+    } finally {
+      fs.rmSync(emptyRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('A-LA-E7-06-09: selectProtocolControlFixture selects lti-generic (generic-sim) and throws when missing or duplicated', () => {
+    const all = loadAllChannelFixtures();
+    const control = selectProtocolControlFixture(all);
+    expect(control.id).toBe('lti-generic');
+    expect(control.simProvider).toBe('generic-sim');
+    expect(control.simProfile).toBe('lti-generic');
+
+    // Never falls back to fixtures[0] (moodle) when lti-generic is absent
+    const withoutGeneric = all.filter((f) => f.id !== 'lti-generic');
+    expect(() => selectProtocolControlFixture(withoutGeneric)).toThrow(
+      /Expected exactly 1 generic-sim protocol-control fixture/,
+    );
+
+    // Refuses ambiguous duplicate matches
+    expect(() => selectProtocolControlFixture([...all, structuredClone(control)])).toThrow(
+      /Expected exactly 1 generic-sim protocol-control fixture/,
+    );
+  });
+
+  it('A-LA-E7-06-07 / B-LA-E7-06-02: L4 family-guard pre-derived oracle and L7 contextless one-placement validator pass positive controls and reject swapped/duplicate mutants', () => {
+    const moodle = loadChannelFixture('moodle');
+    const canvas = loadChannelFixture('canvas');
+    const blackboard = loadChannelFixture('blackboard');
+    const generic = loadChannelFixture('lti-generic');
+    const brightspace = loadChannelFixture('brightspace');
+
+    // 1. Launch-guarded families ('canvas', 'BlackboardLearn') are ALWAYS refused (400 PROVIDER_PROFILE_MISMATCH) on every other channel
+    for (const target of [moodle, blackboard, generic, brightspace]) {
+      const expCanvas = deriveExpectedFamilyGuardOutcome(target, 'canvas');
+      expect(expCanvas.expectedOutcome).toBe('refuse');
+      expect(expCanvas.expectedStatus).toBe(400);
+      expect(expCanvas.expectedCode).toBe('PROVIDER_PROFILE_MISMATCH');
+
+      // Positive observation passes; mutant passthrough (303) fails
+      expect(
+        validateFamilyGuardLaunchObservation(expCanvas, {
+          status: 400,
+          body: 'data-error-code="PROVIDER_PROFILE_MISMATCH"',
+        }).ok,
+      ).toBe(true);
+      expect(
+        validateFamilyGuardLaunchObservation(expCanvas, {
+          status: 303,
+          warnLogCount: 1,
+        }).ok,
+      ).toBe(false);
+    }
+
+    // 2. Registration-guarded families ('moodle', 'desire2learn') are refused (400) ONLY on manual-self legacy ('moodle'), and warn_passthrough (303 + family_guard_mismatch) on all other channels
+    const d2lOnMoodle = deriveExpectedFamilyGuardOutcome(moodle, 'desire2learn');
+    expect(d2lOnMoodle.expectedOutcome).toBe('refuse');
+    expect(d2lOnMoodle.expectedStatus).toBe(400);
+
+    for (const target of [canvas, blackboard, generic]) {
+      const moodleOnTarget = deriveExpectedFamilyGuardOutcome(target, 'moodle');
+      expect(moodleOnTarget.expectedOutcome).toBe('warn_passthrough');
+      expect(moodleOnTarget.expectedStatus).toBe(303);
+      expect(moodleOnTarget.expectedLogEvent).toBe('family_guard_mismatch');
+
+      // Positive observation (303 + warning log) passes; mutant refusal (400) or silent 303 without warning log fails
+      expect(
+        validateFamilyGuardLaunchObservation(moodleOnTarget, {
+          status: 303,
+          warnLogCount: 1,
+        }).ok,
+      ).toBe(true);
+      expect(
+        validateFamilyGuardLaunchObservation(moodleOnTarget, {
+          status: 400,
+          body: 'data-error-code="PROVIDER_PROFILE_MISMATCH"',
+        }).ok,
+      ).toBe(false);
+      expect(
+        validateFamilyGuardLaunchObservation(moodleOnTarget, {
+          status: 303,
+          warnLogCount: 0,
+        }).ok,
+      ).toBe(false);
+    }
+
+    // 3. L7 verifyContextlessSharedPlacement positive control & negative mutants
+    const validL7 = verifyContextlessSharedPlacement({
+      rows: [
+        {
+          learner: { sub: 'u1' },
+          activity: { resourceLinkId: 'rl-shared-1' },
+          scoreSyncs: [{ status: 'sent' }],
+        },
+        {
+          learner: { sub: 'u2' },
+          activity: { resourceLinkId: 'rl-shared-1' },
+          scoreSyncs: [{ status: 'sent' }],
+        },
+      ],
+      learner1: 'u1',
+      learner2: 'u2',
+      scoreRecords: [
+        { userId: 'u1', resource: 'pub-1' },
+        { userId: 'u2', resource: 'pub-1' },
+      ],
+      expectedResourceId: 'pub-1',
+    });
+    expect(validL7.ok).toBe(true);
+    expect(validL7.sharedResourceLinkId).toBe('rl-shared-1');
+
+    // Mutant A: duplicate placement (second learner created a second resourceLinkId instead of reusing the first)
+    const duplicatePlacement = verifyContextlessSharedPlacement({
+      rows: [
+        {
+          learner: { sub: 'u1' },
+          activity: { resourceLinkId: 'rl-1' },
+          scoreSyncs: [{ status: 'sent' }],
+        },
+        {
+          learner: { sub: 'u2' },
+          activity: { resourceLinkId: 'rl-2' },
+          scoreSyncs: [{ status: 'sent' }],
+        },
+      ],
+      learner1: 'u1',
+      learner2: 'u2',
+    });
+    expect(duplicatePlacement.ok).toBe(false);
+    expect(
+      duplicatePlacement.errors.some((e) =>
+        e.includes('contextless one-placement invariant violated'),
+      ),
+    ).toBe(true);
+
+    // Mutant B: second learner score sync failed instead of sent
+    const unsentLearner = verifyContextlessSharedPlacement({
+      rows: [
+        {
+          learner: { sub: 'u1' },
+          activity: { resourceLinkId: 'rl-shared-1' },
+          scoreSyncs: [{ status: 'sent' }],
+        },
+        {
+          learner: { sub: 'u2' },
+          activity: { resourceLinkId: 'rl-shared-1' },
+          scoreSyncs: [{ status: 'failed' }],
+        },
+      ],
+      learner1: 'u1',
+      learner2: 'u2',
+    });
+    expect(unsentLearner.ok).toBe(false);
+    expect(
+      unsentLearner.errors.some((e) =>
+        e.includes('learner2 ("u2") has no scoreSyncs entry with status="sent"'),
+      ),
+    ).toBe(true);
   });
 
   it('AC-LA-E7-06-06 / A-LA-E7-06-03 / B-LA-E7-06-05: K-HYG secret scanner fails on missing inputs and catches leaks in logs, /__sim/records, and nested artifacts', async () => {

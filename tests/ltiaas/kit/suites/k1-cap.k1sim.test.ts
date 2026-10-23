@@ -51,7 +51,7 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
         await runKitCase(fixture.id, 'K1-CAP', 'C1', async () => {
           const s = binding.session;
 
-          // 1. GET /app-api/lms-providers -> { lms: [...] } with entry.lms, entry.channel, and legacy flags (cogniate-app-api.md §4.3; cogniate-app-api-delta.md §2)
+          // 1. GET /app-api/lms-providers -> { lms: [...] } with entry.lms, entry.channel, entry.channelCapabilities, and legacy flags (cogniate-app-api.md §4.5; cogniate-app-api-delta.md §2)
           const providersRes = await app(s, 'GET', '/app-api/lms-providers');
           expectStatus(providersRes, 200);
           const providerEntry = (
@@ -66,14 +66,17 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
             )[flag];
           }
 
-          // 2. GET /app-api/connections/:id -> connection.channel + connection.capabilities (cogniate-app-api.md §4.5; cogniate-app-api-delta.md §2)
+          // 2. GET /app-api/connections/:id -> flat Connection DTO with channelCapabilities + capabilities (cogniate-app-api.md §4.2; cogniate-app-api-delta.md §1, §2)
           const connRes = await app(
             s,
             'GET',
             `/app-api/connections/${binding.connection.id}`,
           );
           expectStatus(connRes, 200);
-          const connObj = connRes.json.connection as Record<string, unknown>;
+          const connObj = (connRes.json.connection ?? connRes.json) as Record<
+            string,
+            unknown
+          >;
           const connLegacyFlags: Record<string, unknown> = {};
           for (const flag of LEGACY_FLAG_KEYS) {
             connLegacyFlags[flag] = (
@@ -81,30 +84,44 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
             )[flag];
           }
 
-          // 3. GET /app-api/connections/:id/tool-configuration -> fields[].key (cogniate-app-api-delta.md §3.6)
+          // 3. GET /app-api/connections/:id/tool-configuration -> array of { key, label, value } rows (cogniate-app-api.md §4.6; cogniate-app-api-delta.md §3.6)
           const toolCfgRes = await app(
             s,
             'GET',
             `/app-api/connections/${binding.connection.id}/tool-configuration`,
           );
           expectStatus(toolCfgRes, 200);
-          const toolKeys = (
-            toolCfgRes.json.fields as Array<{ key: string }>
-          ).map((f) => f.key);
+          const toolRows = (
+            Array.isArray(toolCfgRes.json)
+              ? toolCfgRes.json
+              : toolCfgRes.json.fields
+          ) as Array<{ key: string }>;
+          const toolKeys = toolRows.map((f) => f.key);
 
-          // 4. Channel manifest capabilities from packages/lms-channels/channels/<id>/manifest.json (LA-ADR-01 §D6)
+          // 4. Canonical channel capabilities (LA-ADR-01 §D6)
           const manifestCapabilities = loadChannelManifestCapabilities(fixture);
+
+          const providerChannelCapabilities =
+            (providerEntry!.channelCapabilities as
+              | Record<string, unknown>
+              | undefined) ??
+            ((providerEntry!.channel as Record<string, unknown> | undefined)
+              ?.capabilities as Record<string, unknown>) ??
+            {};
+          const connectionChannelCapabilities =
+            (connObj.channelCapabilities as
+              | Record<string, unknown>
+              | undefined) ??
+            ((connObj.channel as Record<string, unknown> | undefined)
+              ?.capabilities as Record<string, unknown>) ??
+            {};
 
           const bilateral = verifyBilateralCapabilities({
             fixture,
             manifestCapabilities,
-            providerChannelCapabilities:
-              ((providerEntry!.channel as Record<string, unknown> | undefined)
-                ?.capabilities as Record<string, unknown>) ?? {},
+            providerChannelCapabilities,
             providerLegacyFlags,
-            connectionChannelCapabilities:
-              ((connObj.channel as Record<string, unknown> | undefined)
-                ?.capabilities as Record<string, unknown>) ?? {},
+            connectionChannelCapabilities,
             connectionLegacyFlags: connLegacyFlags,
             toolConfigurationKeys: toolKeys,
           });
@@ -133,12 +150,12 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
         await runKitCase(fixture.id, 'K1-CAP', 'C3', async () => {
           const isShared = fixture.capabilities['platform.sharing'] === 'shared';
           const b1 = await setupChannelBinding(fixture, {
-            library: uniqueId(`lib-c3-1-${fixture.id}`),
+            library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c3-1-${fixture.id}`),
             deploymentId: uniqueId(`dep-c3-1-${fixture.id}`),
           });
           const b2 = await setupChannelBinding(fixture, {
-            library: uniqueId(`lib-c3-2-${fixture.id}`),
+            library: 'B',
             clientId: isShared ? binding.clientId : uniqueId(`c3-2-${fixture.id}`),
             deploymentId: uniqueId(`dep-c3-2-${fixture.id}`),
           });
@@ -147,14 +164,22 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
             const pub1 = await publication(b1, 'scorm12');
             const pub2 = await publication(b2, 'scorm12');
 
-            // DELETE /app-api/connections/:id disconnects b1 (cogniate-app-api.md §4.9)
+            // DELETE /app-api/connections/:id disconnects b1 -> 204 and status='disabled' (cogniate-app-api.md §4)
             const delRes = await app(
               b1.session,
               'DELETE',
               `/app-api/connections/${b1.connection.id}`,
             );
-            expectStatus(delRes, 200);
-            expect(delRes.json.connection.status).toBe('disconnected');
+            expectStatus(delRes, 204);
+            const afterConn = await app(
+              b1.session,
+              'GET',
+              `/app-api/connections/${b1.connection.id}`,
+            );
+            expectStatus(afterConn, 200);
+            expect((afterConn.json.connection ?? afterConn.json).status).toBe(
+              'disabled',
+            );
 
             // Launch on disconnected b1 is refused with 403 PLATFORM_NOT_ACTIVE (exclusive) or DEPLOYMENT_NOT_ACTIVE (shared)
             const launch1 = await launchOnChannel(b1, { resource: pub1.id });

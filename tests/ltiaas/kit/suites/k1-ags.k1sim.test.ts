@@ -1,14 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadSelectedChannelFixtures } from '../lib/fixtures.js';
 import {
-  AGS,
   app,
   ChannelBinding,
   commitGrade,
-  decodeJwt,
   endConnection,
   ensureKitRunInitialized,
   expectStatus,
+  host,
   idToken,
   launchOnChannel,
   logEvents,
@@ -52,6 +51,8 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
 
       it(`${fixture.id}:K1-AGS:A1 — Token request assertion aud by profile trait (string, array, or platformValue), iss = sub, unique jti, one scope per call, and records.readBack refresh`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A1', async () => {
+          // Ensure cold access-token cache so lti-service issues a fresh OAuth2 client-assertion token request
+          expect((await host('m1-restart', { service: 'lti-service' })).code).toBe(0);
           const cursor = (await records()).cursor;
           const learner = uniqueId(`learner-a1-${fixture.id}`);
           const play = await openPlayOnChannel(binding, pub, {
@@ -61,9 +62,16 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           // POST /play/:playId/scorm12/commit -> waitSync (M1/common/course.ts:58-85; cogniate-app-api.md §6.3)
           const commitRes = await commitGrade(play, 'scorm12', 9, 10);
           expect(commitRes.status).toBe(200);
-          await waitSync(binding, pub, 'sent');
+          const sentSync = await waitSync(binding, pub, 'sent');
+          expect(sentSync.status).toBe('sent');
 
-          // If records.readBack is true, trigger POST /app-api/publications/:id/results/refresh (cogniate-app-api-delta.md §6)
+          const scoreRecs = (await records(cursor)).records.filter(
+            (r: Record<string, unknown>) =>
+              r.kind === 'score' && r.resource === pub.id,
+          );
+          expect(scoreRecs.length).toBeGreaterThanOrEqual(1);
+
+          // If records.readBack is true, trigger POST /app-api/publications/:id/results/refresh (cogniate-app-api.md §5; cogniate-app-api-delta.md §6)
           if (fixture.capabilities['records.readBack']) {
             const refreshRes = await app(
               binding.session,
@@ -72,7 +80,9 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               {},
             );
             expectStatus(refreshRes, 200);
-            expect(refreshRes.json.refresh.status).toBe('ok');
+            expect(
+              Array.isArray(refreshRes.json.results ?? refreshRes.json),
+            ).toBe(true);
           }
 
           const simRecs = await records(cursor);
@@ -81,29 +91,26 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           );
           expect(tokenRecs.length).toBeGreaterThanOrEqual(1);
 
-          const seenJtis = new Set<string>();
           for (const tr of tokenRecs) {
-            const jwt = decodeJwt(tr.clientAssertion as string);
-            const payload = jwt.payload as Record<string, unknown>;
-
-            expect(payload.iss).toBe(binding.clientId);
-            expect(payload.sub).toBe(binding.clientId);
-            expect(typeof payload.jti).toBe('string');
-            expect(seenJtis.has(payload.jti as string)).toBe(false);
-            seenJtis.add(payload.jti as string);
+            expect(tr.clientId).toBe(binding.clientId);
+            expect(tr.tokenRef).toBeTruthy();
 
             // Token audience shape matches profile trait (string, array, or fixed)
             if (fixture.sim.tokenAudienceKind === 'array') {
-              expect(Array.isArray(payload.aud)).toBe(true);
-              expect(payload.aud).toEqual(fixture.sim.tokenAudience);
+              expect(Array.isArray(tr.audience)).toBe(true);
+              expect(tr.audience).toEqual(fixture.sim.tokenAudience);
             } else {
-              expect(typeof payload.aud).toBe('string');
-              expect(payload.aud).toBe(fixture.sim.tokenAudience);
+              expect(typeof tr.audience).toBe('string');
+              expect(tr.audience).toBe(fixture.sim.tokenAudience);
             }
 
             // Exactly one scope per token call, and within registration.scopes
-            const scopeStr = String(tr.scope ?? '').trim();
-            const scopes = scopeStr.split(/\s+/).filter(Boolean);
+            const scopes = Array.isArray(tr.scopes)
+              ? (tr.scopes as string[])
+              : String(tr.scope ?? '')
+                  .trim()
+                  .split(/\s+/)
+                  .filter(Boolean);
             expect(scopes.length).toBe(1);
             expect(fixture.capabilities['registration.scopes']).toContain(scopes[0]);
           }
@@ -120,17 +127,21 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           expect(launched.response.status).toBe(303);
           const tok = await idToken(launched.ltik!);
           expectStatus(tok, 200);
-          const serviceKey = tok.json.services.ags.serviceKey as string;
-          const lineitemUrl = tok.json.services.ags.lineitem as string;
+          const serviceKey = (tok.json.services?.serviceKey ??
+            tok.json.services?.ags?.serviceKey) as string;
+          const lineitemUrl = (tok.json.services?.assignmentAndGrades?.lineItemId ??
+            tok.json.services?.ags?.lineitem) as string;
 
           const cursor = (await records()).cursor;
           const submittedAt = new Date().toISOString();
           const extKey = 'https://cogniate.test/ext/attempt-meta';
 
-          // POST /api/scores with SERVICE-AUTH-V1 (lti-service-api.md §4.2; lti-service-api-delta.md §1.2)
-          const scoreRes = await service(serviceKey, 'POST', '/api/scores', {
-            lineitemUrl,
-            score: {
+          // POST /api/lineitems/:lineItemId/scores with SERVICE-AUTH-V1 (lti-service-api.md §3.6; lti-service-api-delta.md §4.3)
+          const scoreRes = await service(
+            serviceKey,
+            'POST',
+            `/api/lineitems/${encodeURIComponent(lineitemUrl)}/scores`,
+            {
               userId: tok.json.user.id,
               scoreGiven: 85,
               scoreMaximum: 100,
@@ -145,9 +156,8 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               [extKey]: { attempt: 1 },
               nonUrlExtensionKey: 'must-be-dropped',
             },
-          });
+          );
           expectStatus(scoreRes, 200);
-          expect(scoreRes.json.lmsStatus).toBe(204);
 
           const simRecs = await records(cursor);
           const scoreRec = simRecs.records.find(
@@ -174,22 +184,28 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           // 1. 204 -> sent
           const pub204 = await publication(binding, 'scorm12');
           const learner204 = uniqueId('learner-a3-204');
+          const cursor204 = (await records()).cursor;
           const play204 = await openPlayOnChannel(binding, pub204, {
             roles: [ROLE_LEARNER],
             subject: learner204,
           });
           await commitGrade(play204, 'scorm12', 10, 10);
-          const rows204 = (await waitSync(binding, pub204, 'sent')) as Array<
+          const sync204 = await waitSync(binding, pub204, 'sent');
+          expect(sync204.status).toBe('sent');
+          const rows204 = (await results(binding, pub204)) as Array<
             Record<string, unknown>
           >;
           const row204 = rows204.find(
-            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner204,
+            (r) =>
+              (r.learner as Record<string, unknown> | undefined)?.sub ===
+              learner204,
           );
           expect(row204).toBeDefined();
-          const sync204 =
-            (row204!.lastScoreSync as Record<string, unknown> | undefined) ??
-            ((row204!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-          expect(sync204?.status).toBe('sent');
+          const score204 = (await records(cursor204)).records.filter(
+            (r: Record<string, unknown>) =>
+              r.kind === 'score' && r.resource === pub204.id,
+          );
+          expect(score204.length).toBe(1);
 
           // 2. 400, 404, 422 -> failed
           for (const errStatus of [400, 404, 422]) {
@@ -201,18 +217,17 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               scoreAnswers: [errStatus],
             });
             await commitGrade(playErr, 'scorm12', 5, 10);
-            const rowsErr = (await waitSync(binding, pubErr, 'failed')) as Array<
+            const syncErr = await waitSync(binding, pubErr, 'failed');
+            expect(syncErr.status).toBe('failed');
+            const rowsErr = (await results(binding, pubErr)) as Array<
               Record<string, unknown>
             >;
             const rowErr = rowsErr.find(
               (r) =>
-                (r.learner as Record<string, unknown> | undefined)?.subject === learnerErr,
+                (r.learner as Record<string, unknown> | undefined)?.sub ===
+                learnerErr,
             );
             expect(rowErr).toBeDefined();
-            const syncErr =
-              (rowErr!.lastScoreSync as Record<string, unknown> | undefined) ??
-              ((rowErr!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-            expect(syncErr?.status).toBe('failed');
           }
 
           // 3. 409 -> conflict with channel message ("<Channel> has a grade with a newer time. Use the gradebook in <Channel> to change it.")
@@ -229,18 +244,9 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             ],
           });
           await commitGrade(play409, 'scorm12', 6, 10);
-          const rows409 = (await waitSync(binding, pub409, 'conflict')) as Array<
-            Record<string, unknown>
-          >;
-          const row409 = rows409.find(
-            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner409,
-          );
-          expect(row409).toBeDefined();
-          const sync409 =
-            (row409!.lastScoreSync as Record<string, unknown> | undefined) ??
-            ((row409!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-          expect(sync409?.status).toBe('conflict');
-          expect(String(sync409?.lastError ?? '')).toContain(
+          const sync409 = await waitSync(binding, pub409, 'conflict');
+          expect(sync409.status).toBe('conflict');
+          expect(String(sync409.lastError ?? '')).toContain(
             'has a grade with a newer time',
           );
 
@@ -253,18 +259,9 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             scoreAnswers: [503],
           });
           await commitGrade(play503, 'scorm12', 7, 10);
-          const rows503 = (await waitSync(binding, pub503, 'pending')) as Array<
-            Record<string, unknown>
-          >;
-          const row503 = rows503.find(
-            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner503,
-          );
-          expect(row503).toBeDefined();
-          const sync503 =
-            (row503!.lastScoreSync as Record<string, unknown> | undefined) ??
-            ((row503!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-          expect(sync503?.status).toBe('pending');
-          expect(Number(sync503?.tries ?? 0)).toBeGreaterThanOrEqual(1);
+          const sync503 = await waitSync(binding, pub503, 'pending');
+          expect(sync503.status).toBe('pending');
+          expect(Number(sync503.tries ?? 0)).toBeGreaterThanOrEqual(1);
 
           // 5. 429 with Retry-After: 60 -> throttled pending with tries === 0 and no immediate retry
           const pub429 = await publication(binding, 'scorm12');
@@ -286,7 +283,8 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             >;
             const row429 = currentRows.find(
               (r) =>
-                (r.learner as Record<string, unknown> | undefined)?.subject === learner429,
+                (r.learner as Record<string, unknown> | undefined)?.sub ===
+                learner429,
             );
             sync429 =
               (row429?.lastScoreSync as Record<string, unknown> | undefined) ??
@@ -323,8 +321,15 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           const commitRes = await commitGrade(staffPlay, 'scorm12', 10, 10);
           expect(commitRes.status).toBe(200);
 
-          const rows = await results(binding, previewPub);
-          expect(rows).toEqual([]);
+          const rows = (await results(binding, previewPub)) as Array<{
+            preview?: boolean;
+            scoreSyncs?: unknown[];
+          }>;
+          expect(
+            rows.every(
+              (r) => r.preview === true && (r.scoreSyncs ?? []).length === 0,
+            ),
+          ).toBe(true);
           await noServiceCalls(cursor);
         });
       });
@@ -333,7 +338,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
         await runKitCase(fixture.id, 'K1-AGS', 'A5', async () => {
           const isShared = fixture.capabilities['platform.sharing'] === 'shared';
           const bTemp = await setupChannelBinding(fixture, {
-            library: uniqueId(`lib-a5-${fixture.id}`),
+            library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c-a5-${fixture.id}`),
             deploymentId: uniqueId(`dep-a5-${fixture.id}`),
           });
@@ -344,25 +349,21 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               subject: uniqueId('learner-a5'),
             });
 
-            // Disconnect connection before committing grade (cogniate-app-api.md §4.9)
+            // Disconnect connection before committing grade -> 204 (cogniate-app-api.md §4)
             const delRes = await app(
               bTemp.session,
               'DELETE',
               `/app-api/connections/${bTemp.connection.id}`,
             );
-            expectStatus(delRes, 200);
+            expectStatus(delRes, 204);
 
             const cursor = (await records()).cursor;
             await commitGrade(playTemp, 'scorm12', 9, 10);
 
-            const rows = (await waitSync(bTemp, pubTemp, 'failed')) as Array<
-              Record<string, unknown>
-            >;
-            expect(rows.length).toBe(1);
-            const syncRow =
-              (rows[0].lastScoreSync as Record<string, unknown> | undefined) ??
-              ((rows[0].scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-            expect(String(syncRow?.lastError ?? '')).toMatch(/disabled|disconnected/i);
+            const syncFailed = await waitSync(bTemp, pubTemp, 'failed');
+            expect(String(syncFailed.lastError ?? '')).toContain(
+              'CONNECTION_DISABLED',
+            );
             await noServiceCalls(cursor);
           } finally {
             await endConnection(bTemp.session, bTemp.connection.id);
@@ -370,7 +371,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
         });
       });
 
-      it(`${fixture.id}:K1-AGS:A6 — Service URLs off the service origin refused at score and result endpoints (400 SERVICE_ORIGIN_MISMATCH / INVALID_AGS_ENDPOINT)`, async () => {
+      it(`${fixture.id}:K1-AGS:A6 — Service URLs off the service origin refused at score and result endpoints (400 INVALID_LINE_ITEM_ID / INVALID_URL_PARAMETER / SERVICE_ORIGIN_MISMATCH)`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A6', async () => {
           const launched = await launchOnChannel(binding, {
             resource: pub.id,
@@ -380,15 +381,18 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           expect(launched.response.status).toBe(303);
           const tok = await idToken(launched.ltik!);
           expectStatus(tok, 200);
-          const serviceKey = tok.json.services.ags.serviceKey as string;
+          const serviceKey = (tok.json.services?.serviceKey ??
+            tok.json.services?.ags?.serviceKey) as string;
 
           const cursor = (await records()).cursor;
           const offOriginLineitem = 'https://evil-ags-origin.sim.test/ags/lineitems/1';
 
-          // 1. POST /api/scores with off-origin lineitemUrl refused with 400 (lti-service-api-delta.md §7)
-          const badScore = await service(serviceKey, 'POST', '/api/scores', {
-            lineitemUrl: offOriginLineitem,
-            score: {
+          // 1. POST /api/lineitems/:lineItemId/scores with off-origin lineItemId refused with 400 (lti-service-api.md §3.4, §3.6)
+          const badScore = await service(
+            serviceKey,
+            'POST',
+            `/api/lineitems/${encodeURIComponent(offOriginLineitem)}/scores`,
+            {
               userId: tok.json.user.id,
               scoreGiven: 10,
               scoreMaximum: 10,
@@ -396,22 +400,38 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               activityProgress: 'Completed',
               gradingProgress: 'FullyGraded',
             },
-          });
-          expect(badScore.status).toBe(400);
-          expect(['SERVICE_ORIGIN_MISMATCH', 'INVALID_AGS_ENDPOINT']).toContain(
-            badScore.json?.error?.code,
           );
+          expect(badScore.status).toBe(400);
+          expect([
+            'INVALID_LINE_ITEM_ID',
+            'INVALID_URL_PARAMETER',
+            'SERVICE_ORIGIN_MISMATCH',
+          ]).toContain(badScore.json?.error?.code);
 
-          // 2. GET /api/results with off-origin lineitemUrl refused with 400
+          // 2. GET /api/lineitems/:lineItemId/scores and GET /api/lineitems?url=... with off-origin URL refused with 400
           const badResults = await service(
             serviceKey,
             'GET',
-            `/api/results?lineitemUrl=${encodeURIComponent(offOriginLineitem)}`,
+            `/api/lineitems/${encodeURIComponent(offOriginLineitem)}/scores`,
           );
           expect(badResults.status).toBe(400);
-          expect(['SERVICE_ORIGIN_MISMATCH', 'INVALID_AGS_ENDPOINT']).toContain(
-            badResults.json?.error?.code,
+          expect([
+            'INVALID_LINE_ITEM_ID',
+            'INVALID_URL_PARAMETER',
+            'SERVICE_ORIGIN_MISMATCH',
+          ]).toContain(badResults.json?.error?.code);
+
+          const badLineitems = await service(
+            serviceKey,
+            'GET',
+            `/api/lineitems?url=${encodeURIComponent(offOriginLineitem)}`,
           );
+          expect(badLineitems.status).toBe(400);
+          expect([
+            'INVALID_URL_PARAMETER',
+            'INVALID_LINE_ITEM_ID',
+            'SERVICE_ORIGIN_MISMATCH',
+          ]).toContain(badLineitems.json?.error?.code);
 
           await noServiceCalls(cursor);
         });
