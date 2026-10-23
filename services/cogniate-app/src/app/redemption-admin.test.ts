@@ -209,6 +209,20 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
   });
 
+  it('a staged platform that is gone gives 409 PLATFORM_IN_USE that names the cause (BD-A1-97); no create, the grant stays open', async () => {
+    const { c, platform, issue, put, creates } = await staged();
+    const code = await issue(c, { acceptStaged: true, confirmForeignHosts: true });
+    t.lti.platforms.delete(platform.id);
+    const r = await put(c, { clientId: 'client-1', deploymentId: 'dep-1', grantCode: code });
+    expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
+      'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.']);
+    expect(creates()).toEqual([]);
+    expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
+    expect(grantsOfConnection(t.db, c.id).map((g) => g.redeemedAt)).toEqual([null]);
+    // The state after the refusal does not change with this text: still pending, the lease cleared.
+    expect([getConnectionAnyLibrary(t.db, c.id)!.status, getConnectionAnyLibrary(t.db, c.id)!.redeemingAttempt]).toEqual(['pending', null]);
+  });
+
   const platformActive = () => t.lti.platforms.get('plt_staged')!.active;
 
   it('the chain: the staged /tool/register page, --accept-staged, then the short body activates the same platform', async () => {

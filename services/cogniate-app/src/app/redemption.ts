@@ -46,6 +46,8 @@ export interface RedemptionDeps {
 const startState = (purpose: GrantPurpose, c: Connection): boolean =>
   purpose === 'initial' ? c.status === 'pending' : c.status === 'registered' || c.status === 'connected';
 const stateError = (purpose: GrantPurpose) => new ApiError(purpose === 'initial' ? 'CONNECTION_NOT_PENDING' : 'CONNECTION_NOT_READY');
+/** BD-A1-97 (app API delta §3.4): the `409 PLATFORM_IN_USE` description when the staged platform is gone. */
+const STAGED_GONE = 'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.';
 
 type CancelReason = 'revoked' | 'replaced' | 'taken_over' | 'connection_changed';
 
@@ -219,11 +221,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
-    const inUse = (): never => {
+    const inUse = (description?: string): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
-        : new ApiError('PLATFORM_IN_USE', `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
+        : new ApiError('PLATFORM_IN_USE', description ?? `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
     };
     const stagedChanged = (fields: string[]): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
@@ -316,7 +318,8 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
             const guard = s0(c, attempt, grant.id, 'step');
             if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
             if (guard === 'stop') { stop = true; break; }
-            return inUse();
+            // A staged registration has no S1 create, so no record means that its staged platform is gone.
+            return inUse(staged ? STAGED_GONE : undefined);
           }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;
