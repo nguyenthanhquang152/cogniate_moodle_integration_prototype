@@ -38,12 +38,13 @@ it('LA-E2-06: the profile allows Dynamic Registration with the path-prefix issue
   expect(profiles[0].dynamicRegistration).not.toHaveProperty('configurationPath');
 });
 
-it('LA-E2-06: dynamic (authority self, always staged by I-SELF) and manual with an operator grant; desire2learn is guarded at the registration level', () => {
+it('LA-E2-06: dynamic (authority self, staged by I-SELF for every real D2L configuration) and manual with an operator grant; desire2learn is guarded at the registration level', () => {
   expect(manifest.registration).toEqual([
     { method: 'dynamic', authority: 'self', profiles: ['brightspace'], defaultProfile: 'brightspace' },
     { method: 'manual', authority: 'operatorGrant', profiles: ['brightspace'], defaultProfile: 'brightspace' },
   ]);
-  // I-SELF always fails for this profile: its endpoints may be on any https host, so a registration is staged.
+  // Its endpoints may be on any https host: a configuration off the issuer origin (the real D2L token host) breaks I-SELF
+  // and is staged; one with every endpoint on the issuer origin completes active (A1 BD-A1-108).
   expect(profiles[0].endpointOrigins).toBe('any-https');
   expect(manifest.lti.guardedFamilies).toEqual([{ family: 'desire2learn', level: 'registration' }]);
   expect(manifest.names).toEqual({ text: 'Brightspace', label: 'D2L Brightspace' });
