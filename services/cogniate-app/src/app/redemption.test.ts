@@ -532,7 +532,7 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     expect(rows.json.map((r: Json) => r.key)).toEqual(['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields', 'grade_service', 'membership_service', 'placement']);
     expect(rows.json[0].value).toBe(BB);
     const providers = (await call('GET', '/app-api/lms-providers', a)).json.lms;
-    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
     expect(providers[2].profiles).toEqual([
       { id: 'blackboard', label: 'Blackboard Learn', simulation: false, ready: false, clientId: null },
       { id: 'blackboard-sim', label: 'Blackboard Learn (simulation)', simulation: true, ready: true, clientId: BB },

@@ -16,7 +16,7 @@ const unknownProfile: LtiProviderProfile = {
   siteUrlOn: 'platform', serviceUrl: false, simulation: false, sharedPlatform: null,
 };
 
-it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order; the app logs it once', async () => {
+it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order (lti-generic follows, LA-E2-03); the app logs it once', async () => {
   t = await testApp();
   t.lti.addSharedPlatform('blackboard-sim', 'qa-bb-app');
   const cookie = await t.login(THANH);
@@ -26,7 +26,7 @@ it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep th
     return r.body;
   };
   const baseline = await list();
-  expect((JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+  expect((JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
   // The unknown row comes between two known rows, so a change of order would show.
   t.lti.providers.splice(1, 0, unknownProfile);
   expect(await list()).toBe(baseline);
