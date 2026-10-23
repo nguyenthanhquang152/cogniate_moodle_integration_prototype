@@ -3,7 +3,7 @@
 //   GET  /api/registrations/:id               Bearer: the platform data, operation, existingPlatformId
 //   POST /api/registrations/:id/complete      Bearer: send the registration to the platform, store the platform
 import type { RegistrationTextKey } from '@cogniate/channel-kernel';
-import { REGISTRATION_TEXT_KEYS, STANDARD_PROFILE_ID, familyGuardVerdict, pendingToolText, registrationText } from '@cogniate/channel-kernel';
+import { REGISTRATION_TEXT_KEYS, STANDARD_PROFILE_ID, familyGuardVerdict, fillText, registrationText } from '@cogniate/channel-kernel';
 import { originHost } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -61,9 +61,6 @@ const NO_DEEP_LINKING_HELP = 'The platform does not offer Deep Linking to this t
 /** M1 (contract §9.2): `This is a {LMS} site. Connect it as {LMS} in the Cogniate portal.` */
 const familyHelp = (lms: string) => `This is a ${lms} site. Connect it as ${lms} in the Cogniate portal.`;
 
-/** A-T3b-01: the registration may have reached Moodle, but the result is unknown. No automatic clean-up. */
-// The same clean-up text as the app page MOODLE_TOOL_MAY_EXIST (B-T4b1-02), with the tool name that was sent to Moodle.
-const toolMayExist = (toolName: string) => new ApiError('PLATFORM_ERROR', pendingToolText(toolName), { details: { reason: 'tool_may_exist' } });
 const SESSION_MAX_MS = 3600 * 1000; // contract §2.4: expires with the token, at most 1 h
 const CLOCK_SKEW_S = 60;
 const RESERVED_QUERY = new Set(['openid_configuration', 'registration_token', 'privacyLevel']);
@@ -276,6 +273,13 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const rule = profile.dynamicRegistration!;
       const profileChannel = channels.channel(profile.channel);
       const profileLms = channels.textName(profile.channel);
+      /**
+       * A-T3b-01: the registration may have reached the platform, but the result is unknown; no automatic clean-up.
+       * BD-A1-87: the channel's recovery sentence (Moodle: today's text, the same as the app page MOODLE_TOOL_MAY_EXIST)
+       * with the tool name that was sent; the code and reason do not change.
+       */
+      const toolMayExist = (toolName: string) => new ApiError('PLATFORM_ERROR',
+        fillText(registrationText(profileChannel, 'TOOL_MAY_EXIST'), { LMS: profileLms, tool: toolName }), { details: { reason: 'tool_may_exist' } });
       // D5 item 3: an opaque token is only sent back, so the operation is always "new".
       const operation0: RegistrationOperation = rule.registrationToken === 'opaque-bearer' ? 'new' : session.operation;
       // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to the platform otherwise.

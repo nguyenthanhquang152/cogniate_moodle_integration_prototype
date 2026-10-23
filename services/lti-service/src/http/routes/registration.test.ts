@@ -564,6 +564,33 @@ describe('E2 Dynamic Registration rules per profile (AC-LA-E2-02-01)', () => {
     } finally { await s.app.close(); s.db.close(); }
   });
 
+  it('item 5 (B-LA-E2-02-03): complete refuses a family that another channel guards, with a configuration that passes every other rule', async () => {
+    const s = await setup(registry);
+    try {
+      // A standard-compatible configuration (Moodle path, every endpoint on the issuer origin): only the family differs.
+      s.state.config = { ...CONFIG, [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'zzdr', messages_supported: [{ type: 'LtiDeepLinkingRequest' }] } };
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg' }))).headers.location));
+      const r = await complete(s, id, { profile: 'standard' });
+      expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'family=zzdr']);
+      expect(r.json().details.description).toBe('Invalid field: profile. This is a ZZ DR site. Connect it as ZZ DR in the Cogniate portal.');
+      expect(s.state.registrations).toEqual([]);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it.each(['timeout', 'token_used', 'server_error', 'garbage'] as const)(
+    'B-LA-E2-02-01 (BD-A1-87): an uncertain outcome (%s) gives the channel recovery sentence; the code and reason stay', async (mode) => {
+      const s = await setup(registry);
+      try {
+        s.state.configs[G_CONFIG_URL] = genericConfig();
+        const id = idOf(String((await startAt(s, G_CONFIG_URL, 'opaque-token-9')).headers.location));
+        s.state.mode = mode;
+        const r = await complete(s, id, { profile: 'zz-generic', bindingRef: 'conn-9', platformName: 'Review tool' });
+        expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([502, 'PLATFORM_ERROR', 'tool_may_exist']);
+        expect(r.json().details.description).toBe("ZZ DR may have saved the Cogniate tool already. If ZZ DR shows the tool 'Review tool', delete it there, then connect again.");
+      } finally { await s.app.close(); s.db.close(); }
+    });
+
   it('item 5: a configuration without Deep Linking gets a clear start page and no session', async () => {
     const s = await setup(registry);
     try {
