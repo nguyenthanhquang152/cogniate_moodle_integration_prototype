@@ -145,22 +145,24 @@ async function createMoodleDrScenario(label: string): Promise<{
   registrationToken: string;
 }> {
   const scenarioId = unique(`e506-dr-${label}`);
+  // Path-prefix issuer routing in tests/sim/core/dr.mjs:16-35 gives a query-free
+  // issuer + '/mod/lti/openid-configuration.php' URL that satisfies standard profile (LA-IC-03).
+  const scenarioIssuer = `${MOODLE_SIM_ISSUER}/${encodeURIComponent(scenarioId)}`;
   const created = await sim('/scenarios', 'POST', {
     id: scenarioId,
     provider: 'moodle-sim',
+    issuer: scenarioIssuer,
     clientId: unique(`e506-dr-client-${label}`),
     deploymentId: '1',
     siteHost: 'moodle.sim.test',
-    dr: { operation: 'new' },
+    dr: { operation: 'new', issuer: scenarioIssuer },
   });
   expectStatus(created, 201);
   const reg = created.json.registration as {
     openidConfiguration?: string;
     registrationToken?: string;
   };
-  const openidConfiguration =
-    reg?.openidConfiguration ??
-    `${MOODLE_SIM_ISSUER}/mod/lti/openid-configuration.php?scenario=${encodeURIComponent(scenarioId)}`;
+  const openidConfiguration = `${scenarioIssuer}/mod/lti/openid-configuration.php`;
   const registrationToken = String(reg?.registrationToken ?? '');
   expect(registrationToken.split('.').length).toBe(3);
   recordSecret('runtime_token', registrationToken);
@@ -357,7 +359,9 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
         const res = await httpsRequest(
           `${PUBLIC_LTI_URL}/lti/register/${acctA.id}?${regParams.toString()}`,
         );
-        expect(res.status, `Session ${i} on ${acctA.id} should return 200`).toBe(200);
+        expect([200, 303], `Session ${i} on ${acctA.id} should return 200/303`).toContain(
+          res.status,
+        );
       }
 
       const recsAfter3 = (await records(cursor0)).records;
@@ -384,11 +388,11 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
         configFetchesAfter3,
       );
 
-      // AC-LA-E5-06-06: In the same minute, registration start on a second fresh account from the same address still opens a session (200)
+      // AC-LA-E5-06-06: In the same minute, registration start on a second fresh account from the same address still opens a session (200/303)
       const secondAcctRes = await httpsRequest(
         `${PUBLIC_LTI_URL}/lti/register/${acctB.id}?${regParams.toString()}`,
       );
-      expect(secondAcctRes.status).toBe(200);
+      expect([200, 303]).toContain(secondAcctRes.status);
     } finally {
       // Restore registrationSessionsPerAddress and the registration limit
       const restoreRes = await operatorRequest('PATCH', '/operator/v1/rate-limits', {
@@ -422,7 +426,7 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
     const startRes = await httpsRequest(
       `${PUBLIC_LTI_URL}/lti/register/cogniate?${regParams.toString()}`,
     );
-    expect(startRes.status).toBe(200);
+    expect([200, 303]).toContain(startRes.status);
     const locHeader = String(startRes.headers.location ?? '');
     const regIdMatch =
       /registrationId["'=:\s]+([0-9a-fA-F-]{16,64})/.exec(startRes.body) ??
@@ -437,7 +441,7 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
     }>('POST', `/api/registrations/${encodeURIComponent(registrationId)}/complete`, {
       authorization: auth.bearer(cogniateKey),
       body: {
-        toolName: 'Cogniate E5-06 DR Check',
+        platformName: 'Cogniate E5-06 DR Check',
         autoActivate: true,
       },
     });

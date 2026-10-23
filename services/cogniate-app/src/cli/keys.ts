@@ -4,6 +4,8 @@
 // version and the sealed values of each version; `rewrap` re-seals the long-lived values (web-services token, ref
 // copy, service keys) with the active version and writes one audit event `key_provider.rewrap`. Operator only: it runs
 // in the app service shell. The operator policy runs without evidence (BD-A2-63): production needs a listed --operator.
+// Order (A-LA-E5-22-02): write the new ring, restart the app and check /readyz = 200, then run the re-wrap. A re-wrap
+// before the restart seals values with a version that the running app does not have yet.
 import { parseArgs } from 'node:util';
 import type { LocalKeyProvider, Logger } from '@cogniate/shared';
 import { insertAuditEvent } from '../app/audit.ts';
@@ -13,6 +15,7 @@ import { appSealedVersionCounts, rewrapAppBlobs } from '../app/sealing.ts';
 import type { Db } from '../domain/db.ts';
 
 const USAGE = 'Usage: app:keys status [--operator O] | rewrap [--operator O]';
+export const REWRAP_ORDER = 'Order: write the new key ring, restart the app and check /readyz = 200, then run app:keys rewrap.';
 
 export interface KeysDeps {
   db: Db;
@@ -45,7 +48,7 @@ export function runKeysCommand(deps: KeysDeps, argv: string[], traceId: string):
   } catch {
     command = undefined;
   }
-  if (command !== 'status' && command !== 'rewrap') return { exitCode: 1, lines: [USAGE] };
+  if (command !== 'status' && command !== 'rewrap') return { exitCode: 1, lines: [USAGE, REWRAP_ORDER] };
   const policy = evaluateOperatorPolicy({ operator, evidenceRequired: false }, deps.env ?? process.env);
   if (!policy.allowed) {
     let line: { event?: unknown; reason?: unknown } = {};
@@ -65,7 +68,7 @@ export function runKeysCommand(deps: KeysDeps, argv: string[], traceId: string):
     details: { ...policy.details, outcome, activeVersion: deps.keys.activeVersion(), examined: r.examined, rewrapped: r.rewrapped, skippedChanged: r.skippedChanged,
       unreadable: r.unreadable, ...(r.unreadableVersions.length > 0 ? { unreadableVersions: r.unreadableVersions } : {}) },
   }, deps.now());
-  const lines = [`Re-wrap: ${outcome}. Examined ${r.examined}, re-wrapped ${r.rewrapped}, skipped because changed ${r.skippedChanged}, unreadable ${r.unreadable}.`];
+  const lines = [`Re-wrap: ${outcome}. Examined ${r.examined}, re-wrapped ${r.rewrapped}, skipped because changed ${r.skippedChanged}, unreadable ${r.unreadable}.`, REWRAP_ORDER];
   if (r.unreadable > 0) lines.push(`Unreadable versions: ${r.unreadableVersions.join(', ')}. Put each version back into the app key ring, restart the app, and run app:keys rewrap again.`);
   if (r.skippedChanged > 0) lines.push('Some values changed during the run. Run app:keys rewrap again.');
   lines.push('Picker sessions keep their old form until they expire.', `Trace id: ${traceId}`, ...statusLines(deps));

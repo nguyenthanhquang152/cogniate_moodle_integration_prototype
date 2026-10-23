@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 5
+Round: 6
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -289,3 +289,58 @@ BD-A1-93 / BD-A2-86 match the implementation: both update paths call the same tr
 AC-T3-03 creates an active platform (`1-registration.spec.ts:89`); AC-T3-26 then updates that platform (`2-update.spec.ts:61-77`). Its result remains unchanged. The app rejects explicit updates before completion and never sends `updatePlatformId`; the listed frozen app flows register new tools. G1–G4 make no completion call. The empty golden/frozen lists and both summary rows are correct. A-LA-LD9-10 requests evidence wording cleanup only; the E5-06 URL issue belongs to IC-03, not this activation change.
 
 Only this review file was changed in the integration worktree. No commit was made.
+
+## Round 6
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Reviewed the five records and their test/table changes in `d41b8d2` and `b40c789`, against product source at **`b40c789`**, LA-ADR-04 D8, LA-ADR-05 D3/D4/D6, the cited build decisions and plan §6.1 LD-9. Blind review; no Reviewer-B file read.
+
+**Verdict: CHANGES_REQUESTED for IC-01; APPROVE for IC-03, IC-04, IC-12 and IC-14. New findings: 0 BLOCKER, 2 MAJOR, 0 MINOR, 3 NIT.** A-LA-LD9-09 is closed as a record correction. The IC-03 portions of A-LA-LD9-10 are closed; its IC-21 wording item remains outside this dispatch. Other earlier findings retain their status.
+
+Verification: fresh private clone `/tmp/la-review-a-8ef139baba6e`, detached at `b40c789`, own install, Vitest cache cleared before each run. **342/342 focused tests** pass (15 existing Author files plus one private app-response probe); **105/105 contract K0 tests** and **12/12 golden K0 tests** pass. **38 comparison probes** confirm the four narrow records' intended changes and reject extra/wrong values. Six additional IC-01 probes demonstrate the overly broad acceptance below. The reported slot-3A live compare is evidence for `8f1ecea`, not a live verification of `b40c789`; I ran no Docker, stack, browser or host stack runner.
+
+### LA-IC-01 — CHANGES_REQUESTED
+
+**A-LA-LD9-11 (MAJOR): type-only wildcard rules hide incorrect or missing baseline-channel fields.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-01.json:5-23,415-438,913-952`; no regression for the actual IC-01 record in `golden.k0.test.mjs`.
+- Problem: the record allows any string/object/array instead of the channel-specific values required by TEST-STRATEGY §4.7. A wildcard also counts as satisfied when only some baseline objects have the new field.
+- Evidence: a private G-BASE candidate containing wrong channel names, wrong origin rules and fabricated capability objects passes IC-01 with **259 explained differences and zero missing entries**. Separate variants still pass when a Canvas connection has `channel: 'moodle'`, has an empty `channelCapabilities`, lacks `channel` entirely, or its provider has `registration: []`. These are product regressions, not intended additive output. The existing combined K0 comparison omits IC-01.
+- Suggested fix: pin exact baseline paths and values, or use semantic rules that validate the expected channel/profile and require every expected field. Preserve the separate IC-14 capability changes. Add negative controls for wrong channel identity, capability values, missing fields and empty registration methods, and include the real record in the combined comparison.
+
+**A-LA-LD9-12 (MAJOR): the three exact Brightspace rows reject the reviewed product.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-01.json:517,683,849`.
+- Evidence: these rows require manual-only methods, `dynamicRegistration: false`, and no dynamic binding authority. At `b40c789`, `packages/channels/brightspace/manifest.ts:19-22` offers `['dynamic', 'manual']`; the real app route projects `dynamicRegistration: true` and `{ dynamic: 'self', manual: 'operatorGrant' }`. The private app-injection probe verifies that response. Substituting it into the three provider-list locations makes IC-01 fail all three exact entries. LA-E2-06 / BD-A1-108 already apply at this SHA; IC-14 only changes Canvas and cannot explain this difference.
+- Suggested fix: update these exact new-channel objects to the intended wave-end output and record the source decision. Add a current-provider response check so an older slot's expected values cannot silently become the wave-end oracle. Do not replace the exact rows with another unrestricted object rule.
+
+The record also needs its LD-9 scan/summary entry when repaired: the README's reviewed-record table omits IC-01 and the strategy row still describes the planned value-pinning rule. The E0/LD-1 rewrite remains a separate authorized list; this review does not authorize additional frozen assertion changes under IC-01.
+
+### LA-IC-03 — APPROVE
+
+**A-LA-LD9-09 closed:** the record now lists both affected QA task fixtures, explains full-URL comparison, distinguishes start from standard-profile completion, and explicitly tracks the E5-06 change as pending. The empty golden and frozen lists remain correct. The corrected T4b1 AC-T4-09/33 and E2-02 scan descriptions resolve this record's part of A-LA-LD9-10.
+
+At the pinned SHA, `createMoodleDrScenario` still uses the query-bearing URL; its fix is **not present in this snapshot**. Approval is of the accurate change list, not proof that E5-06 now passes. QA must land the fixture fix and verify the affected completion case before its gate.
+
+### LA-IC-04 — APPROVE
+
+The three exact G1 changes match D4 and `a390edb`: remove only scope index 4 from each Canvas JSON form, and change only Moodle row 13's value. Source and tests confirm four AGS scopes in the channel request, while direct LTI completion without `scopes` retains its five-scope default. Blackboard's manual membership instruction is not changed by this product commit.
+
+The frozen list identifies the two Canvas JSON cases, the common Moodle configuration case, and T4b1 AC-T4-10: **four cases in three files**. T6 and M2 compare against live API values; U2 passes live row values to `fillManualTool`; the direct-service NRPS and DR fixtures remain valid. No further frozen assertion edit was found. The proposed edits are still prospective at `b40c789`.
+
+**A-LA-LD9-13 (NIT): the common Moodle configuration citation uses the wrong source range.** Where: `LA-IC-04.json:36,43`, README §5 and TEST-STRATEGY §4.7. At the reviewed SHA, the named case is `tests/acceptance/M1/common/00-profiles.test.ts:115-130`, with the NRPS value at `:126`; `93-108` is unrelated platform/refusal and DTO code. Use the integration range, or name the different QA source revision explicitly. The case and intended value change are correct.
+
+### LA-IC-12 — APPROVE
+
+Both new values equal their stored G4 picker text **plus exactly ` Cancel`**. The renderer puts Add before Cancel, so the frozen `.first()` selectors keep selecting Add; the Moodle named-button selector also stays valid. The service fixtures do not send an empty list expecting refusal or compare the complete shaped settings object. The no-course page has Cancel too, but G4 does not capture that page. Zero frozen edits and these two golden paths are supported.
+
+**A-LA-LD9-14 (NIT): the record narrative and both tables still call the app change pending.** Where: `LA-IC-12.json:34,36`, `golden/README.md:133`, `TEST-STRATEGY.md:448`. The JSON now has two committed changes, while the README says `changes: []` and both narratives say the picker change will land later. Update the status/counts and include the app picker test/source evidence. The old optional-empty-record branch in K0 can also be removed now that both changes are present.
+
+### LA-IC-14 — APPROVE
+
+All **13 paths** are accounted for: ten Canvas capability flags across G1/G3 and three added provider methods. The K0 oracle changes only Canvas's `dynamicRegistration` flag. D6 and BD-A1-106/107 require the same `operatorGrant` authority before and after staging; the reviewed app tests cover the pending registration URL, inactive completion and grant adoption. The listed three M1 cases need the stated updates; sibling refusal cases and the other five capability flags must stay strict.
+
+M2 continues through the manual path because `CanvasCreate` defaults to manual, even with the later LA-E3-16 wizard present. The separate E1-02 task fixture still pins Canvas false and G-BASE directly; the record correctly identifies it as affected, so QA must update both checks without changing G-BASE. This approval covers the listed changes, not an unrun wave-end capture.
+
+**A-LA-LD9-15 (NIT): several IC-14 evidence references do not describe the pinned tree.** Where: `LA-IC-14.json:42-43,64-66`. The named E3-15 `canvas-dr-app.k0.test.ts` and E3-09 `canvas-dr.{k0,k1sim}.test.ts` files are absent at `b40c789`; mark them planned or cite their actual revision. `03-snapshot-controls.test.ts` ends at line 24, not 35; the common Blackboard checks start at line 131, beyond the cited `82-129`. Describe M2's manual default at the reviewed code, rather than relying on the older API-only Canvas wizard state. Correct these references; the 13 golden paths and three frozen-case changes remain valid.
+
+Only this review file was edited in the integration worktree. No commit was made.

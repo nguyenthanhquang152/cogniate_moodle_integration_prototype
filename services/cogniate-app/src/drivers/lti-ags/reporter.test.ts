@@ -1,4 +1,4 @@
-import { createLogger, encrypt, type OutboundRequest } from '@cogniate/shared';
+import { createLocalKeyProvider, createLogger, encrypt, type OutboundRequest } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLtiClient, LtiServiceError } from '../../clients/lti-client.ts';
 import { recordsFixture } from '../../kernel/records/records.testkit.ts';
@@ -95,5 +95,21 @@ describe('AC-LA-E4-03-01: AGS transport mapping', () => {
     await expect(f.reporter.deliver(f.row, f.ctx)).rejects.toBeInstanceOf(TypeError);
     f.lti.postScore = async () => { throw new LtiServiceError(429, 'UNKNOWN_LIMIT', ''); };
     expect(await f.reporter.deliver(f.row, f.ctx)).toMatchObject({ kind: 'retryable', uncertain: false });
+  });
+});
+
+describe('A-LA-E5-22-02: a service key that the app ring cannot open', () => {
+  it('a key version that the ring lacks is retryable (nothing sent, the outbox tries again); a moved or corrupted key stays a local failure', async () => {
+    const f = await fixture(); f.answer(204);
+    const k9 = createLocalKeyProvider({ active: 'k9', keys: new Map([['k9', Buffer.alloc(32, 9)]]) });
+    const library = String(f.db.prepare('SELECT c.library_id FROM resource_link rl JOIN connection c ON c.id = rl.connection_id WHERE rl.id = ?').get('rl_learner')!.library_id);
+    f.db.prepare('UPDATE resource_link SET service_key_encrypted = ?')
+      .run(k9.sealSync(Buffer.from('service-key'), `app:resource_link:service_key_encrypted:${library}:rl_learner`).bytes);
+    expect(await f.reporter.deliver(f.row, f.ctx)).toEqual({ kind: 'retryable', uncertain: false,
+      text: 'Temporary error: the app key ring cannot open the service key yet. Cogniate tries again. Give the trace id trace to your Cogniate admin.' });
+    expect([f.beginSend.mock.calls.length, f.calls.length]).toEqual([0, 0]);
+    // A legacy blob of another key: the ring has the version (legacy) but the tag fails.
+    f.db.prepare('UPDATE resource_link SET service_key_encrypted = ?').run(encrypt(Buffer.alloc(32, 6), 'service-key'));
+    expect(await f.reporter.deliver(f.row, f.ctx)).toMatchObject({ kind: 'local_failure', text: expect.stringContaining('The service key cannot be used.') });
   });
 });
