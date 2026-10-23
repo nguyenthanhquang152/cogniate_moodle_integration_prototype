@@ -1,6 +1,7 @@
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { sha256Hex } from '@cogniate/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import { continuesNewest } from '../domain/attempts.ts';
 import type { TestApp } from '../testkit.ts';
 import { DL_RETURN, INSTRUCTOR, LEARNER, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
@@ -62,6 +63,26 @@ const pageCode = (body: string) => /data-error-code="([A-Z_]+)"/.exec(body)?.[1]
 const playIdOf = (location: unknown) => /\/play\/(ply_[A-Za-z0-9_-]+)/.exec(String(location))?.[1] ?? '';
 const events = (name: string, traceId?: string) => t.logs.filter((l) => l.event === name && (traceId === undefined || l.trace_id === traceId));
 const count = (table: string) => Number(t.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n);
+
+/** The claim state of a picker: used or not, and its pick rows (publication ids, sorted). */
+const claimState = (id: string) => ({
+  used: (t.db.prepare('SELECT used_at FROM picker_session WHERE id = ?').get(sha256Hex(id)) as { used_at: number | null }).used_at !== null,
+  picks: (t.db.prepare('SELECT publication_id FROM picker_pick WHERE picker_id_hash = ? ORDER BY publication_id').all(sha256Hex(id)) as Array<{ publication_id: string }>)
+    .map((r) => r.publication_id),
+});
+
+/**
+ * B-LA-E3-05-01: fail the Deep Linking call itself, not the token lookup before it. `seen` keeps the claim state at the
+ * moment of the call, so a test proves that the release after the error removes a real claim and its picks.
+ */
+function failDeepLinking(id: string) {
+  const seen: Array<ReturnType<typeof claimState>> = [];
+  const spy = vi.spyOn(t.lti.client, 'deepLinking').mockImplementationOnce(async () => {
+    seen.push(claimState(id));
+    throw new LtiServiceError(502, 'PLATFORM_ERROR', '');
+  });
+  return { spy, seen };
+}
 
 /** A learner (or teacher) resource launch: returns the 303 response. */
 async function launch(platformId: string, pub: string, over: Parameters<typeof launchToken>[0] extends infer O ? Partial<O> : never = {}) {
@@ -373,9 +394,12 @@ describe('/tool/deep-link and /tool/picker (app contract §6, flows §6b)', () =
   it('a failed Deep Linking call -> 502 page; the picker is released and a retry works', async () => {
     const w = await world();
     const id = await deepLink(w.a.platformId);
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(id);
     expect(pageCode((await picker(id, w.scorm)).body)).toBe('LTI_SERVICE_ERROR');
+    expect(fault.seen).toEqual([{ used: true, picks: [w.scorm] }]); // the call failed after the claim
+    expect(claimState(id)).toEqual({ used: false, picks: [] });
     expect((await picker(id, w.scorm)).statusCode).toBe(200);
+    expect(fault.spy).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -443,8 +467,9 @@ describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event 
   it('A-T4b2-04: a used picker keeps no encrypted ltik; a failed Deep Linking call keeps it for the retry', async () => {
     const w = await world();
     const failed = await deepLink(w.a.platformId);
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(failed);
     await picker(failed, w.scorm);
+    expect(fault.seen).toEqual([{ used: true, picks: [w.scorm] }]); // the call failed after the claim
     const len = (id: string) => Number(t.db.prepare('SELECT length(ltik_encrypted) AS n FROM picker_session WHERE id = ?').get(sha256Hex(id))!.n);
     expect(len(failed)).toBeGreaterThan(0);
     expect((await picker(failed, w.scorm)).statusCode).toBe(200);
