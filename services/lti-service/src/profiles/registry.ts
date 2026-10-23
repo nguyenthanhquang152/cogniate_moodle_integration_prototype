@@ -21,6 +21,7 @@ export function buildProfileRegistry(loaded: readonly LoadedChannel[]): ProfileR
     Object.freeze(source.sources);
     if (source.platformStorage) Object.freeze(source.platformStorage);
     if (source.refusedHostSuffixes) Object.freeze(source.refusedHostSuffixes);
+    if (source.dynamicRegistration?.toolConfigurationExtensions) Object.freeze(source.dynamicRegistration.toolConfigurationExtensions);
     // E2 traits (LA-ADR-02 D2): an omitted trait gets its default (provisional Lead call, A1 to ratify).
     const traits = {
       issuerKind: source.issuerKind ?? issuerKindOf(source.issuer),

@@ -16,6 +16,12 @@ const storageOrigin = z.string().refine((value) => {
   catch { return false; }
 }, 'Expected authOrigin or a canonical https origin without a path.');
 
+/** A member name of the tool configuration claim that cannot meet a member of the LTI specs: an absolute https URL. */
+const isExtensionKey = (value: string): boolean => {
+  try { const url = new URL(value); return url.protocol === 'https:' && url.username === '' && url.password === '' && url.href === value && !/[?#]/.test(value); }
+  catch { return false; }
+};
+
 export const profileSourceSchema = z.strictObject({
   id: z.string().min(1),
   endpoints: z.enum(['admin', 'fixed']),
@@ -33,6 +39,9 @@ export const profileSourceSchema = z.strictObject({
     issuerRule: z.enum(['origin', 'path-prefix', 'profile']),
     configurationPath: z.string().regex(/^\/[^?#\s]*$/, 'Expected a path that starts with "/", with no query or fragment.').optional(),
     registrationToken: z.enum(['scope-jwt', 'opaque-bearer']),
+    // LA-ADR-05 D6 (RQ-2, A1 to ratify): channel data for the tool configuration claim of the registration request.
+    toolConfigurationExtensions: z.record(z.string().refine(isExtensionKey, 'Expected an absolute https URL as the member name.'), z.string().min(1))
+      .refine((members) => Object.keys(members).length <= 8, 'Expected at most 8 members.').optional(),
   }).nullable().optional(),
   wireLms: z.string().min(1).nullable().optional(),
   listOrder: z.number().int().nonnegative(),
@@ -73,6 +82,11 @@ export const profileSourceSchema = z.strictObject({
   }
   if (profile.dynamicRegistration?.configurationPath !== undefined && profile.dynamicRegistration.issuerRule !== 'path-prefix') {
     ctx.addIssue({ code: 'custom', path: ['dynamicRegistration', 'configurationPath'], message: 'Expected a configurationPath only with issuerRule "path-prefix".' });
+  }
+  // LA-ADR-05 D6, contract delta §4.5: fixed-endpoint profiles keep their own rule (the profile values); admin values
+  // follow an issuer rule.
+  if (profile.dynamicRegistration && (profile.dynamicRegistration.issuerRule === 'profile') !== (profile.endpoints === 'fixed')) {
+    ctx.addIssue({ code: 'custom', path: ['dynamicRegistration', 'issuerRule'], message: profile.endpoints === 'fixed' ? 'Expected "profile" for endpoints "fixed".' : 'Expected "origin" or "path-prefix" for endpoints "admin".' });
   }
 }) satisfies z.ZodType<ProfileSource>;
 
