@@ -19,10 +19,11 @@ import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
 import { authorityFor } from '../kernel/authority/index.ts';
-import { setupOf } from '../kernel/setup.ts';
+import { servedByKernel, setupOf } from '../kernel/setup.ts';
+import type { AdminValues } from '../kernel/ports.ts';
 import { PRINTABLE_ID } from '@cogniate/channel-kernel/setup';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
-import { exclusiveIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
+import { BOUND_FIELDS, exclusiveIssuerMatches, foreignHostFields, providerProfiles, sharedReadiness } from './binding-targets.ts';
 import { insertAuditEvent } from './audit.ts';
 import type { AuditTarget } from './audit.ts';
 import { evaluateOperatorPolicy } from './operator-policy.ts';
@@ -58,7 +59,16 @@ const joinNames = (names: readonly string[], word: 'and' | 'or'): string =>
 const iso = (ms: number) => new Date(ms).toISOString();
 const lineOf = (l: CleanupLine) => `${l.result} platform=${l.platformId ?? '-'} deployment=${l.deploymentId ?? '-'}`;
 
+/** The admin values that an admin-value grant binds, as typed (LA-ADR-02 D6: --issuer, --auth-url, --token-url, …). */
+export type TypedBoundValues = Partial<AdminValues>;
+
 export interface IssueInput extends OperatorFlags {
+  /** Admin-value profile, no staged platform: every value that the grant binds. */
+  boundValues?: TypedBoundValues;
+  /** Admin-value profile with a staged registration: take the bound values from the staged platform. */
+  acceptStaged?: boolean;
+  /** A bound value whose host is not the issuer host needs this confirmation (Reviewer-A A-LAD-23). */
+  confirmForeignHosts?: boolean;
   library: string;
   connection: string;
   site: string;
@@ -73,6 +83,24 @@ export interface IssueInput extends OperatorFlags {
 
 const GRANT_STATE = (g: { redeemedAt: number | null; revokedAt: number | null; expiresAt: number }, redeeming: boolean, now: number) =>
   g.redeemedAt !== null ? 'redeemed' : g.revokedAt !== null ? 'revoked' : redeeming ? 'redeeming' : now >= g.expiresAt ? 'expired' : 'issued';
+
+/** The CLI flag of each bound value (LA-ADR-02 D6). */
+const BOUND_FLAGS: Record<keyof AdminValues, string> = {
+  issuer: '--issuer', authenticationEndpoint: '--auth-url', accessTokenEndpoint: '--token-url', jwksUrl: '--jwks-url', tokenAudience: '--token-audience',
+};
+const BOUND_LABELS: Record<keyof AdminValues, string> = {
+  issuer: 'Issuer', authenticationEndpoint: 'Authentication URL', accessTokenEndpoint: 'Token URL', jwksUrl: 'JWKS URL', tokenAudience: 'Token audience',
+};
+/** An https URL with no user name, password or fragment, at most 2048 characters (the admin-value body rule). */
+function isHttpsUrl(value: string): boolean {
+  if (value.length > 2048) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && u.username === '' && u.password === '' && u.hash === '';
+  } catch {
+    return false;
+  }
+}
 
 type Allowed = Extract<OperatorPolicyDecision, { allowed: true }>;
 /** The tenant, the connection and the changed object of one audit event (data-model §5: connection_id on every event). */
@@ -140,7 +168,50 @@ export function createOperator(deps: OperatorDeps) {
     if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return refuse('service_url_not_allowed', `--service-url is only for ${joinNames(serviceUrlChannels(), 'or')} connections.`);
     if (!service.ok || service.origin !== c.serviceUrl) return refuse('service_url_mismatch', '--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of this connection platform.');
-    if (purpose === 'initial') {
+    // LA-ADR-02 D6: an initial grant of an admin-value channel (served by the kernel adapter, BD-A1-79) binds the admin
+    // values; every other grant refuses the bound-value flags.
+    const adminValueGrant = purpose === 'initial' && servedByKernel(channels, c.channel);
+    const typed = Object.fromEntries(Object.entries(input.boundValues ?? {}).filter(([, v]) => v !== undefined)) as TypedBoundValues;
+    const staged = c.method === 'dynamic' && c.platform !== null;
+    if (!adminValueGrant && Object.keys(typed).length > 0) return refuse('bound_values_not_allowed', '--issuer, --auth-url, --token-url, --jwks-url and --token-audience are only for an initial grant of a connection with admin values.');
+    if (input.acceptStaged && !(adminValueGrant && staged)) return refuse('not_staged', '--accept-staged needs a connection with a staged registration.');
+    let boundValues: AdminValues | null = null;
+    if (adminValueGrant) {
+      let row;
+      try {
+        row = (await providerProfiles(lti, input.traceId)).find((p) => p.id === c.profile);
+      } catch {
+        return fail('The LTI service did not answer. Nothing was stored.');
+      }
+      if (!row || row.endpoints === 'fixed') return refuse('profile_changed', `The ${channels.textName(c.channel)} profile changed after this connection was made. Make a new connection.`);
+      if (staged) {
+        if (Object.keys(typed).length > 0) return refuse('bound_values_not_allowed', 'A staged registration takes its values from the staged platform. Use --accept-staged.');
+        if (!input.acceptStaged) return refuse('bound_values_missing', 'This connection has a staged registration. Add --accept-staged to bind its values.');
+        let p;
+        try {
+          p = await lti.getPlatform(c.platform!.id, input.traceId);
+        } catch {
+          return fail('The LTI service did not answer. Nothing was stored.');
+        }
+        if (p.active || p.url !== c.platform!.issuer || p.clientId !== c.platform!.clientId || !p.authenticationEndpoint || !p.accesstokenEndpoint || !p.authConfig) {
+          return refuse('staged_values_changed', 'The staged platform changed after the registration. Make a new connection.');
+        }
+        if (input.clientId !== p.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of the staged platform.');
+        if (!p.deploymentIds.includes(input.deploymentId)) return refuse('deployment_mismatch', '--deployment-id is not a deployment of the staged platform.');
+        boundValues = { issuer: p.url, authenticationEndpoint: p.authenticationEndpoint, accessTokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.authConfig.key,
+          ...(p.clientAssertionAud !== null ? { tokenAudience: p.clientAssertionAud } : {}) };
+      } else {
+        const missing = BOUND_FIELDS.filter((key) => key !== 'tokenAudience' && typed[key] === undefined);
+        if (missing.length > 0) return refuse('bound_values_missing', `This connection binds its admin values. Add ${missing.map((key) => BOUND_FLAGS[key]).join(', ')}.`);
+        const bad = BOUND_FIELDS.find((key) => typed[key] !== undefined && !isHttpsUrl(typed[key]!.trim()));
+        if (bad) return refuse('bound_value_invalid', `${BOUND_FLAGS[bad]} must be an https URL.`);
+        if (new URL(typed.issuer!.trim()).origin !== c.siteUrl) return refuse('bound_value_invalid', '--issuer must be on the site URL of this connection.');
+        const value = (v: string): string => { const o = canonicalOrigin(v.trim()); return o.ok ? o.origin : v.trim(); };
+        boundValues = { issuer: value(typed.issuer!), authenticationEndpoint: value(typed.authenticationEndpoint!), accessTokenEndpoint: value(typed.accessTokenEndpoint!),
+          jwksUrl: value(typed.jwksUrl!), ...(typed.tokenAudience !== undefined ? { tokenAudience: value(typed.tokenAudience) } : {}) };
+      }
+    }
+    if (purpose === 'initial' && !adminValueGrant) {
       const sharing = setupOf(channels, c.channel)?.sharingOf(c.profile);
       const snapshot = sharing ? completeSnapshot(c, sharing) : null;
       if (!snapshot) return refuse('snapshot_missing', 'This connection has no provider snapshot. Make a new connection.');
@@ -164,6 +235,21 @@ export function createOperator(deps: OperatorDeps) {
         if (reserved && reserved.deploymentId !== input.deploymentId) return refuse('deployment_fixed', `This connection holds a reservation for deployment ${reserved.deploymentId}; --deployment-id must be that id.`);
       }
     }
+    // The bound values come before the code (app contract §4.8 "Issue output"); a value off the issuer host is marked.
+    const head = [
+      `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.channel} ${c.profile}`, `Purpose: ${purpose}`,
+      `Site URL: ${c.siteUrl}`, `Service URL: ${c.serviceUrl}`, `Client ID: ${input.clientId}`, `Deployment ID: ${input.deploymentId}`,
+    ];
+    if (boundValues) {
+      const foreign = foreignHostFields(boundValues);
+      for (const key of BOUND_FIELDS) {
+        if (boundValues[key] !== undefined) head.push(`${BOUND_LABELS[key]}: ${boundValues[key]}${foreign.includes(key) ? ' [not on the issuer host]' : ''}`);
+      }
+      if (foreign.length > 0 && !input.confirmForeignHosts) {
+        record(policy, input.traceId, 'grant.issue', { libraryId: c.libraryId, connectionId: c.id, target: { type: 'grant', id: null } }, 'refused', 'foreign_hosts_unconfirmed');
+        return { exitCode: 1, lines: [...head, 'A value is not on the issuer host. Check with the LMS administrator that the vendor issued this client id for this issuer at that host, then add --confirm-foreign-hosts.'] };
+      }
+    }
     const code = randomToken();
     const t = now();
     const grantId = transaction(db, () => {
@@ -172,19 +258,13 @@ export function createOperator(deps: OperatorDeps) {
       const id = insertGrant(db, {
         libraryId: c.libraryId, connectionId: c.id, channel: c.channel, profile: c.profile, purpose, siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
         clientId: input.clientId, deploymentId: input.deploymentId, note: input.note, expiresAt: t + ttl * 1000,
+        ...(boundValues ? { boundValues: { ...boundValues } as Record<string, string> } : {}),
       }, sha256Hex(code), t);
       record(policy, input.traceId, 'grant.issue', { libraryId: c.libraryId, connectionId: c.id, target: { type: 'grant', id } }, 'ok');
       return id;
     });
     log.info('grant_issued', { trace_id: input.traceId, grant_id: grantId, connection_id: c.id, purpose, expires_at: iso(t + ttl * 1000) });
-    return {
-      exitCode: 0,
-      lines: [
-        `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.channel} ${c.profile}`, `Purpose: ${purpose}`,
-        `Site URL: ${c.siteUrl}`, `Service URL: ${c.serviceUrl}`, `Client ID: ${input.clientId}`, `Deployment ID: ${input.deploymentId}`,
-        `Grant id: ${grantId}`, `Approval code (shown once): ${code}`, `Expires: ${iso(t + ttl * 1000)}`,
-      ],
-    };
+    return { exitCode: 0, lines: [...head, `Grant id: ${grantId}`, `Approval code (shown once): ${code}`, `Expires: ${iso(t + ttl * 1000)}`] };
   }
 
   /** `app:grant revoke` (§4.8): revoke an unredeemed grant, then the grant cleanup. Revoke again repeats the cleanup. */
@@ -224,6 +304,8 @@ export function createOperator(deps: OperatorDeps) {
       exitCode: 0,
       lines: grantsOfConnection(db, c.id).map((g) => [
         g.id, g.purpose, `site=${g.siteUrl}`, `service=${g.serviceUrl}`, `client=${g.clientId}`, `deployment=${g.deploymentId}`,
+        // LA-ADR-02 D6 (app API delta §7): the bound values of an admin-value grant.
+        ...(g.boundValues ? BOUND_FIELDS.filter((key) => g.boundValues![key] !== undefined).map((key) => `${key}=${g.boundValues![key]}`) : []),
         `created=${iso(g.createdAt)}`, `expires=${iso(g.expiresAt)}`, GRANT_STATE(g, holderGrant === g.id, t),
       ].join(' ')),
     };

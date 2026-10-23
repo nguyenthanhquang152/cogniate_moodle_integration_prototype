@@ -1,4 +1,5 @@
 import type { PublicUrls } from '@cogniate/shared';
+import { canonicalOrigin, hostOf } from '@cogniate/shared';
 import { toolContext } from '../kernel/setup/common.ts';
 // Provider data of a binding (app contract §4.7.1 "Target", §4.7.3; accepted B-M1-03 design). The provider snapshot is
 // taken ONCE, at create, from that request's one GET /api/providers answer. Phase 1 of a redemption builds the target
@@ -11,7 +12,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import type { CompleteSnapshot, Connection, ProviderSnapshot } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import type { BindingTarget, GrantPurpose, PlatformBodyValues, ConnectionSetup, SharedPlatformInfo, StagedCreate } from '../kernel/ports.ts';
+import type { AdminValues, BindingTarget, GrantPurpose, PlatformBodyValues, ConnectionSetup, SharedPlatformInfo, StagedCreate } from '../kernel/ports.ts';
 import { ApiError } from './api-errors.ts';
 
 /** GET /api/providers through the app (502 LTI_SERVICE_ERROR on failure, app contract §4.3). */
@@ -127,4 +128,29 @@ export function stagedCall(deps: { db: Db; lti: LtiClient; urls: PublicUrls }, c
     await deps.lti.addDeployment(staged.platformId, { ...staged.body, active: false, bindingRef: ref }, traceId);
     return { platformId: staged.platformId };
   };
+}
+
+/** The bound values of an admin-value grant, in their fixed order (LA-ADR-02 D6; data model §2 `bound_values`). */
+export const BOUND_FIELDS = ['issuer', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl', 'tokenAudience'] as const satisfies ReadonlyArray<keyof AdminValues>;
+
+/**
+ * One bound value against a sent or a read value (LA-ADR-02 D6; A1 BD-A1-91): the canonical form when both are
+ * origins, else the exact text. An absent value equals only an absent value.
+ */
+export function sameBoundValue(bound: string | undefined, other: string | undefined): boolean {
+  if (bound === undefined || other === undefined) return bound === other;
+  const a = canonicalOrigin(bound);
+  const b = canonicalOrigin(other);
+  return a.ok && b.ok ? a.origin === b.origin : bound === other;
+}
+
+/** The fields whose values differ, in the fixed order. */
+export function differingBoundFields(bound: AdminValues, other: AdminValues): string[] {
+  return BOUND_FIELDS.filter((key) => !sameBoundValue(bound[key], other[key]));
+}
+
+/** The fields whose host is not the issuer host (LA-ADR-02 D6, Reviewer-A A-LAD-23): the operator confirms them. */
+export function foreignHostFields(values: AdminValues): string[] {
+  const issuerHost = hostOf(values.issuer);
+  return BOUND_FIELDS.filter((key) => key !== 'issuer' && values[key] !== undefined && hostOf(values[key]!) !== issuerHost);
 }
