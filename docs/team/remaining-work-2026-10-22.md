@@ -9,6 +9,10 @@ T7 did not start before its 04:33 cutoff. The evidence handoff consumed the avai
 The host was returned at 04:38:30 UTC with all LTI stacks down and all 32 complete volume records unchanged. No LTI Docker activity or new window request is allowed through 07:45 UTC (14:45 local).
 07:45 is the earliest scheduling opportunity. No new reservation or completion time is promised.
 
+Orca reminder `a270830b-c5f8-4b21-a686-f7b2020bc70c` is scheduled for 2026-10-23 07:46 UTC (14:46 local), using Codex GPT-6-Astra xhigh.
+It is date-gated and disables itself on its first run. It sends one message to the existing coordinator to check host availability; it grants no Docker work and starts no QA worker.
+All current dispatches are settled and no worker needs cleanup. The independent QA and Architect sessions are retained; the next attempt must use new Dispatch IDs.
+
 Remaining: T7 runtime and its operational closure; final Architect conformance and narrow ADR status updates; guide evidence updates; independent Docs QA; two blind final reviews; Lead closure.
 Retain the same QA, Architect and Codex sessions. Do not repeat accepted M1, M2 or legacy checks for this scheduling hold.
 All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
