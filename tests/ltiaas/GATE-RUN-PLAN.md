@@ -1,13 +1,13 @@
 # LTIAAS Wave-End Gate Run Plan (Host-Only Prepared Runbook)
 
-- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614` / `ctx_ac9a28f796e7`)
-- **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation)
+- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614` / `ctx_ac9a28f796e7` and `task_67cd3791548e` / `ctx_56e76d550604`)
+- **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation; Slot 3B executed in authorized `DOCKER-YES` window `16:55Z–17:48Z`)
 - **Wave-End Candidate SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (`80133d6b`, product code `02f5d420`; includes `BD-A2-103` `LA-E3-02` storage-check CSP `form-action` fix; Lead check green: `3306` unit, `255` infra, `145` K0, F1 `0`, F5 `6` rules; `LD-9` round 8 approved by both Reviewer-A and Reviewer-B in `fd146062`)
 - **Intake / `G-BASE` SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`1b17261b`, product code `9f8ac62`)
 - **Pre-Staged Host-Only Gate Assets (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE`, mode `0700`):**
   - **Wave-End Test Source Repo (Slots 3B & 8):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`
     - Product commit: `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5`
-    - Committed test SHA (`--test-sha`): `8ad1292687431b05bad6b5c070ab722e67714526`
+    - Committed test SHA (`--test-sha`): `9e78fe3f87bd4672a9e37ace9efdacfd96f28474` (Slot 3B run SHA `8ad1292687431b05bad6b5c070ab722e67714526` tagged as `slot3b-test-sha`; `9e78fe3f` adds the 2-line fix for `services/lti-service/src/db/migrations` in `m1-migration.mjs:332` and `(\?ref=[A-Za-z0-9_-]+)?$` in `11-canvas-platforms.test.ts:247`)
     - Contains: `80133d6b`'s `tests/` tree plus the 8 `LD-1` open-world files from `f0a7b306`, the 3 approved `LA-IC-04` frozen-test updates (`31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118`), the 3 approved `LA-IC-14` frozen-test updates (`11-canvas-platforms.test.ts:218-265`), the `LA-IC-09` (`LD-6`) P5 fixture update (`storage-fixture-script.mjs:389-396` supporting `record_dispatch`), the open-world migration-ledger check in `m1-migration.mjs:331-338`, and the `qalead-la-<n>` project-prefix regex guard in `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` and `tests/e2e/host/run-t7.mjs`.
     - Verified host-only: `run-m2.mjs --harness-only` PASS (`64` M2 cases, typecheck exit `0`), `M1` Vitest discovery PASS (`392` API cases + `2` browser cases = `394` `sim` rows), `m1-migration.selftest.mjs` + `storage-fixture-script.selftest.mjs` PASS (`25/25`), `golden.k0.test.mjs` PASS (`12/12`).
   - **Slot 7 Test Source Repo (`LA-E0-02` + `LA-E0-04` `LD-1` parity on `1b17261`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261`
@@ -31,12 +31,12 @@
 | **Slot 5** | QA-4 | `E1/E2/E3/E5/E7` LTI & sim tasks (`15` suites PASS) | `qa4-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`a11268c5`) |
 | **Slot 6 R1/R2** | QA-E2E | `LA-E7-09` (`R2-SIM` PASS), `LA-E3-16` (`PASS`), `LA-E7-07` (`K2` R3 next on `80133d6b`) | `qa-e2e-la-*` | `9643` / `172.22.0.0/16` | **`25 min`** | **R3 NEXT** |
 | **LA-E5-13 SIM** | Lead QA | `LA-E5-13` `AC-01, -02, -03, -05` `K1-SIM` + `AC-06` `K0` on `fd146062` | `qalead-la-8..9` | `9443` / `172.20.0.0/16` | — | **DONE** (`43d5073c`) |
-| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (all 13 `LD-9` records), `M1 migration` + `snapshot-upgrade`, `U1` SIM continuity from `1b17261`, `M1 sim --provider all` (`394` rows), `M2` (`64` cases) | `qalead-la-10..15` | `9643` / `172.22.0.0/16` (or `9443` / `172.20.0.0/16`) | **`52 min`** | **READY** |
+| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (all 13 `LD-9` records: `280/280` explained), `M1 migration` (`12/12` PASS) + `snapshot-upgrade` (`M1-38.h1..h5` `5/5` PASS), `U1` SIM continuity from `1b17261` (`LA-E5-08` + `LA-E5-22` PASS), `M1 sim --provider all` (`376/394` PASS), `M2` (`64/64` PASS) | `qalead-la-10..15` | `9473` / `172.23.0.0/16` | **`51 min`** (`16:57Z–17:48Z`) | **DONE** (`docs/reviews/LA-E7-08/qa.md`) |
 | **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `f0a7b306` `--test-sha` (`M1 sim/migration/snapshot-upgrade`, `M2`, `T7×3`, optional legacy `T1–T8`, `rate-peaks.mjs`, `docker stats` peak) | `qalead-la-16..20` (`qalead-la-21..27` optional legacy) | `9643` / `172.22.0.0/16` (SIM) & `9543` / `172.21.0.0/16` (Moodle) | **`80 min` core** (`42m` SIM + `38m` `T7×3`; `+55m` if legacy `T1–T8` run) | **READY** |
-| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `80133d6b` (code `02f5d420`): `T7×1` + `R2-lite` (`T2a..T8`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + QA-E2E `K2` `U1`/`U2` | `qalead-la-30..35` | `9543` / `172.21.0.0/16` | **`55 min` Lead QA** (`+20 min` QA-E2E = **`75 min`**) | **READY** |
+| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `80133d6b` (code `02f5d420`): `T7×1` + `R2-lite` (`T2a..T8`, including `T4a`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + all 12 task `MOODLE-LIVE` rows + QA-E2E `K2` `U1`/`U2` & `LA-E3-05` `AC-04, 11` | `qalead-la-30..36` | `9543` / `172.21.0.0/16` | **`57 min` Lead QA** (`+20 min` QA-E2E = **`77 min`**) | **READY** |
 
 > [!IMPORTANT]
-> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A) and `qalead-la-8..9` (`LA-E5-13` SIM) have already been used. Slots 3B, 7, and 8 exclusively use **`qalead-la-10..35`**.
+> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A), `qalead-la-8..9` (`LA-E5-13` SIM), and `qalead-la-10..15` (Slot 3B) have already been used. Slots 7 and 8 exclusively use **`qalead-la-16..36`**.
 
 ---
 
@@ -390,22 +390,41 @@ node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/l
 ## 5. Slot 8: Wave-End `MOODLE-LIVE` Gate on `80133d6b` (Code `02f5d420`) with QA-E2E
 
 - **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
-- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
-- **Compose Projects:** `qalead-la-30..35` (Lead QA) + QA-E2E project (`qa-e2e-la-*`)
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 9e78fe3f87bd4672a9e37ace9efdacfd96f28474`)
+- **Compose Projects:** `qalead-la-30..36` (Lead QA) + QA-E2E project (`qa-e2e-la-*`)
 - **Port / Subnet:** `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`
 - **Scope Covered:**
-  1. **`T7 × 1` (`qalead-la-30`, `12 min`):** `run-t7.mjs --runs 1 --no-demo` (`17` browser cases, including frozen isolation ACs **`AC-T7-08`** and **`AC-T7-09`**).
-  2. **`R2-lite` Moodle Suites (`qalead-la-31..35`, `43 min`):**
-     - `qalead-la-31` (`8 min`): `run-t2.mjs --tasks T2a,T2b,T3a,T3b` (covers frozen isolation AC **`AC-T2-18`** in `T2a/jwt-validation.test.ts`).
+  1. **`T7 × 1` (`qalead-la-30`, `12 min`, Lead QA):** `run-t7.mjs --runs 1 --no-demo` (`17` browser cases, including frozen isolation ACs **`AC-T7-08`** and **`AC-T7-09`**).
+  2. **`R2-lite` Moodle Suites (`qalead-la-31..36`, `45 min`, Lead QA):**
+     - `qalead-la-31` (`8 min`): `run-t2.mjs --tasks T2a,T2b,T3a,T3b` (covers frozen isolation AC **`AC-T2-18`** in `T2a/jwt-validation.test.ts` and Moodle Dynamic Registration `T3b`).
      - `qalead-la-32` (`5 min`): `run-t3c.mjs` (`T3c` compatibility & endpoints).
      - `qalead-la-33` (`10 min`): `run-t4b.mjs --tasks T4b1,T4b2` (covers frozen isolation ACs **`AC-T4-16`**, **`AC-T4-29`**, **`AC-T4-34`** in `T4b1/2-isolation.spec.ts`, `T4b1/3-security.spec.ts`, `T4b1/4-adoption.spec.ts`, plus `LA-IC-04` Moodle row 13 in `T4b1/1-connect.spec.ts:118`).
      - `qalead-la-34` (`12 min`): `run-t5.mjs --tasks T5a,T5b,T6` (covers `LA-IC-09` / `LD-6` `record_dispatch` P5 fixture in `T5b/4-conflict-resend.spec.ts` and `T6` portal Moodle flows).
      - `qalead-la-35` (`5 min`): `run-t8.mjs` (`T8` course shell export/publish).
-  3. **`LA-E5-13` `AC-LA-E5-13-06` (`<1 min` log verification):** Confirms all 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) passed in steps 1–2 (`AC-LA-E5-13-01..05` `K1-SIM` already passed on `qalead-la-8..9`).
-  4. **QA-E2E's Part (`20 min`):** `K2` Moodle `U1`/`U2` + `LA-E3-05` `AC-04, 11`.
-- **Estimated Duration:** **`55 minutes` (Lead QA)** + **`20 minutes` (QA-E2E)** = **`75 minutes` total**.
+     - `qalead-la-36` (`5 min`): `run-t4a.mjs` (`T4a` Deep Linking picker API/protocol checks for `LA-E3-05` `AC-LA-E3-05-11`).
+  3. **`LA-E5-13` `AC-LA-E5-13-06` (`<1 min` log verification, Lead QA):** Confirms all 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) passed in steps 1–2 (`AC-LA-E5-13-01..05` `K1-SIM` already passed on `qalead-la-8..9`).
+  4. **QA-E2E's Part (`20 min`, QA-E2E):** `LA-E7-09` live Moodle `K2` (`U1`/`U2` continuity + `LA-E3-05` `AC-LA-E3-05-04, -11` Moodle picker Cancel Playwright check + `LA-E4-03` `AC-LA-E4-03-09` browser part).
+- **Estimated Duration:** **`57 minutes` (Lead QA, `qalead-la-30..36`)** + **`20 minutes` (QA-E2E, `qa-e2e-la-*`)** = **`77 minutes` total**.
 
-### Exact Commands for Slot 8 (Lead QA Part, Est. `55 min`)
+### Complete Mapping of All Pending Task Rows into Slot 3B (Done) and Slot 8 (`MOODLE-LIVE`)
+
+| Task | Pending Row(s) in `docs/reviews/LA-*/qa.md` | Covering Slot & Compose Project(s) | Owner | Minutes (Shared in Suite Budget) | How Covered |
+| --- | --- | --- | --- | --- | --- |
+| **`LA-E1-05`** | `AC-LA-E1-05-10` (`R2-lite` `MOODLE-LIVE`: `T7 × 1` and `T2a, T2b, T3a, T3b, T3c`) | **Slot 8** (`qalead-la-30`, `qalead-la-31`, `qalead-la-32`) | **Lead QA** | `25 min` (`12m` `T7×1` + `8m` `T2/T3ab` + `5m` `T3c`, shared) | `run-t7.mjs --runs 1 --no-demo`, `run-t2.mjs --tasks T2a,T2b,T3a,T3b`, `run-t3c.mjs` on `80133d6b`. |
+| **`LA-E1-07`** | `AC-LA-E1-07-07` (`R1` SIM) & `AC-LA-E1-07-08` (`R2-lite` `MOODLE-LIVE`: `T7 × 1`, `T4b1`, `T4b2`) | `AC-07`: **Slot 3B (DONE)** (`qalead-la-10, 14, 15`); `AC-08`: **Slot 8** (`qalead-la-30`, `qalead-la-33`) + QA-E2E Slot 6 (`R2-sim` DONE) | **Lead QA** | `22 min` in Slot 8 (`12m` `T7×1` + `10m` `T4b`, shared) | `AC-07` completed in Slot 3B (`G1–G4` + `M1 sim` + `M2` `64/64`). `AC-08` live Moodle covered by `qalead-la-30` (`T7×1`) and `qalead-la-33` (`T4b1, T4b2`). |
+| **`LA-E1-08`** | `AC-LA-E1-08-01` (golden `G1`–`G4`), `AC-LA-E1-08-07` (`R1` `M1 sim` + `M2`), `AC-LA-E1-08-08` (`R2-lite` `MOODLE-LIVE`: `T7 × 1` + `T8`) | `AC-01, -07`: **Slot 3B (DONE)** (`qalead-la-10, 14, 15`); `AC-08`: **Slot 8** (`qalead-la-30`, `qalead-la-35`) | **Lead QA** | `17 min` in Slot 8 (`12m` `T7×1` + `5m` `T8`, shared) | `AC-01` (`G1–G4` compare `280/280`) and `AC-07` (`M1 sim` + `M2` `64/64`) completed in Slot 3B. `AC-08` live Moodle covered by `qalead-la-30` (`T7×1`) and `qalead-la-35` (`T8`). |
+| **`LA-E1-09`** | `AC-LA-E1-09-05` (`R2-lite` `MOODLE-LIVE`: `T7 × 1`, `T4b2`, `T5a`, `T6`) | **Slot 8** (`qalead-la-30`, `qalead-la-33`, `qalead-la-34`) + QA-E2E Slot 6 (`R2-sim` DONE) | **Lead QA** | `34 min` (`12m` `T7×1` + `10m` `T4b` + `12m` `T5/T6`, shared) | `run-t7.mjs`, `run-t4b.mjs --tasks T4b1,T4b2`, `run-t5.mjs --tasks T5a,T5b,T6` on `80133d6b`. |
+| **`LA-E1-10`** | `AC-LA-E1-10-06` (`R2-lite` `MOODLE-LIVE`) | **Slot 8** (`qalead-la-30`, `qalead-la-31`, `qalead-la-32`) | **Lead QA** | `25 min` (`12m` `T7×1` + `8m` `T2/T3ab` + `5m` `T3c`, shared) | `run-t7.mjs`, `run-t2.mjs --tasks T2a,T2b,T3a,T3b`, `run-t3c.mjs` on `80133d6b`. |
+| **`LA-E2-01`** | `AC-LA-E2-01-10` (`R2-lite` `MOODLE-LIVE`: `T7 × 1` + LTI service group) | **Slot 8** (`qalead-la-30`, `qalead-la-31`, `qalead-la-32`) | **Lead QA** | `25 min` (`12m` `T7×1` + `8m` `T2/T3ab` + `5m` `T3c`, shared) | `run-t7.mjs`, `run-t2.mjs --tasks T2a,T2b,T3a,T3b`, `run-t3c.mjs` on `80133d6b`. |
+| **`LA-E2-02`** | `AC-LA-E2-02-08` (`MOODLE-LIVE`: `T3b` and `T7 × 1`) | **Slot 8** (`qalead-la-30`, `qalead-la-31`) | **Lead QA** | `20 min` (`12m` `T7×1` + `8m` `T2/T3ab`, shared) | `run-t7.mjs` and `run-t2.mjs --tasks T2a,T2b,T3a,T3b` (`T3b` live Moodle Dynamic Registration) on `80133d6b`. |
+| **`LA-E3-05`** | `AC-LA-E3-05-04` (Moodle picker Cancel button & return) & `AC-LA-E3-05-11` (`R2-lite`: `T4a` and picker Playwright case) | **Slot 8**: `T4a` on `qalead-la-36` (**Lead QA**) + Moodle picker Playwright check on `qa-e2e-la-*` (**QA-E2E**) | **Lead QA** (`5 min`) + **QA-E2E** (within `20 min` K2 share) | `5 min` Lead QA (`qalead-la-36` `run-t4a.mjs`) + QA-E2E `20 min` share | Lead QA runs `run-t4a.mjs` (`qalead-la-36`); QA-E2E runs the live Moodle picker Cancel Playwright check in its `20 min` Slot 8 K2 window. |
+| **`LA-E3-07`** | `AC-LA-E3-07-03` (`MOODLE-LIVE` part: Moodle tool-configuration row 13 `"Do not use this service"` and live Moodle DR 4 scopes) | **Slot 8** (`qalead-la-31`, `qalead-la-33`) | **Lead QA** | `18 min` (`8m` `T2/T3ab` + `10m` `T4b`, shared) | `run-t4b.mjs --tasks T4b1,T4b2` (`tests/acceptance/T4b1/1-connect.spec.ts:118` asserts Moodle row 13 `"Do not use this service"` under `LA-IC-04`) and `run-t2.mjs` (`T3b` live Moodle DR). |
+| **`LA-E4-02`** | `AC-LA-E4-02-06, -07, -09` (`K1-SIM` `U1`, `M1 migration/snapshot-upgrade`, `R1`) & `AC-LA-E4-02-10` (`R2-lite` `MOODLE-LIVE`) | `AC-06, -07, -09`: **Slot 3B (DONE)** (`qalead-la-11..15`); `AC-10`: **Slot 8** (`qalead-la-30`, `qalead-la-34`) + QA-E2E Slot 6 (`R2-sim` DONE) | **Lead QA** | `24 min` in Slot 8 (`12m` `T7×1` + `12m` `T5/T6`, shared) | `AC-06, -07, -09` completed in Slot 3B. `AC-10` live Moodle covered by `qalead-la-30` (`T7×1`) and `qalead-la-34` (`T5a, T5b, T6`). |
+| **`LA-E4-03`** | `AC-LA-E4-03-09` (`MOODLE-LIVE`: `T5a`, `T5b`, `T7 × 1` + QA-E2E Moodle K2) | **Slot 8**: `qalead-la-30`, `qalead-la-34` (**Lead QA**) + `qa-e2e-la-*` (**QA-E2E**) | **Lead QA** (`24 min` shared) + **QA-E2E** (within `20 min` K2 share) | `24 min` Lead QA (`12m` `T7×1` + `12m` `T5/T6`, shared) + QA-E2E `20 min` share | Lead QA runs `run-t7.mjs` (`qalead-la-30`) and `run-t5.mjs --tasks T5a,T5b,T6` (`qalead-la-34`, including `T5b/4-conflict-resend.spec.ts` with `LA-IC-09` `record_dispatch` P5 fixture); QA-E2E runs `LA-E7-09` Moodle K2. |
+| **`LA-E5-22`** | `AC-LA-E5-22-06` (`MOODLE-LIVE` / `A-LAB-09`: live Moodle lane with app key provider `"cgk1"` sealed values and `U1`/`U2` continuity) | **Slot 8**: `qalead-la-30..36` (**Lead QA**) + `qa-e2e-la-*` (**QA-E2E** Moodle `U1`/`U2` continuity) | **Lead QA** (`57 min` shared) + **QA-E2E** (within `20 min` K2 share) | Shared across Lead QA `57 min` + QA-E2E `20 min` | Live Moodle stack in `qalead-la-30..36` seals and unseals `connection.ws_token_encrypted`, `connection.ref_token_encrypted`, `resource_link.service_key_encrypted`, and `picker_session.ltik_encrypted` with `"cgk1"` AAD binding; QA-E2E runs live Moodle `U1`/`U2` continuity in its `20 min` Slot 8 share. |
+| **`LA-E5-13`** | `AC-LA-E5-13-06` (`MOODLE-LIVE`: 6 frozen isolation ACs `AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) | **Slot 8** (`qalead-la-30`, `qalead-la-31`, `qalead-la-33`) | **Lead QA** | `30 min` (`12m` `T7×1` + `8m` `T2/T3ab` + `10m` `T4b`, shared) | Verified in `slot8-1-t7x1.log`, `slot8-2-t2-t3ab.log`, and `slot8-4-t4b.log` (`Step 8.8` grep below). |
+
+### Exact Commands for Slot 8 (Lead QA Part, Est. `57 min`)
 
 ```bash
 umask 077
@@ -430,7 +449,7 @@ COMPOSE_PROJECT_NAME=qalead-la-30 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot8-1-t7x1.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 8.2 (qalead-la-31, est. 8 min): T2a, T2b, T3a, T3b (covers AC-T2-18)
+# Step 8.2 (qalead-la-31, est. 8 min): T2a, T2b, T3a, T3b (covers AC-T2-18, LA-E2-02 AC-08)
 # ----------------------------------------------------------------------
 COMPOSE_PROJECT_NAME=qalead-la-31 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   node "$SRC_WAVE/tests/host/run-t2.mjs" \
@@ -453,7 +472,7 @@ COMPOSE_PROJECT_NAME=qalead-la-32 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot8-3-t3c.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 8.4 (qalead-la-33, est. 10 min): T4b1, T4b2 (covers AC-T4-16, AC-T4-29, AC-T4-34, and LA-IC-04 row 13)
+# Step 8.4 (qalead-la-33, est. 10 min): T4b1, T4b2 (covers AC-T4-16, AC-T4-29, AC-T4-34, and LA-IC-04 / LA-E3-07 AC-03 row 13)
 # ----------------------------------------------------------------------
 COMPOSE_PROJECT_NAME=qalead-la-33 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   node "$SRC_WAVE/tests/host/run-t4b.mjs" \
@@ -465,7 +484,7 @@ COMPOSE_PROJECT_NAME=qalead-la-33 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot8-4-t4b.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 8.5 (qalead-la-34, est. 12 min): T5a, T5b, T6 (covers LA-IC-09 record_dispatch P5 fixture)
+# Step 8.5 (qalead-la-34, est. 12 min): T5a, T5b, T6 (covers LA-IC-09 record_dispatch P5 fixture, LA-E4-02 AC-10, LA-E4-03 AC-09)
 # ----------------------------------------------------------------------
 COMPOSE_PROJECT_NAME=qalead-la-34 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
@@ -478,7 +497,7 @@ COMPOSE_PROJECT_NAME=qalead-la-34 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot8-5-t5-t6.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 8.6 (qalead-la-35, est. 5 min): T8
+# Step 8.6 (qalead-la-35, est. 5 min): T8 (covers LA-E1-08 AC-08 Moodle-only features)
 # ----------------------------------------------------------------------
 COMPOSE_PROJECT_NAME=qalead-la-35 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
@@ -490,7 +509,18 @@ COMPOSE_PROJECT_NAME=qalead-la-35 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot8-6-t8.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 8.7: Verify all 6 frozen isolation ACs for AC-LA-E5-13-06 + teardown check (<1 min)
+# Step 8.7 (qalead-la-36, est. 5 min): T4a (covers LA-E3-05 AC-LA-E3-05-11 Deep Linking API/picker part)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-36 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-t4a.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-36-t4a" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  > "$GATE_DIR/logs/slot8-7-t4a.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.8: Verify all 6 frozen isolation ACs for AC-LA-E5-13-06 + teardown check (<1 min)
 # ----------------------------------------------------------------------
 grep -E "AC-T7-08|AC-T7-09" "$GATE_DIR/logs/slot8-1-t7x1.log"
 grep -E "AC-T2-18" "$GATE_DIR/logs/slot8-2-t2-t3ab.log"

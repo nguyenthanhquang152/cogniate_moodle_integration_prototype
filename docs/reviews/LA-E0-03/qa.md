@@ -1,11 +1,27 @@
 Verdict: PASS
-Round: 4
+Round: 5
 
-# LA-E0-03 Golden outputs G1–G4 & LD-9 Expected-Delta Records: QA (Round 4 — LD-9 Round 7 Metadata Fixes + Slots 2 and 3A Complete)
+# LA-E0-03 Golden outputs G1–G4 & LD-9 Expected-Delta Records: QA (Round 5 — Slot 3B Wave-End Candidate Capture & Compare with All 13 Approved LD-9 Records Complete)
 
-Tester: lead QA (Orca task `task_632c6557b3a6`, dispatch `ctx_224034e0f7fb`; Round 3 in `task_9118512629f1`; Slots 2 & 3A in `task_0163f40d972e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E0-03.md`. Design: `tests/ltiaas/TEST-STRATEGY.md` §4.5–§4.7, `tests/ltiaas/GATE-RUN-PLAN.md` §4.1–§4.2. Reviews addressed: `docs/reviews/LA-LD9/reviewer-a.md` ("Round 7": `A-LA-LD9-15`, `A-LA-LD9-16`) and `docs/reviews/LA-LD9/reviewer-b.md` ("Round 7": `B-LD9-13`, `B-LD9-14`) at integration SHA `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`.
+Tester: lead QA (Orca task `task_67cd3791548e`, dispatch `ctx_56e76d550604`; Round 4 in `task_632c6557b3a6`; Round 3 in `task_9118512629f1`; Slots 2 & 3A in `task_0163f40d972e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E0-03.md`. Design: `tests/ltiaas/TEST-STRATEGY.md` §4.5–§4.7, `tests/ltiaas/GATE-RUN-PLAN.md` §2–§3. Reviews addressed: `docs/reviews/LA-LD9/reviewer-a.md` ("Round 8: APPROVE") and `docs/reviews/LA-LD9/reviewer-b.md` ("Round 8: APPROVE") at `fd146062`; wave-end candidate SHA `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (code `02f5d420`).
 
-## Round 4 Summary (LD-9 Round 7 Metadata Fixes, Host-Only)
+## Round 5 Summary (Slot 3B Wave-End Candidate Golden Capture `G1–G4` & Compare on `80133d6b`)
+
+- **Wave-End Candidate Capture (`qalead-la-10`, Slot 3B, `2026-10-23T16:57Z–16:59Z`):**
+  - Command: `COMPOSE_PROJECT_NAME=qalead-la-10 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 node tests/ltiaas/golden/run-golden.mjs --sha 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 --source /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end --workdir .../qalead-la-10-golden --replace-tests --tests-from .../src-wave-end/tests --out /Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/golden-capture-80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5`
+  - Result: **Exit `0`** (`PRE`, `CLONE`, `H1`, `GOLDEN-DEFAULT`, `GOLDEN-CAPTURE` in `52 s`, `GOLDEN-SECRET-SCAN` `129 tracked secret values / 0 hits`, `GOLDEN-OUT`, `TEARDOWN` `0 containers, 0 volumes, 0 networks left`; log `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/logs/slot3b-1-golden-capture.log`).
+- **Wave-End Golden Compare with All 13 Approved `LD-9` Records (`AC-LA-E0-03-08` & `AC-LA-E7-08-03`):**
+  - Command: `node tests/ltiaas/golden/compare.mjs --base tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 --candidate /Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/golden-capture-80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5-port9443 --expected "LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21"`
+  - Result (after aligning the slot `PUBLIC_PORT=9473` to `G-BASE`'s `:9443` in `G1`/`G2` URL strings):
+    ```text
+    EQUAL: 280 differences (0 not explained), 0 expected changes missing; expected-delta files: LA-IC-01, LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21; 26 ms
+    ```
+  - All **`280` expected differences** (`259` `LA-IC-01`, `3` `LA-IC-04` now active on `80133d6b`, `2` `LA-IC-12`, `13` `LA-IC-14` now active on `80133d6b`, `2` `LA-IC-15`, `1` `LA-IC-16`) matched 100% with **`0` unexplained differences** and **`0` missing expected changes** (`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/logs/slot3b-1-golden-compare-port-aligned.txt`).
+  - Zero differences in `G2` (`blackboard` and `canvas` OIDC login, token assertion claims, Deep Linking items, and AGS score payloads are byte-for-byte identical to `G-BASE`).
+
+---
+
+## Round 4 Archive (LD-9 Round 7 Metadata Fixes, Host-Only)
 
 - **`B-LD9-13` (MAJOR, `LA-IC-01.json`, `README.md`, `TEST-STRATEGY.md`):**
   - Replaced the incorrect claim that the `LD-1` open-world rewrites landed in `LA-E0-02` prior to `G-BASE` with the actual state at `G-BASE` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`) and on integration (`195930c1` / `7db4f2c5`): the `6` frozen files (`tests/acceptance/M1/common/00-profiles.test.ts:40-49`, `tests/acceptance/M1/common/90-simulation-gates.test.ts:19`, `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:255`, `tests/host/run-m1.mjs:296,301`, `tests/e2e/host/run-m2.mjs:124`, and `tests/e2e/M2/01-cards.m2.ts:11-21`) still hold closed-world assertions on integration; their open-world rewrite (plus shared helpers `tests/acceptance/lib/open-world.{mjs,d.mts}`) is owned by task **`LA-E0-04`** (`docs/reviews/LA-E0-04/qa.md`; whereas `LA-E0-02` records the baseline), is staged on `la-qa` in commit **`f0a7b306`**, and lands at the **wave-end gate** after `LD-1` list approval (`0` additional frozen-test edits are authorized by `LA-IC-01` after `LD-1`).
