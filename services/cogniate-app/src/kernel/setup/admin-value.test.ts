@@ -142,6 +142,26 @@ describe('the kernel admin-value adapter (LA-ADR-01 D5)', () => {
     expect(rows.every((r) => r.label.length > 0)).toBe(true);
   });
 
+  it('BD-A1-78: setup.toolRows gives the manifest rows in order, with the kernel placeholders filled in one pass', () => {
+    const toolRows = [
+      { key: 'tool_name', label: 'Name', value: '{toolName}' },
+      { key: 'domain', label: 'Domain', value: '{ltiHost}' },
+      { key: 'urls', label: 'URLs', value: '{loginUrl} {launchUrl} {keysUrl} {deepLinkingUrl}' },
+      { key: 'scopes', label: 'Scopes', value: '{scopes}' },
+      { key: 'roles', label: 'Roles', value: 'Send institution role' },
+    ];
+    const withRows = adminValueSetup({ ...manifest, setup: { ...manifest.setup, toolRows } }, registry.capabilities('zz-admin'));
+    const rows = withRows.toolConfiguration({ ...toolContext(TEST_URLS), urls: TEST_URLS, libraryName: 'Lib {ltiHost} $&', sharedClientId: null });
+    const lti = `${TEST_URLS.lti}/lti`;
+    expect(rows).toEqual([
+      { key: 'tool_name', label: 'Name', value: 'Cogniate (Lib {ltiHost} $&)' },
+      { key: 'domain', label: 'Domain', value: new URL(TEST_URLS.lti).host },
+      { key: 'urls', label: 'URLs', value: `${lti}/login/cogniate ${lti}/launch/cogniate ${lti}/keys/cogniate ${lti}/launch/cogniate` },
+      { key: 'scopes', label: 'Scopes', value: AGS.join(' ') },
+      { key: 'roles', label: 'Roles', value: 'Send institution role' },
+    ]);
+  });
+
   it('targets an exclusive platform with the admin values and stages the admin-value create', () => {
     const parsed = setup.parseBindingBody({ ...full, tokenAudience: 'https://token.provider.test/aud' }, ctx);
     if (!parsed.ok) throw new Error('valid body');

@@ -5,7 +5,7 @@
 import type { CapabilitySet, ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import type { LtiProviderProfile } from '../../clients/lti-client.ts';
-import { fillFieldDefault } from '@cogniate/channel-kernel';
+import { fillFieldDefault, fillToolRow } from '@cogniate/channel-kernel';
 import { GRANT_CODE, PRINTABLE_ID, toolName } from '@cogniate/channel-kernel/setup';
 import type { AdminValues, BindingTarget, ConnectionSetup, PlatformBodyResult, StagedCreate, ToolRow } from '../ports.ts';
 
@@ -85,17 +85,26 @@ export function adminValueSetup(manifest: ChannelManifest, capabilities: Capabil
       if (serviceUrl !== undefined) return { ok: false, field: 'serviceUrl' };
       return { ok: true, siteUrl, serviceUrl: siteUrl };
     },
-    // The generic row set of app API delta §3.3 (A1 BD-A1-78: while the manifest has no row data).
-    toolConfiguration: ({ toolUrls, libraryName }): ToolRow[] => [
-      { key: 'tool_name', label: 'Tool name', value: toolName(libraryName) },
-      { key: 'login_url', label: 'Login URL', value: toolUrls.login },
-      { key: 'redirect_uri', label: 'Redirect URI', value: toolUrls.launch },
-      { key: 'target_link_uri', label: 'Target link URI', value: toolUrls.launch },
-      { key: 'jwks_url', label: 'Public keyset URL', value: toolUrls.keys },
-      { key: 'deep_linking_url', label: 'Deep Linking URL', value: toolUrls.launch },
-      { key: 'scopes', label: 'Scopes', value: scopes },
-      { key: 'privacy', label: 'Privacy', value: PRIVACY },
-    ],
+    // A1 BD-A1-78: the manifest rows with the kernel placeholders filled; without `setup.toolRows`, the generic row set
+    // of app API delta §3.3. The deep linking URL is the launch URL.
+    toolConfiguration: ({ toolUrls, libraryName }): ToolRow[] => {
+      const tool = toolName(libraryName);
+      if (manifest.setup.toolRows) {
+        const values = { toolName: tool, loginUrl: toolUrls.login, launchUrl: toolUrls.launch, keysUrl: toolUrls.keys,
+          deepLinkingUrl: toolUrls.launch, ltiHost: new URL(toolUrls.ltiOrigin).host, scopes };
+        return manifest.setup.toolRows.map((row) => ({ key: row.key, label: row.label, value: fillToolRow(row.value, values) }));
+      }
+      return [
+        { key: 'tool_name', label: 'Tool name', value: tool },
+        { key: 'login_url', label: 'Login URL', value: toolUrls.login },
+        { key: 'redirect_uri', label: 'Redirect URI', value: toolUrls.launch },
+        { key: 'target_link_uri', label: 'Target link URI', value: toolUrls.launch },
+        { key: 'jwks_url', label: 'Public keyset URL', value: toolUrls.keys },
+        { key: 'deep_linking_url', label: 'Deep Linking URL', value: toolUrls.launch },
+        { key: 'scopes', label: 'Scopes', value: scopes },
+        { key: 'privacy', label: 'Privacy', value: PRIVACY },
+      ];
+    },
     parseBindingBody: (body, ctx): PlatformBodyResult => {
       if (ctx.purpose === 'add_deployment') {
         const parsed = parseBody(body, ADD_DEPLOYMENT, {}, ctx.siteUrl);
