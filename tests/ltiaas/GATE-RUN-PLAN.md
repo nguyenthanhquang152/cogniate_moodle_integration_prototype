@@ -211,41 +211,48 @@ docker network ls --filter "name=qalead-la-"
 
 ---
 
-## 3C. Slot 3C: Wave-End SIM-Lane Re-Gate (`LA-E7-08`) on New Candidate SHA (`$WAVE_SHA_2`)
+## 3C. Slot 3C: Wave-End SIM-Lane Re-Gate (`LA-E7-08`) on New Candidate SHA (`$WAVE_SHA_2` = `93ab0c50`)
 
-- **Target Candidate SHA (`$WAVE_SHA_2`):** The integration commit after the `WE-F4` stop-order fixes from lanes **R** and **S1** (`BD-A2-109`) merge and pass the full host check (named by the Lead). Also includes `BD-A2-108` (`ecc19bbc`: `lti-service` `admin` default `1200/min`, burst `600`) and `BD-A2-106` (`60230165`: hosted Canvas wizard help sentence).
+- **Target Candidate SHA (`$WAVE_SHA_2`):** `93ab0c50467772f7f1c4b5fa9feb137048305c43` (`93ab0c50`, `Merge la-s1 d219ce40: LA-E5-19 fix (WE-F4, BD-A2-109) lti stop order`; Lead full check green with caches deleted: `3312` unit, `255` infra, `145` `K0`, `F1 0`, `F5 6`). Includes `BD-A2-109` (`WE-F4` stop-order fixes from lanes **R** `549a21b4` and **S1** `d219ce40`), `BD-A2-108` (`ecc19bbc`: `lti-service` `admin` default `1200/min`, burst `600`), and `BD-A2-106` (`60230165`: hosted Canvas wizard help sentence).
 - **New Gate Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2` (never editing `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`, which stays frozen at `8ad1292687431b05bad6b5c070ab722e67714526`).
+- **Recorded Gate Source SHAs:**
+  - **`$WAVE_SHA_2` (Product Base):** `93ab0c50467772f7f1c4b5fa9feb137048305c43` (`tag: la-wave-end-product-2`)
+  - **`$BASE_OVERLAY_SHA` (Commit 1 — Exact `8ad12926` `tests/` Tree Restored on `93ab0c50`, DONE):** `bf8153404449dbfef47698ceb82fa0262e9d9c48` (`tag: la-gate-test-base-c1`, `tests/` git tree `f42d4150b7b11ba2b2e63898ee317e6dea3f9430` identical to `8ad12926:tests`)
+  - **`$WAVE_TEST_SHA_2` (Commit 2 — Approved LD-9 Addendum Round 2 on `bf815340`):** `<pending Round 2 approvals of docs/reviews/LA-E7-08/ld9-addendum-r1.md>`
 - **Compose Projects:** `qalead-la-40`, `qalead-la-41`, `qalead-la-42`, `qalead-la-43` (`qalead-la-30..36` stay reserved for Slot 8).
 - **Port / Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16` (one LA stack at a time).
 - **Estimated Duration:** **`35 minutes` total** (`24m` `qalead-la-40` `M1 sim` + `3m` `qalead-la-41` `M1 snapshot-upgrade` + `4m` `qalead-la-42` `M2` + `4m` `qalead-la-43` `G1–G4` golden capture & compare).
 
-### (a) How `src-wave-end-2` Is Built (Two Explicit Commits on Top of `$WAVE_SHA_2` — Never an Amend)
+### (a) How `src-wave-end-2` Is Built (Two Explicit Commits on Top of `$WAVE_SHA_2` — Never an Amend; Fail-Fast with `set -euo pipefail`)
 
-Once the Lead names `$WAVE_SHA_2` and both reviewers approve Round 2 of `docs/reviews/LA-E7-08/ld9-addendum-r1.md`, QA builds `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2` on the host (`0` Docker) and records all three 40-character SHAs (`$WAVE_SHA_2`, `$BASE_OVERLAY_SHA`, `$WAVE_TEST_SHA_2`):
+Step (a) Commit 1 (`$BASE_OVERLAY_SHA` = `bf8153404449dbfef47698ceb82fa0262e9d9c48`) is built and verified on the host (`0` Docker) using `set -euo pipefail` and `git restore --source=8ad1292687431b05bad6b5c070ab722e67714526 --staged --worktree -- tests` (closing `A-LA-E7-08-03` so the restored `tests/` tree is byte-for-byte identical to `8ad12926:tests`, removing the `24` post-`80133d6b` added test paths and reverting the `6` modified post-`80133d6b` test paths before committing). Commit 2 (`$WAVE_TEST_SHA_2`) waits for both Round 2 approvals of `docs/reviews/LA-E7-08/ld9-addendum-r1.md`:
 
 ```bash
+set -euo pipefail
 umask 077
 export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
 export INTEG_REPO="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
 export SRC_WAVE="$GATE_DIR/src-wave-end"
 export SRC_WAVE_2="$GATE_DIR/src-wave-end-2"
-export WAVE_SHA_2="<40-char integration SHA named by the Lead>"
+export WAVE_SHA_2="93ab0c50467772f7f1c4b5fa9feb137048305c43"
 
-# 1. Fresh clone --no-hardlinks at $WAVE_SHA_2:
+# 1. Fresh clone --no-hardlinks at $WAVE_SHA_2 (DONE):
 git clone --quiet --no-hardlinks "$INTEG_REPO" "$SRC_WAVE_2"
 git -C "$SRC_WAVE_2" checkout --quiet --detach "$WAVE_SHA_2"
 git -C "$SRC_WAVE_2" tag la-wave-end-product-2 "$WAVE_SHA_2"
 
-# 2. Commit 1: Apply the exact 8ad12926 test overlay from src-wave-end as one commit:
-git -C "$SRC_WAVE" fetch --quiet "$SRC_WAVE" 8ad1292687431b05bad6b5c070ab722e67714526
+# 2. Commit 1 (DONE): Restore the exact 8ad12926 test tree and prove 0 diff before committing (A-LA-E7-08-03):
 git -C "$SRC_WAVE_2" fetch --quiet "$SRC_WAVE" 8ad1292687431b05bad6b5c070ab722e67714526
-git -C "$SRC_WAVE_2" checkout 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
+git -C "$SRC_WAVE_2" restore --source=8ad1292687431b05bad6b5c070ab722e67714526 --staged --worktree -- tests
 git -C "$SRC_WAVE_2" diff --exit-code 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
+git -C "$SRC_WAVE_2" diff --cached --exit-code 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
 git -C "$SRC_WAVE_2" commit -m "QA gate test overlay: 8ad12926 base on $WAVE_SHA_2"
+git -C "$SRC_WAVE_2" diff --exit-code 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
 export BASE_OVERLAY_SHA=$(git -C "$SRC_WAVE_2" rev-parse HEAD)
+# BASE_OVERLAY_SHA=bf8153404449dbfef47698ceb82fa0262e9d9c48
 git -C "$SRC_WAVE_2" tag la-gate-test-base-c1 "$BASE_OVERLAY_SHA"
 
-# 3. Commit 2: Apply the approved 3-file LD-9 Addendum Round 2 patch as a second commit (NEVER git commit --amend):
+# 3. Commit 2 (PENDING Round 2 approvals): Apply the approved 3-file LD-9 Addendum Round 2 patch as a second commit (NEVER git commit --amend):
 python3 - << 'EOF' > "$GATE_DIR/addendum-r2.patch"
 import re
 doc = open("/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/docs/reviews/LA-E7-08/ld9-addendum-r1.md").read()
@@ -270,25 +277,51 @@ git -C "$SRC_WAVE_2" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6.."$WAV
   infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/
 ```
 
+#### Step (a) Commit 1 Recorded Verification Output (`$WAVE_SHA_2` = `93ab0c50467772f7f1c4b5fa9feb137048305c43` → `$BASE_OVERLAY_SHA` = `bf8153404449dbfef47698ceb82fa0262e9d9c48`)
+
+- **Exact `tests/` Tree Match with `8ad1292687431b05bad6b5c070ab722e67714526` (`A-LA-E7-08-03` closed):**
+  ```text
+  $ git -C "$SRC_WAVE_2" log -n 2 --oneline --decorate
+  bf815340 (HEAD, tag: la-gate-test-base-c1) QA gate test overlay: 8ad12926 base on 93ab0c50467772f7f1c4b5fa9feb137048305c43
+  93ab0c50 (tag: la-wave-end-product-2) Merge la-s1 d219ce40: LA-E5-19 fix (WE-F4, BD-A2-109) lti stop order
+
+  $ git -C "$SRC_WAVE" rev-parse 8ad1292687431b05bad6b5c070ab722e67714526:tests
+  f42d4150b7b11ba2b2e63898ee317e6dea3f9430
+  $ git -C "$SRC_WAVE_2" rev-parse bf8153404449dbfef47698ceb82fa0262e9d9c48:tests
+  f42d4150b7b11ba2b2e63898ee317e6dea3f9430
+
+  $ git -C "$SRC_WAVE_2" diff --exit-code 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
+  (empty output, exit code 0)
+  ```
+- **Exact File & Hunk Parity on `tests/` vs `80133d6b` (`21` overlay files, `30` hunks, `0` failed hunks) and `93ab0c50` (`51` files including removal of the `24` post-`80133d6b` added test paths):**
+  - Comparing `git -C "$SRC_WAVE" diff 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 8ad1292687431b05bad6b5c070ab722e67714526 -- tests` against `git -C "$SRC_WAVE_2" diff 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 bf8153404449dbfef47698ceb82fa0262e9d9c48 -- tests` produces **`0` lines of `diff -u` output (`exit 0`, SHA-256 `b5eed6be3230cd885399885752d67de25bfb53b9796b628fdd1d3ea43f3290b9`)**: the exact same `21` overlay files (`321 insertions(+), 67 deletions(-)`) and `30` `@@` hunks.
+  - Between `80133d6b` and `93ab0c50`, `30` test paths changed in integration (`24` added files: `tests/ltiaas/kit/**`, `tests/e2e/ltiaas/{la-e5-24-*,run-la-e5-24.mjs}`, `tests/ltiaas/tasks-core/LA-E4-02/{golden.k1sim.test.ts,vitest.config.mts}`; `6` modified files: `tests/acceptance/run-api.mjs`, `tests/ltiaas/GATE-RUN-PLAN.md`, `tests/ltiaas/baseline/rate-peaks.mjs`, `tests/ltiaas/tasks-core/LA-E1-01/golden-binding.ts`, `tests/ltiaas/tasks-core/LA-E4-02/README.md`, `tests/sim/core/loading.test.mjs`). Using `git restore --source=8ad1292687431b05bad6b5c070ab722e67714526 --staged --worktree -- tests` restores those `30` post-`80133d6b` test paths and applies the `21` `8ad12926` overlay files (`51 files changed, 451 insertions(+), 8901 deletions(-)` in `git diff 93ab0c50..bf815340`), with `0` failed hunks.
+  - All `4` fenced `diff` blocks in `docs/reviews/LA-E7-08/ld9-addendum-r1.md` (`## Round 2`) pass `git -C "$SRC_WAVE_2" apply --check -` on `bf8153404449dbfef47698ceb82fa0262e9d9c48` with exit code `0`.
+- **Pre-Verified `AC-LA-E7-08-06` and Migration Diff on `93ab0c50467772f7f1c4b5fa9feb137048305c43`:**
+  - `git -C "$SRC_WAVE_2" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..93ab0c50467772f7f1c4b5fa9feb137048305c43 -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` → **empty (`0` files changed, exit `0`)**.
+  - `git -C "$SRC_WAVE_2" diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..93ab0c50467772f7f1c4b5fa9feb137048305c43 -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` → **empty (`0` files changed, exit `0`)**.
+
 ### (b) Slot 3C Run Set & Reason for Each Suite (Including Why `U1` and `M1 migration` Are Not Rerun)
 
 | Compose Project | Suite | Est. Minutes | Reason & Required Outcome |
 | --- | --- | --- | --- |
 | **`qalead-la-40`** | `M1 --phase sim --provider all` (`394` manifest rows) | **`24 min`** | Closes `AC-LA-E7-08-01` and proves all **`18` Slot 3B non-PASS rows now `PASS`** (`394/394` manifest rows `PASS`, `0` missing, `0` `ERROR` rows):<br>• **9 `WE-F1` rows** (`M1-13.blackboard.inactive`, `M1-25.blackboard.site-metadata`, `M1-14.blackboard.claims`, `M1-36.blackboard.{origin,path,query,encoded-dot,encoded-slash}`, `M1-08.canvas.login-redirect`) after the S1 `admin` default rate-limit fix (`1200/min`, burst `600`, `BD-A2-108` / `ecc19bbc`);<br>• **7 `WE-F4` rows** (`M1-37.blackboard.{d,o,v5}`, `M1-37.canvas.{d,s-dead,v4,v6}`) after the lanes R + S1 stop-order fix (`BD-A2-109`: listeners stop at once, HTTP cut after `3 s`, runner drain only), with `m1-restart cogniate-app` wall times recorded from `host-actions/*.json`;<br>• **1 `WE-F3` row** (`M1-15.canvas.dynamic-refused`) with Addendum Hunk 1 (`LA-IC-14` required `?ref=` 43-char regex);<br>• **1 `WE-F2` row** (`M1-24.common.event-shapes`) with Addendum Hunk 3 (`LA-IC-22` `launch_claims_minimized` `tool_account_id`). |
 | **`qalead-la-41`** | `M1 --phase snapshot-upgrade --provider all` (`6` manifest rows) | **`3 min`** | Closes `AC-LA-E7-08-04` and **`WE-F5`** (Addendum Hunk 2: `services/lti-service/src/db/migrations` in `tests/host/m1-migration.mjs:332`), proving all **`6/6` manifest rows `PASS`** (`M1-38.common.h1..h5` plus host qualification row **`M1-41.common.j-snapshot`** in `m1-case-results.json`, `0` `ERROR` rows in `summary.json`, and exact 21-file candidate migration ledger equality). |
-| **`qalead-la-42`** | `M2` browser suite (`64` manifest cases) | **`4 min`** | Closes `AC-LA-E7-08-01` (`64/64` `M2` cases `PASS`) on `$WAVE_SHA_2` because `cogniate-app` and the portal UI changed after `80133d6b`: specifically `LA-E3-16` hosted Canvas wizard help sentence (`BD-A2-106`, merged in `60230165`, touching the Canvas wizard tested by `M2-02`) and the `BD-A2-109` stop-order changes in `cogniate-app` and `lti-service`. |
-| **`qalead-la-43`** | Candidate golden capture `G1–G4` & host compare (`280` expected entries across `LA-IC-01..21`) | **`4 min`** | Closes `AC-LA-E7-08-03` (`LA-E0-03` golden comparison) on `$WAVE_SHA_2` because product code changed after `80133d6b` in three places: (1) `lti-service` `admin` default rate limit `1200/min`, burst `600` (`BD-A2-108`, `ecc19bbc`), (2) hosted Canvas wizard help text (`BD-A2-106`, `60230165`), and (3) `cogniate-app` + `lti-service` stop order (`BD-A2-109`). Confirms `280/280` explained golden entries, `0` unexplained differences, and `0` missing expected changes on `$WAVE_SHA_2`. |
-| **Not Rerun in Slot 3C** | `M1 --phase migration` (`qalead-la-11`) and `U1` SIM (`LA-E5-08` `qalead-la-13`, `LA-E5-22` `qalead-la-13b`) | **`0 min` (carried from Slot 3B on `80133d6b`)** | **Why `M1 migration` and `U1` do not need to run again:**<br>1. **No new SQL migration or schema change after `80133d6b`:** `git diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..$WAVE_SHA_2 -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` is **empty (`0` files changed)**; the migration ledgers remain `001_init.sql`..`021_registration_token_kind.sql` (`21` files in `lti-service`) and `001_init.sql`..`016_binding_authority.sql` (`16` files in `cogniate-app`).<br>2. **No change to `stack-data`, backup/restore, or `U1` key-sealing/backfill code after `80133d6b`:** None of `BD-A2-108` (`ecc19bbc`), `BD-A2-106` (`60230165`), or `BD-A2-109` (`89f72196`) touches migration SQL, backfill logic, key-provider sealing (`ltik1` / `cgk1`), or backup/restore scripts (QA verifies `git diff --stat 80133d6b..$WAVE_SHA_2` on those paths before starting Slot 3C).<br>3. **Already proven 100% `PASS` in Slot 3B (`docs/reviews/LA-E7-08/qa.md` §5.1 items 2, 4a, 4b):** `qalead-la-11` passed `12/12` `migration` manifest rows in `m1-case-results.json`, `qalead-la-13` passed `19/19` LTI `U1` assertions, and `qalead-la-13b` passed `18/18` app `U1` assertions. |
+| **`qalead-la-42`** | `M2` browser suite (`64` manifest cases) | **`4 min`** | Closes `AC-LA-E7-08-01` (`64/64` `M2` cases `PASS`) on `$WAVE_SHA_2` (`93ab0c50467772f7f1c4b5fa9feb137048305c43`) because `cogniate-app` and the portal UI changed after `80133d6b`: specifically `LA-E3-16` hosted Canvas wizard help sentence (`BD-A2-106`, merged in `60230165`, touching the Canvas wizard tested by `M2-02`) and the `BD-A2-109` stop-order changes in `cogniate-app` and `lti-service`. |
+| **`qalead-la-43`** | Candidate golden capture `G1–G4` & host compare (`280` expected entries across `LA-IC-01..21`) | **`4 min`** | Closes `AC-LA-E7-08-03` (`LA-E0-03` golden comparison) on `$WAVE_SHA_2` (`93ab0c50467772f7f1c4b5fa9feb137048305c43`) because product code changed after `80133d6b` in three places: (1) `lti-service` `admin` default rate limit `1200/min`, burst `600` (`BD-A2-108`, `ecc19bbc`), (2) hosted Canvas wizard help text (`BD-A2-106`, `60230165`), and (3) `cogniate-app` + `lti-service` stop order (`BD-A2-109`, `549a21b4` + `d219ce40`). Confirms `280/280` explained golden entries, `0` unexplained differences, and `0` missing expected changes on `$WAVE_SHA_2`. |
+| **Not Rerun in Slot 3C** | `M1 --phase migration` (`qalead-la-11`) and `U1` SIM (`LA-E5-08` `qalead-la-13`, `LA-E5-22` `qalead-la-13b`) | **`0 min` (carried from Slot 3B on `80133d6b`)** | **Why `M1 migration` and `U1` do not need to run again:**<br>1. **No new SQL migration or schema change after `80133d6b`:** `git diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..93ab0c50467772f7f1c4b5fa9feb137048305c43 -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` is **empty (`0` files changed)**; the migration ledgers remain `001_init.sql`..`021_registration_token_kind.sql` (`21` files in `lti-service`) and `001_init.sql`..`016_binding_authority.sql` (`16` files in `cogniate-app`).<br>2. **No change to `stack-data`, backup/restore, or `U1` key-sealing/backfill code after `80133d6b`:** None of `BD-A2-108` (`ecc19bbc`), `BD-A2-106` (`60230165`), or `BD-A2-109` (`549a21b4` + `d219ce40`) touches migration SQL, backfill logic, key-provider sealing (`ltik1` / `cgk1`), or backup/restore scripts.<br>3. **Already proven 100% `PASS` in Slot 3B (`docs/reviews/LA-E7-08/qa.md` §5.1 items 2, 4a, 4b):** `qalead-la-11` passed `12/12` `migration` manifest rows in `m1-case-results.json`, `qalead-la-13` passed `19/19` LTI `U1` assertions, and `qalead-la-13b` passed `18/18` app `U1` assertions. |
 
 ### (c) Exact Commands for Slot 3C (`qalead-la-40..43`, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`, Est. `35 min` Sequential)
 
 ```bash
+set -euo pipefail
 umask 077
 export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
 export SLOT3C_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3C"
 export SRC_WAVE_2="$GATE_DIR/src-wave-end-2"
 export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
-export WAVE_SHA_2="<40-char integration SHA named by the Lead>"
+export WAVE_SHA_2="93ab0c50467772f7f1c4b5fa9feb137048305c43"
+export BASE_OVERLAY_SHA="bf8153404449dbfef47698ceb82fa0262e9d9c48"
 export WAVE_TEST_SHA_2=$(git -C "$SRC_WAVE_2" rev-parse la-gate-test-addendum-r2)
 export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
 export PUBLIC_PORT=9473
