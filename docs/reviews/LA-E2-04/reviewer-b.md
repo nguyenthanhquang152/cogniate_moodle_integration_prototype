@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 ## Round 1
 
@@ -67,3 +67,17 @@ Used a fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r2-review-b-lmlvn0ij/r
 Negative controls are discriminating: restoring the old repeat engine made the two mismatch regressions fail while the identical-repeat test passed; restoring the pre-`9d52c24` manifest broke the staged wizard but preserved the manual test; restoring the old DTO broke the staged deployment pre-fill test. Additional BD-A1-97 probes confirmed that disconnect and suspend/release leave an unredeemed staged platform unchanged and inactive, with no LTI call. The changed-value staged refusal remains covered by the route suite; the gone-platform description is B-04.
 
 The portal edit is the dispatched RQ-2 test only; the production fixes stay in the declared K paths, with the manifest/DTO change explicitly included in this review. All private mutations were restored; the private checkout is clean. Only this report was edited in the integration worktree. QA still owns K1-SIM/R1 and browser acceptance; no Docker, stack, commit or push was run.
+
+## Round 3
+
+**Verdict: APPROVE.** Reviewed `da423f9` at merge `77df44e46c0e18a7b3ad833378983a4ac011a0f2` against LA-E2-04 and app API delta §3.4 (BD-A1-97). Blind review; the other reviewer's file was not read.
+
+**Open counts for this fix:** 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. B-LA-E2-04-04 closes for the server refusal; the portal observation below remains the separate A1 design follow-up assigned by the Lead.
+
+- **B-LA-E2-04-04 — CLOSED.** `services/cogniate-app/src/app/redemption.ts:50` defines the cause and repair text, and the staged S2 missing-record branch passes it to the existing refusal helper at line 322. The route now returns `409 PLATFORM_IN_USE` with `The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.` Ordinary developer-key collision text and `DEPLOYMENT_IN_USE` remain unchanged. The new route test at `services/cogniate-app/src/app/redemption-admin.test.ts:212` pins the full answer, no create or activation, an unredeemed grant and a cleared lease. An added private assertion also confirmed the attempt is `cancelled`. This unit flow leaves the connection `pending`; that observation does not claim the same status for every staged-registration flow.
+
+**Portal observation, not a verdict hold:** a private host-only test rendered the real `ChannelErrorNotice` under the `lti-generic` manifest with the new server refusal. It still shows `This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library.`, plus the error code and trace id; it does not show the new description. `apps/portal/src/connect/provider-errors.tsx:43` selects text by code and line 85 replaces the description. This confirms the existing A1/BD-A1-81 design question for the portal owner; no portal production change is part of this fix.
+
+**Verification:** fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r3-review-b-qu1frkll/repo`, with its own successful `npm ci`. The final focused run passed **151 tests in three files**, including the portal observation and cancellation assertion. Restoring the pre-fix `redemption.ts` made the new gone-platform test fail on precisely the old collision sentence (one failure, 13 skipped). The Vitest cache was removed before the negative control and final verification. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All temporary mutations were restored; the private checkout is clean.
+
+The two changed files are the K engine and its adjacent unit test, explicitly authorized for lane L2 by RQ-2. The diff adds no LMS name to core and changes no behavior outside the specified refusal text. Earlier UNIT-AC evidence remains in Rounds 1–2; QA retains K1-SIM/R1 and browser acceptance. Only this report was edited in the integration worktree; no Docker, stack, commit or push was run.

@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 1
+Round: 3
 
 # LA-E2-04 E2-K Operator grant bound values, `--accept-staged`, redemption checks and the staged registration page: QA verification
 
@@ -41,3 +41,77 @@ Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E2-04/` from `docs/archi
   - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
   - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
 - **Measured time:** `LA-E2-04` K0 suite `96.86s` (`2/2` K0 tests; `5` unit test files / `45/45` unit tests in `1.40s`). `K1-SIM` rows (`AC-03`, `-04`, `-08`) are `pending: Docker window`.
+
+## Round 2
+
+Tester: QA-3 (Orca task `task_414df49ec4b5`, dispatch `ctx_6748375ee627`), 2026-10-23. Scope: Round 2 host-only verification of `67e5ab0` (lane K fix round 1) and A1 `BD-A1-96` + `BD-A1-97` (`0ad9807`, `cogniate-app-api-delta.md` §3.4 and §7).
+
+Independence: QA-3 authored the Round 2 checks in `tests/ltiaas/tasks-core/LA-E2-04/grant-staged.k0.test.ts` from `docs/architecture/ltiaas/cogniate-app-api-delta.md` (§3.4, §5, §7) and `docs/architecture/ltiaas/build-decisions-A1.md` (`BD-A1-96`, `BD-A1-97`) without reading product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (test harness files `services/cogniate-app/src/app/operator-bound-values.test.ts` and `services/cogniate-app/src/app/redemption-admin.test.ts` were inspected solely for the in-memory `createOperator` test harness signature).
+
+| Item | Value |
+| --- | --- |
+| SHA | `4db030d157d14d09b385d52393982cf67f282086` (integration `4db030d`, code `176e823`; holds `LA-E2-04` fix round 1 `67e5ab0` + `0ad9807`) |
+| Lane and slot | lane K; no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-03`, `-04`, `-08` remain `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E2-04/r2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `4db030d157d14d09b385d52393982cf67f282086`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E2-04/r2/k0/` (umask 077): `vitest.log`, `e2-04-check-clean.log`, `e2-04-unit-by-ac.log`, `e2-04-r2-summary.json`, `head-sha.txt`, `status-after.txt` (`0` bytes) |
+
+### Round 2 checks (`67e5ab0` + `BD-A1-96` + `BD-A1-97`)
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| (a) Finalized repeat compares submitted admin values with the committed approval's bound values (`B-LA-E2-04-02`, `cogniate-app-api-delta.md` §3.4) | PASS | `grant-staged.k0.test.ts > Round 2 (a) & (b)` + `redemption-admin.test.ts > B-LA-E2-04-02` | Identical repeat (including canonical origin `HTTPS://LMS.School.Edu:443` and blank `tokenAudience: ""`), staged short-body repeat, and fixed profiles return `200` with `0` LTI calls. Changed bound values (`accessTokenEndpoint`, `jwksUrl`, etc.) return `422 GRANT_MISMATCH` with `details.fields`, log `grant_rejected` with `reason: "mismatch"`, and make `0` LTI calls. `vitest.log`, `e2-04-unit-by-ac.log` |
+| (b) Staged generic wizard sends `{ clientId, deploymentId, grantCode }` (`B-LA-E2-04-01` / `A-LA-E2-04-01`) | PASS | `grant-staged.k0.test.ts > Round 2 (a) & (b)` + `redemption-admin.test.ts` + `apps/portal/src/channels/shell.test.tsx` | `lti-generic` `manifest.setup.bindingFields` with `method: 'dynamic'` are `['clientId', 'deploymentId', 'grantCode']` (all `required: true`), pre-filled from `dto.platform`, and redeem the staged registration (`200`). `vitest.log`, `e2-04-unit-by-ac.log` |
+| (c1) App delta §7 refused-event catalogue (`BD-A1-96`) | PASS | `grant-staged.k0.test.ts > Round 2 (c): BD-A1-96 refused-event catalogue` + `operator-bound-values.test.ts` | Verified `audit_event` (`result = 'refused'`) codes on manual (`bound_value_invalid`, `bound_values_missing`, `foreign_hosts_unconfirmed`, `not_staged`) and staged (`bound_values_missing` without `--accept-staged`, `bound_values_not_allowed`, `client_id_mismatch`, `deployment_mismatch`, `foreign_hosts_unconfirmed`, `staged_values_changed` checked before printing) paths. `vitest.log`, `e2-04-unit-by-ac.log` |
+| (c2) `BD-A1-97` staged values changed after grant issue & unredeemed staged disconnect/release | PASS | `grant-staged.k0.test.ts > Round 2 (c)` + `redemption-admin.test.ts` | Staged platform values changed after grant issue returns `422 GRANT_MISMATCH` with `details.fields: ["jwksUrl"]` and logs `grant_rejected` (`reason: "mismatch"`). `DELETE /app-api/connections/:id` and `op.release(...)` on an unredeemed staged connection leave the inactive staged platform alone in `lti-service` (`active: false`). `vitest.log`, `e2-04-unit-by-ac.log` |
+| (c3) `BD-A1-97` gone staged platform `409 PLATFORM_IN_USE` description (`cogniate-app-api-delta.md` §3.4) | **FAIL** | `grant-staged.k0.test.ts > Round 2 (c)` + `redemption-admin.test.ts > BD-A1-97` | When the staged platform is gone from `lti-service` before redemption, `PUT /app-api/connections/:id/platform` returns HTTP `409` with `details.message = "PLATFORM_IN_USE"`, **but `details.description` is still the generic developer-key string** (`"This your LMS developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."`) instead of naming the cause (`the staged registration is gone; make a new connection`) required by `BD-A1-97` (`0ad9807`) and `cogniate-app-api-delta.md` §3.4. `vitest.log` |
+
+### Round 2 finding
+
+- **F-LA-E2-04-R2-01 (`BD-A1-97` / `cogniate-app-api-delta.md` §3.4 — gone staged platform `409 PLATFORM_IN_USE` description):**
+  - **Spec (`cogniate-app-api-delta.md` §3.4 / `BD-A1-97`):** *"If the staged platform is gone from the LTI service, the call returns `409 PLATFORM_IN_USE` with a description that says the staged registration is gone and to make a new connection."*
+  - **Observed at `4db030d` (`67e5ab0`):** `PUT /app-api/connections/:id/platform` returns `409 PLATFORM_IN_USE`, leaves the grant unredeemed, and sets `connection.status = 'error'` with `last_error = 'PLATFORM_IN_USE'`, but `details.description` is `"This your LMS developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."` (no mention of the staged registration being gone or making a new connection).
+
+### R0 `npm run check` and suite timings at `4db030d`
+
+- **R0 `npm run check` (`e2-04-check-clean.log`):**
+  - Vitest (`test:unit`): `190` files; `3,056` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail.
+  - K0 (`test:k0`): `3` files; `149` passed.
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Targeted unit + portal suite (`e2-04-unit-by-ac.log`):** `6` files (`operator-bound-values.test.ts`, `redemption-admin.test.ts`, `register-staged.test.ts`, `lms-texts.test.ts`, `lti-client.test.ts`, `apps/portal/src/channels/shell.test.tsx`), `92/92` passed (`2.18s`).
+- **Measured time:** `LA-E2-04` K0 suite `98.33s` (`3/4` K0 tests passed, `1` failed on `F-LA-E2-04-R2-01`). `K1-SIM` rows (`AC-03`, `-04`, `-08`) remain `pending: Docker window`.
+
+## Round 3
+
+Tester: QA-3 (Orca task `task_ff4caf16fc2d`, dispatch `ctx_21fbb77c9fe0`), 2026-10-23. Scope: Round 3 host-only verification of `77df44e` (`da423f9`, lane L2 RQ-2 in a K file fixing `F-LA-E2-04-R2-01` / `B-LA-E2-04-04` / `BD-A1-97`) and re-run of the full `LA-E2-04` K0 suite (`4/4` tests) and Round 2 rows.
+
+| Item | Value |
+| --- | --- |
+| SHA | `77df44e46c0e18a7b3ad833378983a4ac011a0f2` (integration `77df44e`; holds `da423f9` + `f00fbd2`) |
+| Lane and slot | lane K (`da423f9` via lane L2 RQ-2); no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-03`, `-04`, `-08` remain `pending: Docker window`, slot 4) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E2-04/r3/clone`: `git clone --no-hardlinks --no-checkout`, detached at `77df44e46c0e18a7b3ad833378983a4ac011a0f2`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E2-04/r3/k0/` (umask 077): `vitest.log`, `e2-04-check-clean.log`, `e2-04-unit-by-ac.log`, `e2-04-r2-summary.json`, `head-sha.txt`, `status-after.txt` (`0` bytes) |
+
+### Round 3 checks (`77df44e` / `da423f9` + all Round 2 rows)
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `F-LA-E2-04-R2-01` / `B-LA-E2-04-04` (`BD-A1-97`, `cogniate-app-api-delta.md` §3.4): gone staged platform `409 PLATFORM_IN_USE` description | PASS | `grant-staged.k0.test.ts > BD-A1-97 (cogniate-app-api-delta.md §3.4): a gone staged platform gives 409 PLATFORM_IN_USE with a description that says the staged registration is gone and to make a new connection` + `redemption-admin.test.ts` | When the staged platform is deleted from `lti-service` before redemption, `PUT /app-api/connections/:id/platform` returns `409 PLATFORM_IN_USE` with `details.description = "The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator."` (`e2-04-r2-summary.json`, `vitest.log`). |
+| (a) Finalized repeat compares submitted admin values with the committed approval's bound values (`B-LA-E2-04-02`, `cogniate-app-api-delta.md` §3.4) | PASS | `grant-staged.k0.test.ts > Round 2 (a) & (b)` + `redemption-admin.test.ts > B-LA-E2-04-02` | Identical repeat (`200`), staged short-body repeat (`200`), and changed bound values (`422 GRANT_MISMATCH` with `details.fields: ["accessTokenEndpoint", "jwksUrl"]` and `grant_rejected` `reason: "mismatch"`) all pass with `0` LTI calls. `vitest.log`, `e2-04-r2-summary.json` |
+| (b) Staged generic wizard sends `{ clientId, deploymentId, grantCode }` (`B-LA-E2-04-01` / `A-LA-E2-04-01`) | PASS | `grant-staged.k0.test.ts > Round 2 (a) & (b)` + `redemption-admin.test.ts` + `apps/portal/src/channels/shell.test.tsx` | `lti-generic` dynamic `bindingFields` are `['clientId', 'deploymentId', 'grantCode']` and redeem the staged registration (`200`). `vitest.log`, `e2-04-unit-by-ac.log` |
+| (c1) App delta §7 refused-event catalogue (`BD-A1-96`) | PASS | `grant-staged.k0.test.ts > Round 2 (c)` + `operator-bound-values.test.ts` | Manual (`bound_value_invalid`, `bound_values_missing`, `foreign_hosts_unconfirmed`, `not_staged`) and staged (`bound_values_missing`, `bound_values_not_allowed`, `client_id_mismatch`, `deployment_mismatch`, `foreign_hosts_unconfirmed`, `staged_values_changed` checked before printing) `audit_event` (`result = 'refused'`) codes verified. `e2-04-r2-summary.json` |
+| (c2) `BD-A1-97` staged values changed after grant issue & unredeemed staged disconnect/release | PASS | `grant-staged.k0.test.ts > Round 2 (c)` + `redemption-admin.test.ts` | Staged values changed after grant issue returns `422 GRANT_MISMATCH` (`details.fields: ["jwksUrl"]`); `DELETE /app-api/connections/:id` and `op.release(...)` on an unredeemed staged connection preserve the inactive staged platform (`active: false`). `e2-04-r2-summary.json` |
+
+### R0 `npm run check` and suite timings at `77df44e`
+
+- **R0 `npm run check` (`e2-04-check-clean.log`):**
+  - Vitest (`test:unit`): `190` files; `3,057` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail.
+  - K0 (`test:k0`): `3` files; `149` passed.
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Targeted unit + portal suite (`e2-04-unit-by-ac.log`):** `6` files, `93/93` passed (`4.63s`).
+- **Measured time:** `LA-E2-04` K0 suite `98.57s` (`4/4` K0 tests passed). `K1-SIM` rows (`AC-03`, `-04`, `-08`) remain `pending: Docker window` (Docker slot 4).
