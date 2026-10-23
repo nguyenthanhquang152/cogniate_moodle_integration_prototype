@@ -7,13 +7,13 @@ Spec: `docs/architecture/ltiaas/tasks/LA-E5-17.md`, `operability.md` §4.2, §4.
 
 | AC | Level | Covered in | What is checked |
 | --- | --- | --- | --- |
-| `AC-LA-E5-17-01` | `K1-SIM` | `observability.test.ts` | `GET http://lti-service:4110/metrics` from the `e2e` container (`acceptance` profile) returns `200` OpenMetrics text with at least `lti_http_requests_total`, `lti_rate_limited_total`, `lti_launch_total`, and `lti_ready` (`1`) |
+| `AC-LA-E5-17-01` | `K1-SIM` | `observability.test.ts` | `GET http://lti-service:4110/metrics` from the `e2e` container (`acceptance` profile) returns `200` OpenMetrics text with `lti_http_requests_total`, `lti_rate_limited_total`, `lti_launch_total`, `lti_audit_events_total`, `lti_jwks_cache_age_seconds` (`BD-A2-54`), and `lti_ready` (`1`) |
 | `AC-LA-E5-17-02` | `K1-SIM` | `observability.test.ts` | `GET https://lti.cogniate.test/metrics` through the proxy returns `404` |
 | `AC-LA-E5-17-03` | `K1-SIM` | `observability.test.ts` | Public `GET /readyz` returns `200 {"status":"ready"}` with no `reasons` field (and operator `GET http://lti-service:4110/readyz` returns `200` with `status: "ready"`) |
 | `AC-LA-E5-17-04` | `UNIT` | Author unit test | Key ring lacking a version that a row uses makes operator `/readyz` return `503` with `reasons` containing `key_version_missing` |
 | `AC-LA-E5-17-05` | `UNIT` | Author unit test | With `STACK_PROFILE=production`, `GET /healthz` returns `{"status":"ok","service":"lti-service"}` |
 | `AC-LA-E5-17-06` | `K1-SIM` | `observability.test.ts` | In the `acceptance` profile, `GET /healthz` equals the E0 golden `G1` (`G1.acceptance.ltiHealth`, no field change; `outbound_allowlist` verified under `LA-IC-16`) |
-| `AC-LA-E5-17-07` | `K1-SIM` | `observability.test.ts` | An `http_request` line for `/lti/login/cogniate` has `tool_account_id: "cogniate"`; after a launch carrying `name`, `email`, and `sub`, no metric label and no log field/value holds a name, e-mail, or `sub` |
+| `AC-LA-E5-17-07` | `K1-SIM` | `observability.test.ts` | An `http_request` line for `/lti/login/cogniate` has `tool_account_id: "cogniate"` and `path: "/lti/login/:account"`, an unmatched path logs `path: "<unmatched>"` (`BD-A2-61`), and no metric label or log field/value holds a name, e-mail, or `sub` |
 
 ## Host-only check (no Docker)
 
