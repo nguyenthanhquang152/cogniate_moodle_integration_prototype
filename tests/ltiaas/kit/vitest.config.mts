@@ -1,7 +1,8 @@
 // Vitest configuration for the LTI 1.3 Channel Certification Kit (LA-E7-06, K1).
-// LA_LEVEL selects the mode:
+// LA_LEVEL selects the mode via resolveKitLevel():
 // - 'k0': host-only pass-rule, bilateral equality, TB-12 fixture source audit, and F1 kit-neutrality checks (kit.k0.test.ts)
-// - 'k1sim' (default when QA_TASK=K1 or QA_TASK=LA-E7-06): runs the 6 per-port simulator suites + K-HYG in deterministic order.
+// - 'k1sim' (or 'k1-sim', default when QA_TASK=K1 or QA_TASK=LA-E7-06): runs the 6 per-port simulator suites + K-HYG in deterministic order
+// - 'all': runs both kit.k0.test.ts and the K1 simulator suites
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
@@ -13,9 +14,35 @@ if (!process.env.LA_KIT_RUN_ID) {
   process.env.LA_KIT_RUN_ID = `kit-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-const defaultLevel =
-  process.env.QA_TASK === 'K1' || process.env.QA_TASK === 'LA-E7-06' ? 'k1sim' : 'k0';
-const level = (process.env.LA_LEVEL ?? defaultLevel).toLowerCase();
+export type KitLevel = 'k0' | 'k1sim' | 'all';
+
+export function resolveKitLevel(env: NodeJS.ProcessEnv = process.env): KitLevel {
+  const raw = env.LA_LEVEL?.trim().toLowerCase();
+  if (!raw) {
+    if (
+      env.QA_TASK === 'K1' ||
+      env.QA_TASK === 'LA-E7-06' ||
+      env.QA_KIT_RUN === '1'
+    ) {
+      return 'k1sim';
+    }
+    return 'k0';
+  }
+  if (raw === 'k0') {
+    return 'k0';
+  }
+  if (raw === 'k1sim' || raw === 'k1-sim' || raw === 'k1') {
+    return 'k1sim';
+  }
+  if (raw === 'all') {
+    return 'all';
+  }
+  throw new Error(
+    `Unsupported LA_LEVEL=${env.LA_LEVEL}; expected k0, k1sim (or k1-sim), or all`,
+  );
+}
+
+const level = resolveKitLevel(process.env);
 
 const K1_SIM_SUITE_FILES = [
   'suites/k1-reg.k1sim.test.ts',
@@ -49,16 +76,13 @@ export class KitSuiteSequencer extends BaseSequencer {
   }
 }
 
-const includeByLevel: Record<string, string[]> = {
+const includeByLevel: Record<KitLevel, string[]> = {
   k0: ['kit.k0.test.ts'],
   k1sim: [...K1_SIM_SUITE_FILES],
   all: ['kit.k0.test.ts', ...K1_SIM_SUITE_FILES],
 };
 
 const include = includeByLevel[level];
-if (!include) {
-  throw new Error(`Unsupported LA_LEVEL=${process.env.LA_LEVEL}; expected k0, k1sim, or all`);
-}
 
 export default defineConfig({
   test: {

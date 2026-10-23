@@ -1,357 +1,419 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadSelectedChannelFixtures } from '../lib/fixtures.js';
 import {
-  appApi,
-  APP_URL,
+  AGS,
+  app,
+  ChannelBinding,
+  commitGrade,
+  decodeJwt,
+  endConnection,
   ensureKitRunInitialized,
-  getSimCursor,
-  getSimRecords,
-  httpRequest,
-  isK1SimEnabled,
-  ltiApi,
-  performSimulatorLaunch,
-  recordRedactedEvidence,
-  RegisteredChannelContext,
+  expectStatus,
+  idToken,
+  launchOnChannel,
+  logEvents,
+  noServiceCalls,
+  openPlayOnChannel,
+  publication,
+  PublicationRef,
+  records,
+  results,
+  ROLE_INSTRUCTOR,
+  ROLE_LEARNER,
   runKitCase,
-  setupActiveChannelConnection,
+  service,
+  setupChannelBinding,
+  uniqueId,
+  waitSync,
 } from '../lib/runtime.js';
 
-const runSuite = isK1SimEnabled() ? describe : describe.skip;
 const fixtures = loadSelectedChannelFixtures();
 
-function extractPlayId(location: string): string {
-  const m = location.match(/\/play\/([^/?#]+)/);
-  return m ? m[1] : '';
-}
-
-runSuite('K1-AGS: LTI Assignment and Grade Services 2.0 Suite (all selected channels)', () => {
+describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels', () => {
   beforeAll(() => {
     ensureKitRunInitialized({ channels: fixtures.map((f) => f.id) });
   });
 
   for (const fixture of fixtures) {
     describe(`channel: ${fixture.id}`, () => {
-      let ctx: RegisteredChannelContext;
+      let binding: ChannelBinding;
+      let pub: PublicationRef;
 
       beforeAll(async () => {
-        ctx = await setupActiveChannelConnection(fixture, 'ags');
+        binding = await setupChannelBinding(fixture);
+        pub = await publication(binding, 'scorm12');
       });
 
-      it(`[${fixture.id}:K1-AGS:A1] token request assertion aud by profile trait, iss=sub, unique jti, one scope per call, and records.readBack`, async () => {
+      afterAll(async () => {
+        if (binding) {
+          await endConnection(binding.session, binding.connection.id);
+        }
+      });
+
+      it(`${fixture.id}:K1-AGS:A1 — Token request assertion aud by profile trait (string, array, or platformValue), iss = sub, unique jti, one scope per call, and records.readBack refresh`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A1', async () => {
-          const cursor = await getSimCursor();
-          const launch = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
+          const cursor = (await records()).cursor;
+          const learner = uniqueId(`learner-a1-${fixture.id}`);
+          const play = await openPlayOnChannel(binding, pub, {
+            roles: [ROLE_LEARNER],
+            subject: learner,
           });
-          expect([302, 303]).toContain(launch.launchRes.status);
-          const playId = extractPlayId(launch.redirectLocation);
+          // POST /play/:playId/scorm12/commit -> waitSync (M1/common/course.ts:58-85; cogniate-app-api.md §6.3)
+          const commitRes = await commitGrade(play, 'scorm12', 9, 10);
+          expect(commitRes.status).toBe(200);
+          await waitSync(binding, pub, 'sent');
 
-          const completeRes = await httpRequest(`${APP_URL}/tool/play/${playId}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 85 },
-          });
-          expect(completeRes.status).toBe(200);
-
+          // If records.readBack is true, trigger POST /app-api/publications/:id/results/refresh (cogniate-app-api-delta.md §6)
           if (fixture.capabilities['records.readBack']) {
-            const refreshRes = await appApi(
-              `/app-api/courses/${ctx.courseId}/gradebook/refresh`,
-              { cookie: ctx.cookie, csrf: ctx.csrf },
-              { method: 'POST', body: {} },
+            const refreshRes = await app(
+              binding.session,
+              'POST',
+              `/app-api/publications/${pub.id}/results/refresh`,
+              {},
             );
-            expect([200, 202]).toContain(refreshRes.status);
+            expectStatus(refreshRes, 200);
+            expect(refreshRes.json.refresh.status).toBe('ok');
           }
 
-          const { records } = await getSimRecords(cursor);
-          const tokenRecords = records.filter((r) => r.kind === 'token');
-          expect(tokenRecords.length).toBeGreaterThanOrEqual(1);
+          const simRecs = await records(cursor);
+          const tokenRecs = simRecs.records.filter(
+            (r: Record<string, unknown>) => r.kind === 'token',
+          );
+          expect(tokenRecs.length).toBeGreaterThanOrEqual(1);
 
-          const jtis = new Set<string>();
-          for (const rec of tokenRecords) {
-            expect(rec.iss).toBe(ctx.clientId);
-            expect(rec.sub).toBe(ctx.clientId);
-            expect(typeof rec.jti).toBe('string');
-            jtis.add(rec.jti as string);
+          const seenJtis = new Set<string>();
+          for (const tr of tokenRecs) {
+            const jwt = decodeJwt(tr.clientAssertion as string);
+            const payload = jwt.payload as Record<string, unknown>;
 
+            expect(payload.iss).toBe(binding.clientId);
+            expect(payload.sub).toBe(binding.clientId);
+            expect(typeof payload.jti).toBe('string');
+            expect(seenJtis.has(payload.jti as string)).toBe(false);
+            seenJtis.add(payload.jti as string);
+
+            // Token audience shape matches profile trait (string, array, or fixed)
             if (fixture.sim.tokenAudienceKind === 'array') {
-              expect(Array.isArray(rec.aud)).toBe(true);
-              expect(rec.aud).toEqual(fixture.sim.tokenAudience);
+              expect(Array.isArray(payload.aud)).toBe(true);
+              expect(payload.aud).toEqual(fixture.sim.tokenAudience);
             } else {
-              expect(rec.aud).toBe(fixture.sim.tokenAudience);
+              expect(typeof payload.aud).toBe('string');
+              expect(payload.aud).toBe(fixture.sim.tokenAudience);
             }
 
-            const scopes = String(rec.scope ?? '')
-              .trim()
-              .split(/\s+/)
-              .filter(Boolean);
+            // Exactly one scope per token call, and within registration.scopes
+            const scopeStr = String(tr.scope ?? '').trim();
+            const scopes = scopeStr.split(/\s+/).filter(Boolean);
             expect(scopes.length).toBe(1);
             expect(fixture.capabilities['registration.scopes']).toContain(scopes[0]);
           }
-          expect(jtis.size).toBe(tokenRecords.length);
-
-          recordRedactedEvidence(`ags-a1-${fixture.id}`, {
-            channelId: fixture.id,
-            tokenRequestCount: tokenRecords.length,
-            uniqueJtis: jtis.size,
-            redacted: true,
-          });
         });
       });
 
-      it(`[${fixture.id}:K1-AGS:A2] score body by ADR-010 mapping (scoreGiven, scoreMaximum, activityProgress, gradingProgress, submission.submittedAt, scoringUserId, https extension kept, non-https dropped)`, async () => {
+      it(`${fixture.id}:K1-AGS:A2 — Score body by ADR-010 mapping (scoreGiven, scoreMaximum, activityProgress, gradingProgress, submission.submittedAt, scoringUserId, https extension kept, non-https key dropped)`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A2', async () => {
-          const launch = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
+          const launched = await launchOnChannel(binding, {
+            resource: pub.id,
+            roles: [ROLE_LEARNER],
+            subject: uniqueId(`learner-a2-${fixture.id}`),
           });
-          const idTokenRes = await ltiApi('/api/idtoken', {
-            method: 'GET',
-            headers: { authorization: `Bearer ${launch.ltik}` },
-          });
-          const claims = idTokenRes.json as {
-            services?: { ags?: { serviceKey?: string; lineItemUrl?: string } };
-          };
-          const serviceKey = claims.services?.ags?.serviceKey;
-          const lineItemUrl = claims.services?.ags?.lineItemUrl;
-          expect(serviceKey).toBeTruthy();
+          expect(launched.response.status).toBe(303);
+          const tok = await idToken(launched.ltik!);
+          expectStatus(tok, 200);
+          const serviceKey = tok.json.services.ags.serviceKey as string;
+          const lineitemUrl = tok.json.services.ags.lineitem as string;
 
-          const cursor = await getSimCursor();
-          const submittedAt = '2026-04-19T10:15:30.000Z';
-          const scoreRes = await ltiApi('/api/lineitems/scores', {
-            method: 'POST',
-            body: {
-              serviceKey,
-              lineItemUrl,
-              score: {
-                userId: 'learner-1',
-                scoreGiven: 92,
-                scoreMaximum: 100,
-                comment: 'Well done',
-                timestamp: '2026-04-19T10:15:31.000Z',
-                activityProgress: 'Completed',
-                gradingProgress: 'FullyGraded',
-                submission: { submittedAt },
-                scoringUserId: 'grader-staff-1',
-                'https://cogniate.test/ext/attempt': 2,
-                nonUriExtensionKey: 'must-be-dropped',
+          const cursor = (await records()).cursor;
+          const submittedAt = new Date().toISOString();
+          const extKey = 'https://cogniate.test/ext/attempt-meta';
+
+          // POST /api/scores with SERVICE-AUTH-V1 (lti-service-api.md §4.2; lti-service-api-delta.md §1.2)
+          const scoreRes = await service(serviceKey, 'POST', '/api/scores', {
+            lineitemUrl,
+            score: {
+              userId: tok.json.user.id,
+              scoreGiven: 85,
+              scoreMaximum: 100,
+              comment: 'Well done',
+              timestamp: submittedAt,
+              activityProgress: 'Completed',
+              gradingProgress: 'FullyGraded',
+              scoringUserId: 'grader-1',
+              submission: {
+                submittedAt,
               },
+              [extKey]: { attempt: 1 },
+              nonUrlExtensionKey: 'must-be-dropped',
             },
           });
-          expect([200, 204]).toContain(scoreRes.status);
+          expectStatus(scoreRes, 200);
+          expect(scoreRes.json.lmsStatus).toBe(204);
 
-          const { records } = await getSimRecords(cursor);
-          const scoreRec = records.find((r) => r.kind === 'score');
+          const simRecs = await records(cursor);
+          const scoreRec = simRecs.records.find(
+            (r: Record<string, unknown>) => r.kind === 'score',
+          );
           expect(scoreRec).toBeDefined();
-          const body = (scoreRec?.body ?? scoreRec) as Record<string, unknown>;
-          expect(body.userId ?? scoreRec?.userId).toBe('learner-1');
-          expect(body.scoreGiven ?? scoreRec?.scoreGiven).toBe(92);
-          expect(body.scoreMaximum ?? scoreRec?.scoreMaximum).toBe(100);
-          expect(body.activityProgress ?? scoreRec?.activityProgress).toBe('Completed');
-          expect(body.gradingProgress ?? scoreRec?.gradingProgress).toBe('FullyGraded');
-          if (body.submission) {
-            expect((body.submission as { submittedAt?: string }).submittedAt).toBe(submittedAt);
-          }
-          if ('nonUriExtensionKey' in body) {
-            expect(body.nonUriExtensionKey).toBeUndefined();
-          }
+          expect(scoreRec!.contentType).toContain(
+            'application/vnd.ims.lis.v1.score+json',
+          );
+          expect(scoreRec!.body.userId).toBe(tok.json.user.id);
+          expect(scoreRec!.body.scoreGiven).toBe(85);
+          expect(scoreRec!.body.scoreMaximum).toBe(100);
+          expect(scoreRec!.body.activityProgress).toBe('Completed');
+          expect(scoreRec!.body.gradingProgress).toBe('FullyGraded');
+          expect(scoreRec!.body.scoringUserId).toBe('grader-1');
+          expect(scoreRec!.body.submission?.submittedAt).toBe(submittedAt);
+          expect(scoreRec!.body[extKey]).toEqual({ attempt: 1 });
+          expect(scoreRec!.body.nonUrlExtensionKey).toBeUndefined();
         });
       });
 
-      it(`[${fixture.id}:K1-AGS:A3] status mapping: 204 -> sent, 400/404/422 -> failed, 409 -> conflict, 503 -> retry, 429 Retry-After -> throttled`, async () => {
+      it(`${fixture.id}:K1-AGS:A3 — AGS status mapping: 204 -> sent, 400/404/422 -> failed, 409 -> conflict with channel message, 503 -> retry, 429 Retry-After -> throttled with tries=0`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A3', async () => {
-          // 1. 400, 404, 422 -> failed
+          // 1. 204 -> sent
+          const pub204 = await publication(binding, 'scorm12');
+          const learner204 = uniqueId('learner-a3-204');
+          const play204 = await openPlayOnChannel(binding, pub204, {
+            roles: [ROLE_LEARNER],
+            subject: learner204,
+          });
+          await commitGrade(play204, 'scorm12', 10, 10);
+          const rows204 = (await waitSync(binding, pub204, 'sent')) as Array<
+            Record<string, unknown>
+          >;
+          const row204 = rows204.find(
+            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner204,
+          );
+          expect(row204).toBeDefined();
+          const sync204 =
+            (row204!.lastScoreSync as Record<string, unknown> | undefined) ??
+            ((row204!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+          expect(sync204?.status).toBe('sent');
+
+          // 2. 400, 404, 422 -> failed
           for (const errStatus of [400, 404, 422]) {
-            const l = await performSimulatorLaunch(ctx, {
-              roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-              documentTarget: 'window',
+            const pubErr = await publication(binding, 'scorm12');
+            const learnerErr = uniqueId(`learner-a3-${errStatus}`);
+            const playErr = await openPlayOnChannel(binding, pubErr, {
+              roles: [ROLE_LEARNER],
+              subject: learnerErr,
               scoreAnswers: [errStatus],
-              subject: `learner-status-${errStatus}`,
             });
-            const playId = extractPlayId(l.redirectLocation);
-            await httpRequest(`${APP_URL}/tool/play/${playId}/complete`, {
-              method: 'POST',
-              headers: { origin: APP_URL },
-              body: { scorePercent: 70 },
-            });
-            const gbRes = await appApi(`/app-api/courses/${ctx.courseId}/gradebook`, {
-              cookie: ctx.cookie,
-              csrf: ctx.csrf,
-            });
-            expect(gbRes.status).toBe(200);
-            expect(gbRes.rawBody).toMatch(/failed/i);
+            await commitGrade(playErr, 'scorm12', 5, 10);
+            const rowsErr = (await waitSync(binding, pubErr, 'failed')) as Array<
+              Record<string, unknown>
+            >;
+            const rowErr = rowsErr.find(
+              (r) =>
+                (r.learner as Record<string, unknown> | undefined)?.subject === learnerErr,
+            );
+            expect(rowErr).toBeDefined();
+            const syncErr =
+              (rowErr!.lastScoreSync as Record<string, unknown> | undefined) ??
+              ((rowErr!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+            expect(syncErr?.status).toBe('failed');
           }
 
-          // 2. 409 -> conflict (with per-channel "{LMS} has a grade with a newer time")
-          const l409 = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
-            scoreAnswers: [409],
-            subject: 'learner-status-409',
+          // 3. 409 -> conflict with channel message ("<Channel> has a grade with a newer time. Use the gradebook in <Channel> to change it.")
+          const pub409 = await publication(binding, 'scorm12');
+          const learner409 = uniqueId('learner-a3-409');
+          const play409 = await openPlayOnChannel(binding, pub409, {
+            roles: [ROLE_LEARNER],
+            subject: learner409,
+            scoreAnswers: [
+              {
+                status: 409,
+                message: 'A grade with a newer timestamp already exists',
+              },
+            ],
           });
-          await httpRequest(`${APP_URL}/tool/play/${extractPlayId(l409.redirectLocation)}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 75 },
-          });
-          const gb409 = await appApi(`/app-api/courses/${ctx.courseId}/gradebook`, {
-            cookie: ctx.cookie,
-            csrf: ctx.csrf,
-          });
-          expect(gb409.status).toBe(200);
-          expect(gb409.rawBody).toMatch(/conflict|has a grade with a newer time/i);
+          await commitGrade(play409, 'scorm12', 6, 10);
+          const rows409 = (await waitSync(binding, pub409, 'conflict')) as Array<
+            Record<string, unknown>
+          >;
+          const row409 = rows409.find(
+            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner409,
+          );
+          expect(row409).toBeDefined();
+          const sync409 =
+            (row409!.lastScoreSync as Record<string, unknown> | undefined) ??
+            ((row409!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+          expect(sync409?.status).toBe('conflict');
+          expect(String(sync409?.lastError ?? '')).toContain(
+            'has a grade with a newer time',
+          );
 
-          // 3. 503 -> retry (pending, tries >= 1)
-          const l503 = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
+          // 4. 503 -> pending retry (tries >= 1)
+          const pub503 = await publication(binding, 'scorm12');
+          const learner503 = uniqueId('learner-a3-503');
+          const play503 = await openPlayOnChannel(binding, pub503, {
+            roles: [ROLE_LEARNER],
+            subject: learner503,
             scoreAnswers: [503],
-            subject: 'learner-status-503',
           });
-          await httpRequest(`${APP_URL}/tool/play/${extractPlayId(l503.redirectLocation)}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 80 },
-          });
-          const gb503 = await appApi(`/app-api/courses/${ctx.courseId}/gradebook`, {
-            cookie: ctx.cookie,
-            csrf: ctx.csrf,
-          });
-          expect(gb503.status).toBe(200);
-          expect(gb503.rawBody).toMatch(/pending/i);
+          await commitGrade(play503, 'scorm12', 7, 10);
+          const rows503 = (await waitSync(binding, pub503, 'pending')) as Array<
+            Record<string, unknown>
+          >;
+          const row503 = rows503.find(
+            (r) => (r.learner as Record<string, unknown> | undefined)?.subject === learner503,
+          );
+          expect(row503).toBeDefined();
+          const sync503 =
+            (row503!.lastScoreSync as Record<string, unknown> | undefined) ??
+            ((row503!.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+          expect(sync503?.status).toBe('pending');
+          expect(Number(sync503?.tries ?? 0)).toBeGreaterThanOrEqual(1);
 
-          // 4. 429 with Retry-After -> throttled (pending with tries === 0)
-          const l429 = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
-            scoreAnswers: [{ status: 429, retryAfter: 30 }],
-            subject: 'learner-status-429',
+          // 5. 429 with Retry-After: 60 -> throttled pending with tries === 0 and no immediate retry
+          const pub429 = await publication(binding, 'scorm12');
+          const learner429 = uniqueId('learner-a3-429');
+          const since429 = Date.now();
+          const cursor429 = (await records()).cursor;
+          const play429 = await openPlayOnChannel(binding, pub429, {
+            roles: [ROLE_LEARNER],
+            subject: learner429,
+            scoreAnswers: [{ status: 429, retryAfter: 60 }],
           });
-          await httpRequest(`${APP_URL}/tool/play/${extractPlayId(l429.redirectLocation)}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 95 },
-          });
-          const gb429 = await appApi(`/app-api/courses/${ctx.courseId}/gradebook`, {
-            cookie: ctx.cookie,
-            csrf: ctx.csrf,
-          });
-          expect(gb429.status).toBe(200);
-          expect(gb429.rawBody).toMatch(/pending|throttled/i);
-        });
-      });
+          await commitGrade(play429, 'scorm12', 8, 10);
 
-      it(`[${fixture.id}:K1-AGS:A4] staff preview sends nothing (0 simulator score calls)`, async () => {
-        await runKitCase(fixture.id, 'K1-AGS', 'A4', async () => {
-          const cursor = await getSimCursor();
-          const staffLaunch = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-            documentTarget: 'window',
-          });
-          const playId = extractPlayId(staffLaunch.redirectLocation);
-          const completeRes = await httpRequest(`${APP_URL}/tool/play/${playId}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 100 },
-          });
-          expect(completeRes.status).toBe(200);
-          const body = completeRes.json as { preview?: boolean; scoreSyncs?: unknown[] };
-          expect(body.preview).toBe(true);
-          if (Array.isArray(body.scoreSyncs)) {
-            expect(body.scoreSyncs.length).toBe(0);
+          let sync429: Record<string, unknown> | undefined;
+          let throttleEvents: Array<Record<string, unknown>> = [];
+          for (let i = 0; i < 20; i += 1) {
+            const currentRows = (await results(binding, pub429)) as Array<
+              Record<string, unknown>
+            >;
+            const row429 = currentRows.find(
+              (r) =>
+                (r.learner as Record<string, unknown> | undefined)?.subject === learner429,
+            );
+            sync429 =
+              (row429?.lastScoreSync as Record<string, unknown> | undefined) ??
+              ((row429?.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+            throttleEvents = logEvents('dispatch_throttled', since429);
+            if (sync429 && throttleEvents.length > 0) {
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 150));
           }
+          expect(sync429).toBeDefined();
+          expect(sync429?.status).toBe('pending');
+          expect(sync429?.tries).toBe(0);
+          expect(throttleEvents.length).toBeGreaterThanOrEqual(1);
 
-          const { records } = await getSimRecords(cursor);
-          expect(records.filter((r) => r.kind === 'score').length).toBe(0);
+          const recs429 = await records(cursor429);
+          const scoreCalls429 = recs429.records.filter(
+            (r: Record<string, unknown>) =>
+              r.kind === 'score' &&
+              (r.body as Record<string, unknown> | undefined)?.userId === learner429,
+          );
+          expect(scoreCalls429.length).toBe(1);
         });
       });
 
-      it(`[${fixture.id}:K1-AGS:A5] disabled connection sends nothing (CONNECTION_DISABLED, 0 simulator score calls)`, async () => {
+      it(`${fixture.id}:K1-AGS:A4 — Staff preview sends no score (scoreSyncs empty, 0 simulator score calls)`, async () => {
+        await runKitCase(fixture.id, 'K1-AGS', 'A4', async () => {
+          const previewPub = await publication(binding, 'scorm12');
+          const staffPlay = await openPlayOnChannel(binding, previewPub, {
+            roles: [ROLE_INSTRUCTOR],
+            subject: uniqueId('staff-a4'),
+          });
+          const cursor = (await records()).cursor;
+          const commitRes = await commitGrade(staffPlay, 'scorm12', 10, 10);
+          expect(commitRes.status).toBe(200);
+
+          const rows = await results(binding, previewPub);
+          expect(rows).toEqual([]);
+          await noServiceCalls(cursor);
+        });
+      });
+
+      it(`${fixture.id}:K1-AGS:A5 — Disabled connection sends no score (pending outbox row marked CONNECTION_DISABLED, 0 simulator score calls)`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A5', async () => {
-          const tempCtx = await setupActiveChannelConnection(
-            {
-              ...fixture,
-              sim: {
-                ...fixture.sim,
-                deployments: [ctx.secondaryDeploymentId, ctx.deploymentId],
-              },
-            },
-            'ags-disable',
-          );
-          const launch = await performSimulatorLaunch(tempCtx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
+          const isShared = fixture.capabilities['platform.sharing'] === 'shared';
+          const bTemp = await setupChannelBinding(fixture, {
+            library: uniqueId(`lib-a5-${fixture.id}`),
+            clientId: isShared ? binding.clientId : uniqueId(`c-a5-${fixture.id}`),
+            deploymentId: uniqueId(`dep-a5-${fixture.id}`),
           });
-          const playId = extractPlayId(launch.redirectLocation);
+          try {
+            const pubTemp = await publication(bTemp, 'scorm12');
+            const playTemp = await openPlayOnChannel(bTemp, pubTemp, {
+              roles: [ROLE_LEARNER],
+              subject: uniqueId('learner-a5'),
+            });
 
-          const delRes = await appApi(
-            `/app-api/connections/${tempCtx.connectionId}`,
-            { cookie: tempCtx.cookie, csrf: tempCtx.csrf },
-            { method: 'DELETE' },
-          );
-          expect([200, 204]).toContain(delRes.status);
+            // Disconnect connection before committing grade (cogniate-app-api.md §4.9)
+            const delRes = await app(
+              bTemp.session,
+              'DELETE',
+              `/app-api/connections/${bTemp.connection.id}`,
+            );
+            expectStatus(delRes, 200);
 
-          const cursor = await getSimCursor();
-          await httpRequest(`${APP_URL}/tool/play/${playId}/complete`, {
-            method: 'POST',
-            headers: { origin: APP_URL },
-            body: { scorePercent: 88 },
-          });
-          const { records } = await getSimRecords(cursor);
-          expect(records.filter((r) => r.kind === 'score').length).toBe(0);
+            const cursor = (await records()).cursor;
+            await commitGrade(playTemp, 'scorm12', 9, 10);
+
+            const rows = (await waitSync(bTemp, pubTemp, 'failed')) as Array<
+              Record<string, unknown>
+            >;
+            expect(rows.length).toBe(1);
+            const syncRow =
+              (rows[0].lastScoreSync as Record<string, unknown> | undefined) ??
+              ((rows[0].scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
+            expect(String(syncRow?.lastError ?? '')).toMatch(/disabled|disconnected/i);
+            await noServiceCalls(cursor);
+          } finally {
+            await endConnection(bTemp.session, bTemp.connection.id);
+          }
         });
       });
 
-      it(`[${fixture.id}:K1-AGS:A6] service URLs off the service origin refused at score and result endpoints`, async () => {
+      it(`${fixture.id}:K1-AGS:A6 — Service URLs off the service origin refused at score and result endpoints (400 SERVICE_ORIGIN_MISMATCH / INVALID_AGS_ENDPOINT)`, async () => {
         await runKitCase(fixture.id, 'K1-AGS', 'A6', async () => {
-          const launch = await performSimulatorLaunch(ctx, {
-            roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-            documentTarget: 'window',
+          const launched = await launchOnChannel(binding, {
+            resource: pub.id,
+            roles: [ROLE_LEARNER],
+            subject: uniqueId('learner-a6'),
           });
-          const idTokenRes = await ltiApi('/api/idtoken', {
-            method: 'GET',
-            headers: { authorization: `Bearer ${launch.ltik}` },
-          });
-          const claims = idTokenRes.json as {
-            services?: { ags?: { serviceKey?: string } };
-          };
-          const serviceKey = claims.services?.ags?.serviceKey;
-          expect(serviceKey).toBeTruthy();
+          expect(launched.response.status).toBe(303);
+          const tok = await idToken(launched.ltik!);
+          expectStatus(tok, 200);
+          const serviceKey = tok.json.services.ags.serviceKey as string;
 
-          const cursor = await getSimCursor();
-          const offOriginScoreRes = await ltiApi('/api/lineitems/scores', {
-            method: 'POST',
-            body: {
-              serviceKey,
-              lineItemUrl: 'https://off-origin-evil.sim.test/lineitems/1',
-              score: {
-                userId: 'learner-1',
-                scoreGiven: 90,
-                scoreMaximum: 100,
-                activityProgress: 'Completed',
-                gradingProgress: 'FullyGraded',
-                timestamp: new Date().toISOString(),
-              },
+          const cursor = (await records()).cursor;
+          const offOriginLineitem = 'https://evil-ags-origin.sim.test/ags/lineitems/1';
+
+          // 1. POST /api/scores with off-origin lineitemUrl refused with 400 (lti-service-api-delta.md §7)
+          const badScore = await service(serviceKey, 'POST', '/api/scores', {
+            lineitemUrl: offOriginLineitem,
+            score: {
+              userId: tok.json.user.id,
+              scoreGiven: 10,
+              scoreMaximum: 10,
+              timestamp: new Date().toISOString(),
+              activityProgress: 'Completed',
+              gradingProgress: 'FullyGraded',
             },
           });
-          expect(offOriginScoreRes.status).toBe(400);
-          expect(offOriginScoreRes.rawBody).toMatch(
-            /SERVICE_ORIGIN_MISMATCH|INVALID_AGS_ENDPOINT/i,
+          expect(badScore.status).toBe(400);
+          expect(['SERVICE_ORIGIN_MISMATCH', 'INVALID_AGS_ENDPOINT']).toContain(
+            badScore.json?.error?.code,
           );
 
-          const offOriginResultsRes = await ltiApi(
-            `/api/lineitems/results?serviceKey=${encodeURIComponent(
-              serviceKey!,
-            )}&lineItemUrl=${encodeURIComponent('https://off-origin-evil.sim.test/lineitems/1')}`,
-            { method: 'GET' },
+          // 2. GET /api/results with off-origin lineitemUrl refused with 400
+          const badResults = await service(
+            serviceKey,
+            'GET',
+            `/api/results?lineitemUrl=${encodeURIComponent(offOriginLineitem)}`,
           );
-          expect(offOriginResultsRes.status).toBe(400);
-          expect(offOriginResultsRes.rawBody).toMatch(
-            /SERVICE_ORIGIN_MISMATCH|INVALID_AGS_ENDPOINT/i,
+          expect(badResults.status).toBe(400);
+          expect(['SERVICE_ORIGIN_MISMATCH', 'INVALID_AGS_ENDPOINT']).toContain(
+            badResults.json?.error?.code,
           );
 
-          const { records } = await getSimRecords(cursor);
-          expect(records.filter((r) => r.kind === 'score' || r.kind === 'results').length).toBe(0);
+          await noServiceCalls(cursor);
         });
       });
     });

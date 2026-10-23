@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const CHANNELS_DIR = path.resolve(__dirname, '../channels');
 
+export function getChannelsDir(dir?: string): string {
+  return dir ?? process.env.QA_KIT_CHANNELS_DIR ?? CHANNELS_DIR;
+}
+
 export const BASELINE_CHANNEL_IDS = [
   'moodle',
   'canvas',
@@ -14,6 +18,38 @@ export const BASELINE_CHANNEL_IDS = [
 ] as const;
 
 export type BaselineChannelId = (typeof BASELINE_CHANNEL_IDS)[number];
+
+export type KitLevel = 'k0' | 'k1sim' | 'all';
+
+export function resolveKitLevel(env: NodeJS.ProcessEnv = process.env): KitLevel {
+  const raw = env.LA_LEVEL?.trim().toLowerCase();
+  if (!raw) {
+    if (
+      env.QA_TASK === 'K1' ||
+      env.QA_TASK === 'LA-E7-06' ||
+      env.QA_KIT_RUN === '1'
+    ) {
+      return 'k1sim';
+    }
+    return 'k0';
+  }
+  if (raw === 'k0') {
+    return 'k0';
+  }
+  if (raw === 'k1sim' || raw === 'k1-sim' || raw === 'k1') {
+    return 'k1sim';
+  }
+  if (raw === 'all') {
+    return 'all';
+  }
+  throw new Error(
+    `Unsupported LA_LEVEL=${env.LA_LEVEL}; expected k0, k1sim (or k1-sim), or all`,
+  );
+}
+
+export function isK1SimLevelEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return resolveKitLevel(env) !== 'k0';
+}
 
 export const K1_SIM_SUITES = [
   'K1-REG',
@@ -240,28 +276,31 @@ export interface OperatorGrantCliOptions {
   tokenUrl?: string;
   jwksUrl?: string;
   tokenAudience?: string;
+  note?: string;
 }
 
-export const PROTOCOL_SECURITY_FAULTS = [
-  'wrong-issuer',
-  'wrong-audience',
-  'multi-aud-no-azp',
-  'multi-aud-wrong-azp',
-  'expired',
-  'future-iat',
-  'wrong-nonce',
-  'unknown-key',
-  'tampered',
-  'alg-none',
-  'state-mismatch',
-  'replay-state',
+// 12 protocol security faults matching tests/acceptance/M1/blackboard/20-protocol.test.ts
+// and tests/sim/core/crypto.mjs (AC-LA-E7-06-08).
+export const PROTOCOL_SECURITY_FAULTS: ReadonlyArray<readonly [string, string]> = [
+  ['altered-signature', 'INVALID_SIGNATURE'],
+  ['unknown-key', 'INVALID_SIGNATURE'],
+  ['unknown-kid', 'INVALID_SIGNATURE'],
+  ['none', 'INVALID_ID_TOKEN'],
+  ['hs256', 'INVALID_ID_TOKEN'],
+  ['wrong-issuer', 'INVALID_ISSUER_OR_AUDIENCE'],
+  ['wrong-audience', 'INVALID_ISSUER_OR_AUDIENCE'],
+  ['multi-aud-no-azp', 'INVALID_ISSUER_OR_AUDIENCE'],
+  ['multi-aud-wrong-azp', 'INVALID_ISSUER_OR_AUDIENCE'],
+  ['expired', 'TOKEN_EXPIRED'],
+  ['future-iat', 'TOKEN_EXPIRED'],
+  ['wrong-nonce', 'INVALID_NONCE'],
 ] as const;
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-export function listChannelFixtureIds(dir: string = CHANNELS_DIR): string[] {
+export function listChannelFixtureIds(dir: string = getChannelsDir()): string[] {
   if (!fs.existsSync(dir)) {
     return [];
   }
@@ -276,7 +315,10 @@ export function listChannelFixtureIds(dir: string = CHANNELS_DIR): string[] {
   return [...baselineOrder, ...extra];
 }
 
-export function loadChannelFixture(channelId: string, dir: string = CHANNELS_DIR): ChannelFixture {
+export function loadChannelFixture(
+  channelId: string,
+  dir: string = getChannelsDir(),
+): ChannelFixture {
   const filePath = path.join(dir, `${channelId}.json`);
   if (!fs.existsSync(filePath)) {
     throw new Error(`Channel fixture file not found: ${filePath}`);
@@ -286,19 +328,39 @@ export function loadChannelFixture(channelId: string, dir: string = CHANNELS_DIR
   return parsed;
 }
 
-export function loadAllChannelFixtures(dir: string = CHANNELS_DIR): ChannelFixture[] {
+// Loads `packages/lms-channels/channels/<id>/manifest.json` (LA-ADR-01 §D6) when present
+// in the workspace during K1-SIM, or from `QA_CHANNEL_MANIFESTS_DIR` when overridden.
+export function loadChannelManifestCapabilities(
+  fixture: ChannelFixture,
+  manifestsRoot?: string,
+): Record<string, unknown> {
+  const repoRoot = path.resolve(__dirname, '../../../..');
+  const rootDir =
+    manifestsRoot ??
+    process.env.QA_CHANNEL_MANIFESTS_DIR ??
+    path.join(repoRoot, 'packages/lms-channels/channels');
+  const manifestPath = path.join(rootDir, fixture.id, 'manifest.json');
+  if (fs.existsSync(manifestPath)) {
+    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+      capabilities?: Record<string, unknown>;
+    };
+    if (isPlainObject(parsed.capabilities)) {
+      return parsed.capabilities;
+    }
+  }
+  throw new Error(`Channel manifest not found or invalid at ${manifestPath}`);
+}
+
+export function loadAllChannelFixtures(dir: string = getChannelsDir()): ChannelFixture[] {
   return listChannelFixtureIds(dir).map((id) => loadChannelFixture(id, dir));
 }
 
 export function resolveSelectedChannelIds(
   raw: string | undefined = process.env.QA_KIT_CHANNELS,
-  dir: string = CHANNELS_DIR,
+  dir: string = getChannelsDir(),
 ): string[] {
   const allAvailable = listChannelFixtureIds(dir);
-  if (!raw || raw.trim() === '') {
-    return BASELINE_CHANNEL_IDS.filter((id) => allAvailable.includes(id));
-  }
-  if (raw.trim() === 'all') {
+  if (!raw || raw.trim() === '' || raw.trim() === 'all') {
     return allAvailable;
   }
   const requested = raw
@@ -320,11 +382,13 @@ export function resolveSelectedChannelIds(
 
 export function loadSelectedChannelFixtures(
   raw?: string,
-  dir: string = CHANNELS_DIR,
+  dir: string = getChannelsDir(),
 ): ChannelFixture[] {
   return resolveSelectedChannelIds(raw, dir).map((id) => loadChannelFixture(id, dir));
 }
 
+// Builds CLI arguments for `app:grant` per tests/acceptance/M1/common/client.ts:106-114
+// and docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md §4.
 export function buildOperatorGrantCliArgs(
   libraryId: string,
   fixture: ChannelFixture,
@@ -333,36 +397,25 @@ export function buildOperatorGrantCliArgs(
   deploymentId: string,
   options: OperatorGrantCliOptions = {},
 ): string[] {
+  const purpose = options.purpose ?? 'initial';
   const args: string[] = [
-    'run',
-    '-w',
-    '@cogniate/app',
-    'app:grant',
-    '--',
     'issue',
     '--library',
     libraryId,
-    '--lms',
-    fixture.id,
     '--connection',
     connectionId,
     '--site',
     fixture.sim.siteUrl,
-    '--client-id',
-    clientId,
-    '--deployment-id',
-    deploymentId,
   ];
   if (fixture.capabilities['site.serviceOrigin']) {
     args.push('--service-url', fixture.sim.serviceUrl);
   }
-  if (options.purpose === 'add_deployment') {
-    args.push('--purpose', 'add_deployment');
-  }
+  args.push('--client-id', clientId, '--deployment-id', deploymentId, '--purpose', purpose);
+
   if (options.acceptStaged) {
     args.push('--accept-staged', '--confirm-foreign-hosts');
   } else if (
-    options.purpose !== 'add_deployment' &&
+    purpose !== 'add_deployment' &&
     !fixture.capabilities['site.serviceOrigin'] &&
     fixture.capabilities['platform.sharing'] !== 'shared' &&
     fixture.capabilities['binding.authority'].manual === 'operatorGrant'
@@ -391,7 +444,51 @@ export function buildOperatorGrantCliArgs(
       args.push('--token-audience', aud);
     }
   }
+  args.push('--note', options.note ?? `K1 kit ${fixture.id}`);
   return args;
+}
+
+// Full npm invocation per docs/architecture/ltiaas/tasks/README.md §2 form (f):
+// `npm --workspace @cogniate/cogniate-app run app:grant -- issue ...`
+export function buildOperatorGrantNpmArgs(
+  libraryId: string,
+  fixture: ChannelFixture,
+  connectionId: string,
+  clientId: string,
+  deploymentId: string,
+  options: OperatorGrantCliOptions = {},
+): string[] {
+  return [
+    '--workspace',
+    '@cogniate/cogniate-app',
+    'run',
+    'app:grant',
+    '--',
+    ...buildOperatorGrantCliArgs(
+      libraryId,
+      fixture,
+      connectionId,
+      clientId,
+      deploymentId,
+      options,
+    ),
+  ];
+}
+
+// Parses `app:grant issue` stdout per tests/acceptance/M1/common/client.ts:115-121
+// and docs/architecture/ltiaas/contracts/cogniate-app-api.md §4.8.
+export function parseOperatorGrantOutput(stdout: string): { id: string; code: string } {
+  const text = String(stdout ?? '');
+  const idMatch = text.match(/\bgrt_[A-Za-z0-9_-]+\b/);
+  const labeledMatch = text.match(
+    /Approval code(?:\s*\(shown once\))?\s*:\s*([A-Za-z0-9_-]{43})(?![\w-])/i,
+  );
+  const codes = [...new Set(text.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/g) ?? [])];
+  const code = labeledMatch?.[1] ?? (codes.length === 1 ? codes[0] : '');
+  if (!code || !idMatch) {
+    throw new Error(`Expected one approval code and grant id from app:grant; got: ${text}`);
+  }
+  return { id: idMatch[0], code };
 }
 
 export function deriveLegacyFlagsFromCapabilities(
@@ -599,7 +696,6 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
   const cases: ExpectedCase[] = [];
   const caps = fixture.capabilities;
   const notBuilt = fixture.notBuilt ?? {};
-  const coveredBy = fixture.coveredBy ?? {};
 
   const add = (
     suite: KitSuiteName,
@@ -790,7 +886,7 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
   add(
     'K1-NRPS',
     'N1',
-    'No token request asks for NRPS scope; Canvas JSON scopes and DR request scopes have the 4 AGS scopes only',
+    'No token request asks for NRPS scope; setup artifact JSON scopes and DR request scopes have the 4 AGS scopes only',
     'RUN',
   );
 
@@ -834,7 +930,7 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
     add(
       'K1-REG',
       'R3',
-      'Dynamic Registration: path-prefix issuer, opaque-bearer or moodle-scope-jwt token, authorization_server stored as token audience, refusal on missing DL or scope, family guard at both levels, granted scopes stored',
+      'Dynamic Registration: path-prefix issuer, opaque-bearer or scope-jwt token, authorization_server stored as token audience, refusal on missing DL or scope, family guard at both levels, granted scopes stored',
       'RUN',
       { coversCapabilities: ['registration.dynamic'] },
     );
@@ -916,6 +1012,92 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
   return cases;
 }
 
+// Verifies that a coveredBy suite's artifactPath resolves inside the current run folder,
+// exists on disk, is non-empty JSON, and records a PASS outcome for that suite in currentWaveId.
+export function verifyWaveSuiteArtifact(
+  runDir: string | null | undefined,
+  suiteName: string,
+  entry: WaveSuiteEvidence,
+  currentWaveId: string,
+): { ok: boolean; error?: string } {
+  if (typeof entry.artifactPath !== 'string' || !entry.artifactPath.trim()) {
+    return {
+      ok: false,
+      error: `frozen suite "${suiteName}" has empty artifactPath`,
+    };
+  }
+  if (!runDir || !runDir.trim()) {
+    return {
+      ok: false,
+      error: `missing runDir to verify artifactPath "${entry.artifactPath}" for suite "${suiteName}"`,
+    };
+  }
+  const resolvedRunDir = path.resolve(runDir);
+  const resolvedArtifact = path.resolve(resolvedRunDir, entry.artifactPath);
+  const rel = path.relative(resolvedRunDir, resolvedArtifact);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    return {
+      ok: false,
+      error: `artifactPath "${entry.artifactPath}" for suite "${suiteName}" resolves outside current run folder "${resolvedRunDir}"`,
+    };
+  }
+  if (!fs.existsSync(resolvedArtifact)) {
+    return {
+      ok: false,
+      error: `artifact file for suite "${suiteName}" does not exist at "${resolvedArtifact}"`,
+    };
+  }
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(resolvedArtifact);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `cannot stat artifact file for suite "${suiteName}": ${(err as Error).message}`,
+    };
+  }
+  if (!stat.isFile() || stat.size === 0) {
+    return {
+      ok: false,
+      error: `artifact file for suite "${suiteName}" at "${resolvedArtifact}" is empty or not a regular file`,
+    };
+  }
+  try {
+    const raw = fs.readFileSync(resolvedArtifact, 'utf8');
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!isPlainObject(parsed)) {
+      return {
+        ok: false,
+        error: `artifact file for suite "${suiteName}" at "${resolvedArtifact}" is not a JSON object`,
+      };
+    }
+    if (parsed.suite !== undefined && parsed.suite !== suiteName) {
+      return {
+        ok: false,
+        error: `artifact file "${entry.artifactPath}" suite="${String(parsed.suite)}" !== expected "${suiteName}"`,
+      };
+    }
+    if (parsed.waveId !== currentWaveId) {
+      return {
+        ok: false,
+        error: `artifact file "${entry.artifactPath}" for suite "${suiteName}" has waveId="${String(parsed.waveId)}" !== currentWaveId="${currentWaveId}"`,
+      };
+    }
+    if (parsed.outcome !== 'PASS') {
+      return {
+        ok: false,
+        error: `artifact file "${entry.artifactPath}" for suite "${suiteName}" has outcome="${String(parsed.outcome)}" !== "PASS"`,
+      };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `invalid JSON in artifact file "${entry.artifactPath}" for suite "${suiteName}": ${(err as Error).message}`,
+    };
+  }
+}
+
 export function evaluateChannelPassRule(input: {
   fixture: ChannelFixture;
   expectedCases?: ExpectedCase[];
@@ -923,16 +1105,19 @@ export function evaluateChannelPassRule(input: {
   waveEvidence?: WaveEvidenceManifest | null;
   currentWaveId?: string | null;
   expectedRunId?: string | null;
+  runDir?: string | null;
 }): PassRuleEvaluation {
   const { fixture } = input;
   const expectedCases = input.expectedCases ?? computeExpectedCaseList(fixture);
   const channelRecords = input.executedRecords.filter((r) => r.channelId === fixture.id);
+  // Derive currentWaveId ONLY from the run input or LA_WAVE_ID env (NEVER from waveEvidence.waveId).
   const currentWaveId =
     input.currentWaveId !== undefined
       ? input.currentWaveId
-      : (input.waveEvidence?.waveId ?? process.env.LA_WAVE_ID ?? null);
+      : (process.env.LA_WAVE_ID?.trim() || null);
   const waveEvidence = input.waveEvidence ?? null;
   const expectedRunId = input.expectedRunId ?? null;
+  const runDir = input.runDir !== undefined ? input.runDir : (process.env.LA_RUN_DIR ?? null);
 
   const errors: string[] = [];
   const failedCases: string[] = [];
@@ -1124,6 +1309,16 @@ export function evaluateChannelPassRule(input: {
             `failed wave suite: capability "${cap}" on "${fixture.id}" coveredBy "${suiteName}" has outcome "${String(
               entry.outcome,
             )}"`,
+          );
+          continue;
+        }
+        const artifactCheck = verifyWaveSuiteArtifact(runDir, suiteName, entry, currentWaveId);
+        if (!artifactCheck.ok) {
+          uncoveredPositiveCapabilities.push(
+            `${cap} (coveredBy ${suiteName} invalid artifact: ${artifactCheck.error})`,
+          );
+          errors.push(
+            `invalid wave evidence artifact: capability "${cap}" on "${fixture.id}" coveredBy "${suiteName}": ${artifactCheck.error}`,
           );
           continue;
         }

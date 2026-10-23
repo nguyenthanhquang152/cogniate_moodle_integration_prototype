@@ -5,10 +5,11 @@ import {
   loadSelectedChannelFixtures,
 } from '../lib/fixtures.js';
 import {
+  deriveCurrentWaveIdFromRun,
   ensureKitRunInitialized,
   evaluateKitRunPassRule,
   getActiveKitRunId,
-  isK1SimEnabled,
+  getKitStateDir,
   loadWaveEvidenceFromRun,
   readAllExecutedCases,
   recordExecutedCase,
@@ -18,15 +19,14 @@ import {
   writeKitRunSummaryArtifacts,
 } from '../lib/runtime.js';
 
-const runSuite = isK1SimEnabled() ? describe : describe.skip;
 const fixtures = loadSelectedChannelFixtures();
 
-runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () => {
+describe('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () => {
   beforeAll(() => {
     ensureKitRunInitialized({ channels: fixtures.map((f) => f.id) });
   });
 
-  it('[GLOBAL:K-HYG:H1] secret scan across service logs, /__sim/records, and recursive redacted evidence tree finds 0 leaks', async () => {
+  it('GLOBAL:K-HYG:H1 — Secret scan across service logs, /__sim/records, and recursive redacted evidence tree finds 0 leaks', async () => {
     await runKitCase('GLOBAL', 'K-HYG', 'H1', async () => {
       recordRedactedEvidence('hyg-pre-scan', {
         suite: 'K-HYG',
@@ -43,11 +43,13 @@ runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () 
   });
 
   for (const fixture of fixtures) {
-    it(`[${fixture.id}:K-HYG:H2] pass rule & N/A rule verification: executed cases === expected RUN cases, 0 skips, 0 retries, wave evidence verified`, async () => {
+    it(`${fixture.id}:K-HYG:H2 — Pass rule & N/A rule verification: executed cases === expected RUN cases, 0 skips, 0 retries, wave evidence verified`, async () => {
       const activeRunId = getActiveKitRunId();
+      const runDir = getKitStateDir();
       const h2Id = `${fixture.id}:K-HYG:H2`;
       const waveEvidence = loadWaveEvidenceFromRun();
-      const currentWaveId = process.env.LA_WAVE_ID ?? waveEvidence.waveId;
+      // Derive currentWaveId ONLY from the current run environment (LA_WAVE_ID), never waveEvidence.waveId.
+      const currentWaveId = deriveCurrentWaveIdFromRun();
       const priorRecords = readAllExecutedCases();
       const syntheticRecords = [
         ...priorRecords,
@@ -68,6 +70,7 @@ runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () 
         waveEvidence,
         currentWaveId,
         expectedRunId: activeRunId,
+        runDir,
       });
 
       if (!evalResult.ok) {
@@ -105,10 +108,12 @@ runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () 
     });
   }
 
-  it('[GLOBAL:K-HYG:SUMMARY] emits k1-kit-summary.md and k1-kit-summary.json and enforces full-run certification', () => {
+  it('GLOBAL:K-HYG:SUMMARY — emits k1-kit-summary.md and k1-kit-summary.json and enforces full-run certification', () => {
     const activeRunId = getActiveKitRunId();
+    const runDir = getKitStateDir();
     const waveEvidence = loadWaveEvidenceFromRun();
-    const currentWaveId = process.env.LA_WAVE_ID ?? waveEvidence.waveId;
+    // Derive currentWaveId ONLY from the current run environment (LA_WAVE_ID), never waveEvidence.waveId.
+    const currentWaveId = deriveCurrentWaveIdFromRun();
     const allRecords = readAllExecutedCases();
 
     const report = evaluateKitRunPassRule({
@@ -117,6 +122,7 @@ runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () 
       waveEvidence,
       currentWaveId,
       expectedRunId: activeRunId,
+      runDir,
       requireH1: true,
     });
 

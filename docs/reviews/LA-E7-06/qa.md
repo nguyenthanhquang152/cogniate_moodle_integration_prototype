@@ -1,12 +1,12 @@
 # QA Review — `LA-E7-06` (`K1` Simulator Suites per Port, Channel Fixtures, and the Pass Rule)
 
 - **Verdict:** `PASS`
-- **Round:** `2`
+- **Round:** `3`
 - **Task:** `LA-E7-06` — `K1` simulator suites per port, channel fixtures and the pass rule (Must, size L)
 - **Reviewer:** QA-4 (lane `L2`)
-- **Integration SHA:** `4e453a7cdfda6d5ddae777b849e13bb917a1a8fd` (`4e453a7c`; Round 1 on `053ea576`)
+- **Integration SHA:** `89f72196` (Round 2 reviews on `89f72196` / Fix Round 1 `c1bf5c7a` / `5dcb2406`; Round 2 on `4e453a7c`; Round 1 on `053ea576`)
 - **Verification Mode:** Host-only authoring and `K0` / `DOC` verification (`0` Docker commands executed; `K1-SIM` rows marked `pending: Docker window`)
-- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r2`
+- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3`
 
 ---
 
@@ -122,3 +122,48 @@
    npm run test:k0
    ```
    - Result: **3 passed (3), 145 passed (145)** in `836ms` (`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r2/test-k0.log`).
+
+---
+
+## Round 3 (`89f72196` — Fix Round 2 / QA Round 3)
+
+### 3.1 Resolution of Open Round 2 Findings (`reviewer-a.md` & `reviewer-b.md`)
+
+| Finding ID | Fix Implemented | Test or Probe |
+| :--- | :--- | :--- |
+| `A-LA-E7-06-08` / `B-LA-E7-06-07` | Restored frozen `tests/acceptance/M1/common/{client,course}.ts` and `tests/acceptance/lib/{app,logs,lti,paths}.ts` imports in `tests/ltiaas/kit/lib/runtime.ts` and replaced ad-hoc HTTP/CLI helpers across `runtime.ts` and `tests/ltiaas/kit/suites/{k1-reg,k1-cap,k1-launch,k1-dl,k1-ags,k1-nrps,k-hyg}.k1sim.test.ts` with the documented contracts (`session` -> `__Host-cog_session`, `app`, `publication` -> `createCourse` + `uploadVersion` + `POST /app-api/publications`, `openPlay` + `commitGrade` + `results` + `waitSync`, `beginLaunch` + `launch` + `preparedLaunch` on `/lti/login/cogniate` and `/lti/launch/cogniate`, `admin` `Bearer`, `service` `SERVICE-AUTH-V1`, `ltiApi` `LTIK-AUTH-V2`, `GET /app-api/lms-providers` `{ lms: [...] }`, `openPickerOnChannel` + `pick` + `returnDeepLink` + `r.kind === 'deep-link'`, and `readServiceLogs` reading `LOGS_DIR/<service>.jsonl`). | `npx tsc --noEmit` across `tests/ltiaas/kit/**` (`0` errors) and `tests/ltiaas/kit/kit.k0.test.ts` (`13 passed`). |
+| `A-LA-E7-06-05` | Updated `buildOperatorGrantCliArgs()` and `buildOperatorGrantNpmArgs()` (`--workspace @cogniate/cogniate-app run app:grant -- issue ...`) in `tests/ltiaas/kit/lib/fixtures.ts` to remove invalid `--lms`, include required `--note`, and keep `--service-url` and `--client-id` across initial, `add_deployment`, and `acceptStaged` grants; added `parseOperatorGrantOutput()` extracting the 43-char base64url approval code (`/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/g`) and `grt_...` grant ID per `M1/common/client.ts:115-121` and wired `issueOperatorGrantForChannel()` to `cli('app:grant', args)`. | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-05: buildOperatorGrantCliArgs, buildOperatorGrantNpmArgs, and parseOperatorGrantOutput match the shipped app:grant CLI contract across initial, add_deployment, and acceptStaged flows`). |
+| `A-LA-E7-06-01` / `B-LA-E7-06-01` (`AC-LA-E7-06-05`) | Removed `input.waveEvidence?.waveId` fallback from `evaluateChannelPassRule()`, `evaluateKitRunPassRule()`, `loadWaveEvidenceFromRun()`, and `k-hyg.k1sim.test.ts` (`H2`/`SUMMARY`); added `deriveCurrentWaveIdFromRun()` in `lib/runtime.ts` and `verifyWaveSuiteArtifact()` in `lib/fixtures.ts` requiring every `coveredBy` suite's `artifactPath` to resolve inside the current run folder (`runDir`), exist on disk as a non-empty file, and parse as JSON with `suite === suiteName`, `waveId === currentWaveId`, and `outcome === 'PASS'`. | `tests/ltiaas/kit/kit.k0.test.ts` (`AC-LA-E7-06-05 / A-LA-E7-06-01 / B-LA-E7-06-01`: negative probes for omitted `currentWaveId` + old `wave-evidence.json`, missing artifact file, outside-run-folder path, and contradictory `outcome: "FAIL"` artifact file). |
+| `A-LA-E7-06-04` / `B-LA-E7-06-04` (`AC-LA-E7-06-02`) | Updated `evaluateKitRunPassRule()` in `tests/ltiaas/kit/lib/runtime.ts` to inspect every record in `input.executedRecords` and fail (`globalErrors.push('unexpected channel record: ...')`, incrementing `totalFailed` or `totalSkipped`) whenever any record has a `channelId` that is neither `'GLOBAL'` nor in the selected `input.fixtures` set. | `tests/ltiaas/kit/kit.k0.test.ts` (`AC-LA-E7-06-02 / A-LA-E7-06-04 / B-LA-E7-06-04`: negative probes injecting `unexpected:K1-REG:R99` (`FAIL`) and `brightspace:K1-LAUNCH:L1` (`PASS` when only `canvas` is selected) into `evaluateKitRunPassRule`). |
+| `A-LA-E7-06-07` / `B-LA-E7-06-02` | Expanded `A3` (`k1-ags.k1sim.test.ts`) to cover `204` (`sent`), `400/404/422` (`failed`), `409` (`conflict`, `'has a grade with a newer time'`), `503` (`pending`, `tries >= 1`), and `429 Retry-After: 60` (`pending`, `tries === 0`, `dispatch_throttled` log event, and `1` simulator `score` call); expanded `L7` (`k1-launch.k1sim.test.ts`) to cover contextless launch score commit (`waitSync('sent')`), second learner on same `resourceLinkId` sharing placement, contextless launch without AGS (`lastError === 'No gradebook column: the activity has no AGS line item.'` and `noServiceCalls`), and `omit: ['sub']` (`400 MISSING_CLAIM`); updated `C2` (`lib/runtime.ts`, `k1-cap.k1sim.test.ts`) to assert both `noServiceCalls(cursor)` and `logEvents('outbound_request', since, {}, 'lti-service' \| 'cogniate-app') === []`; expanded `R6` (`k1-reg.k1sim.test.ts`) to cover `/tool/register` off-origin DR staging (`status: 'pending'`, `403 PLATFORM_NOT_ACTIVE`, `--accept-staged`), `/api/registrations/dynamic/{preview,complete}` (`endpointsOnIssuerOrigin: false`, `active: false`), and active `POST /api/platforms` refusals (`400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`, `400 PLATFORM_URL_NOT_IN_PROFILE`). | `npx tsc --noEmit` across `tests/ltiaas/kit/suites/*.ts` (`0` errors) and F1 neutrality check (`0` hits across `tests/ltiaas/kit/suites/**`). |
+| `A-LA-E7-06-09` (`AC-LA-E7-06-08`) | Restored `PROTOCOL_SECURITY_FAULTS` in `tests/ltiaas/kit/lib/fixtures.ts` to the exact 12 `[fault, expectedCode]` pairs from `tests/acceptance/M1/blackboard/20-protocol.test.ts` and `tests/sim/core/crypto.mjs` (`altered-signature`, `unknown-key`, `unknown-kid`, `none`, `hs256`, `wrong-issuer`, `wrong-audience`, `multi-aud-no-azp`, `multi-aud-wrong-azp`, `expired`, `future-iat`, `wrong-nonce`) and asserted `denied(result.response, expectedCode, 400)` in `GLOBAL:K1-LAUNCH:L-FAULTS`. | `tests/ltiaas/kit/kit.k0.test.ts` (`AC-LA-E7-06-08 / A-LA-E7-06-09`: cross-checks `PROTOCOL_SECURITY_FAULTS` against both `tests/acceptance/M1/blackboard/20-protocol.test.ts` and `tests/sim/core/crypto.mjs`). |
+| `A-LA-E7-06-10` / `B-LA-E7-06-08` | Added `resolveKitLevel()` and `isK1SimLevelEnabled()` in `tests/ltiaas/kit/lib/fixtures.ts` and `tests/ltiaas/kit/vitest.config.mts`, wired `isK1SimEnabled()` in `lib/runtime.ts` to `isK1SimLevelEnabled()` accepting `k0`, `k1sim`, `k1-sim` (and `k1`), and `all` consistently, and removed `describe.skip` from `tests/ltiaas/kit/suites/*.k1sim.test.ts`. | `tests/ltiaas/kit/kit.k0.test.ts` (`A-LA-E7-06-10 / B-LA-E7-06-08: LA_LEVEL accepts k0, k1sim, k1-sim, and all consistently across vitest.config.mts and runtime`). |
+| `B-LA-E7-06-06` | Updated `resolveSelectedChannelIds()` in `tests/ltiaas/kit/lib/fixtures.ts` to return all discovered fixtures (`listChannelFixtureIds(dir)`) when `QA_KIT_CHANNELS` is unset or `'all'`, and extracted `runShippedChannelsAudit(dir)` in `tests/ltiaas/kit/kit.k0.test.ts` to audit any number of discovered fixtures (`>= 5`) without hardcoding `length === 5`. | `tests/ltiaas/kit/kit.k0.test.ts` (`One-file onboarding / B-LA-E7-06-06: adding a 6th channel fixture file is discovered by listChannelFixtureIds, resolveSelectedChannelIds, and runShippedChannelsAudit with zero shared-list edits`). |
+
+### 3.2 Round 3 Host Verification Commands & Results (`89f72196`)
+
+1. **TypeScript Check (`tests/ltiaas/kit/**` and `tests/tsconfig.json`):**
+   ```sh
+   npx tsc --noEmit --ignoreConfig --target ES2022 --lib ES2023,DOM --module ESNext --moduleResolution Bundler --strict --skipLibCheck --esModuleInterop --resolveJsonModule --types node tests/ltiaas/kit/lib/fixtures.ts tests/ltiaas/kit/lib/runtime.ts tests/ltiaas/kit/kit.k0.test.ts tests/ltiaas/kit/vitest.config.mts tests/ltiaas/kit/suites/*.ts
+   npx tsc --noEmit -p tests/tsconfig.json
+   ```
+   - Exit code: `0` (`0` errors; `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3/tsc.log`).
+
+2. **Kit `K0` + `DOC` Self-Tests (`tests/ltiaas/kit/kit.k0.test.ts`):**
+   ```sh
+   LA_LEVEL=k0 npx vitest run --config tests/ltiaas/kit/vitest.config.mts
+   ```
+   - Result: **1 passed (1), 13 passed (13)** in `170ms` (`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3/vitest-kit-k0.log`).
+
+3. **F1 Kit-Neutrality Check (`tests/ltiaas/kit/suites/**`):**
+   ```sh
+   grep -rni -E '(moodle|canvas|blackboard|brightspace|sakai|schoology|d2l|instructure|anthology)' tests/ltiaas/kit/suites/
+   ```
+   - Exit code: `1` (`0` matches across all 7 suite files; `AC-LA-E7-04-07` fitness probe also **PASS** in `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3/vitest-f1.log`).
+
+4. **Root `K0` Suite (`npm run test:k0`):**
+   ```sh
+   npm run test:k0
+   ```
+   - Result: **3 passed (3), 145 passed (145)** in `973ms` (`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r3/npm-test-k0.log`).
+
