@@ -43,7 +43,8 @@ export interface ProfileSource {
     readonly issuerRule: 'origin' | 'path-prefix' | 'profile';
     /** The configuration URL must equal the issuer plus this path. */
     readonly configurationPath?: string;
-    readonly registrationToken: 'moodle-scope-jwt' | 'opaque-bearer';
+    /** `scope-jwt`: a JWT with the scope claim `reg` or `reg-update`, verified with the platform JWKS; `opaque-bearer`: only sent back. */
+    readonly registrationToken: 'scope-jwt' | 'opaque-bearer';
   } | null;
   /** Frozen compatibility value, allowed only on the baseline profiles. */
   readonly wireLms?: string | null;
