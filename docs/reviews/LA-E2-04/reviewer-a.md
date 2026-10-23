@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LA-E2-04 review: Reviewer-A
 
@@ -88,3 +88,20 @@ Reviewed `da423f9` (merge `77df44e`) against the task spec, app API delta §3.4 
 Verification in fresh private clone `/tmp/la-reviewer-a-ctx-50efa367f558` at `77df44e`, with its own `npm ci` and `node_modules/.vitest-cache` removed before each Vitest run: **21/21** admin-redemption/public and original private checks pass, plus **3/3** selected existing redemption regressions covering collision behavior. Restoring the pre-fix engine makes both gone-platform text tests fail; restoring the reviewed engine makes both pass. App typecheck and lint of both changed files pass.
 
 Only the authorized K engine file and adjacent test changed under the dispatched L2 RQ-2 handover; no LMS name or unrelated behavior was added. The private clone is clean; probes/logs use `/tmp/la-reviewer-a-ctx-50efa367f558-probes` and the same `/tmp` prefix. No Docker, stack, commit or other reviewer's file was used. Only this review file was edited in the integration worktree. No Reviewer-A findings remain; QA's remaining gates are unchanged.
+
+
+## Round 4
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `00d17d3` (merge `2434c26`) against BD-A1-101, the task notes, app API delta §3.4, LA-ADR-01 D2/D12 and plan §6.1. No new findings; the earlier findings remain closed.
+
+The exclusive-platform collision reads `texts.registration.PLATFORM_IN_USE`, fills `{LMS}`, and falls back to the exact ratified core sentence. Canvas supplies the existing bytes; the frozen assertion in `redemption.test.ts:378` is unchanged and passes. Moodle keeps its self-authority path and frozen collision text. The staged-gone override, `DEPLOYMENT_IN_USE`, cancellation, lease cleanup and grant handling are unchanged. The kernel's key map stays closed, and only this core default is exempt from the test requirement to contain `{LMS}`. Portal notices remain separate.
+
+Verification in fresh private clone `/tmp/la-reviewer-a-ctx-071f8c50cc95`, pinned at `2434c26`, with its own `npm ci` and `node_modules/.vitest-cache` removed before every Vitest run:
+
+- Focused kernel, legacy-wire, redemption and connection suites: **162/162**. After restoring all mutations, the kernel/admin-redemption suites and the Moodle manual-connect regressions pass **60/60**.
+- Three negative controls each fail the intended assertion: the pre-fix engine returns the old generic wording; removing the new kernel key makes the Canvas manifest invalid; removing `{LMS}` from `INVALID_REQUEST` violates the unchanged rule for other defaults.
+- App and channel Node typechecks and lint of all five changed files pass. F1: **0 hits**. The private clone is clean; logs use the same `/tmp` prefix.
+
+All five changed files fit the explicit L2 RQ-2 handover in K files. No frozen assertion, forbidden file or unrelated behavior changed. No Docker, stack, commit or other reviewer's file was used. Only this review file was edited in the integration worktree. Existing QA runtime gates remain unchanged.

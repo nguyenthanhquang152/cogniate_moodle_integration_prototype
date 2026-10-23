@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 ## Round 1
 
@@ -81,3 +81,15 @@ The portal edit is the dispatched RQ-2 test only; the production fixes stay in t
 **Verification:** fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r3-review-b-qu1frkll/repo`, with its own successful `npm ci`. The final focused run passed **151 tests in three files**, including the portal observation and cancellation assertion. Restoring the pre-fix `redemption.ts` made the new gone-platform test fail on precisely the old collision sentence (one failure, 13 skipped). The Vitest cache was removed before the negative control and final verification. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All temporary mutations were restored; the private checkout is clean.
 
 The two changed files are the K engine and its adjacent unit test, explicitly authorized for lane L2 by RQ-2. The diff adds no LMS name to core and changes no behavior outside the specified refusal text. Earlier UNIT-AC evidence remains in Rounds 1–2; QA retains K1-SIM/R1 and browser acceptance. Only this report was edited in the integration worktree; no Docker, stack, commit or push was run.
+
+## Round 4
+
+**Verdict: APPROVE.** Reviewed `00d17d3` at merge `2434c26a18c0615b5e993c01308ad9064f8695a5` against BD-A1-101, LA-E2-04, app API delta §3.4, LA-ADR-01 D2/D12 and plan §6.1. Blind review; the other reviewer's file was not read. **New counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+The default names a tool registration and gives two clear repair actions: make a new registration for the library or ask the operator. It reads correctly for both `lti-generic` and `brightspace`. Channel authors can find the exact optional key in LA-ADR-01 D2 (`docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md:144`), its substitution/fallback rule and distinction from the portal key in D12 (line 474), and the API case in `docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md:105`. The Canvas manifest supplies a concrete example. The schema and `registrationText` share one key list; redemption uses those helpers without a channel-id branch.
+
+Canvas keeps its existing description, with the frozen assertion in `redemption.test.ts` untouched. The staged-gone description still takes precedence, and `DEPLOYMENT_IN_USE` and the portal notice are unchanged. This fix does not resolve the separate portal observation from Round 3.
+
+Verification used a fresh private `git clone --no-hardlinks` at `/tmp/la-e2-04-r4-review-b-_vxc45g6/repo`, its own successful `npm ci`, and a cleared Vitest cache before every run. **162 checked-in tests in four files passed; the final run passed 164 including two private probes** that checked the generic/Brightspace defaults and accepted channel overrides. Restoring the old redemption engine failed the new generic collision test on the old sentence; removing the Canvas override failed its new byte-for-byte test. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All private changes were restored; the private checkout is clean.
+
+The five changed files are the K paths explicitly authorized to lane L2 by RQ-2. No forbidden path or additional behavior changed, and no LMS name was added to core. Earlier UNIT-AC evidence remains in the preceding rounds; QA retains stack/browser acceptance. Only this report was edited in integration; no Docker, stack, commit or push was run.
