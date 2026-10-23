@@ -79,3 +79,13 @@ Lead instruction `msg_b8ba462766d0` assigns Gemini QA exactly `tests/e2e/lib/flo
 
 Instruction `msg_6078576331b5` assigns the retained Codex executor an identity-only copy of v3 after that commit exists. Preserve original tools, behavior and predecessor bindings. Independent source and identity review, a fresh preflight, a fresh attempt root and a new grant precede the next runtime. Require the unchanged three runs of 17 tests and every original operational condition. Also inspect each run's A4, B4 and B5 sticky-footer traces for viewport-click failures. Final conformance and guide claims remain held.
 
+### Failure-closeout scan finding — 16:00 UTC
+
+QA's separate scan also failed: one shared-log hit for the test `DB_PASS` value in `03-compose-config-name.log`. The raw file stays private. The scan is 34,697 bytes, SHA-256 `7160f9d0ab2d97c4dd230cbe595e53f4ffc54e886d581972844fa29acab8de4e`; 203 other shared text files and 473 shared binary files have no hit. This is a second repair item, separate from the eight browser-test failures. No secret value is copied into git or this record.
+
+The T7-only host runner filters secret keys without matching `DB_PASS`, while the unchanged strict scanner detects it. The Lead held the C10 freeze and assigned the retained Claude Architect a bounded design decision (`task_0f40862541c6`, `ctx_74baaf1608bd`). Gemini keeps the same repair batch and prepares synthetic negative and positive controls. Source review must cover the final complete batch. The failed runtime and failed scan remain history; no acceptance is inferred from a proposed repair.
+
+The Lead accepted Claude's decision `msg_ba13e8d4561a` and granted the same QA batch in `msg_df199ac75a9d`. Add exactly two more T7-only files: `tests/e2e/host/t7-env-secrets.mjs` and an import/condition change in `tests/e2e/host/run-t7.mjs`. The pure helper combines the previous secret rule with the existing scanner predicate. This preserves all earlier matches and adds the missing keys. The shared library and scanner stay unchanged. Private synthetic controls exercise the actual helper and redactor: reproduce the old leak, prove redaction, and prove deliberate leaks still fail. The complete C10 candidate has four test files; accepted M1, M2 and legacy dependencies remain unchanged.
+
+LA supplied a fresh early handoff at 16:07:25 UTC in `msg_7b06bc025fc0`, holding through 16:40 UTC subject to readiness by 16:15. The Lead verified all four file hashes in `/tmp/la/handoff-1608/` and compared all 32 complete protected volume records with the accepted M2 predecessor. All match. The one extra anonymous volume is not added to the baseline. Fresh preflight and runtime grants still remain required.
+
