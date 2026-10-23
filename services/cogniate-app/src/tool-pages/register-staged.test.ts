@@ -109,9 +109,9 @@ describe('A1 BD-A1-106: a Canvas dynamic connection has authority operatorGrant 
     const c = r.json();
     return { ...w, c, create, ref: c.registrationUrl === null ? null : new URL(c.registrationUrl).searchParams.get('ref')! };
   }
-  // The fake reports the site origin as the registration url, so the register page reaches `complete`. The real LTI
-  // service reports the Canvas issuer, which the page refuses today (G1, sent to A1 as BD-A1-107).
-  const registration = (stage?: Record<string, unknown>) => t.lti.addRegistration({ url: CANVAS_SITE, familyCode: 'canvas', ...(stage ? { stage } : {}) });
+  // The LTI service reports the configuration issuer as the registration url: for Canvas, the profile issuer.
+  const registration = (stage?: Record<string, unknown>, url = CANVAS_ISSUER) => t.lti.addRegistration({ url, familyCode: 'canvas', ...(stage ? { stage } : {}) });
+  const STAGED_SITE = { url: CANVAS_ISSUER, profile: 'canvas-sim-cloud', siteUrl: CANVAS_SITE, serviceUrl: CANVAS_SITE };
 
   it('(a) create gives 201 with authority operatorGrant and a registration URL', async () => {
     const { c, ref } = await canvas();
@@ -122,7 +122,7 @@ describe('A1 BD-A1-106: a Canvas dynamic connection has authority operatorGrant 
 
   it('(b) a staged answer keeps the staged platform: pending, operatorGrant, the ref used up, "Waiting for approval", no deactivation', async () => {
     const { c, ref, call, post } = await canvas();
-    const done = await post(registration({ url: CANVAS_ISSUER, profile: 'canvas-sim-cloud', siteUrl: CANVAS_SITE, serviceUrl: CANVAS_SITE }), ref!);
+    const done = await post(registration(STAGED_SITE), ref!);
     expect(done.statusCode).toBe(200);
     expect(done.body).toContain('<main data-page="register-done" data-connection-status="pending">');
     expect(done.body).toContain(`<p>${STAGED_TEXT}</p>`);
@@ -166,6 +166,52 @@ describe('A1 BD-A1-106: a Canvas dynamic connection has authority operatorGrant 
     expect(staged).toMatchObject({ binding_authority: 'operatorGrant', lms: 'canvas', status: 'pending', target_issuer: CANVAS_ISSUER });
     expect(stageRegistration(t.db, c.id, 'canvas', { ...info, id: 'plt_other' }, t.clock.now + 1)).toBe(false);
     expect(row(c.id)).toEqual(staged);
+  });
+
+  const code = (body: string) => /data-error-code="([A-Z_]+)"/.exec(body)?.[1];
+  const confirm = (reg: string, ref: string) => t.app.inject({ method: 'GET', url: `/tool/register?registrationId=${reg}&ref=${ref}` });
+
+  it('A1 BD-A1-107 (G1): the registration issuer must equal the snapshot issuer (not the site), on GET and POST', async () => {
+    const { c, ref, post } = await canvas();
+    expect(row(c.id)).toMatchObject({ target_issuer: CANVAS_ISSUER });
+    const page = await confirm(registration(STAGED_SITE), ref!);
+    expect([page.statusCode, page.body.includes('data-page="register-confirm"')]).toEqual([200, true]);
+    // Another issuer, also the site origin itself: SITE_MISMATCH, and no complete call.
+    for (const url of [CANVAS_SITE, 'https://other.canvas.sim.test', `${CANVAS_ISSUER}/`]) {
+      expect(code((await confirm(registration(STAGED_SITE, url), ref!)).body)).toBe('SITE_MISMATCH');
+      expect(code((await post(registration(STAGED_SITE, url), ref!)).body)).toBe('SITE_MISMATCH');
+    }
+    expect(t.lti.calls.filter((x) => x.startsWith('POST complete'))).toEqual([]);
+    expect((await post(registration(STAGED_SITE), ref!)).body).toContain('data-connection-status="pending"');
+  });
+
+  it('A1 BD-A1-107 (G1): a staged platform of another site gives SITE_MISMATCH; nothing is staged and the ref still works', async () => {
+    const { c, ref, post } = await canvas();
+    const before = row(c.id);
+    const page = await post(registration({ ...STAGED_SITE, siteUrl: 'https://school-b.canvas.sim.test' }), ref!);
+    expect(code(page.body)).toBe('SITE_MISMATCH');
+    const other = [...t.lti.platforms.values()].at(-1)!;
+    expect([other.active, other.siteUrl]).toEqual([false, 'https://school-b.canvas.sim.test']);
+    expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
+    // The connection keeps its state and its ref; only the last error is stored, as for every SITE_MISMATCH page.
+    const after = row(c.id) as Json;
+    expect(after).toMatchObject({ status: 'pending', binding_authority: 'operatorGrant', lms: 'canvas', platform_json: null, lti_platform_id: null,
+      target_issuer: CANVAS_ISSUER, ref_token_hash: (before as Json).ref_token_hash, last_error_code: 'SITE_MISMATCH' });
+    expect(t.logs.some((l) => l.event === 'registration_staged')).toBe(false);
+    // The same registration URL then works for the right site.
+    expect((await post(registration(STAGED_SITE), ref!)).body).toContain('data-connection-status="pending"');
+    expect(row(c.id)).toMatchObject({ status: 'pending', ref_token_hash: null, platform_json: expect.stringContaining(CANVAS_ISSUER) });
+  });
+
+  it('A1 BD-A1-107 (G1): Moodle and lti-generic keep the site check (no snapshot issuer)', async () => {
+    const { pending, post } = await world();
+    const generic = await pending('lti-generic', SITE);
+    expect(row(generic.id)).toMatchObject({ target_issuer: null });
+    expect(code((await post(t.lti.addRegistration({ url: 'https://other.school.edu/sakai', stage: STAGE }), generic.ref)).body)).toBe('SITE_MISMATCH');
+    const moodle = await pending('moodle', TEST_URLS.moodle);
+    expect(code((await post(t.lti.addRegistration({ url: 'https://other-moodle.test' }), moodle.ref)).body)).toBe('SITE_MISMATCH');
+    expect(t.lti.calls.filter((x) => x.startsWith('POST complete'))).toEqual([]);
+    expect((await post(t.lti.addRegistration({ url: `${SITE}/sakai`, stage: STAGE }), generic.ref)).body).toContain('data-connection-status="pending"');
   });
 });
 
