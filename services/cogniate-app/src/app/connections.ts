@@ -79,8 +79,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     lastError: c.lastError ? {
       code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),
       // The same title and action line as the register page of that code (one text table, register-texts.ts).
-      title: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.title ?? null,
-      action: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.action ?? null,
+      title: registerErrorText(c.lastError.code, toolName(libraryName), channels, c.channel)?.title ?? null,
+      action: registerErrorText(c.lastError.code, toolName(libraryName), channels, c.channel)?.action ?? null,
     } : null,
   };
 }
@@ -214,7 +214,8 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
 
   api.post<IdParams>('/connections/:id/registration-url', async (req) => {
     const c = connectionOf(req);
-    if (c.status !== 'pending' || c.method !== 'dynamic' || !channels.capabilities(c.channel)['registration.dynamic']) throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending dynamic connection has a registration URL.');
+    // A staged registration keeps its platform and waits for the operator grant: no new registration URL.
+    if (c.status !== 'pending' || c.method !== 'dynamic' || c.platform !== null || !channels.capabilities(c.channel)['registration.dynamic']) throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending dynamic connection has a registration URL.');
     const ref = newRef(masterKey, deps.refTtlSeconds, now());
     if (!replaceRef(db, c.libraryId, c.id, ref.stored, now())) throw new ApiError('CONNECTION_NOT_PENDING');
     return { registrationUrl: registrationUrl(urls, ref.token), expiresAt: new Date(ref.stored.expiresAt).toISOString() };

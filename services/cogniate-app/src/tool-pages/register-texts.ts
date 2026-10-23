@@ -2,7 +2,8 @@
 // connection JSON gives the same title and action line for a stored lastError, so the portal can show them after a
 // reload (T6 round 2). They speak to the LMS admin. `{LMS}` is the text name of the connection's channel (LA-ADR-01
 // D12); with Moodle every text is byte for byte the text before LA.
-import { TOOL_MAY_EXIST_CODE, pendingToolText } from '@cogniate/channel-kernel';
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { STANDARD_PROFILE_ID, TOOL_MAY_EXIST_CODE, pendingToolText, registrationText } from '@cogniate/channel-kernel';
 import { withLms } from './page.ts';
 
 export type RegisterErrorCode = 'REF_INVALID' | 'REF_EXPIRED' | 'SITE_MISMATCH' | 'UPDATE_NOT_ALLOWED' | 'ORIGIN_NOT_ALLOWED' | 'REGISTRATION_FAILED' | typeof TOOL_MAY_EXIST_CODE;
@@ -12,6 +13,7 @@ export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action
   REF_INVALID: { status: 400, action: 'This registration link is not valid or was already used. In Cogniate, open the connection and copy a new registration URL.' },
   REF_EXPIRED: { status: 400, action: 'This registration link expired. In Cogniate, open the connection and make a new registration URL.' },
   SITE_MISMATCH: { status: 400, action: 'This registration link is for another {LMS} site. Use the link on the {LMS} site that the Cogniate connection names.' },
+  // The channel's sentence (manifest texts.registration, A1 BD-A1-59; Moodle: these bytes), else the core default.
   UPDATE_NOT_ALLOWED: { status: 409, action: 'Go back in {LMS} and choose Register as a new external tool.' },
   ORIGIN_NOT_ALLOWED: { status: 403, action: 'Open the registration again from {LMS} and press Connect on the Cogniate page.' },
   // App contract §6 texts. In both cases the connection stays pending and the ref still works until it expires.
@@ -24,11 +26,18 @@ export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action
 /** The heading of every register error page. */
 export const REGISTER_HEADING = 'Cogniate could not connect this {LMS} site';
 
-/** Title and action line of a code, with `{LMS}` and the tool name filled in. */
-export function registerErrorText(code: string, toolName: string, lms: string): { title: string; action: string } | null {
+/**
+ * Title and action line of a code for a channel, with `{LMS}` and the tool name filled in. `channel` null = the
+ * connection is not known: the texts of the no-context channel apply (the channel of the standard profile, whose name
+ * `textName(null)` gives; LA-ADR-01 D12).
+ */
+export function registerErrorText(code: string, toolName: string, channels: ChannelRegistry, channel: string | null): { title: string; action: string } | null {
   const e = (REGISTER_ERRORS as Record<string, { action: string } | undefined>)[code];
   if (!e) return null;
+  const lms = channels.textName(channel);
+  const manifest = channels.channel(channel ?? channels.channelOfProfile(STANDARD_PROFILE_ID) ?? '');
+  const template = code === 'UPDATE_NOT_ALLOWED' ? registrationText(manifest, 'UPDATE_NOT_ALLOWED') : e.action;
   // Each value goes once into its own template, and an inserted value is never read again as a placeholder
   // (B-LA-E1-09-01, -02): the frozen tool-may-exist text takes the tool name, every other action takes `{LMS}`.
-  return { title: withLms(REGISTER_HEADING, lms), action: code === TOOL_MAY_EXIST_CODE ? pendingToolText(toolName) : withLms(e.action, lms) };
+  return { title: withLms(REGISTER_HEADING, lms), action: code === TOOL_MAY_EXIST_CODE ? pendingToolText(toolName) : withLms(template, lms) };
 }

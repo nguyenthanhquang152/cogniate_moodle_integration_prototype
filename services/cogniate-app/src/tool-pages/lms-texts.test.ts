@@ -176,9 +176,10 @@ describe('AC-LA-E1-09-02: register pages and the connection error texts', () => 
   });
 
   it('B-LA-E1-09-01, -02: a tool name with $ sequences or {LMS} goes literally into the tool-may-exist text', () => {
-    expect(registerErrorText('MOODLE_TOOL_MAY_EXIST', 'Cogniate (Lib $& $$ {LMS})', 'A<tool>B')!.action)
+    const named = withTextChannel('A<tool>B');
+    expect(registerErrorText('MOODLE_TOOL_MAY_EXIST', 'Cogniate (Lib $& $$ {LMS})', named, TEXT_CHANNEL)!.action)
       .toBe("Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Lib $& $$ {LMS})', then connect again.");
-    expect(registerErrorText('SITE_MISMATCH', 'Cogniate (Lib)', 'A<tool>B')!.action)
+    expect(registerErrorText('SITE_MISMATCH', 'Cogniate (Lib)', named, TEXT_CHANNEL)!.action)
       .toBe('This registration link is for another A<tool>B site. Use the link on the A<tool>B site that the Cogniate connection names.');
   });
 
