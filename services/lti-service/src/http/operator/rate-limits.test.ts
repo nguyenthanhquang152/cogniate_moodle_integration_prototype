@@ -20,7 +20,7 @@ async function fixture() {
   const get = () => app.inject({ url: '/operator/v1/rate-limits', headers });
   const patch = (payload: unknown) => app.inject({ method: 'PATCH', url: '/operator/v1/rate-limits', headers, payload: JSON.stringify(payload) });
   const events = () => listAuditEvents(db, { limit: 100 }).events;
-  return { db, app, clock, headers, get, patch, events, limiter: rateLimiterFor(db, logger), key: first.operatorKey };
+  return { db, app, clock, headers, get, patch, events, limiter: (await rateLimiterFor(db, logger)), key: first.operatorKey };
 }
 
 it('gets effective sources, patches and removes overrides, and audits one event with changed field names', async () => {

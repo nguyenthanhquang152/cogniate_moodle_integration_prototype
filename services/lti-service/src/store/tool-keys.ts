@@ -12,7 +12,7 @@ import { ApiError } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { KeyError } from '../http/key-errors.ts';
-import { TOOL_KEY_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
+import { TOOL_KEY_COLUMN, sealedVersionCounts } from './sealed-columns.ts';
 import { getAccount } from './accounts.ts';
 
 export interface PublicJwk extends JWK { kid: string; kty: 'RSA'; alg: 'RS256'; use: 'sig'; n: string; e: string }

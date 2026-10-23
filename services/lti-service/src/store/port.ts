@@ -1,3 +1,8 @@
+import type { JobContext, JobRunResult, JobStore, KeyHandle } from '@cogniate/shared';
+import type * as keyProvider from './key-provider.ts';
+import type * as observability from './observability.ts';
+import type * as keyRewrap from './key-rewrap.ts';
+import type * as sealed from './sealed-columns.ts';
 import type { Db } from '../db/index.ts';
 import type * as accounts from './accounts.ts';
 import type * as apiKeys from './api-keys.ts';
@@ -39,8 +44,30 @@ export type StatesStore = AsyncArea<Pick<typeof states, 'saveState' | 'consumeSt
 export type StorageChecksStore = AsyncArea<Pick<typeof storageChecks, 'createStorageCheck' | 'consumeStorageCheck' | 'cleanupStorageChecks'>>;
 export type ToolKeysStore = AsyncArea<Pick<typeof toolKeys, 'requireSigningKeyAccount' | 'listSigningKeys' | 'requireNextKeySlot' | 'createFirstToolKey' | 'createNextToolKey' | 'activateToolKey' | 'checkToolKeyActivation' | 'checkToolKeyRemoval' | 'removeToolKey' | 'ensureToolKey' | 'publicJwks' | 'activePublicKeyPem' | 'activePrivateJwk' | 'toolKeyVersions'>>;
 
+export interface MaintenanceStore {
+  accountPurge(days: number, ctx: JobContext): Promise<JobRunResult>;
+  apiKeyExpiry(ctx: JobContext): Promise<JobRunResult>;
+  signingKeyCleanup(ctx: JobContext): Promise<JobRunResult>;
+  auditRetention(days: number, ctx: JobContext): Promise<JobRunResult>;
+  idempotencyCleanup(ctx: JobContext): Promise<JobRunResult>;
+  retention(ctx: JobContext): Promise<JobRunResult>;
+  signingKeyRotation(keys: KeyHandle, options: { rotateDays: number; publishLeadSeconds: number }, ctx: JobContext): Promise<JobRunResult>;
+  keyRewrap(keys: KeyHandle, ctx: JobContext): Promise<JobRunResult>;
+}
+
+export type AsyncJobStore = { [K in keyof JobStore]: JobStore[K] extends (...args: infer A) => infer R ? (...args: A) => Promise<Awaited<R>> : never };
+
 /** Database-independent data access for the LTI service (LA-ADR-06 D13). */
 export interface LtiStore {
+  readonly observability: AsyncArea<typeof observability>;
+  readonly maintenance: MaintenanceStore;
+  readonly jobs: AsyncJobStore;
+  readonly keyProvider: {
+    create: AsyncArea<typeof keyProvider>['createKeyProvider'];
+    versionsInUse: AsyncArea<typeof keyProvider>['keyVersionsInUse'];
+    status: (...args: Parameters<AsyncArea<typeof keyRewrap>['keyProviderStatus']>) => ReturnType<AsyncArea<typeof keyRewrap>['keyProviderStatus']>;
+    sealedVersionCounts: AsyncArea<typeof sealed>['sealedVersionCounts'];
+  };
   readonly sharedPlatforms: SharedPlatformsStore;
   readonly accounts: AccountsStore;
   readonly apiKeys: ApiKeysStore;

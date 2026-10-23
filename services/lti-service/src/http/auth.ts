@@ -2,7 +2,7 @@ import { storeFor } from '../store/index.ts';
 import { sha256Hex } from '@cogniate/shared';
 import type { ApiErrorCode } from '../api-errors.ts';
 import { ApiError } from '../api-errors.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import type { AuditActor } from '../store/audit.ts';
 import type { LaunchRecord } from '../store/launches.ts';

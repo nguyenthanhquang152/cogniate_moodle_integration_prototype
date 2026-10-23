@@ -11,9 +11,10 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { InitMode } from '../store/operator-keys.ts';
-import { OPERATOR_NAME, hasActiveOperatorKey, initOperatorKey } from '../store/operator-keys.ts';
+import { storeFor } from '../store/index.ts';
+import { OPERATOR_NAME } from '../store/operator-keys.ts';
 
 export const USAGE = 'Usage: lti:operator init --name <operator> [--if-none | --replace]';
 
@@ -44,13 +45,13 @@ export function parseOperatorArgs(args: string[]): Parsed {
 }
 
 /** `init` on an open database (unit-tested; the entry point below only opens the database and prints). */
-export function runInit(db: Db, mode: InitMode, name: string | null, now: number): CliResult {
+export async function runInit(db: Db, mode: InitMode, name: string | null, now: number): Promise<CliResult> {
   if (name === null) {
     // --if-none without --name: it can only report an active key.
-    if (hasActiveOperatorKey(db, now)) return { code: 0, stdout: ['operator key exists'], stderr: [] };
+    if (await storeFor(db).operatorKeys.hasActiveOperatorKey(now)) return { code: 0, stdout: ['operator key exists'], stderr: [] };
     return { code: 2, stdout: [], stderr: [`No active operator key: --name is required to make one. ${USAGE}`] };
   }
-  const result = initOperatorKey(db, { operator: name, mode }, now);
+  const result = await storeFor(db).operatorKeys.initOperatorKey( { operator: name, mode }, now);
   if (result.result === 'issued') return { code: 0, stdout: [result.operatorKey], stderr: [] };
   if (mode === 'if-none') return { code: 0, stdout: ['operator key exists'], stderr: [] };
   return {
@@ -68,7 +69,7 @@ if (import.meta.main) {
   } else {
     const config = loadConfig();
     const db = openDb(join(config.dataDir, 'lti.db'));
-    const result = runInit(db, parsed.mode, parsed.name, Date.now());
+    const result = await runInit(db, parsed.mode, parsed.name, Date.now());
     db.close();
     for (const line of result.stdout) console.log(line);
     for (const line of result.stderr) console.error(line);

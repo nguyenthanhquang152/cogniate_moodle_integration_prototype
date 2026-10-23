@@ -8,7 +8,7 @@ import type { KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
-import type { Db } from '../../db/index.ts';
+import type { StoreSource as Db } from '../../store/index.ts';
 import type { LtiJobRunner } from '../../jobs/index.ts';
 import type { AuditTarget } from '../../store/audit.ts';
 
@@ -104,9 +104,9 @@ export function parseOperatorAuthorization(header: string | undefined): string |
 
 export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const metrics = metricsFor(deps.db, now);
+  const metrics = (await metricsFor(deps.db, now));
   const log = metrics.logger(deps.logger);
-  const limiter = rateLimiterFor(deps.db, log, now);
+  const limiter = (await rateLimiterFor(deps.db, log, now));
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
   metrics.install(app);

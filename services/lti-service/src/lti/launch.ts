@@ -1,7 +1,7 @@
 import { storeFor } from '../store/index.ts';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import { safeEqual, sha256Hex } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, lmsNameOfFamily } from '../profiles/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';

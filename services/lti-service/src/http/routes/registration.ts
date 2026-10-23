@@ -133,11 +133,11 @@ async function readToken(ctx: RouteContext, token: string, config: OpenIdConfigu
   return { operation: op.operation, existingPlatformId: existing?.id ?? null, expiresAt: Math.min(payload.exp * 1000, now + SESSION_MAX_MS) };
 }
 
-export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): void {
+export async function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): Promise<void> {
   const log = ctx.logger;
   const lms = lmsNameOf(null, ctx.profiles);
   const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
-  const limiter = rateLimiterFor(ctx.db, log, ctx.now);
+  const limiter = (await rateLimiterFor(ctx.db, log, ctx.now));
   const channels = channelRegistry(ctx.profiles);
   // The start page does not know the connection's channel: the no-context channel's sentences apply (BD-A1-59).
   const noContextChannel = channels.channel(channels.channelOfProfile(STANDARD_PROFILE_ID) ?? '');
@@ -194,7 +194,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const q = RegisterQuery.safeParse(req.query ?? {});
     if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
     // First check: no outbound fetch when the address is already at the cap (LA-ADR-06 D1).
-    const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
+    const cap = (await checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now));
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
     // BD-A2-93: the floor for every loaded profile. No loaded profile could complete such a configuration, so it is

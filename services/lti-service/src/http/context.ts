@@ -1,7 +1,7 @@
 // What every route group gets from buildApp (B-T2a-01: one file per route group in http/routes/).
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { ProtocolErrorCode } from '../lti/codes.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';

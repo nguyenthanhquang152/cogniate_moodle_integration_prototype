@@ -3,7 +3,7 @@ import { storeFor } from '../store/index.ts';
 // Moodle decodes with leeway 0, so a tool clock that is a little ahead would fail: iat = now - 30 s, exp = now + 300 s.
 import type { JWTPayload } from 'jose';
 import { SignJWT, importJWK } from 'jose';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 
 
 export const JWT_IAT_BACKDATE_S = 30;

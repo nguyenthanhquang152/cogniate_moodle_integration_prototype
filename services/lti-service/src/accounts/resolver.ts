@@ -1,5 +1,5 @@
 import { storeFor } from '../store/index.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import { ACCOUNT_ID } from '../store/accounts.ts';
 

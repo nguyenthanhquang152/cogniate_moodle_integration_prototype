@@ -12,7 +12,7 @@ import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
 import { channelRegistry } from '../profiles/index.ts';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { DeploymentRecord, Platform } from '../store/platforms.ts';
 import { findDeployment } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';

@@ -5,7 +5,7 @@ import type { KeyHandle } from '@cogniate/shared';
 import { keyProviderFor } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
-import { REGISTRATION_TOKEN_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
+import { REGISTRATION_TOKEN_COLUMN, sealedVersionCounts } from './sealed-columns.ts';
 
 export type RegistrationOperation = 'new' | 'update';
 /** LA-ADR-02 D5 item 3: the registration token kind that the start page found (the profile trait values). */

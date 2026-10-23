@@ -9,7 +9,7 @@ import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
 import { listProfiles } from '../profiles/index.ts';
 import type { ProfileRegistry } from '../profiles/index.ts';
@@ -119,9 +119,9 @@ export function installApiBasics(app: FastifyInstance, log: Logger, metrics?: Lt
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const metrics = metricsFor(deps.db, now);
+  const metrics = (await metricsFor(deps.db, now));
   const log = metrics.logger(deps.logger);
-  const limiter = rateLimiterFor(deps.db, log, now);
+  const limiter = (await rateLimiterFor(deps.db, log, now));
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
@@ -191,6 +191,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerServiceKeyAdminRoutes(app, ctx);
   registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
-  registerRegistrationRoutes(app, ctx);
+  (await registerRegistrationRoutes(app, ctx));
   return app;
 }

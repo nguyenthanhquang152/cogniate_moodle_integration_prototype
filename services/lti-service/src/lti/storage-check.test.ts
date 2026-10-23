@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import * as shared from '@cogniate/shared';
 import { sha256Hex } from '@cogniate/shared';
 import { CLAIM, stateCookieName } from './checks.ts';
+import type { Db } from '../db/index.ts';
 import type { LaunchDeps } from './launch.ts';
 import { handleLaunch, handleStorageCheck } from './launch.ts';
 import { createPlatformKeys } from './jwks.ts';
@@ -14,7 +15,7 @@ import { capturingLogger, CLIENT_ID, harness, LAUNCH, loginForm, moodleClaims, p
 const close: Array<() => Promise<void>> = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const fn of close.splice(0)) await fn(); });
 // The route resolves the account of the path once per request; these direct calls read it the same way.
-const accountOf = (deps: LaunchDeps, id = 'cogniate') => getAccount(deps.db, id);
+const accountOf = (deps: LaunchDeps & { db: Db }, id = 'cogniate') => getAccount(deps.db, id);
 const parseData = (html: string): Record<string, string> => JSON.parse(html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!) as Record<string, string>;
 
 async function setup(deepLinking = false) {

@@ -1,3 +1,15 @@
+import * as observability from './observability.ts';
+import { createKeyProvider, keyVersionsInUse } from './key-provider.ts';
+import { accountPurgeJob } from './job-account-purge.ts';
+import { apiKeyExpiryJob } from './job-api-key-expiry.ts';
+import { signingKeyCleanupJob } from './job-signing-key-cleanup.ts';
+import { auditRetentionJob } from './audit-retention.ts';
+import { idempotencyCleanupJob } from './job-idempotency-cleanup.ts';
+import { retentionJob } from './job-retention.ts';
+import { signingKeyRotationJob } from './job-signing-key-rotation.ts';
+import { keyRewrapJob, keyProviderStatus } from './key-rewrap.ts';
+import { createSqliteJobStore } from './jobs.ts';
+import { sealedVersionCounts } from './sealed-columns.ts';
 // The SQL modules are SQLite adapter internals. Production callers use the async port.
 import type { Db } from '../db/index.ts';
 import type { LtiStore } from './port.ts';
@@ -19,7 +31,43 @@ import * as sharedPlatforms from './shared-platforms.ts';
 import { sqliteAuditedOperations } from './audited-operations.ts';
 
 export function createSqliteLtiStore(db: Db): LtiStore {
+  const jobs = createSqliteJobStore(db);
   return {
+    observability: {
+      ping: async (...args) => observability.ping(db, ...args),
+      appliedMigrations: async (...args) => observability.appliedMigrations(db, ...args),
+      accountExists: async (...args) => observability.accountExists(db, ...args),
+      platformExists: async (...args) => observability.platformExists(db, ...args),
+      signingKeyAges: async (...args) => observability.signingKeyAges(db, ...args),
+      apiKeyExpiries: async (...args) => observability.apiKeyExpiries(db, ...args),
+      operatorKeyExpiry: async (...args) => observability.operatorKeyExpiry(db, ...args),
+      activePlatformJwks: async (...args) => observability.activePlatformJwks(db, ...args),
+    },
+    jobs: {
+      readInstance: async (...args) => jobs.readInstance(...args),
+      claimInstance: async (...args) => jobs.claimInstance(...args),
+      heartbeat: async (...args) => jobs.heartbeat(...args),
+      removeInstance: async (...args) => jobs.removeInstance(...args),
+      readJobLease: async (...args) => jobs.readJobLease(...args),
+      takeJobLease: async (...args) => jobs.takeJobLease(...args),
+      endJobLease: async (...args) => jobs.endJobLease(...args),
+    },
+    maintenance: {
+      accountPurge: async (days, ctx) => accountPurgeJob(db, days).run(ctx),
+      apiKeyExpiry: async (ctx) => apiKeyExpiryJob(db).run(ctx),
+      signingKeyCleanup: async (ctx) => signingKeyCleanupJob(db).run(ctx),
+      auditRetention: async (days, ctx) => auditRetentionJob(db, days).run(ctx),
+      idempotencyCleanup: async (ctx) => idempotencyCleanupJob(db).run(ctx),
+      retention: async (ctx) => retentionJob(db).run(ctx),
+      signingKeyRotation: async (keys, options, ctx) => signingKeyRotationJob(db, keys, options).run(ctx),
+      keyRewrap: async (keys, ctx) => keyRewrapJob(db, keys).run(ctx),
+    },
+    keyProvider: {
+      create: async (...args) => createKeyProvider(db, ...args),
+      versionsInUse: async () => keyVersionsInUse(db),
+      status: async (...args) => keyProviderStatus(db, ...args),
+      sealedVersionCounts: async (...args) => sealedVersionCounts(db, ...args),
+    },
     sharedPlatforms: {
       checkSharedPlatform: async (...args) => sharedPlatforms.checkSharedPlatform(db, ...args),
       provisionSharedPlatform: async (...args) => sharedPlatforms.provisionSharedPlatform(db, ...args),

@@ -1,6 +1,6 @@
 import { storeFor } from '../store/index.ts';
 // Service key of a launch (contract §3.3): a domain rule, used by GET /api/idtoken (B-T3a-01: not in a route file).
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { CLAIM } from './checks.ts';
 

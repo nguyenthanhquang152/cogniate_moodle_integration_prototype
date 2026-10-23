@@ -31,12 +31,12 @@ async function setup(profile = 'default', file = ':memory:') {
   const db = openDb(file);
   const clock = { now: 1_800_000_000_000 };
   const masterKey = Buffer.alloc(32, 2);
-  const provider = createLocalKeyProvider(legacyKeyRing(masterKey), { referencedVersions: () => keyVersionsInUse(db) });
+  const provider = createLocalKeyProvider(legacyKeyRing(masterKey), { referencedVersions: async () => (await keyVersionsInUse(db)) });
   bindKeyProvider(masterKey, provider);
   const a = ensureAccount(db, { id: 'cogniate', name: 'Personal name', appUrl: URLS.app });
   ensureAccount(db, { id: 'second', name: 'Second name', appUrl: URLS.app });
   const { logger: sink, lines } = capturingLogger();
-  const metrics = metricsFor(db, () => clock.now);
+  const metrics = (await metricsFor(db, () => clock.now));
   const logger = metrics.logger(sink);
   const outbound = fakeOutbound(() => []);
   const tokens = createTokenClient({ db, masterKey, outbound, logger, now: () => clock.now });
