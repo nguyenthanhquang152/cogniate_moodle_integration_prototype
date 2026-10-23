@@ -1,3 +1,4 @@
+import { storeFor } from '../store/index.ts';
 // The LTI service HTTP app (contract lti-service-api). Setup only: hooks, error handling, health, auth and the error
 // page; the routes live in one file per group (B-T2a-01): routes/protocol.ts (Moodle and browser), routes/idtoken.ts
 // and routes/services.ts (LTIAAS-shaped API), routes/platforms.ts (admin), routes/registration.ts (dynamic registration).
@@ -30,7 +31,6 @@ import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 import { registerServiceKeyAdminRoutes } from './routes/service-key-admin.ts';
-import { getAccount } from '../store/accounts.ts';
 import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
@@ -139,13 +139,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const authenticated = new WeakMap<FastifyRequest, AuthResult>();
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
-    auth: (req, schemes) => {
+    auth: async (req, schemes) => {
       const cached = authenticated.get(req);
       if (cached && schemes.includes(cached.scheme)) return cached;
-      const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
+      const result = (await authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
         if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
-      });
+      }));
       req.toolAccountId = result.account.id;
       limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
       authenticated.set(req, result);
@@ -171,7 +171,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
     if (name !== 'keys') {
       const accountId = (req.params as { account: string }).account;
-      const account = getAccount(deps.db, accountId);
+      const account = (await storeFor(deps.db).accounts.getAccount(accountId));
       if (account) limiter.check(name === 'protocol' ? 'protocol_account' : 'registration_account', account.id, account);
     }
   });

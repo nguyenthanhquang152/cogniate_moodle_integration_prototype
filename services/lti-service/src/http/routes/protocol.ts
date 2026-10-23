@@ -1,3 +1,4 @@
+import { storeFor } from '../../store/index.ts';
 // Protocol endpoints for Moodle and the browser (contract §2.1-§2.3): tool JWKS, OIDC login, launch (redirect URI).
 import type { FastifyInstance, FastifyReply, FastifyRequest, HTTPMethods } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
@@ -6,7 +7,6 @@ import type { LaunchDeps, LaunchResult } from '../../lti/launch.ts';
 import { handleLaunch, handleStorageCheck } from '../../lti/launch.ts';
 import { initiateLogin } from '../../lti/login.ts';
 import { lmsNameOf } from '../../profiles/index.ts';
-import { publicJwks } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
 
 export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext): void {
@@ -16,15 +16,15 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
 
   // Tool JWKS (contract §2.3)
   app.get<{ Params: { account: string } }>('/lti/keys/:account', async (req, reply) => {
-    const account = resolver.resolveAccount(req);
+    const account = (await resolver.resolveAccount(req));
     if (!account || account.status === 'closed') throw new ApiError('NOT_FOUND', 'Unknown tool account.');
-    return reply.header('cache-control', 'public, max-age=300').send({ keys: publicJwks(ctx.db, account.id, ctx.now()) });
+    return reply.header('cache-control', 'public, max-age=300').send({ keys: (await storeFor(ctx.db).toolKeys.publicJwks(account.id, ctx.now())) });
   });
 
   // OIDC login initiation (contract §2.1)
   const login = async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
     const params = (req.method === 'GET' ? req.query : req.body) as Record<string, unknown> | undefined;
-    const result = initiateLogin(ctx.db, resolver, resolver.resolveAccount(req), params ?? {}, ctx.now(), ctx.profiles);
+    const result = (await initiateLogin(ctx.db, resolver, (await resolver.resolveAccount(req)), params ?? {}, ctx.now(), ctx.profiles));
     if (!result.ok) {
       log.warn('login_rejected', { trace_id: req.traceId, ...result.logIds, code: result.code, detail: result.detail });
       return ctx.errorPage(reply, req, result.code, { lms: result.lms });
@@ -56,11 +56,11 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   const deps: LaunchDeps = { db: ctx.db, urls: ctx.urls, resolver, keys: ctx.keys, ltikTtlSeconds: ctx.ltikTtlSeconds, now: ctx.now, profiles: ctx.profiles, logger: log };
   // Launch / redirect URI (contract §2.2)
   app.post<{ Params: { account: string } }>('/lti/launch/:account', async (req, reply) => {
-    const result = await handleLaunch(deps, resolver.resolveAccount(req), (req.body ?? {}) as Record<string, unknown>, req.headers.cookie, req.traceId);
+    const result = await handleLaunch(deps, (await resolver.resolveAccount(req)), (req.body ?? {}) as Record<string, unknown>, req.headers.cookie, req.traceId);
     return sendLaunch(req, reply, result);
   });
   app.post<{ Params: { account: string } }>('/lti/launch/:account/storage-check', async (req, reply) => {
-    return sendLaunch(req, reply, handleStorageCheck(deps, resolver.resolveAccount(req), (req.body ?? {}) as Record<string, unknown>, req.headers.origin));
+    return sendLaunch(req, reply, (await handleStorageCheck(deps, (await resolver.resolveAccount(req)), (req.body ?? {}) as Record<string, unknown>, req.headers.origin)));
   });
   app.route({
     method: app.supportedMethods.filter((method) => method !== 'POST') as HTTPMethods[],

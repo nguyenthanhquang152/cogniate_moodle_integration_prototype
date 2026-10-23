@@ -24,7 +24,7 @@ export interface RouteContext {
   profiles: ProfileOptions;
   now: () => number;
   /** Resolve the Authorization header (contract §1.2); throws the 401 ApiError and logs api_auth_failed. */
-  auth: (req: FastifyRequest, schemes: Scheme[]) => AuthResult;
+  auth: (req: FastifyRequest, schemes: Scheme[]) => Promise<AuthResult>;
   /** Protocol HTML error page (security §2.2) with its status and headers. */
   errorPage: (reply: FastifyReply, req: FastifyRequest, code: ProtocolErrorCode, opts?: { help?: string; detail?: string; status?: number; heading?: string; lms?: LmsName }) => FastifyReply;
 }

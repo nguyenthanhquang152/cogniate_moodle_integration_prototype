@@ -156,11 +156,11 @@ describe('T3a routes', () => {
 
   it('serviceKeyForLaunch: AGS + context + resource link -> a stable key; a deep-linking launch -> none', async () => {
     const s = await setup();
-    const k1 = serviceKeyForLaunch(s.db, MASTER_KEY, s.rlLaunch, 1);
-    const k2 = serviceKeyForLaunch(s.db, MASTER_KEY, { ...s.rlLaunch, id: 'lch-2', claims: { ...s.rlLaunch.claims, sub: 'other-user' } }, 2);
+    const k1 = (await serviceKeyForLaunch(s.db, MASTER_KEY, s.rlLaunch, 1));
+    const k2 = (await serviceKeyForLaunch(s.db, MASTER_KEY, { ...s.rlLaunch, id: 'lch-2', claims: { ...s.rlLaunch.claims, sub: 'other-user' } }, 2));
     expect(k1).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(k2).toBe(k1);
     expect(findServiceKey(s.db, 'cogniate', k1!)).toMatchObject({ contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS });
-    expect(serviceKeyForLaunch(s.db, MASTER_KEY, s.dlLaunch, 3)).toBeUndefined();
+    expect((await serviceKeyForLaunch(s.db, MASTER_KEY, s.dlLaunch, 3))).toBeUndefined();
   });
 });

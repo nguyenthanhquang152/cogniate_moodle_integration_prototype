@@ -1,3 +1,4 @@
+import { storeFor } from '../store/index.ts';
 /**
  * The launch checks of security §2.2, one small function each (T2a design note). Run order (launch.ts):
  * 1 + 3 (one atomic statement), then 2, then 4 to 12. Each failure is a LaunchCheckError {check, code, detail}; the
@@ -15,7 +16,6 @@ import type { Db } from '../db/index.ts';
 import type { DeploymentRecord, Platform } from '../store/platforms.ts';
 import { findDeployment } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';
-import { consumeState } from '../store/states.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import type { PlatformKeys } from './jwks.ts';
 import { PlatformKeyError } from './jwks.ts';
@@ -72,9 +72,9 @@ export function stateCookieName(stateHash: string): string {
 export { readCookie };
 
 /** Checks 1 and 3: the state exists for this account, is unused and not expired; it is marked used at once. */
-export function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): StateRecord {
+export async function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): Promise<StateRecord> {
   if (typeof state !== 'string' || state === '' || stateHash === null) return fail('1', 'INVALID_STATE', 'state_missing');
-  const rec = consumeState(db, accountId, stateHash, now);
+  const rec = (await storeFor(db).states.consumeState(accountId, stateHash, now));
   return rec ?? fail('1', 'INVALID_STATE', 'state_unknown_used_or_expired');
 }
 

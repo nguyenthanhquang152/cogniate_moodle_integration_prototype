@@ -42,7 +42,7 @@ export function revokeServiceKeyScope(
 
 export function registerServiceKeyAdminRoutes(app: FastifyInstance, ctx: Pick<RouteContext, 'db' | 'now' | 'auth'>): void {
   app.post('/api/service-keys/revoke', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     return withAudit(ctx.db, ctx.now, {
       actor: caller.actor, toolAccountId: caller.account.id, traceId: req.traceId, clientIp: req.ip,
       action: 'service_key.revoke', target: serviceKeyRevokeTarget(req.body),

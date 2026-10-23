@@ -191,7 +191,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const help = sentence ? withLms(sentence, lmsNameFor(code, lms, ctx.profiles)) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
-    const gate = statusGate(resolver.resolveAccount(req));
+    const gate = statusGate((await resolver.resolveAccount(req)));
     if (!gate.ok) return page(gate.code, gate.detail);
     const { account } = gate;
     const q = RegisterQuery.safeParse(req.query ?? {});
@@ -265,14 +265,14 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
 
   // ---------------------------------------------------------------- GET /api/registrations/:id (contract §3.8)
   app.get<{ Params: { id: string }; Querystring: { raw?: string } }>('/api/registrations/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     const session = sessionOf(account.id, req.params.id);
     return registrationView(configOf(session), session, req.query.raw === 'true');
   });
 
   // ---------------------------------------------------------------- POST /api/registrations/:id/complete (contract §3.8)
   app.post<{ Params: { id: string } }>('/api/registrations/:id/complete', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     const protocolUrls = resolver.protocolUrls(account);
     return withAudit(ctx.db, ctx.now, {

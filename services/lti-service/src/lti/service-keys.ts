@@ -1,7 +1,7 @@
+import { storeFor } from '../store/index.ts';
 // Service key of a launch (contract §3.3): a domain rule, used by GET /api/idtoken (B-T3a-01: not in a route file).
 import type { Db } from '../db/index.ts';
 import type { LaunchRecord } from '../store/launches.ts';
-import { issueServiceKey } from '../store/service-keys.ts';
 import { CLAIM } from './checks.ts';
 
 type Obj = Record<string, unknown>;
@@ -15,16 +15,16 @@ const obj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && 
  * GET /api/idtoken: the claim is not an object, so launch.context is absent there too. A context object without a
  * string id still gives no key.
  */
-export function serviceKeyForLaunch(db: Db, masterKey: Buffer, launch: LaunchRecord, now: number): string | undefined {
+export async function serviceKeyForLaunch(db: Db, masterKey: Buffer, launch: LaunchRecord, now: number): Promise<string | undefined> {
   const ags = obj(launch.claims[CLAIM.ags]);
   const nrps = obj(launch.claims[CLAIM.nrps]);
   const context = obj(launch.claims[CLAIM.context]);
   const contextId = context ? context.id : '';
   const resourceLinkId = obj(launch.claims[CLAIM.resourceLink])?.id;
   if ((!ags && !nrps) || typeof contextId !== 'string' || typeof resourceLinkId !== 'string') return undefined;
-  const issued = issueServiceKey(db, masterKey, {
+  const issued = (await storeFor(db).serviceKeys.issueServiceKey(masterKey, {
     toolAccountId: launch.toolAccountId, platformId: launch.platformId, deploymentId: launch.deploymentId, contextId, resourceLinkId,
     agsClaim: ags, nrpsClaim: nrps, bindingGeneration: launch.bindingGeneration,
-  }, now);
+  }, now));
   return issued.serviceKey;
 }

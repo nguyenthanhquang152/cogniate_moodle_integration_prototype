@@ -156,7 +156,7 @@ export class LtiMetrics {
     // Callback scope keeps simultaneous requests separate, even when clients reuse a trace id.
     app.addHook('onRequest', (req, _reply, done) => this.request.run(req, done));
     // Address refusals run before this hook and perform no tenant lookup, including in onResponse.
-    app.addHook('preHandler', async (req) => { req.toolAccountId = this.resolveAccount(req); });
+    app.addHook('preHandler', async (req) => { req.toolAccountId = (await this.resolveAccount(req)); });
     app.addHook('onResponse', async (req, reply) => {
       const route = routeClass(req.routeOptions.url);
       this.increment('lti_http_requests', { route_class: route, status_class: `${Math.floor(reply.statusCode / 100)}xx`, tool_account_id: this.accountFor(req) });

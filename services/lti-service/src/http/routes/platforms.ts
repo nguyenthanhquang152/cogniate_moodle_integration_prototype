@@ -186,7 +186,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   }
 
   app.get('/api/platforms', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     const q = PlatformQuery.safeParse(req.query ?? {});
     if (!q.success) throw invalid(q.error);
     const filter = Object.fromEntries(Object.entries(q.data).filter(([, v]) => v !== undefined)) as { id?: string; url?: string; clientId?: string; profile?: string };
@@ -194,7 +194,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   });
 
   app.post('/api/platforms', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     return audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
       const parsed = PlatformCreateBase.safeParse(req.body ?? {});
@@ -229,14 +229,14 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   });
 
   app.get<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     const p = getPlatform(ctx.db, account.id, req.params.id);
     if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
     return view(p);
   });
 
   app.delete<{ Params: { id: string }; Querystring: { ifBindingRef?: string } }>('/api/platforms/:id', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     return audited(req, caller, 'platform.delete', { type: 'platform', id: req.params.id }, null, (audit) => {
       const current = getPlatform(ctx.db, account.id, req.params.id);
@@ -259,7 +259,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   });
 
   app.patch<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     return audited(req, caller, 'platform.update', { type: 'platform', id: req.params.id }, null, (audit) => {
       const parsed = PlatformPatch.safeParse(req.body ?? {});
@@ -288,7 +288,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
 
   // ---------------------------------------------------------------- deployments (§9.5, §9.6)
   app.post<{ Params: { id: string } }>('/api/platforms/:id/deployments', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     return audited(req, caller, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, (audit) => {
       const parsed = DeploymentCreate.safeParse(req.body ?? {});
@@ -328,7 +328,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   });
 
   app.patch<{ Params: { id: string; deploymentId: string } }>('/api/platforms/:id/deployments/:deploymentId', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     return audited(req, caller, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, (audit) => {
       const parsed = DeploymentPatch.safeParse(req.body ?? {});
@@ -370,7 +370,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
 
   // ---------------------------------------------------------------- providers (§9.3)
   app.get('/api/providers', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     return {
       profiles: listProfiles(ctx.profiles).map((p) => {
         const shared = isSharedProfile(p) ? findSharedPlatform(ctx.db, account.id, p.id) : null;
