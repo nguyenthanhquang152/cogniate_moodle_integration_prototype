@@ -15,7 +15,7 @@ import { CHANNEL_ROOT, buildProfileRegistry } from '../../profiles/index.ts';
 import { ensureAccount } from '../../store/accounts.ts';
 import { listApiKeys } from '../../store/api-keys.ts';
 import { listAuditEvents } from '../../store/audit.ts';
-import { getPlatform } from '../../store/platforms.ts';
+import { createPlatform, getPlatform } from '../../store/platforms.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
 import { buildApp } from '../app.ts';
@@ -296,15 +296,20 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.code)).toEqual(['UNKNOWN_TOOL_ACCOUNT', 'FETCH_FAILED', 'FETCH_FAILED', 'ISSUER_MISMATCH', 'INVALID_REQUEST']);
   });
 
-  it('a token that is not signed by the platform, an expired token, or a wrong scope -> INVALID_OPENID_CONFIGURATION page', async () => {
-    const s = await setup();
-    const stranger = await makeKey('moodle-kid');
-    const now = Math.floor(s.clock.now / 1000);
-    for (const token of [await sign(stranger, { scope: 'reg', sub: 'x', iat: now, exp: now + 60 }), await s.regToken({ scope: 'reg', sub: 'x', exp: now - 120 }), await s.regToken({ scope: 'admin', sub: 'x' })]) {
-      const r = await s.start(token);
-      expect(r.body, token.slice(0, 10)).toContain('data-error-code="INVALID_OPENID_CONFIGURATION"');
-    }
-  });
+  it.each([['the product registry (an opaque-token DR profile is loaded)', false], ['a registry without opaque-token DR profiles', true]])(
+    'a token that is not signed by the platform, an expired token, or a wrong scope -> INVALID_OPENID_CONFIGURATION page, with %s (A-LA-E2-02-05)',
+    async (_, baseline) => {
+      const s = await setup(baseline ? await baselineRegistry() : undefined);
+      try {
+        const stranger = await makeKey('moodle-kid');
+        const now = Math.floor(s.clock.now / 1000);
+        for (const token of [await sign(stranger, { scope: 'reg', sub: 'x', iat: now, exp: now + 60 }), await s.regToken({ scope: 'reg', sub: 'x', exp: now - 120 }), await s.regToken({ scope: 'admin', sub: 'x' })]) {
+          const r = await s.start(token);
+          expect(r.body, token.slice(0, 10)).toContain('data-error-code="INVALID_OPENID_CONFIGURATION"');
+        }
+        expect(s.db.prepare('SELECT COUNT(*) AS n FROM registration_session').get()?.n).toBe(0);
+      } finally { await s.app.close(); s.db.close(); }
+    });
 
   it('the platform refuses the registration: 502 PLATFORM_ERROR with its code; the session can be completed again later', async () => {
     const s = await setup();
@@ -407,6 +412,11 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
 // ---------------------------------------------------------------- E2: Dynamic Registration per profile (LA-ADR-02 D5)
 
 const E2_TRAITS = ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'];
+/** The product channels without the opaque-token generic DR channel: the start page then has today's Moodle rule. */
+async function baselineRegistry(): Promise<ProfileRegistry> {
+  const loaded = await loadChannelFolders([CHANNEL_ROOT], 'lti');
+  return buildProfileRegistry(loaded.filter((e) => (e.manifest as ChannelManifest).id !== 'lti-generic'));
+}
 /**
  * The baseline channels and two test channels: `zz-dr` offers Dynamic Registration of the `any-https` profile
  * `zz-generic` (opaque token, {platformValue} audience) and guards the family `zzdr`; `zz-guard` has no DR and
@@ -417,20 +427,24 @@ async function drRegistry(): Promise<ProfileRegistry> {
   const moodle = loaded.find((e) => (e.manifest as ChannelManifest).registration.some((m) => m.profiles.includes('standard')))!;
   const base: Record<string, unknown> = { ...(moodle.ltiProfiles![0] as Record<string, unknown>), privacyFloor: 'allowlist' };
   for (const field of E2_TRAITS) delete base[field];
-  const channel = (id: string, text: string, profile: Record<string, unknown>, dynamic: boolean, family: string): LoadedChannel => ({
+  const channel = (id: string, text: string, profiles: Array<Record<string, unknown>>, dynamic: boolean, family: string): LoadedChannel => ({
     folder: `/unit/${id}`,
     manifest: {
       ...(moodle.manifest as ChannelManifest), id, names: { text, label: text },
-      registration: [{ method: dynamic ? 'dynamic' : 'manual', authority: dynamic ? 'self' : 'operatorGrant', profiles: [profile.id as string], defaultProfile: profile.id as string }],
+      registration: [{ method: dynamic ? 'dynamic' : 'manual', authority: dynamic ? 'self' : 'operatorGrant', profiles: profiles.map((p) => p.id as string), defaultProfile: profiles[0]!.id as string }],
       lti: { guardedFamilies: [{ family, level: 'registration' }], toolConfiguration: 'none' },
       texts: { ...(moodle.manifest as ChannelManifest).texts, registration: undefined },
     },
-    ltiProfiles: [profile],
+    ltiProfiles: profiles,
   });
+  const anyHttps = { endpointOrigins: 'any-https', clientAssertionAud: { value: '{platformValue}', form: 'string' } };
   return buildProfileRegistry([...loaded,
-    channel('zz-dr', 'ZZ DR', { ...base, id: 'zz-generic', listOrder: 100, endpointOrigins: 'any-https',
-      clientAssertionAud: { value: '{platformValue}', form: 'string' }, dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' } }, true, 'zzdr'),
-    channel('zz-guard', 'ZZ Guard', { ...base, id: 'zz-manual', listOrder: 110 }, false, 'zzguard'),
+    channel('zz-dr', 'ZZ DR', [
+      { ...base, ...anyHttps, id: 'zz-generic', listOrder: 100, dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' } },
+      // A scope-jwt profile with a stored audience: the explicit update path of a {platformValue} profile.
+      { ...base, ...anyHttps, id: 'zz-jwt', listOrder: 105, dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'scope-jwt' } },
+    ], true, 'zzdr'),
+    channel('zz-guard', 'ZZ Guard', [{ ...base, id: 'zz-manual', listOrder: 110 }], false, 'zzguard'),
   ]);
 }
 
@@ -554,6 +568,33 @@ describe('E2 Dynamic Registration rules per profile (AC-LA-E2-02-01)', () => {
     } finally { await s.app.close(); s.db.close(); }
   });
 
+  it('item 5 (B-LA-E2-02-03): complete refuses a family that another channel guards, with a configuration that passes every other rule', async () => {
+    const s = await setup(registry);
+    try {
+      // A standard-compatible configuration (Moodle path, every endpoint on the issuer origin): only the family differs.
+      s.state.config = { ...CONFIG, [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'zzdr', messages_supported: [{ type: 'LtiDeepLinkingRequest' }] } };
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg' }))).headers.location));
+      const r = await complete(s, id, { profile: 'standard' });
+      expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'family=zzdr']);
+      expect(r.json().details.description).toBe('Invalid field: profile. This is a ZZ DR site. Connect it as ZZ DR in the Cogniate portal.');
+      expect(s.state.registrations).toEqual([]);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it.each(['timeout', 'token_used', 'server_error', 'garbage'] as const)(
+    'B-LA-E2-02-01 (BD-A1-87): an uncertain outcome (%s) gives the channel recovery sentence; the code and reason stay', async (mode) => {
+      const s = await setup(registry);
+      try {
+        s.state.configs[G_CONFIG_URL] = genericConfig();
+        const id = idOf(String((await startAt(s, G_CONFIG_URL, 'opaque-token-9')).headers.location));
+        s.state.mode = mode;
+        const r = await complete(s, id, { profile: 'zz-generic', bindingRef: 'conn-9', platformName: 'Review tool' });
+        expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([502, 'PLATFORM_ERROR', 'tool_may_exist']);
+        expect(r.json().details.description).toBe("ZZ DR may have saved the Cogniate tool already. If ZZ DR shows the tool 'Review tool', delete it there, then connect again.");
+      } finally { await s.app.close(); s.db.close(); }
+    });
+
   it('item 5: a configuration without Deep Linking gets a clear start page and no session', async () => {
     const s = await setup(registry);
     try {
@@ -574,7 +615,7 @@ describe('LA-IC-03: Moodle in a subfolder; the configuration must be at /mod/lti
   });
 
   it('completes for a subfolder issuer; refuses another path of the same site; stores the granted scopes', async () => {
-    const s = await setup();
+    const s = await setup(await baselineRegistry());
     try {
       const base = 'https://moodle.test/moodle';
       s.state.configs[`${base}/mod/lti/openid-configuration.php`] = { ...moodleIn(base), jwks_uri: `${base}/mod/lti/certs.php`, registration_endpoint: `${base}/register-tool` };
@@ -591,6 +632,115 @@ describe('LA-IC-03: Moodle in a subfolder; the configuration must be at /mod/lti
       expect(other.body).toContain('data-error-code="ISSUER_MISMATCH"');
       expect(other.body).toContain('Start the registration again from Manage tools on the site itself.');
       expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_rejected', code: 'ISSUER_MISMATCH', detail: 'configuration_path_mismatch' }));
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('with a path-prefix DR profile without a fixed path loaded, the start page takes another path and complete refuses it for standard', async () => {
+    const s = await setup();
+    try {
+      s.state.configs['https://moodle.test/pluginfile.php/7/config.json'] = CONFIG;
+      const r = await s.app.inject({ method: 'GET', url: `/lti/register/cogniate?openid_configuration=${encodeURIComponent('https://moodle.test/pluginfile.php/7/config.json')}` });
+      expect(r.statusCode, r.body).toBe(303);
+      const c = await s.app.inject({ method: 'POST', url: `/api/registrations/${idOf(String(r.headers.location))}/complete`, headers: s.bearer(), payload: {} });
+      expect([c.statusCode, c.json().details.message, c.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'configuration_path_mismatch']);
+      expect(s.state.registrations).toEqual([]);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+});
+
+describe('LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88, BD-A1-89, A-LA-E2-02-04)', () => {
+  type S = Awaited<ReturnType<typeof setup>>;
+  const complete = (s: S, id: string, payload: Record<string, unknown>) => s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload });
+  const startAt = async (s: S, url: string, token?: string) => idOf(String((await s.app.inject({
+    method: 'GET', url: `/lti/register/cogniate?${new URLSearchParams({ openid_configuration: url, ...(token ? { registration_token: token } : {}) })}`,
+  })).headers.location));
+  const seed = (s: S, extra: Partial<Parameters<typeof createPlatform>[2]>) => createPlatform(s.db, 'cogniate', {
+    issuer: G, clientId: 'client-dyn-1', name: 'Existing', authEndpoint: `${G}/auth`, tokenEndpoint: 'https://auth.idp.test/token', jwksUrl: `${G}/jwks`,
+    deploymentIds: ['11'], active: true, profile: 'zz-generic', clientAssertionAud: 'https://auth.idp.test/token', ...extra,
+  });
+  const row = (s: S, id: string) => s.db.prepare('SELECT * FROM platform WHERE id = ?').get(id);
+
+  it('BD-A1-88 (a): an explicit update of a platform of another profile is refused before anything is sent', async () => {
+    const s = await setup(registry);
+    try {
+      const existing = seed(s, { issuer: M, active: false, bindingRef: 'pending-grant' });
+      const before = row(s, existing.id);
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '11' }))).headers.location));
+      const r = await complete(s, id, { profile: 'standard', updatePlatformId: existing.id });
+      expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([409, 'REGISTRATION_UPDATE_NOT_ALLOWED', 'profile_mismatch']);
+      expect(r.json().details.description).toBe('This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.');
+      expect(s.state.registrations).toEqual([]);
+      expect(row(s, existing.id)).toEqual(before);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('BD-A1-88 (b): a duplicate client of another profile is refused in the write transaction; record and session stay', async () => {
+    const s = await setup(registry);
+    try {
+      const existing = seed(s, { profile: 'standard', tokenEndpoint: `${G}/token`, clientAssertionAud: null });
+      const before = row(s, existing.id);
+      s.state.configs[G_CONFIG_URL] = genericConfig();
+      const id = await startAt(s, G_CONFIG_URL, 'opaque-token-a');
+      const r = await complete(s, id, { profile: 'zz-generic', bindingRef: 'conn-1' });
+      expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([409, 'REGISTRATION_UPDATE_NOT_ALLOWED', 'profile_mismatch']);
+      expect(row(s, existing.id)).toEqual(before);
+      expect(s.db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(1);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('BD-A1-89: a repeat registration without authorization_server clears the stored audience; no foreign audience stays on an active platform', async () => {
+    const s = await setup(registry);
+    try {
+      const existing = seed(s, { bindingRef: 'conn-1' });
+      s.state.configs[G_CONFIG_URL] = genericConfig();
+      s.state.grantedScope = 'https://purl.imsglobal.org/spec/lti-ags/scope/score';
+      const r = await complete(s, await startAt(s, G_CONFIG_URL, 'opaque-token-b'), { profile: 'zz-generic', bindingRef: 'conn-1' });
+      expect([r.statusCode, r.json().active, r.json().platformId]).toEqual([200, true, existing.id]);
+      expect(getPlatform(s.db, 'cogniate', existing.id)).toMatchObject({
+        active: true, tokenEndpoint: `${G}/token`, clientAssertionAud: null, bindingRef: 'conn-1', grantedScopes: ['https://purl.imsglobal.org/spec/lti-ags/scope/score'],
+      });
+      // The same on the explicit update path (a scope-jwt profile with a stored audience).
+      const jwtPlatform = seed(s, { issuer: M, clientId: 'client-jwt', profile: 'zz-jwt', deploymentIds: ['12'] });
+      s.state.clientId = 'client-jwt';
+      s.state.nextTypeId = 12;
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '12' }))).headers.location));
+      const u = await complete(s, id, { profile: 'zz-jwt', bindingRef: 'conn-2', updatePlatformId: jwtPlatform.id });
+      expect(u.statusCode, u.body).toBe(200);
+      expect(getPlatform(s.db, 'cogniate', jwtPlatform.id)).toMatchObject({ profile: 'zz-jwt', tokenEndpoint: CONFIG.token_endpoint, clientAssertionAud: null });
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it.each([
+    ['an active owner', true, 'owner-connection'], ['a staged owner', false, 'owner-connection'],
+  ])('A-LA-E2-02-04: a collision with %s of another binding ref is refused; the record stays', async (_, active, owner) => {
+    const s = await setup(registry);
+    try {
+      const existing = seed(s, { active, bindingRef: owner });
+      const before = row(s, existing.id);
+      for (const extra of [{}, { token_endpoint: 'https://auth.idp.test/token2' }]) {
+        s.state.configs[G_CONFIG_URL] = genericConfig(extra);
+        const r = await complete(s, await startAt(s, G_CONFIG_URL, 'opaque-token-c'), { profile: 'zz-generic', bindingRef: 'different-connection' });
+        expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([409, 'BINDING_REF_MISMATCH', 'platform_of_other_connection']);
+        expect(row(s, existing.id)).toEqual(before);
+      }
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('A-LA-E2-02-04: the same owner may retry (restage); a binding rotation before complete makes the old ref fail', async () => {
+    const s = await setup(registry);
+    try {
+      const existing = seed(s, { active: false, bindingRef: 'owner' });
+      s.state.configs[G_CONFIG_URL] = genericConfig({ token_endpoint: 'https://auth.idp.test/token2' });
+      const retry = await complete(s, await startAt(s, G_CONFIG_URL, 'opaque-token-d'), { profile: 'zz-generic', bindingRef: 'owner' });
+      expect([retry.statusCode, retry.json().active, retry.json().platformId]).toEqual([200, false, existing.id]);
+      expect(getPlatform(s.db, 'cogniate', existing.id)).toMatchObject({ bindingRef: 'owner', tokenEndpoint: 'https://auth.idp.test/token2' });
+      const id = await startAt(s, G_CONFIG_URL, 'opaque-token-e');
+      // The grant flow rotates the ref while the registration waits.
+      s.db.prepare("UPDATE platform SET binding_ref = 'owner-2' WHERE id = ?").run(existing.id);
+      const stale = await complete(s, id, { profile: 'zz-generic', bindingRef: 'owner' });
+      expect([stale.statusCode, stale.json().details.message]).toEqual([409, 'BINDING_REF_MISMATCH']);
+      expect(getPlatform(s.db, 'cogniate', existing.id)?.bindingRef).toBe('owner-2');
     } finally { await s.app.close(); s.db.close(); }
   });
 });

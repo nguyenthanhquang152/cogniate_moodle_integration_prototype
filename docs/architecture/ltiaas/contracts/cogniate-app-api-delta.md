@@ -196,6 +196,12 @@ Refused-event codes (A2 BD-A2-64; A1 BD-A1-67; LA-E5-12). A write command that r
 | `grant_redeemed` | `app:grant revoke` | the grant was already redeemed |
 | `binding_active` | `app:binding release` | the connection is not disabled (run `suspend` first) |
 | `redemption_running` | `app:binding release` | a redemption may still run (retry later) |
+| `bound_values_missing` | `app:grant issue` | an admin-value profile with no staged platform, and a required bound-value flag (`--issuer`, `--auth-url`, `--token-url`, `--jwks-url`) is missing (LA-ADR-02 D6) |
+| `bound_values_not_allowed` | `app:grant issue` | a bound-value flag for a profile that is not an admin-value profile, or while a staged platform exists |
+| `bound_value_invalid` | `app:grant issue` | a bound value is not a valid URL or breaks a site or profile rule |
+| `not_staged` | `app:grant issue` | `--accept-staged` for a connection with no staged platform |
+| `staged_values_changed` | `app:grant issue` | the staged platform changed after the CLI printed its values (the accepted values are no longer current) |
+| `foreign_hosts_unconfirmed` | `app:grant issue` | a bound value has a host other than the issuer host, and `--confirm-foreign-hosts` is missing (LA-ADR-02 D6) |
 
 The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2 (Lead decision, plan OC-9).
 

@@ -87,6 +87,7 @@ const manifest = {
       INVALID_OPENID_CONFIGURATION: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
       REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.',
       UPDATE_NOT_ALLOWED: 'Go back in {LMS} and choose Register as a new external tool.',
+      TOOL_MAY_EXIST: "{LMS} may have saved a Pending tool. In Manage tools, delete the Pending tool '{tool}', then connect again.",
     },
   },
 } satisfies ChannelManifest;
