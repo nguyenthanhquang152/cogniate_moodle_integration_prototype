@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 20:13 UTC
+### Current directive — 2026-10-23, 01:24 UTC
+
+The user resumed the goal. Architect retry `ctx_49da070f64c0` started on the same task using Claude Opus 5.5 xhigh after the quota stop.
+Read the current continuation brief and corrected v3 diagnosis. Complete the bounded repair plan first; do not repeat completed source reviews.
+The Lead is verifying actual worker progress before declaring the quota blocker resolved.
+The user's role assignments remain unchanged. No source/test edit or runtime grant is issued by this restart.
+Accepted evidence, final gates, real-LMS limits and the no-push rule remain unchanged.
+
+### Prior directive — 2026-10-22, 20:13 UTC
 
 Claude's architecture role is quota-blocked after three confirmed session-limit events, including an immediate stop on the latest retry.
 All three attempts are fenced. The Lead will not start duplicate Claude sessions without a quota reset or new user direction.

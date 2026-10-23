@@ -2,7 +2,16 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 20:13 UTC
+## Current checkpoint — 2026-10-23, 01:24 UTC
+
+The user resumed the goal after more than five hours. The Lead confirmed that all prior attempts were settled and the integration checkout had no new changes.
+Claude Architect retry `ctx_49da070f64c0` started on the same task with effective model Opus 5.5 and xhigh effort.
+Its first deliverable is the bounded seven-case repair plan. Quota availability is being checked from the actual worker response; a start receipt alone is not proof of progress.
+The existing continuation brief and corrected v3 diagnosis remain authoritative. No model substitution is authorized.
+QA and implementation have no new active attempt yet. No runtime or source/test edit is granted.
+All accepted evidence, remaining verification gates and real-LMS limits are unchanged. No push or main merge is authorized.
+
+## Historical checkpoint — 20:13 UTC
 
 The bounded repair plan is blocked by Claude's quota. Three Architect attempts have explicit session-limit events.
 The Lead stopped only those proven stopped attempts: `ctx_422d7f0f0928`, `ctx_e364fb2df6f9` and `ctx_0477b67db595`.
