@@ -13,7 +13,7 @@ const profiles = [
     productFamily: 'desire2learn',
     issuerKind: 'per-tenant', endpointOrigins: 'any-https', clientAssertionAud: { value: '{platformValue}', form: 'string' }, assertionDeploymentId: false,
     // No Dynamic Registration yet (LA-E2-06) and no platform storage until a live check (LA-E2-05 scope).
-    flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false },
+    flags: { deepLinkingResponseSub: false, serviceOriginCheck: false },
     sources: ['LA-ADR-02 D4', 'R2 §5.4'],
   },
 ] as const satisfies readonly ProfileSource[];
