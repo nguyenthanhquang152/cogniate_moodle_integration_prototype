@@ -90,14 +90,14 @@ describe('GET /api/providers and the simulation gates (§9.3, §9.13)', () => {
   it('lists profiles in order; simulation profiles only when on; sharedPlatform follows the platform', async () => {
     const off = await harness();
     const ids = (await api(off, 'GET', '/api/providers')).json.profiles.map((p: Json) => p.id);
-    expect(ids).toEqual(['standard', 'canvas-self-hosted', 'blackboard']);
+    expect(ids).toEqual(['standard', 'canvas-self-hosted', 'blackboard', 'lti-generic']);
     expect((await off.app.inject('/healthz')).json().simulation_profiles).toEqual([]);
     for (const profile of ['blackboard-sim', 'canvas-sim-cloud', 'nope']) {
       expect(code(await api(off, 'POST', '/api/platforms', { profile, clientId: 'x', name: 'x', siteUrl: SCHOOL_A, deploymentIds: ['d'] }))).toBe('UNKNOWN_PROFILE');
     }
     const on = await harness({ simulationProfiles: true });
     const list = (await api(on, 'GET', '/api/providers')).json.profiles;
-    expect(list.map((p: Json) => p.id)).toEqual(['standard', 'canvas-self-hosted', 'blackboard', 'blackboard-sim', 'canvas-sim-cloud']);
+    expect(list.map((p: Json) => p.id)).toEqual(['standard', 'canvas-self-hosted', 'blackboard', 'lti-generic', 'blackboard-sim', 'canvas-sim-cloud']);
     expect((await on.app.inject('/healthz')).json().simulation_profiles).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
     const bbSim = () => api(on, 'GET', '/api/providers').then((r) => r.json.profiles.find((p: Json) => p.id === 'blackboard-sim'));
     expect((await bbSim()).sharedPlatform).toBeNull();

@@ -22,6 +22,8 @@ export interface NrpsContext {
   platform: Platform;
   nrpsClaim: Record<string, unknown> | null;
   traceId: string;
+  /** The deployment of the launch or service key, for the client assertion (LA-ADR-02 D2 assertionDeploymentId). */
+  deploymentId?: string;
 }
 
 export interface MembershipsQuery { role?: string; limit?: number; resourceLinkId?: string; url?: string }
@@ -41,7 +43,7 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
       if (!isAllowedServiceUrl(candidate, base)) throw new ApiError('INVALID_URL_PARAMETER');
       // NRPS accepts both a short role name and a full URI. Pass either unchanged (NRPS §2.4.1).
       const url = q.url ?? withQuery(base, { role: q.role, limit: q.limit, rlid: q.resourceLinkId });
-      const token = await deps.tokens.getToken(ctx.platform, [NRPS_SCOPE], ctx.traceId);
+      const token = await deps.tokens.getToken(ctx.platform, [NRPS_SCOPE], ctx.traceId, { deploymentId: ctx.deploymentId });
       let res;
       try {
         res = await deps.outbound.request(url, {

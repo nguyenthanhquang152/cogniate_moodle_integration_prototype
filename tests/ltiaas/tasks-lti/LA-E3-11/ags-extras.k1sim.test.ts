@@ -143,8 +143,8 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       },
     );
     expect(nineRes.status, '9 URL-keyed members rejected with 400').toBe(400);
-    expect(hasErrorShape(nineRes.json, 400)).toBe(true);
-    expect(errorCode(nineRes.json)).toBe('INVALID_REQUEST');
+    expect(hasErrorShape(nineRes)).toBe(true);
+    expect(errorCode(nineRes)).toBe('INVALID_REQUEST');
 
     // AC-LA-E3-11-03 (b): one URL-keyed member > 4 KB -> 400 INVALID_REQUEST.
     const hugeRes = await ltiApi<Record<string, unknown>>(
@@ -163,7 +163,7 @@ describe('LA-E3-11 AGS extras (K1-SIM)', () => {
       },
     );
     expect(hugeRes.status, '>4 KB member value rejected with 400').toBe(400);
-    expect(hasErrorShape(hugeRes.json, 400)).toBe(true);
-    expect(errorCode(hugeRes.json)).toBe('INVALID_REQUEST');
+    expect(hasErrorShape(hugeRes)).toBe(true);
+    expect(errorCode(hugeRes)).toBe('INVALID_REQUEST');
   });
 });

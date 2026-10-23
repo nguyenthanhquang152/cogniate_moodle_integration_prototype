@@ -33,7 +33,8 @@ export async function testProfileRegistry(textName = 'your LMS', platformStorage
   const admin = {
     ...(standard.ltiProfiles![0] as ProfileSource), id: 'zz-admin', label: 'Unit admin', privacyFloor: 'allowlist', listOrder: 100, platformStorage,
   } satisfies ProfileSource;
-  delete admin.wireLms;
+  // New channel profiles: no frozen wire value, and the registry defaults for the E2 traits of the Moodle copy.
+  for (const field of ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'] as const) delete admin[field];
   const fixed: ProfileSource = {
     ...admin, id: 'zz-fixed', label: 'Unit fixed', endpoints: 'fixed', listOrder: 110, siteUrlOn: 'platform',
     issuer: 'https://fixed.example.edu', authenticationEndpoint: 'https://fixed.example.edu/auth',

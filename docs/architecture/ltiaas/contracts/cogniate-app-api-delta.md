@@ -82,6 +82,8 @@ New channels (`key` stable; `label` is human text):
 | `lti-generic` | `tool_name`, `login_url` (`{PUBLIC_LTI_URL}/lti/login/cogniate`), `redirect_uri` and `target_link_uri` (`{PUBLIC_LTI_URL}/lti/launch/cogniate`), `jwks_url` (`{PUBLIC_LTI_URL}/lti/keys/cogniate`), `deep_linking_url` (same as the redirect URI), `scopes` (the channel scope set), `privacy` ("Do not send the learner's name or e-mail.") |
 | `brightspace` | `tool_name`, `domain` (host of `PUBLIC_LTI_URL`), `redirect_urls`, `openid_connect_login_url`, `target_link_uri`, `keyset_url`, `extensions` ("Assignment and Grade Services, Deep Linking"), `roles` ("Send institution role"), `privacy` ("Do not send name or e-mail."). The labels follow the D2L "Register Tool" form; they are UNVERIFIED until a live check (R2-2, LA-H3). |
 
+The kernel admin-value adapter builds these rows: the generic set when the manifest has no `setup.toolRows`, else the manifest rows with the kernel placeholders filled (`brightspace`, LA-E2-05; BD-A1-78).
+
 ### 3.4 `PUT /app-api/connections/:id/platform`
 
 | Channel | Strict body | LTI step |
@@ -194,6 +196,12 @@ Refused-event codes (A2 BD-A2-64; A1 BD-A1-67; LA-E5-12). A write command that r
 | `grant_redeemed` | `app:grant revoke` | the grant was already redeemed |
 | `binding_active` | `app:binding release` | the connection is not disabled (run `suspend` first) |
 | `redemption_running` | `app:binding release` | a redemption may still run (retry later) |
+| `bound_values_missing` | `app:grant issue` | an admin-value profile with no staged platform, and a required bound-value flag (`--issuer`, `--auth-url`, `--token-url`, `--jwks-url`) is missing (LA-ADR-02 D6) |
+| `bound_values_not_allowed` | `app:grant issue` | a bound-value flag for a profile that is not an admin-value profile, or while a staged platform exists |
+| `bound_value_invalid` | `app:grant issue` | a bound value is not a valid URL or breaks a site or profile rule |
+| `not_staged` | `app:grant issue` | `--accept-staged` for a connection with no staged platform |
+| `staged_values_changed` | `app:grant issue` | the staged platform changed after the CLI printed its values (the accepted values are no longer current) |
+| `foreign_hosts_unconfirmed` | `app:grant issue` | a bound value has a host other than the issuer host, and `--confirm-foreign-hosts` is missing (LA-ADR-02 D6) |
 
 The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2 (Lead decision, plan OC-9).
 

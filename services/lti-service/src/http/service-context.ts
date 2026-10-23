@@ -27,12 +27,15 @@ export function claimObject(value: unknown): Record<string, unknown> | null {
  *  4. the deployment is active (else 403 DEPLOYMENT_NOT_ACTIVE).
  * A deployment row that is gone counts as inactive, except for `standard` platforms (unchanged behaviour).
  */
+/** The deployment of the ltik or service key ('' when neither has one). */
+export const deploymentIdOf = (caller: AuthResult): string => caller.launch?.deploymentId ?? caller.serviceKey?.deploymentId ?? '';
+
 export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
   const unauthorized = () => new ApiError(caller.launch ? 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER' : 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
   const id = caller.launch?.platformId ?? caller.serviceKey?.platformId;
   const platform = id ? getPlatform(ctx.db, caller.account.id, id) : null;
   if (!platform) throw unauthorized();
-  const deploymentId = caller.launch?.deploymentId ?? caller.serviceKey?.deploymentId ?? '';
+  const deploymentId = deploymentIdOf(caller);
   const generation = caller.launch?.bindingGeneration ?? caller.serviceKey?.bindingGeneration ?? 0;
   const deployment = deploymentOf(platform, deploymentId);
   if (deployment && deployment.bindingGeneration !== generation) throw unauthorized();
@@ -44,7 +47,7 @@ export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
 
 export function agsContext(ctx: Ctx, caller: AuthResult, traceId: string): AgsContext {
   return {
-    platform: platformOf(ctx, caller), traceId,
+    platform: platformOf(ctx, caller), traceId, deploymentId: deploymentIdOf(caller),
     agsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.ags]) : caller.serviceKey?.agsClaim ?? null,
   };
 }

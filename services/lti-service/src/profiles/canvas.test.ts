@@ -19,7 +19,7 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
     expect(profile.sources.length).toBeGreaterThan(0);
   }
   expect(listProfiles({ simulation: false }).map((p) => p.id)).toEqual([
-    'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
+    'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard', 'lti-generic',
   ]);
   expect(listProfiles({ simulation: true }).slice(-2).map((p) => p.id)).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
   expect(findProfile('canvas-sim-cloud', { simulation: false })).toBeNull();

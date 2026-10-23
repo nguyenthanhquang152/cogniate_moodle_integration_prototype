@@ -9,7 +9,6 @@ import {
   apiKey,
   auth,
   errorCode,
-  errorDescription,
   hasErrorShape,
   ltiApi,
   recordSecret,
@@ -26,6 +25,10 @@ import { DL, LTI, unique } from '../../../acceptance/M1/common/client';
 
 const DL_SETTINGS_CLAIM = `${DL}deep_linking_settings`;
 const DL_ITEMS_CLAIM = `${DL}content_items`;
+
+function errorDescription(res: { json: unknown }): string {
+  return String((res.json as { details?: { description?: unknown } } | null)?.details?.description ?? '');
+}
 
 async function launchDeepLinkingAllTypes(label: string) {
   const target = await canvasPlatform({ name: unique(`QA4 E3-13 ${label}`) });
@@ -63,9 +66,9 @@ describe('LA-E3-13 Deep Linking per-type item fields (K1-SIM)', () => {
       body: { contentItems: [{ type: 'link', title: 'Missing URL' }] },
     });
     expect(noUrl.status).toBe(400);
-    expect(hasErrorShape(noUrl.json, 400)).toBe(true);
-    expect(errorCode(noUrl.json)).toBe('INVALID_CONTENT_ITEM');
-    expect(errorDescription(noUrl.json).includes('0')).toBe(true);
+    expect(hasErrorShape(noUrl)).toBe(true);
+    expect(errorCode(noUrl)).toBe('INVALID_CONTENT_ITEM');
+    expect(errorDescription(noUrl).includes('0')).toBe(true);
 
     // AC-LA-E3-13-01 (b): {type: "link", url: "http://x.test"} at index 1
     const httpUrl = await ltiApi('POST', '/api/deeplinking', {
@@ -78,9 +81,9 @@ describe('LA-E3-13 Deep Linking per-type item fields (K1-SIM)', () => {
       },
     });
     expect(httpUrl.status).toBe(400);
-    expect(hasErrorShape(httpUrl.json, 400)).toBe(true);
-    expect(errorCode(httpUrl.json)).toBe('INVALID_CONTENT_ITEM');
-    expect(errorDescription(httpUrl.json).includes('1')).toBe(true);
+    expect(hasErrorShape(httpUrl)).toBe(true);
+    expect(errorCode(httpUrl)).toBe('INVALID_CONTENT_ITEM');
+    expect(errorDescription(httpUrl).includes('1')).toBe(true);
 
     // AC-LA-E3-13-02: {type: "html"} without string html
     const badHtml = await ltiApi('POST', '/api/deeplinking', {
@@ -88,8 +91,8 @@ describe('LA-E3-13 Deep Linking per-type item fields (K1-SIM)', () => {
       body: { contentItems: [{ type: 'html', title: 'No html field' }] },
     });
     expect(badHtml.status).toBe(400);
-    expect(hasErrorShape(badHtml.json, 400)).toBe(true);
-    expect(errorCode(badHtml.json)).toBe('INVALID_CONTENT_ITEM');
+    expect(hasErrorShape(badHtml)).toBe(true);
+    expect(errorCode(badHtml)).toBe('INVALID_CONTENT_ITEM');
   });
 
   it('[SIM] AC-LA-E3-13-03 & AC-LA-E3-13-04: valid file item and ltiResourceLink item return 200 with expected content_items in signed JWT {case:LA-E3-13-03}', async () => {

@@ -2,7 +2,8 @@
 // (http/routes/registration.ts) does the network calls.
 import type { ProtocolUrls } from './target.ts';
 import type { PrivacyLevel, RegistrationOperation } from '../store/registrations.ts';
-import { isHttpsUrl } from './platform-rules.ts';
+import type { AnyHttpsRules } from './platform-rules.ts';
+import { endpointHostProblem, isHttpsUrl, issuerSiteProblem } from './platform-rules.ts';
 
 export const PRIVACY_LEVELS: readonly PrivacyLevel[] = ['public', 'name_only', 'email_only', 'anonymous'];
 export const DEFAULT_PRIVACY: PrivacyLevel = 'anonymous';
@@ -40,31 +41,83 @@ export interface OpenIdConfiguration {
   version: string;
   scopesSupported: string[];
   messagesSupported: Array<{ type: string; placements?: string[] }>;
+  /** The token audience of the platform (`authorization_server`), when present (LA-ADR-02 D5 item 4). */
+  authorizationServer: string | null;
   /** The configuration as the platform sent it (`raw=true`). */
   raw: Record<string, unknown>;
 }
 
-export type ConfigurationProblem = { code: 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH'; detail: string };
+export type ConfigurationProblem = { code: 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'PLATFORM_URL_NOT_IN_PROFILE' | 'ISSUER_RESERVED'; detail: string };
+
+/** The issuer rule of a Dynamic Registration profile (LA-ADR-02 D2 trait `dynamicRegistration`). */
+export interface IssuerRule {
+  issuerRule: 'origin' | 'path-prefix' | 'profile';
+  configurationPath?: string;
+}
+
+/**
+ * The configuration rule of one profile, or the loosest rule of every DR profile (the start page; LA-ADR-02 D5).
+ * The configuration passes when ANY issuer rule passes. `profile` (fixed endpoints, A2's Canvas DR) is not built
+ * here, so it never passes.
+ */
+export interface ConfigurationRule {
+  issuerRules: readonly IssuerRule[];
+  endpointOrigins: 'issuer' | 'any-https';
+  /** For `any-https`: the hosts that the configuration must not use (contract delta §4.5, §4.6.1 rules 1 and 2). */
+  hosts?: AnyHttpsRules;
+}
+
+/** Today's Moodle rule (security §2.4): the issuer is the configuration URL origin, every endpoint on that origin. */
+export const ORIGIN_RULE: ConfigurationRule = { issuerRules: [{ issuerRule: 'origin' }], endpointOrigins: 'issuer' };
+
+const isIssuerUrl = (v: string): boolean => isHttpsUrl(v) && !/[?#]/.test(v);
+
+/** Null when an issuer rule passes, else the safe detail of ISSUER_MISMATCH. */
+function issuerRuleProblem(configUrl: string, issuer: string, rules: readonly IssuerRule[]): string | null {
+  const prefix = isIssuerUrl(issuer) && configUrl.startsWith(`${issuer}/`);
+  for (const rule of rules) {
+    if (rule.issuerRule === 'origin' && issuer === new URL(configUrl).origin) return null;
+    // D5 item 1: the configuration URL starts with the issuer and "/"; with configurationPath it is exactly issuer + path.
+    if (rule.issuerRule === 'path-prefix' && prefix && (rule.configurationPath === undefined || configUrl === `${issuer}${rule.configurationPath}`)) return null;
+  }
+  // LA-IC-03: the issuer fits, but the configuration is at another path of the site.
+  return prefix && rules.some((r) => r.issuerRule === 'path-prefix') ? 'configuration_path_mismatch' : 'issuer_not_configuration_origin';
+}
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
 /**
- * Security §2.4: the configuration `issuer` must equal the origin of the configuration URL, and every endpoint URL in
- * it must be an https URL on that origin. Returns the parsed configuration, or the problem (code + safe detail).
+ * Security §2.4 with the profile rule (LA-ADR-02 D5 items 1 and 2). The issuer follows an issuer rule. With
+ * `endpointOrigins: issuer` every endpoint URL is https on the issuer origin. With `any-https` the rules of §4.6.1 run
+ * in its order: each endpoint host passes rule 2 (PLATFORM_URL_NOT_IN_PROFILE), the issuer origin is not reserved
+ * (rule 3, ISSUER_RESERVED), and the issuer passes rule 1. Returns the parsed configuration, or the problem (code +
+ * safe detail). The default rule is today's Moodle rule.
  */
-export function parseOpenIdConfiguration(configUrl: string, body: unknown): OpenIdConfiguration | ConfigurationProblem {
+export function parseOpenIdConfiguration(configUrl: string, body: unknown, rule: ConfigurationRule = ORIGIN_RULE): OpenIdConfiguration | ConfigurationProblem {
   if (!isObj(body)) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_json_object' };
-  const origin = new URL(configUrl).origin;
   if (typeof body.issuer !== 'string' || body.issuer === '') return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'missing=issuer' };
-  if (body.issuer !== origin) return { code: 'ISSUER_MISMATCH', detail: 'issuer_not_configuration_origin' };
+  const issuerProblem = issuerRuleProblem(configUrl, body.issuer, rule.issuerRules);
+  if (issuerProblem) return { code: 'ISSUER_MISMATCH', detail: issuerProblem };
+  const origin = new URL(body.issuer).origin;
   const endpoints = {
     authorization_endpoint: body.authorization_endpoint, token_endpoint: body.token_endpoint, jwks_uri: body.jwks_uri, registration_endpoint: body.registration_endpoint,
   };
   for (const [name, value] of Object.entries(endpoints)) {
     if (typeof value !== 'string' || value === '') return { code: 'INVALID_OPENID_CONFIGURATION', detail: `missing=${name}` };
-    if (!isHttpsUrl(value) || new URL(value).origin !== origin) return { code: 'INVALID_OPENID_CONFIGURATION', detail: `not_on_issuer_origin=${name}` };
+    if (rule.endpointOrigins === 'issuer') {
+      if (!isHttpsUrl(value) || new URL(value).origin !== origin) return { code: 'INVALID_OPENID_CONFIGURATION', detail: `not_on_issuer_origin=${name}` };
+      continue;
+    }
+    if (!isHttpsUrl(value)) return { code: 'INVALID_OPENID_CONFIGURATION', detail: `not_https=${name}` };
+    const host = rule.hosts ? endpointHostProblem(value, rule.hosts) : null;
+    if (host !== null) return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `${host === 'reserved host' ? 'reserved_host' : `site_rule_${host}`}=${name}` };
+  }
+  if (rule.endpointOrigins === 'any-https' && rule.hosts) {
+    if (rule.hosts.reservedIssuerOrigins.includes(origin)) return { code: 'ISSUER_RESERVED', detail: 'issuer_reserved' };
+    const site = issuerSiteProblem(body.issuer, rule.hosts);
+    if (site !== null) return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `site_rule_${site}=issuer` };
   }
   const platform = isObj(body[PLATFORM_CONFIG_CLAIM]) ? (body[PLATFORM_CONFIG_CLAIM] as Obj) : {};
   return {
@@ -79,9 +132,23 @@ export function parseOpenIdConfiguration(configUrl: string, body: unknown): Open
     messagesSupported: (Array.isArray(platform.messages_supported) ? platform.messages_supported : [])
       .filter(isObj).filter((m) => typeof m.type === 'string')
       .map((m) => ({ type: m.type as string, ...(Array.isArray(m.placements) ? { placements: strings(m.placements) } : {}) })),
+    authorizationServer: typeof body.authorization_server === 'string' && body.authorization_server !== '' ? body.authorization_server : null,
     raw: body,
   };
 }
+
+/**
+ * I-SELF for a configuration (LA-ADR-02 D2a; contract delta §4.5 `endpointsOnIssuerOrigin`): the auth, token, JWKS and
+ * registration endpoints are on the issuer origin, and `authorization_server` is absent or the token URL.
+ */
+export function endpointsOnIssuerOrigin(config: OpenIdConfiguration): boolean {
+  const origin = new URL(config.issuer).origin;
+  const onOrigin = [config.authorizationEndpoint, config.tokenEndpoint, config.jwksUri, config.registrationEndpoint].every((url) => new URL(url).origin === origin);
+  return onOrigin && (config.authorizationServer === null || config.authorizationServer === config.tokenEndpoint);
+}
+
+/** D5 item 5: the tool adds content with Deep Linking, so the platform must support the Deep Linking request. */
+export const supportsDeepLinking = (config: OpenIdConfiguration): boolean => config.messagesSupported.some((m) => m.type === 'LtiDeepLinkingRequest');
 
 /**
  * Security §2.5: Moodle's registration token says the operation. `scope = reg-update` and `sub = <type id>`: update of
@@ -141,7 +208,13 @@ export function parseRegistrationResponse(body: unknown): { clientId: string; de
   return { clientId: body.client_id, deploymentId: String(dep) };
 }
 
-/** GET /api/registrations/:id body (contract §3.8). */
+/** D5 item 7: the `scope` of the registration answer (space separated), or null when the platform sends none. */
+export function grantedScopesOf(body: unknown): string[] | null {
+  if (!isObj(body) || typeof body.scope !== 'string') return null;
+  return [...new Set(body.scope.split(/\s+/).filter(Boolean))];
+}
+
+/** GET /api/registrations/:id body (contract §3.8; E2 adds endpointsOnIssuerOrigin, delta §4.5). */
 export function registrationView(config: OpenIdConfiguration, session: { privacyLevel: PrivacyLevel; operation: RegistrationOperation; existingPlatformId: string | null }, raw: boolean): Obj {
   return {
     url: config.issuer,
@@ -152,6 +225,7 @@ export function registrationView(config: OpenIdConfiguration, session: { privacy
     privacyLevel: session.privacyLevel,
     operation: session.operation,
     existingPlatformId: session.existingPlatformId,
+    endpointsOnIssuerOrigin: endpointsOnIssuerOrigin(config),
     ...(raw ? { raw: config.raw } : {}),
   };
 }

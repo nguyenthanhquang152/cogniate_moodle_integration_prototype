@@ -126,6 +126,8 @@ export type BindingTarget =
     serviceUrl: string;
     /** Known after S1 or S2 (until then the target is found by issuer, client id and profile). */
     platformId: string | null;
+    /** Admin-value profile only (LA-ADR-02 D3, D6): the typed endpoint values that the staged create sends. */
+    adminValues?: AdminValues;
   }
   | { kind: 'platform_deployment'; platformId: string; deploymentId: string }
   | { kind: 'shared_deployment'; platformId: string; deploymentId: string; siteUrl: string };
@@ -190,6 +192,10 @@ export type StagedCreate =
       authConfig: { method: 'JWK_SET'; key: string }; deploymentIds: string[];
     } | {
       profile: string; url?: string; clientId: string; name: string; siteUrl: string; serviceUrl?: string; deploymentIds: string[];
+    } | {
+      // Admin-value profile (app API delta §3.4): the typed endpoints with the profile id; no site URL.
+      profile: string; url: string; clientId: string; name: string; authenticationEndpoint: string; accesstokenEndpoint: string;
+      authConfig: { method: 'JWK_SET'; key: string }; clientAssertionAud?: string; deploymentIds: string[];
     } }
   | { kind: 'deployment'; platformId: string; body: { deploymentId: string; siteUrl?: string } };
 

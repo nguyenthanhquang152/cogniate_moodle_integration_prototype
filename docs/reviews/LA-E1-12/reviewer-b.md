@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -37,3 +37,13 @@ The K-to-P kernel edits and the R variable rename are the explicitly authorized 
 The focused unit run passed **343 tests in 18 files** (kernel, affected app areas, portal and channel portal modules); the fitness test run passed **52 tests**. Old-source controls failed for the intended behavior: old operator plus its matching helper, **1 test**; old provider error mapper, **8 tests**; old register text filler, **2 tests**. The last control and the passing `A<tool>B` page/stored-error checks close **B-LA-E1-09-02**. Results tests are compatibility checks; the zero F1 ratchet and required TypeScript prop enforce removal of the old default.
 
 All mutations were restored in the private clone. No Docker, stack, full wave-end regression, commit or push was run. QA retains the R1/R2 wave-end gate.
+
+## Round 2
+
+Verdict: **APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT this round.** Same Reviewer-B lens, Codex GPT-6-Astra xhigh. Reviewed `70b41f4` and `bd988df` in merge `ac1c339`, using the private `bd32e05` clone. No other reviewer's file was read; no Docker or stack was run.
+
+- **B-LA-E1-12-01 closed.** `sharedBuild.except` is removed, while `infra/**` remains core. Independent F2 path-list checks accept a new-channel-only path (`core = 0`) and reject that path plus `infra/.certs/probe.crt` (`core = 1`). The obsolete metadata is gone; the gate behavior remains correct.
+- **The dispatched portal-text follow-up is fixed.** `channelErrorText` selects only the five manifest error keys. `ChannelErrorNotice` changes their description while retaining the server action, code, trace and details, and passes all other errors through unchanged. The default wizard, default binding form and both Moodle create/manual forms use the helper. `ProviderErrorNotice` keeps its broader existing behavior. The SDK comments explain which notice to use, and both reuse the same mapping and context source.
+- The new route tests cover a data-only channel with its own text, one using the generic fallback, Moodle's manual refusal and its approval form. They also preserve the server's `INVALID_PLATFORM_VALUES` text. In the private clone, disabling replacement caused **5 failures**, and using the broader provider replacement caused **4 failures**, across the shell and helper tests. This proves both the missing-text fix and the limit on its behavior change. All mutations were restored.
+- Shared verification for this dispatch: **1,316 tests in 100 files passed**, including all affected portal tests, plus root type checking, ESLint on the 30 changed TypeScript files, F1 (0 hits) and F5 (six rules, 0 hits). This focused follow-up does not repeat the full E1-done K0/add-channel exercise or QA's wave-end regression.
+- The scope-data edit is the explicit K-to-P RQ-2 commit. The portal SDK, shell and baseline channel portal files belong to P under matrix §5. No QA-owned frozen test, server error default or core LMS-name exception was changed. The only new visible replacement is within LA-IC-20's five keys.

@@ -15,7 +15,7 @@ import { createPlatformKeys } from './jwks.ts';
 
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`,
-  jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'], trustedAudiences: [],
+  jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'], trustedAudiences: [], clientAssertionAud: null, grantedScopes: null,
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
 const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null, storageTarget: null, storageOrigin: null };
