@@ -133,6 +133,8 @@ At the start page the LTI service does not know the connection's channel yet (kn
 
 Build rulings BD-A1-84 ([build decisions A1](../build-decisions-A1.md)): the start rule is computed from the loaded DR profiles; a JWKS fetch failure stays `FETCH_FAILED` even when an opaque token is allowed (a JWT-shaped token is never treated as opaque); `complete` needs a `bindingRef` for every `any-https` profile and stores it only when it stages; a staged registration that meets an existing platform sets that platform inactive until the grant adopts it (the refusal of another connection's platform comes first).
 
+Build ruling BD-A1-87: when `complete` cannot tell whether the platform saved the tool (timeout, used token, `5xx`, malformed `2xx`), the answer stays `PLATFORM_ERROR` with `details.reason` `tool_may_exist`, and its text comes from the channel's `texts.registration.TOOL_MAY_EXIST` (Moodle: today's frozen sentence; other channels: the core default without menu paths, LA-ADR-01 D12).
+
 ### D6. Operator grant for admin-value profiles (Must)
 
 - The grant of an admin-value binding binds the M1 values (library, connection, channel, profile, site URL, client id, deployment id, purpose) **and** the bound values: `issuer`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience` (data model: `binding_grant.bound_values`, migration `013`).
