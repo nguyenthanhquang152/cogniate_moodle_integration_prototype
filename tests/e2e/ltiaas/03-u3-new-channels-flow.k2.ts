@@ -117,7 +117,7 @@ k2Case(
     const picked = await performTeacherDeepLinkPick(page, target, GENERIC_SIM.siteUrl, title, 'k2-u3-generic-dr');
     expect(String(picked.items?.[0]?.url)).toContain(`resource=${pub.id}`);
 
-    await performLearnerCompletion(page, target, String(pub.id), 'your LMS', 'k2-u3-generic-dr');
+    await performLearnerCompletion(page, target, String(pub.id), 'LMS', 'k2-u3-generic-dr');
     await assertPortalResultsSent(page, String(pub.id), GENERIC_SIM.siteHost);
     expect((await connection(s, connectionId)).status).toBe('connected');
     await shot(page, 'k2-u3-generic-dr-results');
@@ -366,7 +366,7 @@ k2Case(
     expect(returnedUrls.some((u) => u.includes(`resource=${pub.id}`))).toBe(true);
     expect(returnedUrls.some((u) => u.includes(`resource=${pub2.id}`))).toBe(true);
 
-    await performLearnerCompletion(page, target, String(pub.id), 'your LMS', 'k2-u3-generic-manual');
+    await performLearnerCompletion(page, target, String(pub.id), 'LMS', 'k2-u3-generic-manual');
     await assertPortalResultsSent(page, String(pub.id), GENERIC_SIM.siteHost);
     expect((await connection(s, connectionId)).status).toBe('connected');
     await shot(page, 'k2-u3-generic-manual-results');

@@ -143,7 +143,7 @@ describe('LA-E3-05 K1-SIM: Deep Linking completeness — picker multi-select, ca
       body: formBody.toString(),
     });
     expectStatus(postRes, 200);
-    expect(postRes.body).toContain('Adding the courses to your LMS');
+    expect(postRes.body).toContain('Adding the courses to LMS');
 
     const { fields } = parseForm(postRes.body);
     expect(fields.JWT).toBeTruthy();

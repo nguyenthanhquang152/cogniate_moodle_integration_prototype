@@ -142,7 +142,7 @@ describe('LA-E2-03 kernel admin-value setup adapter and lti-generic channel (K0 
       expect(() => kernel.parseManifest!(manifest)).not.toThrow();
     }
 
-    expect(manifest!.names).toEqual({ text: 'your LMS', label: 'Other LTI 1.3 platform' });
+    expect(manifest!.names).toEqual({ text: 'LMS', label: 'Other LTI 1.3 platform' });
     expect(manifest!.registration).toEqual([
       { method: 'dynamic', authority: 'self', profiles: ['lti-generic'], defaultProfile: 'lti-generic' },
       { method: 'manual', authority: 'operatorGrant', profiles: ['lti-generic'], defaultProfile: 'lti-generic' },
