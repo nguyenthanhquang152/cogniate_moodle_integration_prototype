@@ -388,3 +388,169 @@ The held prefix (47,297 B, SHA-256 `cd4e888ed523f9a41530cf79d3841770939dda416c82
 - **Dependencies:** the repair touches no repository file. M1 (v5 provider-all rounds), legacy (E-R4) and the C8 → C9 M2/T7 carry conditions do not change. Plan §13.6 corrects §12.6: M2 sends `m1-cli` and `m1-profile`, and both branches are unchanged.
 - **A-DH-01:** dated clarifications were appended to `docs/architecture/tasks/M1.md`, `docs/architecture/contracts/cogniate-app-api.md` and `docs/architecture/adr/ADR-012-sqlite-volume-storage.md`. They change no rule, outcome or assertion.
 - **AC-M4-06:** PENDING. It waits for accepted M1 rounds, M2, T7 and the approved route. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.
+
+## Round 6 — staged final conformance (prepared 2026-10-23, about 03:57–04:00 UTC; runtime verdict PENDING)
+
+Author: Architect, Claude Code `claude-opus-5-5`. Its effort is xhigh as configured; the Lead verified this from the worker-start receipt in `msg_6a09e3280009`, and the value is not visible inside the session. Task `task_3d6c622e0a24`, dispatch `ctx_cec474b5919e`, run `run_ebe671ad72a9`.
+The held prefix (49,186 B, SHA-256 `b5cf726619b78567589cf6daf7a725f020618a23bf4a8dac9e49b18be7034df5`, commit `5c8f2dc`) is unchanged. This section is append-only. I ran only read-only git, size and SHA-256 checks. I ran no test, Docker, build or install.
+This section prepares the final binding. **It gives no final verdict.** The verdict waits for the Lead's accepted runtime packet (R6.4).
+
+### R6.1 Identities (checked now)
+
+| Item | Value | Check |
+| --- | --- | --- |
+| Product C6 | `4008afb92fe983d52db33442e060210b929966c8` | C8 and C9 both equal C6 outside `docs/**` and `tests/**` (`git diff --quiet`). |
+| Tests C9 (M1) | `9eb504f5bff4be7e291570fde12fdf9919a07fa1`, tree `667e83a9a6a0187d742eb68a17293e4b7302100f` | C8 → C9 = the six §12 paths. `m1-control.mjs` is +21/−0 in one hunk after line 33. HEAD equals C9 under `tests`, `packages`, `services`, `apps` and `infra`. |
+| Tests C8 (M2, T7) | `5561e8f72a83de36a68877c6b26ffc8288ade735` | Static M2/T7 equivalence at C9: the `m1-cli` branch (`m1-control.mjs:18`) and the `m1-profile` branch (`:60`) lie outside the inserted block and are unchanged. `canvas/browser.ts`, `canvas/browser-diagnostics.mjs` and `common/coverage.mjs` are not in the diff. No M2 or T7 file sends `mode`. This is a static precondition, not a runtime result. |
+| M1 launcher v5 | `tools/launch-sim-c6-v5.sh`, 14,586 B, `9ea9e58d0e734869d4e5fa2d29c187039fb7a835e8d2dfa2c429a550903d5434` | Matches E-R7. |
+| Repaired monitor | `lane-watch-r4` core `d7b962b6…7561`, selftest `e7064c25…dc40d`, `lane-watch.mjs` byte-identical to the original | Matches E-R6 (`5ecf069`). Plan §14 records LW-R-01. |
+
+### R6.2 Source conformance (final unless new evidence changes it)
+
+**APPROVE.** Product C6 has not changed since Round 2 (R2.3, R2.8, R3.5). C8 and C9 change tests only.
+- Open in source: 0 BLOCKER and 0 MAJOR.
+- Open NITs AR-M4-01 to AR-M4-06 are unchanged; AR-M4-07 is closed.
+- The test-harness and tool findings (AR-M3-SD-01 and AR-M2-LW-01, both MAJOR) do not concern the source. C9 repaired AR-M3-SD-01, and two blind reviews approved C9. `lane-watch-r4` repaired AR-M2-LW-01, and a focused review approved it. For AR-M2-LW-01, runtime proof is still pending (M2, T7).
+- Deferred: AR-M2-LW-02 (MINOR), AR-M3-T609-01/02 (MINOR), and the A-DH and B-M1-DH NITs.
+
+### R6.3 Runtime evidence ledger now
+
+| Evidence | Identity | Status |
+| --- | --- | --- |
+| Legacy, all 12 groups (304 raw rows, 251 as the sum of unique IDs per group) | product C6, tests C8 | ACCEPTED under E-R4 (`26797fd`). C8 → C9 does not reach it: the legacy branch starts only `run-t*.mjs`, which load none of the six paths. |
+| Host source and unit checks (1,136 + infra 111) | C6 | ACCEPTED. No rerun. |
+| M1 `sim` round 1, 394 rows (26 common, 136 Blackboard, 232 Canvas) | product C6, tests C9 | ACCEPTED under E-R7 (03:50 UTC). I re-checked these values read-only: `m1-case-results.json` has 394 unique ids, all PASS, all at test SHA C9 and product SHA C6, including the seven dead-handler cases. Phase `summary.json` `63b28cae…7516`; cases `71ca7f81…791b`; `w4-end.json` `6b7e7e84…d55a`; `w4-compare.json` `41dc4ecf…cb25` (0 problems, protected records identical); index `065520ff…33af`; independent judge `sim394-judge.json` `6a144eff…a253` (verdict PASS, `notFull488Round` true); seven-case v2 `a48da55f…6c6c`; reconciliation `80553cfb…da54`; browser scan `80e7a99a…7c11`. |
+| M1 `sim` round 2, and exact equality with round 1 | product C6, tests C9 | PENDING. Run `qa-multi-r1-4008afb9-2026-10-23T03-55-11-800Z` started at 03:55:11 UTC (`msg_6a09e3280009`). |
+| 94 carried C4 full2 rows (6 snapshot-isolated incl. the separate Canvas row, 6 upgrade, 12 migration, 70 storage) | C4 | CARRIED under the E-R7 ledger. They are not fresh. |
+| M2: 64 cases, 13 criteria, seven gates, lane isolation | product C6, tests C8, lane `qa-e2e-sim-r7` | PENDING. Attempt 3 stays NOT ACCEPTED (monitor FAIL) and counts only as history. |
+| T7: three runs of 17, 15 criteria, demo ≤ 180 s, four confirmations | product C6, tests C8, lane `qa-e2e-m3-r3` | PENDING. It has never run at C8. |
+
+Allowed claim after completion: "394 fresh `sim` rows in two equal rounds plus 94 carried C4 rows". Not allowed: "fresh 488" or "fresh 233 Canvas".
+
+### R6.4 Checks for the final runtime packet
+
+For each item I verify the exact bindings that the Lead sends. I rerun nothing.
+1. **Round 2:** identities C6 and C9 with the v5 launcher; 394/394 PASS; 400 summary entries with six gates; 0 skips and 0 retries; strict W4 PASS; all 32 records unchanged; scans PASS; LA confirmation for the whole window; the independent judge PASS for round 2.
+2. **Equality:** the same 394 ids, each PASS in both rounds; the judge's equality verdict; all seven dead-handler preconditions bound in both rounds. Trace absence corroborates only; the lease assertion decides.
+3. **M2:** C6 and C8 on `qa-e2e-sim-r7`, port 8643, subnet `172.27.0.0/16`; the `lane-watch-r4` manifest checked just before launch; 64/64 cases, 13 criteria, seven gates, 0 skips and 0 retries; `isolationPass` true as written. Every `listing_vanish` needs (a)–(d), the destroy event and the private-file binding (plan §14). Also W4, sampler, secret scan and the LA confirmation.
+4. **T7:** C6 and C8 on `qa-e2e-m3-r3`, port 8543, subnet `172.31.0.0/16`; three runs of 17 PASS, with only the permitted demo-only skip; 15 criteria; demo ≤ 180 s; four confirmation and refusal checks; monitor in teardown mode with the `--keep` proof and `isolationPass` true; B-TW-02 and B-TW-03; scans; LA confirmation.
+5. **Final M2/T7 identity sentence**, written only after items 3 and 4: "M2/T7 actual run C8; equivalent at C9 for M2/T7 (six-path diff; pure insertion reached only by `mode`; `m1-cli` and `m1-profile` unchanged; no `mode` sender); product C6".
+
+Decision rule:
+- If all five items hold, with no new BLOCKER or MAJOR: AC-M4-06 APPROVE for product C6, with the mixed accepted test identities above.
+- If any fresh failure, unequal rounds or product change occurs: no APPROVE, and I re-assess after a Lead decision.
+
+### R6.5 What the final verdict will separate
+
+- **Source conformance:** R6.2.
+- **Accepted runtime evidence (mixed identities):** the R6.3 rows. All are SIM or the local MOODLE-LIVE upgrade and rollback rows. None is a real hosted LMS.
+- **Prototype limits (carried unchanged):**
+  - All 32 real-LMS rows are UNVERIFIED, including L-C14 (signing-key rotation). Local Canvas is DEFERRED.
+  - The portal answers for `GRANT_IN_USE`, `DEPLOYMENT_FIXED` and `ISSUER_RESERVED` are unverified at the portal, as carried. For `ISSUER_RESERVED` see AR-M4-04. `DEPLOYMENT_FIXED` is a unit test only (AC-M1-37 (l)).
+  - The self-hosted Canvas grant-first residual race (A-M0-10 / D-12): prompt rightful redemption narrows it but does not close it.
+  - `operation_lock_invalid` means STOP and escalate. There is no validated manual recovery.
+  - Tracker limits: A-TR-01 (Chromium `pagehide` before `load` unverified), A-TR-02 / B-M3TR-01 (document retention), A-TR-04 / B-M3TR-02 (WindowProxy cleanup and the unit-model limit), B-M3TR-03 (comment). The nominal 10 ms and 150 ms intervals are not wall-clock guarantees.
+  - AR-M3-T609-01/02: keys typed before route focus settles can be lost.
+  - After SIGKILL, the app log can lose its last lines.
+  - The Docker restart policy after a kill is not measured.
+  - Q19–Q22 (`docs/architecture/open-questions.md`, `docs/human_review/decisions-needed.md`).
+  - Q-M4-P01, Q-M4-P02 and A-M4P-R2-01.
+- **Enterprise work (not in the prototype):** D-1 to D-12 in `docs/human_review/decisions-needed.md`, including D-12 (identifier reservation or quarantine); real-LMS verification; a validated storage-lock recovery. No certification, enterprise-readiness or human-approval claim.
+- **Closure steps after the verdict (Lead grant needed; I will not edit these now):** DC-1 (ADR-011 status line) and DC-2 (ADR-012 status line); the AR-M4-03 to AR-M4-06 text fixes, if granted; final guides, independent Docs QA and two blind final reviews.
+
+### R6.6 Status
+
+AC-M4-06: **PENDING**. Source APPROVE. Accepted runtime so far: legacy, host and unit checks, and M1 round 1. Pending: M1 round 2 and equality, M2 and T7.
+
+### R6.7 Proposed basis for the Lead's ADR-012 decision (DC-2 input; prepared about 04:05–04:07 UTC)
+
+This is a proposal for the Lead's decision. It is not that decision. I read the ADR-012 history (lines 3–18), the named review files and git ancestry; nothing else.
+
+| Revision | Scope | Implementation (ancestor of C6) | Prior review and QA | Accepted runtime evidence |
+| --- | --- | --- | --- | --- |
+| 3.3 (accepted design, `5f3337a`) | The whole storage design | the M1 storage implementation in C4/C6 | G1 reviews and QA; the four 3.3 precision items (A-S-14, B-S-23, G1-QA-01, G1-QA-02) are "addressed pending implementation verification" | 72 AC-M1-41 rows (70 in the `storage` phase, 1 migration, 1 upgrade) passed in both C4 full2 rounds and are carried. Guarded `stack:up` and `stack:restart` ran in every accepted later run at C6 (legacy E-R4, M1 round 1). |
+| 3.4 (`stack:reset` content parent) | §3, §7, §15, §16 | `89fb4b4` | `storage-reset-parent-reviewer-a.md` (`9168fed`) APPROVE; `-b.md` (`9f0d9ec`) APPROVE; `reset-parent-q1q2-qa.md` Round 2 PASS | as for 3.3; the Lead confirms which of the 72 rows exercise it |
+| 3.5 (content check before the first target write) | §6, §8, §11 item 5, §16; new refusal `content_check_failed` | `aaa823b` | `content-refusal-reviewer-a.md` (`a4488ac`) APPROVE; `-b.md` (`a32fb10`) APPROVE; `content-refusal-qa.md` (`18aa600`) PASS | the content-refusal rows of the 72 (the Lead confirms the list) |
+| 3.6 (§4 root read-only precision; O-1) | text only, no product code | — | `storage-repair-reviewer-b.md` Target 2 at `ab28585` APPROVE; O-1 recorded as CLOSED (Round 1 §7; plan, Lead `msg_39a0ab73c8af`) | `d-mountpoint` of the 72 (the Lead confirms) |
+| 3.7 (W-1: exit status after `storage_lock_lost`) | §7 release step 1, §12 | `9f8ac62` (Q-R1A-01 closed) | design: `storage-release-design-reviewer-a.md` (`d8ca978`) APPROVE, `-b.md` (`f8c0d41`) Round 2 APPROVE; source: `storage-release-reviewer-a.md` (`eeb9060`) APPROVE, `-b.md` (`87e7036`) APPROVE; `storage-command-qa.md` Round 2 PASS | the lock rows of the 72 (the Lead confirms the list) |
+
+The Lead must confirm these inputs; I did not verify them:
+- that the "addressed pending implementation verification" status of the four 3.3 items is closed by the M1 storage QA and the 72 rows;
+- the result class of the single conditional row `M1-41.common.c-host-negative` in both C4 full2 rounds (PASS or `NOT_APPLICABLE` with evidence, ADR-012 §14);
+- that every row named above is in the carried 94-row ledger.
+
+Limits that stay with any acceptance:
+- The lock-orphan guarantee holds only for the measured G-1 identities (§17: macOS, Docker CLI and Compose binaries).
+- `stack:down` stopping a running storage container is not measured.
+- `operation_lock_invalid` means STOP and escalate. There is no validated manual exit.
+- R1-A QA O-1 (quiet A6 release) is an accepted MINOR deferral, and so are the storage-harness MINOR items in Round 1 §7.
+- The released-v10 and `011` rows carry the §12 qualifier.
+- The evidence is SIM, on one host. There is no production or enterprise storage claim.
+
+Proposed status wording, for use only after the Lead decides:
+
+> Status: **Accepted for the prototype**, revisions 3.3–3.7, as implemented in product C6 `4008afb92fe983d52db33442e060210b929966c8`. Lead decision: <reference>. Evidence: the 72 AC-M1-41 rows passed in both C4 full2 rounds (carried, unchanged at C6), plus the guarded paths of every accepted later run. Limits: the G-1 measured identities only; `operation_lock_invalid` STOP/ESCALATE with no validated manual exit; deferred MINOR items as recorded; SIM on one host. This is not production or enterprise storage acceptance. Final conformance: AC-M4-06 in `docs/reviews/M4/architect-conformance.md`.
+
+The revision-history bullet would record the same decision reference and say that no rule changes.
+
+### R6.8 Review of the QA carried-evidence mapping for ADR-012 (about 04:17 UTC)
+
+Input: `R/judge/c4-adr012-carried-evidence-mapping.json` (R = the C8 preparation root), 21,273 B, SHA-256 `e29e7cc589af465b66d19d1326455bfcc6bbdc7ce680ccc3479babbe27915ae6` (independent Gemini, `msg_646e5b2ec92f`). I read it host-only and spot-checked three bindings: the two `c-host-negative` oracle files (`6b3fb6e7…6d3e66`, `c3ac8a81…49de1`), and the two migration case files. The migration files are separate files in separate run folders with identical content (`4098d6ca…d0a5`, 3,751 B; the records carry no times). The mapping answers the three R6.7 inputs:
+
+1. **The four 3.3 items are closed, with stated limits.**
+   - B-S-23 and G1-QA-02 are closed.
+   - A-S-14 is closed only for the measured G-1 identities: macOS 27.0.1 arm64, Docker CLI 29.9.1, Compose 5.6.0, `/bin/bash` 3.2.57. The identity file is checked at every phase boundary of all 10 C4 full2 phase runs.
+   - G1-QA-01 is closed within the Docker volume limit: a volume has no generation id, so a re-creation inside a run with the same name, second and metadata cannot be told apart. All 10 phase runs had 0 ledger errors, 0 kept and 0 failed removals.
+2. **`M1-41.common.c-host-negative` was EXECUTED PASS in both rounds** (not `NOT_APPLICABLE`, not SKIP). On this Docker Desktop host, QA's two-process oracle showed that the WAL lock is **not** enforced on the host bind mount. The candidate probe then reported `lock_not_enforced`. This PASS proves that the fault is detected. It does not prove that bind mounts enforce locks; that is why the design keeps the databases on named volumes.
+3. **All 72 AC-M1-41 rows are in the carried 94** and passed in both rounds. The rows mapped to each revision are: 3.4, 5 rows; 3.5, 14 rows; 3.6, 4 rows; 3.7, 10 rows. The C4 → C6 product diff is the two tracker files only (R2.2), so the storage implementation is byte-equal at C6.
+
+Provenance that must stay separate:
+- The 3.5 refusal code `content_check_failed` has unit-test evidence only (U5, ADR-012 §16). Runtime rows exercise `content_missing` and the pass paths.
+- The 3.7 exit status after `storage_lock_lost` or another release error is proven by targeted host fault injection (`storage-command-qa.md` Round 2). The runtime rows exercise the repaired helper on normal, contention, stale-reclaim, reentry, orphan and old-build routes, not on the lost-lock path.
+
+**Result:** the R6.7 inputs are satisfied. My proposed ADR-012 wording stays narrow. It adds three limits: "G-1 measured identities only", "no volume generation id", and "`content_check_failed` and the lost-lock exit path have unit and host fault-injection evidence, not runtime rows". The Lead's decision is still pending with the final runtime packet. No ADR edit has been made.
+
+### R6.9 M1 two-round binding (about 04:25 UTC)
+
+The Lead accepted both C9/v5 rounds and their equality in `msg_a9b55f6d70f4`. Supporting messages: Common `msg_33e8bb4c54ea`, independent `msg_ce2003da6f74`, LA whole-window `msg_d645ad7dc42d`. I re-checked the following read-only:
+- **Round 2** `qa-multi-r1-4008afb9-2026-10-23T03-55-11-800Z`: `m1-case-results.json` (`fd4109c7…33a6`) has 394 unique ids, all PASS, all at test SHA C9 and product SHA C6. All seven dead-handler cases PASS.
+  - phase `summary.json` `d194e24c…bce`
+  - `w4-end.json` 19,931 B `9db85395…57be`
+  - `w4-compare.json` `12c0b3b9…8c3b` (no problems; protected records identical)
+  - index `bf8e126d…3ebf`
+  - judge `sim394-judge.json` `b772a382…0d41` (round 2, PASS, `notFull488Round` true)
+  - seven-case `dead-handler-7cases.json` `13d71c0b…5337`
+- **Equality:** `compare-sim394-c9-v5-rounds.json` `bb42dea4…db5e` reports the same product and test SHAs, distinct artifacts, 394 compared rows, no differences, PASS. My own comparison of the two case files gives the same id set and the same status for every id.
+- **M1 status:** accepted. 394 fresh `sim` rows in two equal rounds at C6/C9, plus 94 carried C4 rows (separate). No "fresh 488" claim.
+
+Pending for AC-M4-06: M2 (granted once in `msg_1d96a40f0530`) and T7, and then the Lead's final packet and ADR decision.
+
+### R6.10 M2 pre-W3 bridge change: assessment (about 04:29 UTC)
+
+Lead `msg_623ace81aae9` reported a bridge-only replacement between the accepted M1 round 2 W4 and the M2 formal W3. The prelaunch hold that the grant required was missed, and the Lead reconciled the change after launch. My assessment is in `msg_847a71904bb4`.
+
+- **Facts** (the Lead's check plus the M2 window files):
+  - The default bridge was `ea3da34c…` (created 03:50:59Z). It became `7dac5c96…` (created 04:25:27.452Z).
+  - The 32 volume records, the containers, identity, settings, the host and none networks, and the bridge options, IPAM and labels are identical.
+  - W1 wake was at 04:25:25.588Z, W2 at 04:25:33.371Z, formal W3 at 04:25:41.655Z, and the runner start at 04:25:46.176Z.
+- **Inference:** this is the accepted idle-VM class. W1 resumed the Docker Desktop VM, and the VM recreated the bridge. This is the same class as the reconciled M1 round 2 preflight (`msg_bd8b9106f0cc`) and the E-R6 rule for pre-W3 bridge replacements.
+- **Assessment:** no runtime repeat is needed for validity.
+  - The hold is a launch-sequencing control. The late reconciliation used the same immutable pre-run records and reached the outcome that a timely hold would have reached.
+  - The strict W3 → W4 comparison covers the whole run.
+  - The lane uses its own compose network, so no M2 result depends on the default bridge.
+- **Conditions:** C1, the strict W3 → W4 comparison passes with the new bridge unchanged. C2, the predecessor W4 and the M2 W3 are bound by hash, with the bridge-only difference stated. C3, the LA whole-window confirmation covers the M1 round 2 W4 end through the M2 W4 end, and the sampler shows no foreign activity. C4, the accepted M2 record discloses the missed hold and the late reconciliation, with no check waived. If any condition fails, a new Lead decision is needed. There is no automatic retry.
+- **T7:** compare the predecessor networks before launch, and hold on any change.
+
+### R6.11 Held checkpoint: M2 accepted; T7 pending (about 04:35 UTC)
+
+- **M2, accepted by the Lead** (`msg_b030b1970a3b`, from QA `msg_92b67a4ab1c8`). Run `qa-e2e-sim-r7-5561e8f7-2026-10-23T04-25-46-176Z` at tests C8 and product C6, lane `qa-e2e-sim-r7`. I spot-checked read-only:
+  - `m2-case-results.json` `4baa0281…4aef`: 64 rows, all PASS, test SHA C8.
+  - The runner `summary.json` (`9354bc51…57b7`): PRE, CLONE, H1, M2-STACK, M3-07-M2, M3-06-M2 and TEARDOWN all PASS.
+  - The `lane-watch-r4` `summary.json` (`0ae9320a…2353`): `isolationPass` true, `ownershipErrors` 0, lane end 0/0/0. `watch.jsonl` has no `listing_vanish`.
+  - `w4-compare.json` `9978db7b…476f`: no problems, protected records identical.
+  - The bridge disposition C1–C4 is bound by QA `pre-w3-bridge-reconciliation-v2.json` (`f75f9617…771a`); v1 is preserved.
+  - LA `msg_45142bff415a` confirms 04:20:15.304–04:30 by its no-grant and no-mutation report and its inventory. Its event history shows only the last 256 events, so it is not whole-window event proof. It stands together with our sampler and boundaries.
+  - Attempt 3 stays NOT ACCEPTED as history.
+- **Static M2/T7 equivalence at C9** (R6.1) now applies to an actual M2 result: "M2 actual run C8; equivalent at C9 for M2 (six-path diff; pure insertion reached only by `mode`; `m1-cli` and `m1-profile` unchanged); product C6".
+- **T7: PENDING.** Grant `msg_d04d641ae347` required the runner to start by 04:33. That did not happen, and the Lead ordered HOLD with no late launch. No LTI Docker window is planned before 07:45 UTC.
+- **AC-M4-06: PENDING** until T7 is accepted and the Lead's final packet and ADR-012 decision arrive. Source APPROVE. Accepted runtime: legacy, host and unit checks, M1 (two equal 394-row rounds plus the 94 carried rows) and M2.
