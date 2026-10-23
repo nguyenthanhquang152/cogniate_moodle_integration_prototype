@@ -132,7 +132,17 @@ Acceptance points (Could): AP-08-06: on the simulator, a check of a correct Canv
 
 Rules: library scope only; ids, codes and public key ids only (no learner data, no token); one database read per source; no outbound call (the JWKS read is cached 60 s). The portal shows a warning when `artifactKeyCurrent` is false ("Paste a new {LMS} key JSON") and when `oldestPendingAt` is older than 1 hour.
 
-Operator use: before a signing key activation, the operator lists the connections whose `artifactKeyKid` is not the **next** kid ([operability §6.1](../operability.md)). Operator command (Could): `app:connections health --stale-artifact-key` (read only; app container shell).
+Build notes (BD-A2-100; LA-E6-02, lane P, ratified):
+
+- `keys.nextKid` is `null` in LA. The public JWKS has no key status, and after a rotation its second key is a retired one, so the next kid cannot be derived. It needs a source with status (for example a signing-key field on a tenant account read), which LA does not build.
+- `keys.artifactKeyCurrent` is `null` when `artifactKeyKid` is `null` or the active kid cannot be read; else `artifactKeyKid === activeKid`. The portal warns only on `false`.
+- A `check` event has `code` `ok`, or the failed parts in the order `jwks`, then `token`, each as `<part>:<detail>` with a contract delta §2.6 detail value, joined by one space (for example `jwks:invalid_jwks token:invalid_client`). `lastCheck {at, jwks, token}` comes from the newest `check` row: a part that is not in the failed list is `true`.
+- `dispatch.lastError.code` is the `CODE` of the stored `"<status> <CODE>: <text>"` when it matches `[A-Z][A-Z0-9_]*`, else `null`; never the free text. `lastError` is the newest row of the connection's placements with a `last_error`; `at` is its `updated_at`.
+- `events` are the kept rows (at most 100, 30 days), newest first.
+- Disconnect and suspend events are not written in LA: no task owns their call sites (K files). This is a deferral (Lead: `deferred.md`).
+- Portal: on every connection page, a collapsed "Connection health" section, with the two warnings outside it when they apply. There is no `role="alert"`, and the labels do not repeat the overview texts, so the M2 and T6 selectors do not change.
+
+Operator use: before a signing key activation, the operator lists the connections whose `artifactKeyKid` is not the **next** kid ([operability §6.1](../operability.md)). The operator reads the next kid from `GET /operator/v1/accounts/<id>/signing-keys` (status `next`), because the health answer has no `nextKid` in LA (BD-A2-100). Operator command (Could): `app:connections health --stale-artifact-key --next-kid <kid>` (read only; app container shell).
 
 Acceptance points (Could):
 
