@@ -4,7 +4,7 @@ import type { ChannelManifest, ErrorTextKey } from "@cogniate/channel-kernel";
 import { ApiError } from "../api.ts";
 import { ChannelScope } from "../channels/context.tsx";
 import { channelRegistry } from "../channels/registry.ts";
-import { ProviderErrorNotice, providerErrorMessage } from "./provider-errors.tsx";
+import { ChannelErrorNotice, ProviderErrorNotice, channelErrorText, providerErrorMessage } from "./provider-errors.tsx";
 
 afterEach(cleanup);
 const errors: Record<ErrorTextKey, ApiError> = {
@@ -81,5 +81,33 @@ describe("provider error texts from the channel manifest (BD-A1-63, LA-IC-20)", 
     expect(notice(null, errors.SITE_RULE_5)).toContain(generic.SITE_RULE_5);
     expect(notice(undefined, errors.DEPLOYMENT_FIXED)).toContain(generic.DEPLOYMENT_FIXED);
     expect(notice(channel("blackboard"), errors.DEPLOYMENT_FIXED)).toEqual([m1.DEPLOYMENT_FIXED, "Code: DEPLOYMENT_FIXED"]);
+  });
+});
+
+describe("channel texts only, for forms that show the server texts (A-LA-E1-12-01)", () => {
+  const server = (status: number, message: string) => new ApiError(status, { message, description: `Server text of ${message}.`, action: "Server action." }, "trace-2");
+  it("gives the channel or generic text for the texts.errors codes and nothing for the other errors", () => {
+    for (const key of keys) {
+      expect(channelErrorText(errors[key], channel("canvas")), key).toBe(providerErrorMessage(errors[key], channel("canvas")));
+      expect(channelErrorText(errors[key]), key).toBe(generic[key]);
+    }
+    expect(channelErrorText(errors.PLATFORM_IN_USE, named)).toBe("This Test learning site key is in use. Make a new Test learning site key.");
+    for (const code of ["INVALID_PLATFORM_VALUES", "GRANT_INVALID", "CONNECTION_NOT_PENDING", "PROVIDER_NOT_READY", "LTI_SERVICE_ERROR", "INVALID_SITE_URL"])
+      expect(channelErrorText(server(422, code), channel("moodle")), code).toBeUndefined();
+    expect(channelErrorText(new ApiError(422, { message: "INVALID_SITE_URL", rule: 4 }), channel("canvas"))).toBeUndefined();
+    expect(channelErrorText(new Error("network"))).toBeUndefined();
+  });
+  it("keeps the server text and action of the other errors, and replaces only the text of a texts.errors code", () => {
+    const shown = (manifest: ChannelManifest | null, error: unknown) => {
+      const view = render(<ChannelScope manifest={manifest}><ChannelErrorNotice error={error} /></ChannelScope>);
+      const text = within(screen.getByRole("alert")).getAllByText(/./).map((node) => node.textContent);
+      view.unmount();
+      return text;
+    };
+    for (const code of ["INVALID_PLATFORM_VALUES", "PROVIDER_NOT_READY", "LTI_SERVICE_ERROR"])
+      expect(shown(channel("moodle"), server(409, code))).toEqual([`Server text of ${code}.`, "Server action.", `Code: ${code}`, "Trace id: trace-2"]);
+    expect(shown(channel("moodle"), server(409, "PLATFORM_IN_USE"))).toEqual([generic.PLATFORM_IN_USE, "Server action.", "Code: PLATFORM_IN_USE", "Trace id: trace-2"]);
+    expect(shown(channel("blackboard"), server(409, "DEPLOYMENT_IN_USE"))).toEqual([m1.DEPLOYMENT_IN_USE, "Server action.", "Code: DEPLOYMENT_IN_USE", "Trace id: trace-2"]);
+    expect(shown(null, new Error("Network down"))).toEqual(["Network down"]);
   });
 });

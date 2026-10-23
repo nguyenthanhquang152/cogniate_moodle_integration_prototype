@@ -8,7 +8,7 @@ import { Link } from "@cogniate/portal-sdk";
 import { ArrowRight, ShieldCheck } from "@cogniate/portal-sdk";
 import { api } from "@cogniate/portal-sdk";
 import type { Connection } from "@cogniate/portal-sdk";
-import { ErrorNotice } from "@cogniate/portal-sdk";
+import { ChannelErrorNotice } from "@cogniate/portal-sdk";
 import { siteError } from "./validation.ts";
 
 export function CreateConnection({
@@ -129,7 +129,7 @@ export function CreateConnection({
               ))}
             </div>
           </fieldset>
-          <ErrorNotice error={error} />
+          <ChannelErrorNotice error={error} />
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" disabled={busy}>
               {busy ? "Creating connection…" : "Continue"}

@@ -36,15 +36,24 @@ function channelTextKey(code: string | undefined, rule: number | undefined): Err
   return code === "PLATFORM_IN_USE" || code === "DEPLOYMENT_IN_USE" || code === "DEPLOYMENT_FIXED" ? code : undefined;
 }
 
+/**
+ * The text of an error whose text can name an LMS (the `texts.errors` keys): the channel's own text, else the generic
+ * text. Undefined for every other error. `channel`: the channel of the error (its manifest).
+ */
+export function channelErrorText(error: unknown, channel?: ChannelErrorTexts | null): string | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  const key = channelTextKey(error.details.message, error.details.rule);
+  if (!key) return undefined;
+  const text = channel?.texts.errors?.[key];
+  return channel && text ? fillText(text, { LMS: channel.names.text }) : genericTexts[key];
+}
+
 /** The safe text of a provider error. `channel`: the channel of the error (its manifest); without it, the generic texts. */
 export function providerErrorMessage(error: unknown, channel?: ChannelErrorTexts | null): string | undefined {
   if (!(error instanceof ApiError)) return undefined;
+  const text = channelErrorText(error, channel);
+  if (text) return text;
   const { message: code, rule } = error.details;
-  const key = channelTextKey(code, rule);
-  if (key) {
-    const text = channel?.texts.errors?.[key];
-    return channel && text ? fillText(text, { LMS: channel.names.text }) : genericTexts[key];
-  }
   if (code === "INVALID_SITE_URL") return siteRules[rule ?? 0];
   if (code === "LTI_SERVICE_ERROR")
     return `Cogniate could not save the connection. Try again. Trace id: ${error.traceId ?? "unavailable"}`;
@@ -63,5 +72,16 @@ export function ProviderErrorNotice({ error }: { error: unknown }) {
       ...error.details, description: message,
       action: error.details.message === "PROVIDER_NOT_READY" ? providerNotReadyAction : error.details.action,
     }, error.traceId)
+    : error} />;
+}
+/**
+ * The server's error, with one change: an error whose text can name an LMS shows the text of the channel in context,
+ * else the generic text (`channelErrorText`). For forms that show the server texts for every other error: the shell
+ * default wizard and binding form, and the Moodle forms (BD-A1-63, LA-IC-20).
+ */
+export function ChannelErrorNotice({ error }: { error: unknown }) {
+  const message = channelErrorText(error, useCurrentChannel());
+  return <ErrorNotice error={error instanceof ApiError && message
+    ? new ApiError(error.status, { ...error.details, description: message }, error.traceId)
     : error} />;
 }
