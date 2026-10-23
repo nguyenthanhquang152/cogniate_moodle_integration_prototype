@@ -18,29 +18,30 @@ afterEach(async () => { vi.restoreAllMocks(); for (const fn of close.splice(0)) 
 const accountOf = (deps: LaunchDeps & { db: Db }, id = 'cogniate') => getAccount(deps.db, id);
 const parseData = (html: string): Record<string, string> => JSON.parse(html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!) as Record<string, string>;
 
-async function setup(deepLinking = false) {
+async function setup(deepLinking = false, account = 'cogniate') {
   const h = await harness({ simulationProfiles: true });
   close.push(async () => { await h.app.close(); h.db.close(); });
   const profile = findProfile('canvas-sim-cloud', { simulation: true })!;
   const endpoints = profileEndpoints(profile, { siteUrl: 'https://school.example.test', clientId: CLIENT_ID });
-  const platform = createPlatform(h.db, 'cogniate', {
+  const target = `${URLS.lti}/lti/launch/${account}?resource=seed`;
+  const platform = createPlatform(h.db, account, {
     issuer: endpoints.issuer, clientId: CLIENT_ID, name: 'Unit', active: true,
     authEndpoint: endpoints.authenticationEndpoint, tokenEndpoint: endpoints.accesstokenEndpoint, jwksUrl: endpoints.jwksUrl,
     profile: profile.id, siteUrl: 'https://school.example.test', deploymentIds: ['1'],
   });
-  const login = await h.app.inject({ method: 'POST', url: '/lti/login/cogniate', headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: loginForm({ iss: platform.issuer, lti_storage_target: 'forwarding' }) });
+  const login = await h.app.inject({ method: 'POST', url: `/lti/login/${account}`, headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: loginForm({ iss: platform.issuer, lti_storage_target: 'forwarding', target_link_uri: target }) });
   expect(login.statusCode).toBe(200);
   const auth = new URL(parseData(login.body).authUrl!);
   const state = auth.searchParams.get('state')!;
   const claims = moodleClaims({
-    iss: platform.issuer, nonce: auth.searchParams.get('nonce'), email: 'private@example.test',
+    iss: platform.issuer, nonce: auth.searchParams.get('nonce'), email: 'private@example.test', [CLAIM.targetLinkUri]: target,
     [CLAIM.toolPlatform]: { product_family_code: 'canvas' },
     ...(deepLinking ? { [CLAIM.messageType]: 'LtiDeepLinkingRequest', [CLAIM.deepLinkingSettings]: { deep_link_return_url: 'https://school.example.test/deep-return' } } : {}),
   }, Math.floor(h.clock.now / 1000));
   const form = { state, id_token: await sign(h.key, claims) };
   const deps = { db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), logger: capturingLogger().logger, now: () => h.clock.now, ltikTtlSeconds: 86400, profiles: { simulation: true } };
   const start = async () => {
-    const page = await handleLaunch(deps, accountOf(deps), form, undefined, 'unit-storage');
+    const page = await handleLaunch(deps, accountOf(deps, account), form, undefined, 'unit-storage');
     if (!page.ok || page.kind !== 'storage') throw new Error('Expected storage page');
     return { page, check: parseData(page.page.html).check! };
   };
@@ -68,6 +69,28 @@ it.each([false, true])('prepares minimized claims without an ltik, then complete
   expect(redirect.searchParams.get('ltik')).toMatch(/^[A-Za-z0-9_-]{43}$/);
   expect(h.db.prepare('SELECT * FROM launch').all()).toHaveLength(1);
   expect((await handleStorageCheck(deps, accountOf(deps), { check, value: state }, URLS.lti))).toMatchObject({ ok: false, detail: 'storage_check_unknown_used_or_expired' });
+});
+
+// BD-A2-103: CSP3 form-action covers the redirect chain, so the page allows the one tool origin of its own 303.
+it.each([
+  ['(1) a resource link check allows the launchUrl origin', 'cogniate', false, 'https://launch.tools.example'],
+  ['(2) a Deep Linking check allows the deepLinkingUrl origin', 'cogniate', true, 'https://dl.tools.example:8443'],
+  ['(3) a second account allows its operator-set launchUrl origin, not PUBLIC_APP_URL', 'qa-second', false, 'https://second.tools.example'],
+] as const)('BD-A2-103: %s', async (_, account, deepLinking, origin) => {
+  const { h, deps, state, start } = await setup(deepLinking, account);
+  // Two tool URLs on two origins for cogniate, so each case shows which URL the page takes.
+  const urls = account === 'cogniate'
+    ? { launchUrl: 'https://launch.tools.example/tool/launch', deepLinkingUrl: 'https://dl.tools.example:8443/tool/deep-link' }
+    : { launchUrl: 'https://second.tools.example/tool/launch' };
+  updateAccount(h.db, account, urls, h.clock.now);
+  const { page, check } = await start();
+  expect(page.page.headers['content-security-policy']!.replace(/'nonce-[^']+'/, "'nonce-N'"))
+    .toBe(`default-src 'none'; script-src 'nonce-N'; frame-ancestors https:; form-action 'self' ${origin}; base-uri 'none'`);
+  expect(page.page.headers['content-security-policy']).not.toContain(URLS.app);
+  // The 303 of the check goes to exactly that origin.
+  const result = (await handleStorageCheck(deps, accountOf(deps, account), { check, value: state }, URLS.lti));
+  if (!result.ok || result.kind !== 'redirect') throw new Error('Expected accepted launch');
+  expect(new URL(result.location).origin).toBe(origin);
 });
 
 it('refuses the wrong origin before consumption and consumes a mismatch before a retry', async () => {

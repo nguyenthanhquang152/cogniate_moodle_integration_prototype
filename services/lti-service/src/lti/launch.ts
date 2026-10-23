@@ -81,13 +81,16 @@ export function toolRedirect(toolUrl: string, targetLinkUri: string, ltik: strin
   return out.href;
 }
 
+/** The tool URL that a launch goes to: the Deep Linking URL or the resource link launch URL of the account. */
+const toolUrlOf = (account: ToolAccount, messageType: string): string => (messageType === 'LtiDeepLinkingRequest' ? account.deepLinkingUrl : account.launchUrl);
+
 /** Both browser bindings finish through the same launch store and redirect builder. */
 async function completeLaunch(deps: LaunchDeps, account: ToolAccount, prepared: PreparedLaunch, stateHash: string, binding: 'cookie' | 'storage', now: number): Promise<AcceptedLaunch> {
   const { removedClaims, ...input } = prepared;
   const { ltik } = (await storeFor(deps.db).launches.createLaunch({ ...input, toolAccountId: account.id }, deps.ltikTtlSeconds, now));
   const toolPlatform = prepared.claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   if (toolPlatform && typeof toolPlatform.product_family_code === 'string') (await storeFor(deps.db).platforms.setProductFamilyCode(prepared.platformId, toolPlatform.product_family_code));
-  const toolUrl = prepared.messageType === 'LtiDeepLinkingRequest' ? account.deepLinkingUrl : account.launchUrl;
+  const toolUrl = toolUrlOf(account, prepared.messageType);
   return { ok: true, kind: 'redirect', binding, location: toolRedirect(toolUrl, prepared.claims[CLAIM.targetLinkUri] as string, ltik), clearCookie: clearCookieFor(stateHash), toolAccountId: account.id, platformId: prepared.platformId, messageType: prepared.messageType, removedClaims };
 }
 
@@ -185,7 +188,11 @@ export async function handleLaunch(deps: LaunchDeps, resolved: ToolAccount | nul
     };
     if (useStorage) {
       const check = (await storeFor(deps.db).storageChecks.createStorageCheck(account.id, { stateHash: rec.stateHash, prepared }, now));
-      const page = storageCheckPage({ postUrl: `${protocolUrls.launch}/storage-check`, check, stateHash: rec.stateHash, target: rec.storageTarget!, origin: rec.storageOrigin! });
+      // BD-A2-103: the page may submit to us and follow our 303 to the tool URL of this prepared launch.
+      const page = storageCheckPage({
+        postUrl: `${protocolUrls.launch}/storage-check`, check, stateHash: rec.stateHash, target: rec.storageTarget!, origin: rec.storageOrigin!,
+        toolUrl: toolUrlOf(account, prepared.messageType),
+      });
       return { ok: true, kind: 'storage', page, clearCookie };
     }
     return (await completeLaunch(deps, account, prepared, rec.stateHash, 'cookie', now));
