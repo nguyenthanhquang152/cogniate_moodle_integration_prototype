@@ -45,6 +45,7 @@
       ]
     },
     "urlExpires": "This URL expires {time}.",
+    "registered": "{LMS} sent the registration. The registration URL is not necessary now. In the next step, check the Client ID and the Deployment ID. Then enter the approval code from your Cogniate operator and select Save.",
     "waiting": "Finish the registration in {LMS}. Then this page shows the values to check."
   }
 }

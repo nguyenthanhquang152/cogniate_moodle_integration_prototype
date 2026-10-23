@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 4
+Verdict: CHANGES_REQUESTED
+Round: 5
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -196,3 +196,39 @@ My independent frozen-suite scan agrees with the record. M2 checks site rules 1/
 - **B-LD9-03 closed.** `1babba9` adds a short summary and three `visibleChanges` entries, each with what changed, before/after values, source location and why no assertion moves. The publish modal, logo colour and logo title are now independently readable. The empty delta is unchanged. Other earlier findings are outside this dispatch and retain their last reviewed status.
 - In a private `git clone --no-hardlinks`: **12/12 golden K0 tests** and **100/100 author tests across all seven files named by LA-IC-20 passed**. Six independent comparator checks confirmed that LA-IC-18 and LA-IC-20 each accept the unchanged stored capture and reject an altered API issuer or G4 string.
 - Restoring only the pre-`8e061ce` provider-error helper made **six of its seven new tests fail**, covering all three baseline channels, the generic fallback, placeholder filling and context-bound notices. The unchanged generic-independent text test still passed. The source was restored and the private clone was clean. This verifies the listed unit evidence; it does not claim execution of M2, T6 or K2.
+
+## Round 5
+
+Reviewed the three records and their index/golden-test changes in `19da95e`, merged at `4d08fc1`, against LA-ADR-04 D8, the cited BD decisions and source at `326ceae`. Same Reviewer-B lens; blind review. **CHANGES_REQUESTED: 1 MAJOR and 1 MINOR, no new BLOCKER or NIT.** B-LD9-07 is closed; earlier findings outside this dispatch retain their last reviewed status.
+
+### LA-IC-03 — CHANGES_REQUESTED
+
+The empty golden and frozen-test lists are supported: G1 leaves Moodle connections pending; G2–G4 use Canvas/Blackboard; the frozen real-Moodle DR flows use the expected endpoint. T3b's foreign-issuer negative case fails before its missing Deep Linking message matters. The NRPS task-fixture correction is named and its issuer/path change is present in `18fa1d3` / `dbc80e9`. However, the additional task-suite impact scan is incomplete.
+
+#### B-LD9-08 — MAJOR — A query-bearing simulator fixture is incorrectly marked unaffected
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-03.json:39`, repeated in `scanResult` at line 43; both index summaries also omit this fixture impact.
+- **Problem:** The record says the LA-E5-06 fixture is unchanged because its URL pathname matches the required endpoint, but the product compares the full configuration URL. This omits an affected positive QA flow from the impact inventory.
+- **Evidence:** At `326ceae`, `tests/sim/core/runtime.mjs:304` returns `…/mod/lti/openid-configuration.php?scenario=…`; `protocol-wiring.k1sim.test.ts:161–168` uses that URL and lines 435–449 complete with the default `standard` profile, expecting success. `services/lti-service/src/lti/registration.ts:81` compares the full string with `issuer + configurationPath`; `http/routes/registration.ts:314` applies this exact rule at completion. A private route probe confirmed **303 start, then 400 `INVALID_REQUEST` / `configuration_path_mismatch`** with the query; the otherwise identical query-free URL completed with 200. The relevant parser and route code is identical at the test pin and `326ceae`. This is host-only evidence, not a SIM run.
+- **Suggested fix:** Mark the LA-E5-06 fixture as affected/pending and name its QA owner and follow-up, or cite its verified correction. Correct the record and both indexes; retain the supported zero golden/frozen changes. Describe start versus completion separately: with a broader DR profile loaded, a wrong-path configuration can start and then fail the exact `standard` rule at completion, rather than always failing at start with `ISSUER_MISMATCH`.
+
+### LA-IC-20 — APPROVE
+
+BD-A1-81 is now reflected correctly: Moodle `PLATFORM_IN_USE` keeps the server collision sentence through its manifest. This supersedes that cell of the round-4 table; Moodle's other missing keys still use generic text. The manifest equality test and portal notice tests pass. Frozen M2 checks still target the channels that own the expected wording; T4b1 asserts the API code, and T6 checks error presence. **B-LD9-07 closed:** `176–181` includes the `hasInlineError` comment and implementation in the record and both indexes; the golden metadata test checks the corrected citation. BD-A1-102 explicitly requires no further LD-9 entry for its cause-specific `details.reason` exception because baseline answers do not carry it; it does not invalidate this baseline delta.
+
+### LA-IC-21 — APPROVE with 1 MINOR
+
+The stated API change matches BD-A1-93/BD-A2-86 and the shared update helper: a staged update becomes inactive, other updates preserve stored `active`, and creation alone uses `autoActivate`. T3b AC-T3-03 establishes `active === true` at line 89 before AC-T3-26 updates that same platform. No frozen inactive-update case was found, and the golden capture never calls registration completion. The empty delta is justified.
+
+#### B-LD9-09 — MINOR — The cited task suite is described as completing registrations that it does not complete
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-21.json:31`; related coverage claim in `LA-IC-03.json:41`.
+- **Problem/evidence:** The record calls `dynamic-registration.k1sim.test.ts:150–310` evidence of new and staged registration completion. At `326ceae`, its valid path case only starts and reads a session (lines 233–255); its completion calls exercise refusals. The staging case creates an inactive platform directly through `POST /api/platforms` (lines 308–326), then checks login refusal. It does not prove successful staged completion. The LA-IC-03 claim that this range directly tests all AC-01 through AC-08 is also too broad.
+- **Suggested fix:** Describe the actual start/view, refusal and direct-platform setup checks, using the correct ranges. Keep the route unit tests as the evidence for update/creation behavior and the T3b scan as the reason no frozen assertion moves. This metadata correction is safe to defer; it does not alter the empty delta.
+
+### Round-5 verification and limits
+
+- Fresh private `git clone --no-hardlinks` at `4d08fc1`, with its own `npm ci`; Vitest cache removed before each run. **12/12 golden K0 tests** and **144/144 author tests across seven files** passed. The latter cover registration parsing/routes/store/codes, manifest validation, portal error text and channel shell behavior.
+- **Nine independent comparator checks passed:** each of the three empty records accepts the stored capture and rejects changes to an existing G1 issuer and G4 page text. No comparator rule or frozen assertion changes in this dispatch.
+- The query probe had **one expected failure and one passing control**; it was removed before the clean author-suite run. Logs: `/tmp/reviewer-b-ld9r5-{golden,author,query-probe}.log`. Independent frozen-source scans confirmed the cited T3b update and mismatch cases.
+- No Docker, stack, browser acceptance or live capture was run. The private clone was restored, checked clean and removed. Only this review file changed in integration; no commit was made. Lead QA should correct the affected-fixture inventory and request the next list review; SIM/live validation remains separate.

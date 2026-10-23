@@ -304,7 +304,9 @@ export interface PortContext {                 // made by the kernel per call; a
   connectionId: string | null;                 // null for course-version ports (P7)
   sql: ChannelSql;                             // no raw database handle
   outbound: GuardedClient;                     // the shared SSRF-guarded client (security §9)
-  seal(value: string): Promise<Uint8Array>; unseal(blob: Uint8Array): Promise<string>;  // async, as the key provider (LA-ADR-06 D6)
+  seal(value: string, column: string): Promise<Uint8Array>;  // async, as the key provider (LA-ADR-06 D6)
+  unseal(blob: Uint8Array, column: string): Promise<string>;  // A2 BD-A2-91 (LA-E5-22): associated data app:connection:<column>:<libraryId>:<connectionId>,
+                                               // from this context (never from the channel); column = a sealed column of `connection`; throws when connectionId is null
   logger: Logger; traceId: string; now(): number;
   // BD-A1-37 (P5): public values and the public tool keys, for setup artifacts such as the Canvas JSON.
   urls: PublicUrls; libraryName: string; toolAccountId: string;

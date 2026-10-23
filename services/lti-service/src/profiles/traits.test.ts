@@ -8,6 +8,8 @@ const copy = () => structuredClone(baseline);
 const profilesOf = (entries: LoadedChannel[], channel: string) =>
   entries.find((e) => (e.manifest as ChannelManifest).id === channel)!.ltiProfiles as Array<Record<string, unknown>>;
 const TOKEN_STRING = { value: '{tokenEndpoint}', form: 'string' };
+/** LA-ADR-05 D6 (LA-E3-09): the Canvas rule; the extension members are checked in canvas.test.ts. */
+const CANVAS_DR = { issuerRule: 'profile', registrationToken: 'opaque-bearer' };
 
 describe('E2 profile traits (LA-ADR-02 D2, AC-LA-E2-01-01)', () => {
   it('gives every baseline profile its D2 values', () => {
@@ -17,11 +19,11 @@ describe('E2 profile traits (LA-ADR-02 D2, AC-LA-E2-01-01)', () => {
     });
     for (const id of ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-sim-cloud']) {
       expect(profileDefinition(id), id).toMatchObject({
-        endpoints: 'fixed', issuerKind: 'fixed', endpointOrigins: null, clientAssertionAud: TOKEN_STRING, assertionDeploymentId: false, dynamicRegistration: null,
+        endpoints: 'fixed', issuerKind: 'fixed', endpointOrigins: null, clientAssertionAud: TOKEN_STRING, assertionDeploymentId: false, dynamicRegistration: CANVAS_DR,
       });
     }
     expect(profileDefinition('canvas-self-hosted')).toMatchObject({
-      endpoints: 'fixed', issuerKind: 'per-tenant', endpointOrigins: null, clientAssertionAud: TOKEN_STRING, assertionDeploymentId: false, dynamicRegistration: null,
+      endpoints: 'fixed', issuerKind: 'per-tenant', endpointOrigins: null, clientAssertionAud: TOKEN_STRING, assertionDeploymentId: false, dynamicRegistration: CANVAS_DR,
     });
     for (const id of ['blackboard', 'blackboard-sim']) {
       expect(profileDefinition(id), id).toMatchObject({
@@ -77,7 +79,16 @@ describe('load check 7 for the E2 traits (AC-LA-E2-01-02)', () => {
     ['an unknown aud value', 'moodle', 0, { clientAssertionAud: { value: '{issuer}', form: 'string' } }, 'clientAssertionAud'],
     ['a stored audience on fixed endpoints (A-LA-E2-01-04)', 'canvas', 0, { clientAssertionAud: { value: '{platformValue}', form: 'string' } }, 'clientAssertionAud.value'],
     ['the removed flag clientAssertionAudArray (BD-A1-75)', 'moodle', 0, { flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false } }, 'flags'],
-  ])('stops the start for %s', (_, channel, index, change, field) => {
+    // LA-ADR-05 D6 (LA-E3-09): the profile rule only with fixed endpoints, and fixed endpoints only with it.
+    ['the profile rule with admin endpoints', 'moodle', 0, { dynamicRegistration: { issuerRule: 'profile', registrationToken: 'opaque-bearer' } }, 'dynamicRegistration.issuerRule'],
+    ['an admin issuer rule with fixed endpoints', 'canvas', 0, { dynamicRegistration: { issuerRule: 'origin', registrationToken: 'opaque-bearer' } }, 'dynamicRegistration.issuerRule'],
+    ...([
+      ['a member name that is not a URL', { tool_id: 'x' }], ['an http member name', { 'http://lms.example/lti/tool_id': 'x' }],
+      ['a member name with a query', { 'https://lms.example/lti?x=1': 'x' }], ['an empty member value', { 'https://lms.example/lti/tool_id': '' }],
+      ['nine members', Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`https://lms.example/lti/m${i}`, 'x']))],
+    ] satisfies Array<[string, Record<string, string>]>).map(([what, members]): [string, string, number, Record<string, unknown>, string] => [`${what} in toolConfigurationExtensions`, 'canvas', 0,
+      { dynamicRegistration: { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: members } }, 'toolConfigurationExtensions']),
+  ] as Array<[string, string, number, Record<string, unknown>, string]>)('stops the start for %s', (_, channel, index, change, field) => {
     const err = refusal((entries) => Object.assign(profilesOf(entries, channel)[index]!, change));
     expect(err).toBeInstanceOf(RegistryError);
     expect(err).toMatchObject({ check: 7, reason: 'profile_schema_invalid' });
@@ -89,5 +100,27 @@ describe('load check 7 for the E2 traits (AC-LA-E2-01-02)', () => {
       Object.assign(profilesOf(entries, 'canvas')[3]!, { issuerKind: 'per-tenant' });
       Object.assign(profilesOf(entries, 'moodle')[0]!, { endpointOrigins: 'any-https' });
     })).toBeNull();
+  });
+
+  it('B-LA-E3-09-02: the load check 7 detail keeps the reason of a refused member name; a name in normal form passes', () => {
+    const withMembers = (members: Record<string, string>) => (entries: LoadedChannel[]) => Object.assign(profilesOf(entries, 'canvas')[0]!,
+      { dynamicRegistration: { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: members } });
+    const reason = 'Expected an absolute https URL in normal form (as URL.href gives it), with no query or fragment, as the member name.';
+    for (const name of ['https://lms.example', 'https://lms.example/lti?x=1', 'https://lms.example/lti#x', 'tool_id']) {
+      const err = refusal(withMembers({ [name]: 'x' }));
+      expect(err, name).toMatchObject({ check: 7, reason: 'profile_schema_invalid' });
+      expect((err as RegistryError).detail, name)
+        .toBe(`profile "canvas-cloud-production": dynamicRegistration.toolConfigurationExtensions.${name}: Invalid key in record (${reason})`);
+    }
+    expect(refusal(withMembers({ 'https://lms.example/': 'x', 'https://lms.example/lti/tool_id': 'cogniate' }))).toBeNull();
+  });
+
+  it('LA-E3-09: accepts eight extension members and freezes them', () => {
+    const entries = copy();
+    const members = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`https://lms.example/lti/m${i}`, 'x']));
+    Object.assign(profilesOf(entries, 'canvas')[0]!, { dynamicRegistration: { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: members } });
+    const profile = buildProfileRegistry(entries).listProfiles(true).find((p) => p.id === 'canvas-cloud-production')!;
+    expect(profile.dynamicRegistration!.toolConfigurationExtensions).toEqual(members);
+    expect(Object.isFrozen(profile.dynamicRegistration!.toolConfigurationExtensions)).toBe(true);
   });
 });

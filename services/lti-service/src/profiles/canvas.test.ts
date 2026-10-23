@@ -2,6 +2,14 @@ import { expect, it } from 'vitest';
 import { findProfile, listProfiles, profileEndpoints, reservedIssuerOrigins, siteRulesFor } from './index.ts';
 import { checkSiteUrl } from '@cogniate/shared';
 
+/** LA-ADR-05 D6: Canvas Dynamic Registration with the profile values, an opaque token and the three extension members. */
+const CANVAS_DR = {
+  issuerRule: 'profile', registrationToken: 'opaque-bearer',
+  toolConfigurationExtensions: {
+    'https://canvas.instructure.com/lti/privacy_level': 'anonymous', 'https://canvas.instructure.com/lti/tool_id': 'cogniate', 'https://canvas.instructure.com/lti/vendor': 'Cogniate',
+  },
+};
+
 it('defines the reviewed hosted endpoints, flags and simulation gate in registry order', () => {
   const rows = [
     ['canvas-cloud-production', 'https://canvas.instructure.com', 'https://sso.canvaslms.com'],
@@ -15,8 +23,9 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
       issuer, authenticationEndpoint: `${sso}/api/lti/authorize_redirect`, jwksUrl: `${sso}/api/lti/security/jwks`,
       accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', privacyFloor: 'allowlist', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
       flags: { deepLinkingResponseSub: false, serviceOriginCheck: true },
-      clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, dynamicRegistration: null,
+      clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' },
     });
+    expect(profile.dynamicRegistration).toEqual(CANVAS_DR);
     expect(profile.sources.length).toBeGreaterThan(0);
   }
   // Open world: the baseline real profiles first; every new real profile follows (lti-generic since LA-E2-03).

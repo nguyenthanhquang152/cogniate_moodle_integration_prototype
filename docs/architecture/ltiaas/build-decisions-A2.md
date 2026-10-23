@@ -528,3 +528,47 @@ Scope gap found by A1 (BD-A1-104), routed in dispatch `ctx_b02542566462`. The an
 | BD-A2-90 | Lane P's `CanvasWizard` creates only `manual`, always shows the developer key JSON and an empty binding form, so Canvas Dynamic Registration has no portal path, while LA-ADR-05 D6 promises "no JSON paste and no typed client id". Keep the promise with a P companion task, or say "API only"? | **Keep the promise: new task LA-E3-16** (lane P, Should, B3, size M, cut group F3.6 with LA-E3-09 and LA-E3-15). The scope: a method choice at create (manifest-driven; `manual` default and byte-identical); the registration URL step instead of the JSON for `dynamic` (reuse the shell's registration-URL part); a staged binding form pre-filled from `platform.clientId` and `platform.deploymentIds[0]`. Five ACs: four UNIT, one K1-SIM, plus the M2 Canvas e2e regression. No LD-9 entry. | LA-ADR-05 D6 new row "Portal"; `tasks/LA-E3-16.md`; LA-E3-09 and LA-E3-15 notes | "API only" would lose the D6 promise and leave AP-05-29 without a user path. The operator grant still proves every value, so the pre-fill only saves typing. |
 
 Changes for the Lead to route: **P** builds LA-E3-16. **A1** adds the `epics.md` row: `| LA-E3-16 | Canvas DR in the portal (Canvas wizard) | Should (cut with LA-E3-09, LA-E3-15) | P | B3 | LA-E3-15, LA-E2-04 (K1-SIM also LA-E3-09) | packages/channels/canvas/portal/**; apps/portal/src/sdk/** (export only) | SIM (QA), M2 e2e (QA-E2E) |`, plus the matching lines in the ownership matrix and the F3.6 cut group.
+
+## 44. Round 43: the app key provider (LA-E5-22, lane K) and an audit target type (LA-E5-03), 2026-10-23
+
+Routed in dispatch `ctx_32214d415ccf`. Point 1 changes, so a status message went first (`msg_9d984c765137`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-91 | K's LA-E5-22 points 1–4 (provisional: accepted as written): (1) settings, `APP_KEYRING_FILE` default `/run/secrets/app/keyring.json`, no production refusal of `APP_MASTER_KEY` in the environment; (2) the AAD rows and the runtime token; (3) bound Buffer handles, no app legacy refusal; (4) re-wrap and status by the CLI `app:keys`. | **2, 3, 4 ratified** (point 4 with the operator policy `evidenceRequired: false` and authenticated metadata, BD-A2-38). **Point 1 changed:** (a) the app key ring lives in a new folder `infra/.secrets/app-keys/`, hidden from `e2e` by its own tmpfs (default `/run/secrets/app-keys/keyring.json`); (b) `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`, a fixed message). | LA-ADR-06 D6 "Scope in LA", D12; operability §2 (new `APP_KEYRING_FILE` row, secret files, refusals), §6.3; security-delta §10; LA-E5-22 notes | (a) `infra/.secrets/app/` is readable by the `e2e` container, and BD-A2-03 names the LA-E5-22 app ring as key material that must be hidden. (b) D12 says every secret has a file form in production; the LTI service already refuses its master key in the environment. A1 FYI: `PortContext.seal(value, column)` changes the LA-ADR-01 D5 sketch. |
+| BD-A2-92 | QA-2 (LA-E5-03): `settings.rate_limits` events have target type `service_setting` in the code, but the contract delta §5 says `settings`. | **The code is right**: target type `service_setting`, target id `rate_limits`, which names the stored object like the other target types. **A doc fix** in contract delta §5; no code change. | contract delta §5 | — |
+
+Changes for the Lead to route:
+- **K (LA-E5-22):** the default path `/run/secrets/app-keys/keyring.json`, and the `app_master_key_in_env` refusal.
+- **The owners of `infra/compose.yaml` (cogniate-app mount, e2e tmpfs), `infra/scripts/stack-up.sh`, `infra/scripts/lib.sh` (`prepare_e2e`) and `infra/scripts/compose-e2e-secrets.test.mjs`:** the `app-keys` folder lines (your process call).
+- **A1:** the `seal(value, column)` port sketch in LA-ADR-01 D5.
+
+## 45. Round 44: the pre-fetch rule of Dynamic Registration start (LA-E3-09 AC-05, lane L), 2026-10-23
+
+Codex Reviewer-B's boundary question, routed in dispatch `ctx_4f2f8f46f7ea`. A small code change follows, so a status message went first (`msg_530dc8645c8d`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-93 | AC-05 and BD-A2-89 say the Canvas site rules run before the fetch, but with the real mixed registry the route fetches every URL for the loosest loaded rule (LA-ADR-02 D5), so a reviewer's probe fetched `https://canvas.instructure.com/api/lti/security/openid-configuration`. Keep the union rule and narrow AC-05, or refuse hosts that every loaded rule excludes? | **Both:** keep the union start rule, plus **one pre-fetch floor for every profile**: a configuration URL that is not https, fails site rules 1–3, or is on a reserved host (a fixed host of any loaded profile) gives `PLATFORM_URL_NOT_IN_PROFILE` before any fetch. AC-05 is rewritten to test this with the real mixed registry. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 (start bullet); LA-E3-09 AC-05 and notes | The floor is exact: no loaded profile can complete such a configuration (any-https rules refuse reserved hosts; the Moodle path is on the Moodle site; BD-A2-89 refuses fixed Canvas hosts). So the fetch could only be an outbound request for an unauthenticated caller. |
+
+Changes for the Lead to route: **L (LA-E3-09, before merge):** the floor check in the start route of `registration.ts` before the fetch, and the AC-05 test with the real registry. **A1 FYI:** one line in LA-ADR-02 D5: "start uses the loosest rule of any loaded profile, above the reserved-host floor (BD-A2-93)".
+
+## 46. Round 45: the exact pre-fetch floor (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option A) on L's conflict between BD-A2-93 and the frozen Moodle baseline, routed in dispatch `ctx_9a98516847e4`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-94 | (Provisional: option A.) The BD-A2-93 floor as written would (1) break the frozen T3b AC-T3-05 (it waits for the guarded client's `outbound_blocked` on an http URL and on `169.254.169.254`), and (2) refuse a Moodle on a public IP literal, which completes DR today. Option A: the floor refuses before any fetch only host names that fail site rule 2, own hosts (rule 3) and reserved hosts; http and IP literals go on to the guarded client as today. | **Ratified (option A).** It makes BD-A2-93 exact. Every forbidden target still gets no request: http and private IPs are refused by the guarded client before it connects (`outbound_blocked`, `FETCH_FAILED`), and the reserved and own hosts by the floor (`PLATFORM_URL_NOT_IN_PROFILE`). A public-IP Moodle keeps Dynamic Registration. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Option B would change a frozen baseline (an LA-IC and a QA change) and drop a working case, for a property (no request to a forbidden target) that option A already keeps. |
+
+Changes for the Lead to route: none beyond L's build of option A (already in progress).
+
+## 47. Round 46: the floor keeps the M1 `ISSUER_RESERVED` start page (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option Y), routed in dispatch `ctx_e7307e62e227`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-95 | (Provisional: option Y.) Every reserved issuer host is a reserved host, so the BD-A2-93 floor would answer `PLATFORM_URL_NOT_IN_PROFILE` first, and the M1 start page `ISSUER_RESERVED` (base contract §9.2, pinned by `lti/codes.test.ts`) could never show again. Y: a reserved **issuer** host gets the M1 `ISSUER_RESERVED` page byte for byte; any other reserved host, an own host or a failing host name gets `PLATFORM_URL_NOT_IN_PROFILE`. The AC-05 example becomes `sso.canvaslms.com` for `PLATFORM_URL_NOT_IN_PROFILE`, and `canvas.instructure.com` shows `ISSUER_RESERVED`. | **Ratified (option Y).** | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Both options refuse before any fetch. Y keeps a frozen M1 page and its action line ("Connect it as Canvas or Blackboard in the Cogniate portal"), which tells the admin the right fix. X would need a contract note and would drop that help. |
+
+Changes for the Lead to route: none beyond L's build of option Y (in progress).

@@ -23,6 +23,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATOR_HOST`, `OPERATOR_PORT` | LTI | `127.0.0.1`, `4110` (`acceptance` profile: `0.0.0.0`, for the `e2e` container; never routed by the proxy) | operator listener; `/metrics`, `/readyz` with reasons | LA-ADR-06 D3 |
 | `LTI_KEYRING_FILE` | LTI | `/run/secrets/lti/keyring.json` (host: `infra/.secrets/lti/keyring.json`) | key ring JSON (`active` + `keys`); no file = `LTI_MASTER_KEY` as version `legacy` | LA-ADR-06 D6 |
 | `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE` | LTI, app | unset | file forms of the master keys; required form in `production` | LA-ADR-06 D12 |
+| `APP_KEYRING_FILE` | app | `/run/secrets/app-keys/keyring.json` (host: `infra/.secrets/app-keys/keyring.json`) | app key ring JSON, the same shape and rules as `LTI_KEYRING_FILE` (BD-A2-77: it must hold `legacy`; `APP_MASTER_KEY` next to it must equal it); no file = `APP_MASTER_KEY(_FILE)` as the active version `legacy`. `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`) (BD-A2-91) | LA-ADR-06 D6 |
 | `LTI_RATE_LIMITS` | LTI | built-in table | JSON overrides of the default limits at start; the operator API value (`PATCH /operator/v1/rate-limits`) wins over it | LA-ADR-06 D1 |
 | `TRUSTED_PROXY_CIDRS` | LTI | `proxy` (CIDRs or host names; names resolved every 60 s) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
 | `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start with one line | LA-ADR-06 D7 |
@@ -43,6 +44,7 @@ Secret files (never in git; mode `0600` or `0400`, no group or world bit; mounte
 | `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
 | `infra/.secrets/lti/lti-operator-key` | LTI service container (CLIs) | a copy of `infra/.secrets/lti-operator-key` that the host wrapper writes atomically at each run (`0600`). A missing original deletes it; `stack:reset` deletes it (BD-A2-34) |
+| `infra/.secrets/app-keys/keyring.json` (and an app master-key file, when used) | app | the app key ring. The folder `infra/.secrets/app-keys/` (`0700`) is mounted read only at `/run/secrets/app-keys` and hidden from the `e2e` container by its own empty tmpfs (BD-A2-91) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
 
 Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
@@ -63,6 +65,7 @@ Production refusals (the message is fixed text and never holds a value):
 | `master_key_in_env` | Production does not allow the master key as an environment value. Remove LTI_MASTER_KEY and use LTI_MASTER_KEY_FILE or the key-ring file. |
 | `no_trusted_proxy` | Production needs TRUSTED_PROXY_CIDRS. Set it to the address or host name of the proxy, then start the service again. |
 | `operator_bind_not_loopback` | Production allows the operator listener on loopback only. Set OPERATOR_HOST to 127.0.0.1 or ::1, then start the service again. |
+| `app_master_key_in_env` (app) | Production does not allow the app master key as an environment value. Remove APP_MASTER_KEY and use APP_MASTER_KEY_FILE or the app key-ring file. |
 | `secret_file_mode` (with `setting`) | A secret file has group or world access. Set the mode of the file named by the setting to 0600, then start the service again. |
 
 ## 3. Deployment topology (pilot)
@@ -293,7 +296,7 @@ CAUTION: The version `legacy` also derives the existing service keys (LA-ADR-06 
 
 CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0, and only after a complete re-wrap (job end `outcome: complete`; BD-A2-38). The service then refuses to become ready (`key_version_missing`).
 
-The Cogniate app follows the same steps when it uses the key provider (Should).
+The Cogniate app follows the same steps when it uses the key provider (Should; LA-E5-22, BD-A2-91), with its own files and command: the ring is `infra/.secrets/app-keys/keyring.json`; status is `npm run app:keys -- status --operator <name>` (the active version and the `sealedCount` per version); re-wrap is `npm run app:keys -- rewrap --operator <name>`, which prints `{rewrapped, skippedChanged, unreadable}` and writes one app audit event `key_provider.rewrap`. Picker ltiks may stay in an old version until they expire. The app has no legacy refusal in LA.
 
 ### 6.4 Operator key
 

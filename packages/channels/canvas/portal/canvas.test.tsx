@@ -311,6 +311,11 @@ it("AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits wit
   fetchMock.mockResolvedValue(json({ ...staged({ platform }), status: "registered" }));
   const onChanged = vi.fn();
   render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform }), onChanged }))));
+  // B-LA-E3-16-01: a staged registration offers no renewal, and step 2 says what comes next.
+  const step2 = document.querySelector('[data-step-id="canvas-registration"]')!;
+  expect(screen.queryByRole("button", { name: "Get registration URL" })).toBeNull();
+  expect(step2.querySelector("ol")).toBeNull();
+  expect(step2.textContent).toContain("Canvas sent the registration. The registration URL is not necessary now. In the next step, check the Client ID and the Deployment ID. Then enter the approval code from your Cogniate operator and select Save.");
   expect((screen.getByLabelText("Client ID") as HTMLInputElement).value).toBe("10000000000042");
   expect((screen.getByLabelText("Deployment ID") as HTMLInputElement).value).toBe("42:abc");
   expect((screen.getByLabelText("Approval code") as HTMLInputElement).value).toBe("");
