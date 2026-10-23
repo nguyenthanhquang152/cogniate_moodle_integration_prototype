@@ -16,7 +16,7 @@ New fields on every connection answer:
 | Field | Type | Rule |
 | --- | --- | --- |
 | `channel` | string | the channel id (`connection.channel`) |
-| `channelName` | string | the manifest text name, for example `Moodle`, `your LMS` |
+| `channelName` | string | the manifest text name, for example `Moodle`, `LMS` (`lti-generic`, BD-A1-111) |
 | `channelCapabilities` | object | the capability set of the connection: keys are capability ids ([LA-ADR-01 D3](../adr/LA-ADR-01-channel-kernel.md#d3-capability-model)), values are booleans, strings, lists or the method → authority map |
 | `bindingAuthority` | string | the stored `connection.binding_authority`: `self`, `operatorGrant` or `verifiedAdminLaunch`. The portal verify step reads it ([LA-ADR-01 D9](../adr/LA-ADR-01-channel-kernel.md#decision)); a staged Dynamic Registration shows `operatorGrant` although the method map says `self` (BD-A1-24) |
 
@@ -33,7 +33,7 @@ Example (`lti-generic`, registered by an operator grant):
 ```json
 {
   "id": "con_...", "name": "School Sakai", "siteUrl": "https://lms.school.edu", "method": "manual", "status": "registered",
-  "lms": "lti-generic", "channel": "lti-generic", "channelName": "your LMS", "bindingAuthority": "operatorGrant", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
+  "lms": "lti-generic", "channel": "lti-generic", "channelName": "LMS", "bindingAuthority": "operatorGrant", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
   "capabilities": { "dynamicRegistration": true, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": false },
   "channelCapabilities": {
     "registration.dynamic": true, "binding.authority": { "dynamic": "self", "manual": "operatorGrant" },
@@ -144,7 +144,7 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 | `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant`. A connection whose `dynamic` method has authority `operatorGrant` (Canvas) keeps it from the create; only a staged answer is accepted, and an active answer gives `REGISTRATION_FAILED` (the new platform is switched off when no connection owns it; the connection stays `pending`), so the register page never gives launch authority to an `operatorGrant` connection (BD-A1-106). Site check (BD-A1-107): for a connection whose profile has a fixed issuer (the create stored the snapshot issuer; Canvas), the confirm step compares the registration's issuer with the snapshot issuer, not the site; after `complete`, the staged platform's site URL (the LTI service takes it from the configuration URL origin, BD-A2-89) must equal the connection's site URL, else page `SITE_MISMATCH`, nothing changes on the connection (its link still works), and the inactive platform stays inactive. Other channels keep the site check of the confirm step |
 | Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
 | Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
-| Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
+| Texts | `{LMS}` from the manifest; the generic channel's text name is `LMS` (BD-A1-111), for example "This LMS site is not connected to Cogniate. Tell your LMS administrator." |
 
 ### 5a. App-edge limit for the handoff pages (Should; Reviewer-A A-LAD-22)
 
