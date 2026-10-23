@@ -187,7 +187,7 @@ Bearer, `admin` scope. Body `{ "deploymentId"?: string }`. It fetches the platfo
   "limits": null }
 ```
 
-`token.detail` values: `invalid_client`, `invalid_scope`, `http_<status>`, or an outbound reason (security §9). `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
+`token.detail` values: `invalid_client`, `invalid_scope` (the platform's OAuth answer), `no_granted_scope` (the platform granted no AGS scope, so no token request was made; BD-A2-98), `http_<status>`, or an outbound reason (security §9). `jwks.detail` values: `invalid_jwks` (not a JSON key set with at least one key), `http_<status>`, or an outbound reason. With no `deploymentId`, the platform's first active deployment is checked; an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`. `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
 
 ## 3. Operator API (new; paths are ours)
 

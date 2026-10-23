@@ -592,3 +592,13 @@ The Lead's provisional calls on Claude Reviewer-A A-LA-E5-22-02 (MINOR), routed 
 | BD-A2-97 | (Provisional.) (1) A score dispatch with "version missing / ring not bound" maps to `{kind: 'retryable', uncertain: false}`; an authentication failure stays `local_failure`. (2) The connection list and detail degrade only that row (`registrationUrl` and its expiry `null`, the `key_open_failed` line, `200`); an authentication failure stays `500`; no new code. (3) The `app:keys rewrap` output and help: "write the ring, restart the app and check /readyz = 200, then rewrap". | **All three ratified.** | LA-ADR-06 D6 "Scope in LA" (app part); operability §6.3 (the app order); LA-E5-22 notes | A missing version is an operator state that a restart with the right ring fixes, so retrying is right; a failed GCM tag means a moved or damaged blob, which must stay loud. The app `/readyz` (`key_version_missing`, BD-A2-88) shows the cause. The order is the same as the LTI runbook (§6.3 steps 3–5). |
 
 Changes for the Lead to route: none beyond K's fix round.
+
+## 50. Round 49: the connection check's local choices (LA-E6-01, lane P), 2026-10-23
+
+P's five provisional choices, routed in dispatch `ctx_b9f02fbfab80`. Two change, so a status message went first (`msg_e44b3e7910a9`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-98 | (a) No granted AGS scope: no token request, `token.detail: invalid_scope`. (b) A bad JWKS: `invalid_jwks`, `http_<status>` or the outbound reason. (c) No `deploymentId` = the first active deployment; an unknown or inactive `deploymentId` gives `403 DEPLOYMENT_NOT_ACTIVE`. (d) One "Check connection" panel on the connection page only. (e) Another token failure: "{LMS} did not give Cogniate an access token." with the code. Staged records refused before any call. | **(b), (d), (e) and the staged refusals ratified.** **(a) changed:** `token.detail: no_granted_scope`, with its own portal text. **(c) changed for one case:** an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`; a known inactive one, or no active deployment, keeps `403 DEPLOYMENT_NOT_ACTIVE`. | LA-ADR-08 D4 ("Work", "Portal"); contract delta §2.6 (detail values, unknown deployment); LA-E6-01 notes | `invalid_scope` is an OAuth answer of the platform; reusing it for our own decision would send an operator to look for a platform refusal that never happened. `UNKNOWN_DEPLOYMENT` is the base code for an unknown id (as for `PATCH …/deployments/:deploymentId`). |
+
+Changes for the Lead to route: **P (LA-E6-01):** the `no_granted_scope` detail and its portal text; `404 UNKNOWN_DEPLOYMENT` for an unknown `deploymentId`. The RQ-2 grants are your process calls.
