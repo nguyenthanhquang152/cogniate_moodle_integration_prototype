@@ -38,7 +38,7 @@ describe('operator listener settings (LA-E4-07)', () => {
     expect(app.server.address()).toMatchObject({ address: '127.0.0.1', family: 'IPv4' } satisfies Partial<AddressInfo>);
   });
 
-  it('BD-A2-88: production refuses a host that is not loopback with the LTI service reason and text; acceptance may bind the network', () => {
+  it('AC-LA-E4-07-01: production refuses a host that is not loopback with the LTI service reason and text; acceptance may bind the network', () => {
     const refusal = (() => { try { operatorListenerConfig({ STACK_PROFILE: 'production', OPERATOR_HOST: '0.0.0.0' }); } catch (err) { return err; } })();
     expect(refusal).toBeInstanceOf(ConfigRefusedError);
     expect(refusal).toMatchObject({ reason: 'operator_bind_not_loopback', setting: undefined,
@@ -50,7 +50,7 @@ describe('operator listener settings (LA-E4-07)', () => {
 });
 
 describe('GET /readyz (BD-A2-88: the app only)', () => {
-  it('answers 200 when the database and every migration are in place, else 503 with the reason', async () => {
+  it('AC-LA-E4-07-05 (UNIT part): 200 when the database and every migration are in place, else 503 with the reason', async () => {
     const db = memoryDb();
     const app = buildOperatorListener({ db, metrics: new AppMetrics(db) });
     closers.push(() => app.close());
@@ -138,7 +138,7 @@ describe('GET /metrics', () => {
     expect(inTransaction).toEqual([false]);
   });
 
-  it('AC-LA-E4-07-04 (unit side), AC-LA-E4-07-06 (unit side): launch refusals keep only code values as labels', () => {
+  it('AC-LA-E4-07-07, AC-LA-E4-07-06 (unit side): launch refusals keep only code values as labels', () => {
     const db = memoryDb();
     const metrics = new AppMetrics(db);
     metrics.useChannels(TEST_CHANNELS);
@@ -152,6 +152,16 @@ describe('GET /metrics', () => {
     expect(value(text, 'app_launch_refusals_total{reason="site_mismatch",channel=""}')).toBe(1);
     expect(value(text, `app_launch_refusals_total{reason="other",channel="${channel}"}`)).toBe(1);
     expect(text).not.toMatch(/school|user-42|lib"/);
+  });
+
+  it.each([
+    ['deployment_not_approved', 'deployment_not_approved'], ['a'.repeat(64), 'a'.repeat(64)], ['a'.repeat(65), 'other'],
+    ['site-mismatch', 'other'], ['9_reason', 'other'], ['_reason', 'other'], ['Site_mismatch', 'other'], ['', 'other'],
+  ])('AC-LA-E4-07-07 (B-LA-E4-07-01): the refusal reason %j counts as %j', (reason, label) => {
+    const metrics = new AppMetrics(memoryDb());
+    metrics.useChannels(TEST_CHANNELS);
+    metrics.launchRefused(reason, 'no-such-channel');
+    expect(value(metrics.render(), `app_launch_refusals_total{reason="${label}",channel=""}`)).toBe(1);
   });
 
   it('AC-LA-E4-07-04 (unit side): the launch page counts its refusals in the registry of its database', async () => {
