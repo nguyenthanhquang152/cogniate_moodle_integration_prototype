@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 1
+Verdict: CHANGES_REQUESTED
+Round: 2
 
 ## Round 1
 
@@ -28,3 +28,31 @@ The earlier amend is clearly separated from the proposed change. Read-only check
 ### Verification boundary
 
 Read-only Git checks confirmed that every removed line in the displayed hunks matches the frozen base uniquely. Host-only checks of the proposed regex passed seven positive/negative examples; exact event-key checks accepted the new shape and rejected a missing account key or an extra key. The candidate has the documented `src/db/migrations` directory. No proposed hunk was applied, and no Docker, stack, host runner or live suite was executed. Live rerun evidence remains pending. Only this review file was written; no commit was made and the other reviewer's file was not opened.
+
+## Round 2
+
+Reviewer-B: Codex GPT-6-Astra xhigh. Reviewed the addendum's Round 2 and `tests/ltiaas/GATE-RUN-PLAN.md` §3C at `0f821dad945be60c3ed8d27065f8f2e94cc63cf4`. **0 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT open.** The three proposed hunks are **APPROVED**; the overall verdict is **CHANGES_REQUESTED** for the source-build recipe below.
+
+**B-LA-E7-08-LD9-01 is closed.** §R2.3 now requires the complete M1 SIM phase, the named WE-F2/WE-F3 rows, all six snapshot-upgrade rows including J, and exact candidate ledger equality. It names the candidate/test SHA and artifact evidence, and keeps the nine WE-F1 rows and seven WE-F4 rows visible.
+
+| Round 2 check | Result |
+| --- | --- |
+| Individual Hunk 1, Hunk 2 and Hunk 3 against frozen `8ad1292687431b05bad6b5c070ab722e67714526` | Each `git apply --check` exits **0** in a private `git clone --no-hardlinks`. |
+| Combined §R2.2 patch | `git apply --check` exits **0**. Its changed lines equal the union of the three individual patches. |
+| Assertion scope | Exactly one removed/added line per file: required 43-character ref, migration-directory lookup, and `tool_account_id` on `launch_claims_minimized`. No other assertion changes; exact event keys and exact sorted ledger equality remain. |
+| Event names and qualification | Round 2 matches `contracts/lti-service-api-delta.md` §6: `launch_check_failed`, `launch_accepted`, `launch_claims_minimized`, and account ID “when it is known.” |
+| Source history | §3C correctly requires a new candidate clone, a base-overlay commit, then a separate addendum commit, with all three SHAs recorded and no amend. The overlay command needs the correction below. |
+
+### B-LA-E7-08-LD9-02 — MAJOR — the source-build recipe does not produce its exact frozen overlay
+
+**File:line:** `tests/ltiaas/GATE-RUN-PLAN.md:242`, `:243`, `:244`.
+
+**Problem:** `git checkout 8ad12926 -- tests` replaces matching paths but leaves candidate-only tracked files, so the following exact-tree check fails and the documented base-overlay commit cannot be reproduced as claimed.
+
+**Evidence:** In the private clone, I checked out the reviewed integration pin `0f821dad`, ran the exact checkout command, then ran the documented `git diff --exit-code 8ad12926 -- tests`. It exited **1**, with **24 extra files** remaining, including the kit, the LA-E5-24 drill and LA-E4-02 tests. This is already true before the Lead selects the final candidate. The command block also has no fail-fast setting or explicit stop on that failed check, so pasting the block can continue to commit the non-exact overlay.
+
+**Suggested fix:** In the new disposable clone only, use `git restore --source=8ad1292687431b05bad6b5c070ab722e67714526 --staged --worktree -- tests` to restore the exact tree, including deletions. Make the equality check a hard precondition for commit 1. In the same private probe this replacement produced exit **0**, and all three individual patches plus the combined patch still passed `git apply --check`. Preserve the two separate commits and record their SHAs as planned.
+
+### Verification boundary
+
+Evidence: `/tmp/reviewer-b-ld9r2-checks.json`, `/tmp/reviewer-b-ld9r2-overlay-probe.json`, `/tmp/reviewer-b-ld9r2-restore-control.json`; extracted patches: `/tmp/reviewer-b-ld9r2-patch-{1,2,3,4}.diff`. The private clone is `/tmp/review-b-ld9-r2-9tiku93i`. The frozen source remains clean at `8ad1292687431b05bad6b5c070ab722e67714526`. No addendum was installed in a gate source, no commit was made, and no Docker, stack, host stack runner or live suite was run. Gate PASS remains pending. Only this review file was edited in integration; the other reviewer's file was not opened.

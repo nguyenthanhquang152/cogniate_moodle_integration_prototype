@@ -1,6 +1,9 @@
 // The service entry point binds the key ring to the master-key Buffer of every store caller before the first store
 // call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01). Both listeners use port 0 here.
 import { spawnSync } from 'node:child_process';
+import { request } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { connect } from 'node:net';
 import { chmodSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { ConfigRefusedError, KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LtiService } from './main.ts';
-import { createShutdownHandler, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
+import { createShutdownHandler, HTTP_DRAIN_MS, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
 import { AGS_SCOPES } from './platform/ags.ts';
 import { ensureAccount } from './store/accounts.ts';
 import { createPlatform } from './store/platforms.ts';
@@ -197,6 +200,76 @@ it('drains a job beyond 3 seconds before closing the database, then the same ins
   expect(service.jobs.state()).toBe('active');
   expect(service.jobs.bootId).not.toBe(boot);
   expect(lines.filter((l) => ['job_instance_wait', 'job_instance_conflict'].includes(String(l.event)))).toEqual([]);
+});
+
+/** Poll without timers: fake timers must not move while a real socket does its I/O. */
+async function until(condition: () => boolean): Promise<void> {
+  for (let i = 0; i < 2000 && !condition(); i++) await new Promise<void>((resolve) => setImmediate(resolve));
+  if (!condition()) throw new Error('condition not met');
+}
+/** A real HTTP request to /readyz that the handler holds: the key provider's ready() never settles. */
+async function holdRequest(started: LtiService) {
+  const ready = vi.spyOn(keyProviderFor(started.masterKey), 'ready').mockReturnValue(new Promise<void>(() => {}));
+  const state = { answered: false, socketClosed: false };
+  const req = request({ host: '127.0.0.1', port: (started.app.server.address() as AddressInfo).port, path: '/readyz', agent: false },
+    (res) => { state.answered = true; res.resume(); });
+  req.on('error', () => { /* The service destroys the connection. */ });
+  req.on('socket', (socket) => socket.on('close', () => { state.socketClosed = true; }));
+  req.end();
+  await until(() => ready.mock.calls.length > 0);
+  return state;
+}
+const refused = (port: number) => new Promise<string>((resolve) => {
+  const socket = connect({ host: '127.0.0.1', port });
+  socket.on('connect', () => { socket.destroy(); resolve('connected'); });
+  socket.on('error', (err: NodeJS.ErrnoException) => resolve(err.code ?? 'error'));
+});
+
+it('BD-A2-109: idle runner and one held request: close() cuts it at 3 s with no answer, then closes the database', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  const held = await holdRequest(started);
+  let closed = false;
+  const closing = started.close().then(() => { closed = true; });
+  await vi.advanceTimersByTimeAsync(HTTP_DRAIN_MS - 1);
+  expect([HTTP_DRAIN_MS, closed, held.socketClosed, started.db.isOpen]).toEqual([3000, false, false, true]);
+  await vi.advanceTimersByTimeAsync(1);
+  await closing;
+  await until(() => held.socketClosed);
+  expect([held.answered, started.db.isOpen]).toEqual([false, false]);
+  service = null;
+});
+
+it('BD-A2-109: a run in flight and one held request: new connections are refused at once, the request is cut at 3 s, the database closes after the run', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(signingJobs, 'signingKeyCleanupJob').mockReturnValue({
+    name: 'signing-key-cleanup', everyMs: null, runAtStart: true, leaseMs: 10_000,
+    async run() { await gate; return { result: 'ok' }; },
+  });
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  const ports = [started.app, started.operatorApp].map((app) => (app.server.address() as AddressInfo).port);
+  const held = await holdRequest(started);
+  let closed = false;
+  const closing = started.close().then(() => { closed = true; });
+  try {
+    await until(() => !started.app.server.listening && !started.operatorApp.server.listening);
+    for (const port of ports) expect(await refused(port)).toBe('ECONNREFUSED');
+    await vi.advanceTimersByTimeAsync(HTTP_DRAIN_MS);
+    await until(() => held.socketClosed);
+    expect(held.answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([closed, started.db.isOpen]).toEqual([false, true]);
+  } finally { release(); await closing; }
+  expect(started.db.isOpen).toBe(false);
+  service = null;
 });
 
 it('BD-A2-52, BD-A2-54: wires the platform observers and the JWKS cache age to the operator /metrics', async () => {
