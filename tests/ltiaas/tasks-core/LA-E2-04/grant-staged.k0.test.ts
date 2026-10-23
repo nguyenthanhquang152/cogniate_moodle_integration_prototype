@@ -105,7 +105,9 @@ describe('LA-E2-04 grant bound values, staged registration in the app, and opera
         'services/cogniate-app/src/tool-pages/register-staged.test.ts',
         'services/cogniate-app/src/tool-pages/lms-texts.test.ts',
         'services/cogniate-app/src/clients/lti-client.test.ts',
+        'packages/channel-kernel/src/manifest.test.ts',
         'apps/portal/src/channels/shell.test.tsx',
+        'apps/portal/src/connect/provider-errors.test.tsx',
       ],
       { timeoutMs: 5 * 60_000 },
     );
@@ -455,7 +457,7 @@ describe('LA-E2-04 grant bound values, staged registration in the app, and opera
       expect(t.lti.platforms.has(pltStaged3.id), 'inactive staged platform stays in LTI service on release').toBe(true);
       expect(t.lti.platforms.get(pltStaged3.id)?.active).toBe(false);
 
-      // Staged case 2b (BD-A1-97): staged platform gone -> 409 PLATFORM_IN_USE
+      // Staged case 2b (BD-A1-97 & BD-A1-102): staged platform gone -> 409 PLATFORM_IN_USE with details.reason = "staged_gone"
       const { c: cStagedGone, plt: pltStagedGone } = await makeStaged('gone');
       const stagedGoneIssued = await op.issue({
         library: libId,
@@ -478,6 +480,49 @@ describe('LA-E2-04 grant bound values, staged registration in the app, and opera
       });
       expect(stagedGoneRes.statusCode).toBe(409);
       expect(stagedGoneRes.json().details?.message).toBe('PLATFORM_IN_USE');
+      expect(stagedGoneRes.json().details?.reason).toBe('staged_gone');
+
+      // Round 4 (a) & (b) (BD-A1-101 & BD-A1-102): ordinary PLATFORM_IN_USE collision on lti-generic uses core default
+      // from texts.registration.PLATFORM_IN_USE and has no details.reason; Canvas keeps its developer-key bytes.
+      const cCollision = (
+        await call('POST', '/app-api/connections', {
+          name: 'QA3 R4 Collision Generic',
+          siteUrl,
+          method: 'manual',
+          lms: 'lti-generic',
+        })
+      ).json();
+      const collisionIssued = await op.issue({
+        library: libId,
+        connection: String(cCollision.id),
+        site: siteUrl,
+        clientId: 'c-manual-1',
+        deploymentId: 'dep-manual-1',
+        boundValues,
+        confirmForeignHosts: true,
+        note: 'qa3-r4-collision',
+        traceId: 't-r4-col',
+      });
+      expect(collisionIssued.exitCode).toBe(0);
+      const collisionCode = collisionIssued.lines.find((l) => l.startsWith('Approval code'))!.split(': ')[1]!;
+      const collisionRes = await call('PUT', `/app-api/connections/${String(cCollision.id)}/platform`, {
+        ...boundValues,
+        clientId: 'c-manual-1',
+        deploymentId: 'dep-manual-1',
+        grantCode: collisionCode,
+      });
+      expect(collisionRes.statusCode).toBe(409);
+      expect(collisionRes.json().details?.message).toBe('PLATFORM_IN_USE');
+      expect(collisionRes.json().details?.description).toBe(
+        'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.',
+      );
+      expect(collisionRes.json().details).not.toHaveProperty('reason');
+
+      // Verify Canvas manifest texts.registration.PLATFORM_IN_USE keeps today's bytes
+      const canvasChannel = TEST_CHANNELS.channel('canvas') as Record<string, any> | null;
+      expect(canvasChannel?.texts?.registration?.PLATFORM_IN_USE).toBe(
+        'This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.',
+      );
 
       artifact(
         'e2-04-r2-summary.json',
@@ -490,6 +535,9 @@ describe('LA-E2-04 grant bound values, staged registration in the app, and opera
             stagedMismatchDetails: stagedMismatchRes.json().details,
             stagedGoneStatus: stagedGoneRes.statusCode,
             stagedGoneDetails: stagedGoneRes.json().details,
+            ordinaryCollisionStatus: collisionRes.statusCode,
+            ordinaryCollisionDetails: collisionRes.json().details,
+            canvasRegistrationPlatformInUseTemplate: canvasChannel?.texts?.registration?.PLATFORM_IN_USE,
             stagedPlatformPreservedOnDisconnect: t.lti.platforms.has(pltStaged3.id),
             stagedPlatformPreservedOnRelease: t.lti.platforms.get(pltStaged3.id)?.active === false,
           },
@@ -502,18 +550,33 @@ describe('LA-E2-04 grant bound values, staged registration in the app, and opera
     }
   });
 
-  it('BD-A1-97 (cogniate-app-api-delta.md §3.4): a gone staged platform gives 409 PLATFORM_IN_USE with a description that says the staged registration is gone and to make a new connection', async () => {
+  it('BD-A1-97, BD-A1-101, BD-A1-102 (cogniate-app-api-delta.md §3.4): gone staged platform gives 409 PLATFORM_IN_USE with details.reason "staged_gone" and cause description; ordinary collision gives core default description without details.reason', async () => {
     const r2SummaryPath = path.join(process.env.LA_RUN_DIR!, 'e2-04-r2-summary.json');
     expect(fs.existsSync(r2SummaryPath)).toBe(true);
     const summary = JSON.parse(fs.readFileSync(r2SummaryPath, 'utf8')) as {
       stagedGoneStatus: number;
-      stagedGoneDetails: { message?: string; description?: string };
+      stagedGoneDetails: { message?: string; description?: string; reason?: string };
+      ordinaryCollisionStatus: number;
+      ordinaryCollisionDetails: { message?: string; description?: string; reason?: string };
+      canvasRegistrationPlatformInUseTemplate?: string;
     };
     expect(summary.stagedGoneStatus).toBe(409);
     expect(summary.stagedGoneDetails?.message).toBe('PLATFORM_IN_USE');
+    expect(summary.stagedGoneDetails?.reason).toBe('staged_gone');
     expect(
       String(summary.stagedGoneDetails?.description ?? ''),
       'BD-A1-97: 409 PLATFORM_IN_USE description for a gone staged platform names the cause (staged registration is gone; make a new connection)',
-    ).toMatch(/staged registration/i);
+    ).toBe(
+      'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.',
+    );
+    expect(summary.ordinaryCollisionStatus).toBe(409);
+    expect(summary.ordinaryCollisionDetails?.message).toBe('PLATFORM_IN_USE');
+    expect(summary.ordinaryCollisionDetails?.description).toBe(
+      'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.',
+    );
+    expect(summary.ordinaryCollisionDetails).not.toHaveProperty('reason');
+    expect(summary.canvasRegistrationPlatformInUseTemplate).toBe(
+      'This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.',
+    );
   });
 });
