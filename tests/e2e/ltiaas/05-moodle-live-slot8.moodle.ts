@@ -329,7 +329,7 @@ test.describe.serial(`Slot 8 MOODLE-LIVE (${PHASE})`, () => {
           await page.getByLabel(siteField.label, { exact: true }).fill(`${defaultRealSiteUrl(m.id)}/not-an-origin`);
           await next(page);
           await expect(
-            page.getByText(ERR.rule[1], { exact: true }).or(page.getByText(/Do not add a path\.|No path\.|origin/i)).first(),
+            page.getByText(ERR.rule[1], { exact: true }).or(page.getByText(/Do not add a path\.|No path\./i)).first(),
           ).toBeVisible();
           if (['moodle', 'canvas', 'blackboard'].includes(m.id)) {
             await fieldMarked(page, siteField.label);
@@ -651,6 +651,7 @@ test.describe.serial(`Slot 8 MOODLE-LIVE (${PHASE})`, () => {
         // Check whether Moodle closed the modal dialog or displayed a message inside the dialog
         const returnFrame = page.frames().find((f) => /contentitem_return\.php/.test(f.url()));
         const returnFrameText = returnFrame ? (await returnFrame.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').trim() : '';
+        expect(!modalVisibleAfterCancel || returnFrameText.length > 0, 'AC-LA-E3-05-11: Moodle closes the dialog or shows a message').toBe(true);
         await shot(page, 's8-04-after-picker-cancel', testInfo);
 
         // Second GET to the cancelled picker URL returns 410 PICKER_USED
