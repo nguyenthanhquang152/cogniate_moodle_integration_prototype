@@ -95,6 +95,17 @@ export interface Connection {
     at: string;
   } | null;
 }
+/** POST /app-api/connections/:id/check (app API delta §3.7, LA-ADR-08 D4). */
+export interface ConnectionCheckAnswer {
+  result: "ok" | "failed";
+  checkedAt: string;
+  details: {
+    jwks: { ok: boolean; keys?: number; detail?: string };
+    token: { ok: boolean; scope?: string; detail?: string };
+    platform: { active: boolean; deploymentActive: boolean };
+    limits: "shared-application" | null;
+  };
+}
 export interface ToolRow {
   key: string;
   label: string;
