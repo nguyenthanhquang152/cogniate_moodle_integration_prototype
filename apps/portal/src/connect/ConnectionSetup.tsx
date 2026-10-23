@@ -11,6 +11,7 @@ import { DisconnectDialog } from "./DisconnectDialog.tsx";
 import { NotFound } from "../NotFound.tsx";
 import { ProviderSetup } from "./ProviderSetup.tsx";
 import { ConnectionCheck } from "./ConnectionCheck.tsx";
+import { ConnectionHealth } from "./ConnectionHealth.tsx";
 import { useChannels } from "../channels/context.tsx";
 import { channelOf } from "../channels/registry.ts";
 import { createPortalSdk } from "../sdk/index.ts";
@@ -53,6 +54,7 @@ export function ConnectionSetup({ id, lms, opener = `${lms}-manage` }: { id: str
       <ConnectionError connection={connection} libraryName={library.name} />
       <ProviderSetup key={`${lms}:${id}`} lms={lms} connection={connection} opener={opener} onCreated={changed} onChanged={changed} />
       <ConnectionCheck connection={connection} />
+      <ConnectionHealth connection={connection} />
       {connection.status !== "disabled" && modules.get(lms)?.connectionPanels?.map((Panel, index) => <Panel key={index} connection={connection} sdk={createPortalSdk(navigate, reload)} />)}
       <div className="flex flex-wrap items-center gap-3">
         <Link

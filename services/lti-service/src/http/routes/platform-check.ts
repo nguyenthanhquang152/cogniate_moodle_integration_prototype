@@ -14,6 +14,7 @@ import type { Platform } from '../../store/platforms.ts';
 import { findDeployment } from '../../store/platforms.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
+import { isKeyList } from './platform-check-keys.ts';
 
 /** One check per platform and deployment per minute (contract delta §2.6). */
 export const CHECK_INTERVAL_MS = 60_000;
@@ -54,7 +55,7 @@ async function checkJwks(ctx: CheckContext, platform: Platform, traceId: string)
   } catch {
     keys = undefined;
   }
-  return Array.isArray(keys) && keys.length > 0 ? { ok: true, keys: keys.length } : { ok: false, detail: 'invalid_jwks' };
+  return isKeyList(keys) ? { ok: true, keys: keys.length } : { ok: false, detail: 'invalid_jwks' };
 }
 
 /** The class of a refused token answer: the OAuth error `invalid_client` or `invalid_scope`, else the HTTP status. */
