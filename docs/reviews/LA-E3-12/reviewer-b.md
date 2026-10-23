@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -28,3 +28,19 @@ Counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.
 - Ownership is respected: lane L product files, migration 018 and colocated author unit tests; the cross-lane `idtoken.test.ts` fixture is the explicitly dispatched L2 RQ-2 change. The named forbidden files and `tests/**` were not edited by these commits.
 
 This is source and unit approval. K1-SIM AC-01/02/03/05, the specified service regression lane, and the QA-owned LA-IC-13 test-change-list approval remain separate gate evidence. No Docker, stack or host stack runner was used.
+
+## Round 2
+
+Verdict: **APPROVE**. **0 new findings.** Reviewed `72ea0f2` (merge `fa7bf0a`) against BD-A2-73 and the contract delta's `trustedAudiences` row. Same Reviewer-B lens; no Reviewer-A file was opened.
+
+The bound has one clear source: `http/routes/platforms.ts:27` defines the list schema, and both create and PATCH use it. Entries of length 1 and 2,048 and a list of 20 pass; empty/2,049-character entries and 21 entries give `400 INVALID_REQUEST`. The error names `trustedAudiences` (and the entry index when applicable). The tests also check that a refused create leaves no platform and a refused PATCH preserves the whole stored list. Existing replacement, preservation and `[]`-clearing tests still pass.
+
+**B-LA-E3-12-01 is addressed for this task in the authoritative contract and operability documents.** Contract delta §4.6 (`:298`) now gives exact case-sensitive matching, no URL normalization, the client-id and `azp` rules, bounds, a PATCH example, replacement and clearing. Operability §9 (`:352`) connects `launch_check_failed` / `aud_untrusted` to the repair, asks the operator to confirm the extra audience with the LMS admin, and distinguishes `azp_missing` / `azp_mismatch`, which the list cannot repair. The tenant-facing `docs/guides/troubleshooting.md` entry is still the later Docs/E8 item assigned by BD-A2-73; this review does not mark that entry delivered.
+
+Verification used a private `git clone --no-hardlinks` at `deef75e`, with copied dependencies:
+
+- **141 tests passed in 5 files:** platform routes, platform store, launch checks, AGS and platform service tests. The new bounds test covers both positive endpoints and all three refusal classes through create and PATCH.
+- Restoring the pre-`72ea0f2` route source makes the bounds test fail on accepting the formerly allowed invalid value. The source was restored afterward.
+- LTI service TypeScript passes. F1 and F5 pass (the same integration checks recorded in the LA-E4-04 round-2 review).
+
+Only the L-owned platform route and its Author test change. The shared schema keeps the existing exact string semantics; no normalization, store migration, new LMS branch, forbidden file or `tests/**` edit is introduced. K1-SIM and live service regressions remain separate QA evidence. No Docker, stack, host stack runner or commit was used.

@@ -29,7 +29,7 @@ The product owner changed the model plan for the rest of LA:
 
 Routing rule (product owner, 2026-10-22): during the build, every spec, interface or design question from an Author or QA goes to the Architects (A1 for its files, A2 for its files) through the Lead; the Lead decides only process items (lanes, Docker slots, merge order, ownership requests that change no design). A Lead call made to keep a lane moving is provisional until the Architect ratifies it.
 
-New agents continue the work of the paused workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Review is always cross-model where the plan allows it, and QA is independent of both. Docker: LA stays host-only until the Blackboard and Canvas run hands back Docker (incident record on the board); any LA Docker command before the handoff is a stop-the-line violation.
+New agents continue the work of the paused workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Review is always cross-model where the plan allows it, and QA is independent of both. Docker: the Blackboard and Canvas run released its host-only hold on LA at 2026-10-22 20:13Z (board incident record). From then, LA uses Docker only by an explicit Lead grant (DOCKER-YES) to one QA session at a time: one LA stack at a time, its own compose project prefix, port and subnet; never touch, stop or remove a container, network or volume that the grant did not create (the 32 volume records that existed at the release stay unchanged); remove only its own stack at the end. Authors stay host-only. A Docker command without a grant is a stop-the-line violation.
 
 ## 1. Agents and roles
 

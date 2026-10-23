@@ -216,7 +216,7 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `GET /operator/v1/operator-keys` | — | `200 { operatorKeys: [{ id, operator, createdAt, expiresAt, lastUsedAt, revokedAt }] }` | Must |
 | `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
-| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. `404 UNREGISTERED_PLATFORM` for an unknown platform, or a platform of another account; the other fields are filters, and no match gives `{ revoked: 0 }` (BD-A2-47). | Should |
+| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. `404 UNREGISTERED_PLATFORM` for an unknown platform, or a platform of another account; the other fields are filters, and no match gives `{ revoked: 0 }` (BD-A2-47). `contextId: ""` = only the keys of launches without a context (BD-A2-76). | Should |
 | `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` `lastRunAt` is ISO 8601 or `null`. | Should |
 | `POST /operator/v1/jobs/:name/run` | — | `202 { job, traceId }` (the run uses that trace id). `409 JOB_RUNNING` (lease held). `404 NOT_FOUND` (unknown job). `503 NOT_READY` (`job_runner_not_active`, `retryAfter: 30`) when the runner is not active (BD-A2-69). | Should |
 
@@ -339,13 +339,13 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 | Method and path | Auth | Request | Success |
 | --- | --- | --- | --- |
-| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). `404 UNREGISTERED_PLATFORM` for an unknown platform or a platform of another account; no match gives `{ revoked: 0 }` (one audit event; BD-A2-47). |
+| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). `404 UNREGISTERED_PLATFORM` for an unknown platform or a platform of another account; no match gives `{ revoked: 0 }` (one audit event; BD-A2-47). `contextId: ""` = only the keys of launches without a context (BD-A2-76). |
 | `GET /api/audit` | Bearer `admin` | query as §3 audit, own account only | `200 { events, next? }` |
 | `GET /api/account` | Bearer `admin` | — | `200 { id, name, status, protocolUrls, launchUrl, deepLinkingUrl, registrationUrl }` |
 
 ### 4.9 `Idempotency-Key` (Should)
 
-On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51, BD-A2-56, BD-A2-57): the key is unique per tool account. The fingerprint is the method, the route template, the decoded path parameters, the resolved target (`POST /api/lineitems`: the credential's platform, deployment, context and line items URL) and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`). Another fingerprint with the same key gives `422`, so the same key in another course never replays. The lookup runs after the platform and deployment checks and, for `POST /api/lineitems`, after the AGS create preflight (line items URL, base URL, URL rule, scope `lineitem`; BD-A2-71), so a refusal of the current credential is never replayed. Only `2xx` answers, and `4xx` answers other than `429`, are replayed. After a `5xx`, a `429` or an answer with `Retry-After`, the key is free again. A `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
+On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51, BD-A2-56, BD-A2-57): the key is unique per tool account. The fingerprint is the method, the route template, the decoded path parameters, the resolved target (`POST /api/lineitems`: the credential's platform, deployment, context, `""` for a launch without a context, and line items URL; BD-A2-75) and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`). Another fingerprint with the same key gives `422`, so the same key in another course never replays. The lookup runs after the platform and deployment checks and, for `POST /api/lineitems`, after the AGS create preflight (line items URL, base URL, URL rule, scope `lineitem`; BD-A2-71), so a refusal of the current credential is never replayed. Only `2xx` answers, and `4xx` answers other than `429`, are replayed. After a `5xx`, a `429` or an answer with `Retry-After`, the key is free again. A `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
 
 ## 5. Audit actions (new)
 
@@ -369,7 +369,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
-| `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details` = counts by table; BD-A2-67) | `account` |
+| `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.counts` = a list of `{table, rows}`; BD-A2-67, BD-A2-82) | `account` |
 | `signing-key-rotation` job (Should) | `signing_key.create`, `signing_key.activate` (actor `system:signing-key-rotation`; BD-A2-68) | `signing_key` |
 | `GET /operator/v1/audit` | `audit.read` | `audit` |
 | `lti:operator init` | `operator_key.issue` (actor `system:bootstrap`) | `operator_key` |
@@ -380,6 +380,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | --- | --- | --- | --- |
 | `rate_limited` | warn | `class`, `key_kind` (`address`, `api_key`, `operator_key`), `key_id`? (API key id or operator key id, never the key), `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s`, `trace_id` (the request that first hit the limit in that minute) | at most once per bucket per minute |
 | `trusted_proxy_unresolved` | warn | `host` | a `TRUSTED_PROXY_CIDRS` host name does not resolve at a refresh (trust for it drops at once); at most once per failing host per refresh (BD-A2-30, B-LA-E5-03-04) |
+| `job_run_request_failed` | error | `job`, `trace_id` | `POST /operator/v1/jobs/:name/run` (or the re-wrap route) answered `202`, but the runner could not start the run (BD-A2-82) |
+| `secret_file_mode_open` | warn | `setting` | a secret file has a group or world bit outside the `production` profile (BD-A2-78) |
 | `rate_limit_soft` | warn | `class`, `tool_account_id` | a soft class above its rate; at most once per minute |
 | `platform_rate_limited` | warn | `platform_id`, `status`, `retry_after_s` | a platform `429` or throttling `403` |
 | `account_status_changed` | info | `tool_account_id`, `status` | operator change |

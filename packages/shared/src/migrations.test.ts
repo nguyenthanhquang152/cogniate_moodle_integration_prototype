@@ -194,6 +194,7 @@ describe('transaction (nested calls use a SAVEPOINT)', () => {
 });
 
 describe('afterCommit (BD-A2-60: run after the outermost COMMIT, drop on rollback)', () => {
+  const values = (db: DatabaseSync) => db.prepare('SELECT v FROM t ORDER BY v').all().map((r) => r.v);
   const table = () => {
     const db = openSqlite(':memory:', tmp('mig-'));
     db.exec('CREATE TABLE t (v INTEGER)');
@@ -247,6 +248,25 @@ describe('afterCommit (BD-A2-60: run after the outermost COMMIT, drop on rollbac
     } finally { spy.mockRestore(); }
     expect(seen).toEqual([]);
     expect(db.isTransaction).toBe(false);
+    db.close();
+  });
+
+  it('BD-A2-74: inside a transaction opened with raw SQL, transaction() and afterCommit() throw before any write', () => {
+    const db = table();
+    const seen: string[] = [];
+    let ran = false;
+    for (const end of ['ROLLBACK', 'COMMIT']) {
+      db.exec('BEGIN IMMEDIATE');
+      expect(() => transaction(db, () => { ran = true; db.exec('INSERT INTO t VALUES (1)'); })).toThrow(new TypeError('transaction opened outside transaction()'));
+      expect(() => afterCommit(db, () => seen.push(end))).toThrow(new TypeError('transaction opened outside transaction()'));
+      expect(db.isTransaction).toBe(true);
+      db.exec(end);
+    }
+    expect([ran, seen, values(db)]).toEqual([false, [], []]);
+    // Autocommit and helper scopes work as before after the raw transaction ended.
+    afterCommit(db, () => seen.push('autocommit'));
+    transaction(db, () => { afterCommit(db, () => seen.push('committed')); });
+    expect(seen).toEqual(['autocommit', 'committed']);
     db.close();
   });
 

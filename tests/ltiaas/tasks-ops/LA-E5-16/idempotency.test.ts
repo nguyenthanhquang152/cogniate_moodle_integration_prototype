@@ -138,6 +138,8 @@ async function launchCanvasScenario({
   resource,
   scenarioId,
   tokenAnswers,
+  claims,
+  omit,
 }: {
   clientId: string;
   deploymentId: string;
@@ -146,6 +148,8 @@ async function launchCanvasScenario({
   resource: string;
   scenarioId: string;
   tokenAnswers?: unknown[];
+  claims?: Record<string, unknown>;
+  omit?: string[];
 }): Promise<string> {
   const created = await simControl('/scenarios', 'POST', {
     id: scenarioId,
@@ -159,6 +163,8 @@ async function launchCanvasScenario({
     resource,
     subject: 'learner-1',
     ...(tokenAnswers ? { tokenAnswers } : {}),
+    ...(claims ? { claims } : {}),
+    ...(omit ? { omit } : {}),
   });
   assert.equal(created.status, 201, `create simulator scenario ${scenarioId}`);
   const rawLogin = (created.json?.login ?? {}) as Record<string, string | null>;
@@ -598,4 +604,117 @@ it('BD-A2-57 A platform 429 is not stored, so the retry with the same Idempotenc
   });
   assert.equal(retry.status, 201, 'retry with the same Idempotency-Key after 429 runs and returns 201 (BD-A2-57)');
   assert.equal(typeof retry.json?.id, 'string');
+});
+
+it('BD-A2-71 & BD-A2-75 A credential without the lineitem scope gets 403 SERVICE_NOT_AVAILABLE (not a stored 201) and its refused preflight is not stored; an ltik and a service key of a no-context launch share one fingerprint', async () => {
+  assert.ok(simLtik && lineitemsIdemKey, 'precondition: AC-01 created lineitems record on simLtik');
+
+  const idTokenRes = await ltiApi<{ services?: { lineItems?: string } }>('GET', '/api/idtoken', {
+    authorization: auth.ltik(cogniateKey, simLtik),
+  });
+  assert.equal(idTokenRes.status, 200, 'GET /api/idtoken for simLtik returns 200');
+  const lineItemsUrl = String(idTokenRes.json?.services?.lineItems ?? '');
+  assert.ok(lineItemsUrl.length > 0, 'simLtik has services.lineItems URL');
+
+  // 1. BD-A2-71: Launch in the same platform/deployment/course/lineItemsUrl without the lineitem scope.
+  const noScopeLtik = await launchCanvasScenario({
+    clientId: simClientId,
+    deploymentId: simDeploymentId,
+    contextId: `ctx-e516-${runId}`,
+    resourceLinkId: `rl-e516-noscope-${runId}`,
+    resource: `res-e516-noscope-${runId}`,
+    scenarioId: `sc-e516-noscope-${runId}`,
+    claims: {
+      'https://purl.imsglobal.org/spec/lti-ags/claim/endpoint': {
+        lineitems: lineItemsUrl,
+        scope: [
+          'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
+          'https://purl.imsglobal.org/spec/lti-ags/scope/score',
+        ],
+      },
+    },
+  });
+
+  // Replaying lineitemsIdemKey with noScopeLtik must return 403 SERVICE_NOT_AVAILABLE, not the stored 201.
+  const replayNoScope = await ltiIdemApi('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, noScopeLtik),
+    idempotencyKey: lineitemsIdemKey,
+    body: lineitemsBody,
+  });
+  assert.equal(replayNoScope.status, 403, 'BD-A2-71: credential without lineitem scope gets 403, not stored 201');
+  assert.equal(errorCode(replayNoScope), 'SERVICE_NOT_AVAILABLE');
+
+  // A refused preflight with a fresh key is never stored, so the authorized retry with simLtik reaches the platform.
+  const retryAfterNoScopeKey = `idem_noscope_${runId}`;
+  const retryAfterNoScopeBody = {
+    scoreMaximum: 100,
+    label: `QA2 Authorized Retry ${runId}`,
+    resourceId: `res-noscope-${runId}`,
+  };
+  const refusedPreflight = await ltiIdemApi('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, noScopeLtik),
+    idempotencyKey: retryAfterNoScopeKey,
+    body: retryAfterNoScopeBody,
+  });
+  assert.equal(refusedPreflight.status, 403, 'BD-A2-71: first call without lineitem scope returns 403');
+  assert.equal(errorCode(refusedPreflight), 'SERVICE_NOT_AVAILABLE');
+
+  const authorizedRetry = await ltiIdemApi<{ id?: string }>('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, simLtik),
+    idempotencyKey: retryAfterNoScopeKey,
+    body: retryAfterNoScopeBody,
+  });
+  assert.equal(
+    authorizedRetry.status,
+    201,
+    'BD-A2-71: refused preflight was not stored, so authorized retry with same key reaches the platform and returns 201',
+  );
+
+  // 2. BD-A2-75 (LA-E3-03): An ltik and a service key of a launch with no context claim share contextId "" and one fingerprint.
+  const noCtxLtik = await launchCanvasScenario({
+    clientId: simClientId,
+    deploymentId: simDeploymentId,
+    contextId: `ctx-omitted-${runId}`,
+    resourceLinkId: `rl-e516-noctx-${runId}`,
+    resource: `res-e516-noctx-${runId}`,
+    scenarioId: `sc-e516-noctx-${runId}`,
+    omit: ['https://purl.imsglobal.org/spec/lti/claim/context'],
+  });
+  const noCtxIdToken = await ltiApi<{ services?: { serviceKey?: string } }>('GET', '/api/idtoken', {
+    authorization: auth.ltik(cogniateKey, noCtxLtik),
+  });
+  assert.equal(noCtxIdToken.status, 200, 'GET /api/idtoken for no-context launch returns 200');
+  const noCtxServiceKey = String(noCtxIdToken.json?.services?.serviceKey ?? '');
+  assert.ok(noCtxServiceKey.length > 0, 'no-context launch issues a serviceKey');
+  recordSecret('service_key', noCtxServiceKey);
+
+  const noCtxIdemKey = `idem_noctx_${runId}`;
+  const noCtxBody = {
+    scoreMaximum: 100,
+    label: `QA2 No Context Shared Fingerprint ${runId}`,
+    resourceId: `res-noctx-${runId}`,
+  };
+  const beforeCursor = (await simRecords()).cursor;
+  const fromLtik = await ltiIdemApi<{ id?: string }>('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, noCtxLtik),
+    idempotencyKey: noCtxIdemKey,
+    body: noCtxBody,
+  });
+  assert.equal(fromLtik.status, 201, 'no-context ltik POST /api/lineitems returns 201');
+
+  const fromServiceKey = await ltiIdemApi<{ id?: string }>('POST', '/api/lineitems', {
+    authorization: auth.service(cogniateKey, noCtxServiceKey),
+    idempotencyKey: noCtxIdemKey,
+    body: noCtxBody,
+  });
+  assert.equal(
+    fromServiceKey.status,
+    201,
+    'BD-A2-75: service key of the same no-context launch shares the fingerprint and replays 201',
+  );
+  assert.deepEqual(fromServiceKey.json, fromLtik.json, 'service key replay returns the exact stored line item');
+  const noCtxCreates = (await simRecords(beforeCursor)).records.filter(
+    (r) => r.kind === 'ags' && r.method === 'POST' && r.body?.resourceId === noCtxBody.resourceId,
+  );
+  assert.equal(noCtxCreates.length, 1, 'simulator records only one line item create across no-context ltik and service key');
 });

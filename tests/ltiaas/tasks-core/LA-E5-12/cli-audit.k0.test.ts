@@ -48,14 +48,23 @@ describe('LA-E5-12 app CLI wiring: --operator, evidence flags, audit events (K0 
     }
   });
 
-  it('AC-LA-E5-12-08: Author unit tests for transactional rollback of audit events and BD-A2-45 policy seam pass', async () => {
+  it('AC-LA-E5-12-08, BD-A1-67, BD-A2-45/59/63/64: Author unit tests for transactional rollback of audit events, operator policy seam, evidenceRequired false on revoke, and stable refused-event codes pass', async () => {
     const unitRes = await run(
       'npx',
-      ['--no-install', 'vitest', 'run', '--reporter=verbose', '-t', 'AC-LA-E5-12-'],
+      [
+        '--no-install',
+        'vitest',
+        'run',
+        '--reporter=verbose',
+        'services/cogniate-app/src/app/operator-audit.test.ts',
+        'services/cogniate-app/src/app/operator-texts.test.ts',
+      ],
       { timeoutMs: 5 * 60_000 },
     );
     artifact('e5-12-unit-rows.log', unitRes.output);
-    expect(unitRes.code, `vitest run -t "AC-LA-E5-12-" exits 0:\n${unitRes.output}`).toBe(0);
-    expect(unitRes.output, 'unit test output cites AC-LA-E5-12-08').toContain('AC-LA-E5-12-08');
+    expect(unitRes.code, `operator-audit and operator-texts unit suites exit 0:\n${unitRes.output}`).toBe(0);
+    for (const marker of ['AC-LA-E5-12-08', 'BD-A2-63', 'AP-07-04', 'AP-07-06', 'AP-07-09', 'operators_ambiguous']) {
+      expect(unitRes.output, `unit test output cites ${marker}`).toContain(marker);
+    }
   });
 });

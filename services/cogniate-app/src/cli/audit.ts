@@ -8,26 +8,25 @@ import type { AuditFilter } from '../app/audit.ts';
 
 interface CommandResult { exitCode: 0 | 1; lines: string[] }
 
-const USAGE = 'app:audit list [--connection <id>] [--action <name>] [--since <ISO date-time>] [--limit <1-500>]';
+const USAGE = 'app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]';
 export const AUDIT_HELP = [
   `Usage: ${USAGE}`,
   'Prints the app audit events, newest first, one JSON line for each event. The command only reads.',
   '  --connection <id>  only the events of this connection',
-  '  --action <name>    only the events with this action, for example grant.issue',
-  '  --since <time>     only the events at or after this ISO 8601 date-time with an offset, for example 2026-10-22T00:00:00Z',
+  '  --action <action>  only the events with this action, for example grant.issue',
+  '  --since <time>     only the events at or after this ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z',
   '  --limit <n>        at most n events, from 1 to 500 (default 100)',
   'The database is cogniate.db in DATA_DIR (default /data/cogniate.db).',
 ];
 
-/** BD-A2-59 (Lead call, for A2): one fixed sentence with the fix for each code. A message never echoes input. */
+/** BD-A2-62 (LA-ADR-07 D4): one fixed sentence with the fix for each code, copied from the ADR. A message never echoes input. */
 export const AUDIT_REFUSALS = {
-  arguments_invalid: `Use: ${USAGE}. Run app:audit --help for the options.`,
+  arguments_invalid: `Usage: ${USAGE}. Run app:audit --help for the options.`,
   connection_invalid: 'Give --connection a connection id that is not empty.',
-  action_invalid: 'Give --action an action name that is not empty, for example grant.issue.',
-  limit_invalid: 'Give --limit a whole number from 1 to 500.',
-  since_invalid: 'Give --since an ISO 8601 date-time with an offset, for example 2026-10-22T00:00:00Z.',
-  audit_read_failed: 'Cannot read the audit table in cogniate.db in DATA_DIR (default /data/cogniate.db): the file is missing, '
-    + 'cannot be read, or is not migrated. Run the command in the cogniate-app container, or set DATA_DIR to the folder of the app database.',
+  action_invalid: 'Give --action an audit action name that is not empty, for example grant.issue.',
+  limit_invalid: 'Give --limit a whole number from 1 to 500 (default 100).',
+  since_invalid: 'Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z.',
+  audit_read_failed: 'The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR).',
 } as const;
 type AuditRefusalCode = keyof typeof AUDIT_REFUSALS;
 

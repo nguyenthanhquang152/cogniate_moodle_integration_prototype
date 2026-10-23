@@ -16,6 +16,7 @@ Spec: `docs/architecture/ltiaas/tasks/LA-E5-16.md`, `lti-service-api-delta.md` Â
 | `AC-LA-E5-16-07` | `K1-SIM` | `idempotency.test.ts` | Requests without `Idempotency-Key` behave as before (two `POST /api/lineitems` calls record two simulator creates; duplicate `POST /api/platforms` returns `409 PLATFORM_ALREADY_EXISTS`) |
 | `BD-A2-56` | `K1-SIM` + `UNIT` | `idempotency.test.ts` + Author unit test | A refused target (`403 PLATFORM_NOT_ACTIVE` on a deactivated platform, `404 UNREGISTERED_PLATFORM` on an unknown platform) is never stored or replayed |
 | `BD-A2-57` | `K1-SIM` + `UNIT` | `idempotency.test.ts` + Author unit test | A platform `429` (`Retry-After`) is not stored, so the retry with the same `Idempotency-Key` runs and creates the line item |
+| `BD-A2-71` & `BD-A2-75` | `K1-SIM` + `UNIT` | `idempotency.test.ts` + Author unit test | A credential without the `lineitem` scope gets `403 SERVICE_NOT_AVAILABLE` (not a stored `201`) and its refused preflight is not stored so an authorized retry reaches the platform (`BD-A2-71`); an `ltik` and a service key of a no-context launch (`LA-E3-03`) share `contextId: ""` and one fingerprint (`BD-A2-75`) |
 
 ## Host-only check (no Docker)
 

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-11 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -103,3 +103,15 @@ Counts this round: **0 BLOCKER, 0 MAJOR, 1 MINOR (new), 0 NIT.**
 - Private mutants removed refusal messages/help, restored the narrower redaction predicate and required evidence even for the new revoke mode. The task suites produced **51 expected assertion failures and 21 passes**; all source mutations were restored. The new literal policy-message rows also guard against echoing operator, evidence, note or file input.
 - BD-A2-63 is narrowly implemented: `evidenceRequired` defaults to true, and false skips only the two missing-evidence checks. Tests retain operator/config checks, validation of supplied evidence, and the default issue behavior. The policy's comment identifies revoke as the sole intended caller.
 - The changes remain in S1's three modules and colocated tests. No forbidden K-owned operator/CLI/domain file, LTI service file, QA-owned test or LMS branch was changed by these four commits. K1-SIM AC-08 and the task's migration/regression gate remain separate QA evidence.
+
+## Round 3
+
+Reviewer-B: Codex GPT-6-Astra, xhigh. Date: 2026-10-23. Verdict: **APPROVE**. Reviewed `19844f2` against BD-A2-62 and the fixed LA-ADR-07 D4 table. Verification used a private `git clone --no-hardlinks` at `d8cb6af`. No other reviewer's file was opened.
+
+**B-LA-E5-11-03 — CLOSED.** The five changed refusal messages now match the ratified table exactly. An independent comparison of all six exported constants against the Markdown table passed. The help text uses the same argument names and time example. The event, reason, message and trace id shape is unchanged; the texts still contain no input values.
+
+The audit CLI suite passed **26 tests**, including its process, read-only, help and fixed-message checks. It was part of a five-file dispatch run with **65 passing tests**. Restoring the pre-`19844f2` CLI in the private clone made exactly the five corrected literal-message rows fail; the unchanged connection row passed. After restoration, the CLI and LTI config suites passed all **36 tests**. Both service type checks and F1/F5 passed.
+
+This is a text-only change in the S1 audit CLI and its colocated test. No protected file, behavior outside the task, or LMS name in core paths was changed. UNIT AC-01–07 coverage and the earlier review conclusions remain intact. K1-SIM AC-08 and wider QA gates remain separate evidence; no Docker or stack runner was used.
+
+Evidence: `/tmp/la-review-b-34de19be90b5/reviewer-b-focused.log`, `reviewer-b-old-audit-text.log` and `reviewer-b-restored.log`. Open findings: **0**.

@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # LA-E5-16 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -89,3 +89,26 @@ Reviewer: Codex GPT-6-Astra, xhigh. Reviewed `a36d4c5` in merge `836d579` agains
 - The idempotency probes passed **12** target/binding checks and failed the **3** scope cases above. Four separate mutation controls were detected by the shipped tests: omit the target (1 failure), omit binding checks (1), restore cached `429` behavior (3), and ignore `Retry-After` (1). All mutations were restored.
 - UNIT AC-04/06 retain concurrent-request, independent SQLite connection and controlled-clock coverage. BD-A2-58's `409` wait is rounded up to the remaining claim time, at least one second, and is sent in both the details and the header. Hook `409`/`422` responses are not stored. The route-registration check fails startup on a missing selected route.
 - No forbidden route or `platform/**` file changed in the reviewed diff, and no LMS-name branch was added. Only this review file was edited for this item in the integration worktree. No Docker, stack or host stack runner was used. K1-SIM evidence remains with QA.
+
+## Round 3
+
+Reviewer: Codex GPT-6-Astra, xhigh. Reviewed `97e9f91` and its lane-L dependency `12f9541`, against the task spec, LA-ADR-06 D9, contract delta §4.9 and BD-A2-71/75. Blind review; no Reviewer-B file read.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Earlier findings and requested checks
+
+| Item | Status and evidence |
+| --- | --- |
+| A-LA-E5-16-03, current AGS permission | **Closed.** `lineItemTarget` now calls the shared read-only `preflightCreateLineItem` after `agsContext` and before the claim. The actual create route uses the same helper. Endpoint presence, URL validation and `lineitem` scope checks preserve their order and refusals, with no outbound call; the checked URL becomes the fingerprint target. |
+| Three round-two failure probes | **All pass.** An ltik without write scope and a service key whose stored scope was narrowed both receive the current `403`, rather than the old `201`. A refused unused key leaves no record, so the same key succeeds after permission is restored. The other 12 round-two target/binding probes also pass. |
+| Exact route template | The startup guard collects exact POST templates via `onRoute`. Renaming only `:id` now fails startup; the missing-route test also passes. Restoring `hasRoute` makes the new renamed-parameter test fail. |
+| BD-A2-75 / related A-LA-E3-03-01 | **Verified fixed.** No context is `contextId: ""` for both schemes. The earlier six private no-context probes now all pass, including replay in both directions between an ltik and its service key, with one create and the same body. Context-present controls and the service/placement checks stay green. |
+| A-LA-E5-16-01/02 | Remain closed. Target isolation, binding checks, retryable-response release, running-claim handling and expiry tests continue to pass. |
+
+### Verification and scope
+
+- Private clone at `c2dd31d`: the shared focused run passed 170 tests in 18 files; it includes all 15 round-two probes and the six no-context probes. The separate platform suite also passes its preflight checks, exact refusal parity and no-I/O assertions.
+- Three isolated mutation controls are detected: omit preflight (2 failing shipped tests), restore the non-exact route guard (1), and restore absent-context `null` (1). All mutations were restored. LTI-service TypeScript and ESLint on the reviewed TypeScript files pass.
+- UNIT AC-04/06 remain covered by concurrency, independent SQLite connections and controlled clocks. S1 changes only its plugin and colocated tests; the shared AGS helper is the authorized lane-L RQ-1 change. No forbidden route edit or LMS-name branch was introduced.
+- Only this review file was edited for this item in the integration worktree. No Docker, stack, host stack runner or commit was used. K1-SIM evidence remains with QA; no author change remains for this round.

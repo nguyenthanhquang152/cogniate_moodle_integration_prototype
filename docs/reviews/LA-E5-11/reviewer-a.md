@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-11 review, lens A ("Is it right and is it safe?")
 
@@ -62,3 +62,15 @@ Reviewer: Codex GPT-6-Astra, xhigh. Reviewed `75f50c3`, `060c24d`, `f6738ee` and
 - Policy refusals use the ten fixed BD-A2-59 messages. Private probes confirmed that hostile operator, evidence, flag and file-path values never appear in the refusal line. `app:audit` retains its event and trace id, prints help on stdout, and opens databases read-only. Append-only, redaction, size-limit and CLI ordering tests remain green.
 - Private clone at `836d579`: the shared LA-E5-16/11 focused run passed **187 tests in 10 files**. Both service typechecks and ESLint on all 11 changed TypeScript files passed. The extra policy/audit probe suite passed **4** tests and failed the **5** message comparisons described in -02. Both app mutation controls were detected and restored.
 - The UNIT criteria retain the writer/migration, policy and CLI tests; the new default and redaction checks fail under the old behavior. The diff stays in S1's three implementation files and adjacent unit tests, with no forbidden file or new LMS-name branch. Only this review file was edited for this item in the integration worktree. No Docker, stack or host stack runner was used; K1-SIM AC-08 remains with QA.
+
+## Round 3
+
+Reviewer: Codex GPT-6-Astra, xhigh. Date: 2026-10-23 (+07). Reviewed `19844f2` against LA-ADR-07 D4 and BD-A2-62. Test snapshot: `d8cb6af6958afae2c12381700faf180e7ad99609`, private clone `/tmp/la-review-a-d7ce4dfe99d4`. Blind review.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+**A-LA-E5-11-02 is closed.** All six refusal constants now match the ratified D4 text exactly. The five changed messages have independent literal expectations in the CLI test. The help text uses the same argument names and time example. The change preserves fixed output without user-supplied values, the event/reason/trace-id shape, exit status and read-only database path.
+
+The CLI suite passed **26 tests**, within the 65-test focused run documented in [LA-E5-21 Reviewer-A](../LA-E5-21/reviewer-a.md). As a control, restoring only `cli/audit.ts` from `19844f2^` made exactly the **five corrected message tests fail**, with 21 still passing. The implementation was restored after the control. Log: `/tmp/la-review-a-d7ce4dfe99d4-audit-old-control.log`. The app typecheck passed.
+
+No new finding. The diff changes only S1's audit CLI text and adjacent unit assertions; no protected file, wire behaviour or LMS branch changes. Earlier approvals remain in place. K1-SIM AC-08 and full regression gates remain with QA. Only this review file was edited for this item in the integration worktree; no Docker, stack, host stack runner, commit or push was used.

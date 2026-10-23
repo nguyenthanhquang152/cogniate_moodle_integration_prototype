@@ -38,9 +38,9 @@ let runDir: string;
 
 function isAllowedD10Exception(relPath: string): boolean {
   if (relPath === 'packages/channel-kernel/src/legacy-wire.ts') return true;
-  if (/^services\/[^/]+\/src\/migrations\//.test(relPath)) return true;
+  if (/^services\/[^/]+\/src\/(?:[^/]+\/)?migrations\//.test(relPath)) return true;
   if (/^services\/[^/]+\/migrations\//.test(relPath)) return true;
-  if (/migrations\/0\d\d[_-]/.test(relPath)) return true;
+  if (/migrations\/(?:0\d\d[_-]|\*)/.test(relPath)) return true;
   return false;
 }
 
@@ -100,28 +100,25 @@ describe('LA-E1-12 F1 ratchet at zero, F2 report mode and E1 fitness verificatio
   it('AC-LA-E1-12-02: packages/channel-kernel/fitness-scope.json exception list has only legacy-wire.ts and the applied migrations', () => {
     const scopeAbs = path.join(ROOT, FITNESS_SCOPE_REL);
     expect(fs.existsSync(scopeAbs), `${FITNESS_SCOPE_REL} exists`).toBe(true);
-    const scope = JSON.parse(fs.readFileSync(scopeAbs, 'utf8')) as Record<string, unknown>;
+    const scope = JSON.parse(fs.readFileSync(scopeAbs, 'utf8')) as {
+      classes?: { coreExceptions?: { globs?: string[] } };
+    };
 
-    // Find the exception list in fitness-scope.json (whether top-level `exceptions`, `f1.exceptions`, or `allowlist`).
-    const candidates: string[][] = [];
-    if (Array.isArray(scope.exceptions)) candidates.push(scope.exceptions as string[]);
-    if (scope.f1 && typeof scope.f1 === 'object' && Array.isArray((scope.f1 as Record<string, unknown>).exceptions)) {
-      candidates.push((scope.f1 as Record<string, unknown>).exceptions as string[]);
-    }
-    expect(candidates.length, `${FITNESS_SCOPE_REL} defines an exceptions array`).toBeGreaterThan(0);
+    // fitness-scope.json uses the LA-E1-04 format read by infra/scripts/fitness/common.mjs (`classes.coreExceptions.globs`).
+    const globs = scope.classes?.coreExceptions?.globs;
+    expect(Array.isArray(globs), `${FITNESS_SCOPE_REL} defines classes.coreExceptions.globs`).toBe(true);
 
-    for (const list of candidates) {
-      expect(
-        list.some((entry) => entry.includes('packages/shared/src/config.ts')),
-        'packages/shared/src/config.ts is no longer in the exception list',
-      ).toBe(false);
-      expect(
-        list.some((entry) => entry.includes('packages/channel-kernel/src/legacy-wire.ts')),
-        'packages/channel-kernel/src/legacy-wire.ts is in the exception list',
-      ).toBe(true);
-      const unexpected = list.filter((entry) => !isAllowedD10Exception(entry));
-      expect(unexpected, 'exception list contains only legacy-wire.ts and applied migrations').toEqual([]);
-    }
+    expect(
+      globs!.some((entry) => entry.includes('packages/shared/src/config.ts')),
+      'packages/shared/src/config.ts is no longer in classes.coreExceptions.globs',
+    ).toBe(false);
+    expect(
+      globs!.includes('packages/channel-kernel/src/legacy-wire.ts'),
+      'packages/channel-kernel/src/legacy-wire.ts is in classes.coreExceptions.globs',
+    ).toBe(true);
+    const unexpected = globs!.filter((entry) => !isAllowedD10Exception(entry));
+    expect(unexpected, 'classes.coreExceptions.globs contains only legacy-wire.ts and applied migrations').toEqual([]);
+    expect(globs!.length, 'classes.coreExceptions.globs has legacy-wire.ts and the two applied-migration globs').toBe(3);
 
     artifact('e1-12-ac02-fitness-scope.json', `${JSON.stringify(scope, null, 2)}\n`);
   });

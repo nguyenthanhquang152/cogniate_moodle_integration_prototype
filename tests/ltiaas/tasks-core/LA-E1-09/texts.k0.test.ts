@@ -174,7 +174,7 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
       expect(apiErrorsSrc, `api-errors.ts does not hold ${removedCode} (BD-A1-56)`).not.toContain(removedCode);
     }
 
-    // 2. BD-A1-57 / LA-IC-19: scan frozen tests (`tests/acceptance/**`, `tests/e2e/**`, `tests/ltiaas/golden/**`)
+    // 2. BD-A1-57 / LA-IC-19: scan frozen tests (`tests/acceptance/**`, `tests/e2e/**`, `tests/ltiaas/golden/capture.golden.ts`)
     //    for `RUNTIME_EXPIRED`; only `tests/acceptance/T5a/6-negative.spec.ts` (Moodle live, where Moodle bytes are
     //    unchanged and only `status === 410` + `code === 'RUNTIME_EXPIRED'` are asserted) references it.
     const frozenHits = git([
@@ -184,7 +184,7 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
       '--',
       'tests/acceptance',
       'tests/e2e',
-      'tests/ltiaas/golden',
+      'tests/ltiaas/golden/capture.golden.ts',
     ])
       .split('\n')
       .map((s) => s.trim())
@@ -197,7 +197,8 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
       ).toBe(true);
     }
 
-    // 3. Author UNIT rows for AC-LA-E1-09-02 (including LA-IC-19), AC-LA-E1-09-03, AC-LA-E1-09-04, and BD-A1-56 pass.
+    // 3. Author UNIT rows for AC-LA-E1-09-02 (including LA-IC-19, B-LA-E1-09-01, BD-A1-59), AC-LA-E1-09-03,
+    //    AC-LA-E1-09-04, BD-A1-56, and BD-A1-62 (http_request path = route template or <unmatched>) pass.
     const unitRes = await run(
       'npx',
       [
@@ -207,8 +208,10 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
         '--reporter=verbose',
         'apps/player/src/lms-name.test.ts',
         'packages/channel-kernel/src/legacy-wire.test.ts',
+        'packages/channel-kernel/src/manifest.test.ts',
         'packages/tracking/src/status-text.test.ts',
         'services/cogniate-app/src/app/portal.test.ts',
+        'services/cogniate-app/src/http-request-log.test.ts',
         'services/cogniate-app/src/tool-pages/embedded-session-help.test.ts',
         'services/cogniate-app/src/tool-pages/lms-texts.test.ts',
       ],
@@ -216,7 +219,16 @@ describe('LA-E1-09 {LMS} texts in app, player and tracking, and portal route all
     );
     artifact('e1-09-unit-rows.log', unitRes.output);
     expect(unitRes.code, `LA-E1-09 unit suites exit 0:\n${unitRes.output}`).toBe(0);
-    for (const marker of ['AC-LA-E1-09-02', 'AC-LA-E1-09-03', 'AC-LA-E1-09-04', 'LA-IC-19', 'BD-A1-30']) {
+    for (const marker of [
+      'AC-LA-E1-09-02',
+      'AC-LA-E1-09-03',
+      'AC-LA-E1-09-04',
+      'LA-IC-19',
+      'BD-A1-30',
+      'B-LA-E1-09-01',
+      'BD-A1-59',
+      '<unmatched>',
+    ]) {
       expect(unitRes.output, `unit test output cites ${marker}`).toContain(marker);
     }
   });
