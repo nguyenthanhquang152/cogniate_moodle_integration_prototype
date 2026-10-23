@@ -87,11 +87,14 @@ export function sqliteAuditedOperations(db: Db, audit: AuditedRequest) {
         return { revoked: revokeScopedServiceKeys(db, accountId, filter, now) };
       }, ({ revoked }) => ({ details: { ...filter, revoked } }));
     },
-    async acceptJob(name: string, now: number) {
-      return audit.change(() => {
-        const held = db.prepare('SELECT 1 FROM job_lease WHERE name = ? AND owner IS NOT NULL AND lease_until > ?').get(name, now);
+    async acceptJob(name: string, now: () => number) {
+      const requireFreeLease = () => {
+        const held = db.prepare('SELECT 1 FROM job_lease WHERE name = ? AND owner IS NOT NULL AND lease_until > ?').get(name, now());
         if (held) throw new ApiError('JOB_RUNNING');
-      });
+      };
+      // D4 T3: preflight before the change; read again inside its transaction.
+      requireFreeLease();
+      return audit.change(requireFreeLease);
     },
     async createPlatform(accountId: string, plan: NewPlatform) {
       return audit.change(() => createPlatform(db, accountId, plan),

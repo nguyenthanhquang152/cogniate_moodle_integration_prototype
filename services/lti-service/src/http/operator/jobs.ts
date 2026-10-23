@@ -27,7 +27,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: OperatorContext): v
       if (!name) throw new ApiError('NOT_FOUND', 'Unknown job.');
 
       // Record acceptance before the run starts. The request, the job_run line and the job's events share one trace id.
-      (await audit.acceptJob(name, ctx.now()));
+      (await audit.acceptJob(name, ctx.now));
       void runner.runNow(name, { traceId: req.traceId }).catch((err: unknown) => {
         ctx.logger.error('job_run_request_failed', { trace_id: req.traceId, job: name, error: err instanceof Error ? err.name : 'Error' });
       });

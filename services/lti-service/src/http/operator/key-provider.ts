@@ -15,7 +15,7 @@ export function registerKeyProviderRoutes(app: FastifyInstance, ctx: OperatorCon
     }
 
     // Record acceptance before starting work. An audit failure must not start a run.
-    (await audit.acceptJob(KEY_REWRAP_JOB, ctx.now()));
+    (await audit.acceptJob(KEY_REWRAP_JOB, ctx.now));
     // The accepted request, job log and end event use one trace id (BD-A2-50).
     void runner.runNow(KEY_REWRAP_JOB, { traceId: req.traceId }).catch((err: unknown) => {
       ctx.logger.error('key_rewrap_failed', { trace_id: req.traceId, error: err instanceof Error ? err.name : 'Error' });
