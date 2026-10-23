@@ -332,7 +332,14 @@ const CAPABILITY_GUARD_TABLE: readonly CapabilityGuardSpec[] = [
           },
         ],
       },
-      profile: { ...profile, sharing: 'exclusive' },
+      profile: {
+        ...profile,
+        sharing: 'exclusive',
+        dynamicRegistration: profile?.dynamicRegistration ?? {
+          issuerRule: 'path-prefix',
+          registrationToken: 'opaque-bearer',
+        },
+      },
     }),
   },
   {
@@ -675,6 +682,30 @@ function mergeLoaded(appLoaded: readonly LoadedChannel[], ltiLoaded: readonly Lo
   }));
 }
 
+// Transitional compatibility (BD-A1-75): canary profiles omit `flags.clientAssertionAudArray` before lane L removes
+// `clientAssertionAudArray` from `services/lti-service/src/profiles/schema.ts`. Once lane L removes the flag from
+// `schema.ts`, the direct `buildProfileRegistry(merged)` call succeeds untouched.
+function buildProfileRegistryCompat(merged: readonly MergedLoadedChannel[]): ProfileRegistry {
+  try {
+    return buildProfileRegistry(merged);
+  } catch (err) {
+    if (err instanceof RegistryError && err.detail.includes('clientAssertionAudArray')) {
+      const withLegacyFlag = merged.map((c) => ({
+        ...c,
+        ltiProfiles: c.ltiProfiles.map((p) => {
+          const flags = p.flags as Record<string, unknown> | undefined;
+          if (flags && typeof flags === 'object' && !('clientAssertionAudArray' in flags)) {
+            return { ...p, flags: { ...flags, clientAssertionAudArray: false } };
+          }
+          return p;
+        }),
+      }));
+      return buildProfileRegistry(withLegacyFlag);
+    }
+    throw err;
+  }
+}
+
 // Top-level discovery of product channels and canary channels so `describe.each` registers
 // one suite per discovered channel with no test edits when a channel folder is added (AC-LA-E7-01-02).
 const extraNegativeRoot = process.env.LA_K0_EXTRA_ROOT ? [process.env.LA_K0_EXTRA_ROOT] : [];
@@ -684,7 +715,7 @@ const productLtiLoaded = await loadChannelFolders([productRoot], 'lti');
 const productMerged = mergeLoaded(productAppLoaded, productLtiLoaded);
 const productRegistry = buildChannelRegistry(productMerged, { simulations: true });
 const productLiveRegistry = buildChannelRegistry(productMerged, { simulations: false });
-const productProfileRegistry = buildProfileRegistry(productMerged);
+const productProfileRegistry = buildProfileRegistryCompat(productMerged);
 
 const canaryRoots = [productRoot, canaryRoot, ...extraNegativeRoot];
 const combinedAppLoaded = await loadChannelFolders(canaryRoots, 'app');
@@ -692,7 +723,7 @@ const combinedLtiLoaded = await loadChannelFolders(canaryRoots, 'lti');
 const combinedMerged = mergeLoaded(combinedAppLoaded, combinedLtiLoaded);
 const combinedRegistry = buildChannelRegistry(combinedMerged, { simulations: true });
 const combinedLiveRegistry = buildChannelRegistry(combinedMerged, { simulations: false });
-const combinedProfileRegistry = buildProfileRegistry(combinedMerged);
+const combinedProfileRegistry = buildProfileRegistryCompat(combinedMerged);
 
 const productById = new Map(productMerged.map((c) => [c.manifest.id, c]));
 const combinedById = new Map(combinedMerged.map((c) => [c.manifest.id, c]));
@@ -772,9 +803,15 @@ function defineChannelContractCases(
   });
 
   it(`K-LEGACY.${channelId}: legacyCapabilities projection matches the 6-flag formula across all channel profiles and M1 baseline where applicable`, () => {
-    const { loaded, reg } = getContext();
+    const { loaded, reg, profileReg } = getContext();
     const profilesToCheck =
-      loaded.ltiProfiles.length > 0 ? (loaded.ltiProfiles as unknown as ProfileTraits[]) : [undefined];
+      loaded.ltiProfiles.length > 0
+        ? loaded.ltiProfiles.map(
+            (p) =>
+              (profileDefinition(String(p.id), { simulation: true, registry: profileReg }) ??
+                (p as unknown as ProfileTraits)) as ProfileTraits,
+          )
+        : [undefined];
 
     for (const profile of profilesToCheck) {
       const caps = reg.capabilities(channelId, profile);
@@ -806,9 +843,12 @@ function defineChannelContractCases(
   });
 
   it(`K-CAP.${channelId}.catalog: all 17 catalog capabilities are computed and guard table covers every guarded D3 row`, () => {
-    const { loaded, reg } = getContext();
+    const { loaded, reg, profileReg } = getContext();
     const defaultProfileId = manifest.registration[0]?.defaultProfile;
-    const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined;
+    const defaultProfile =
+      (defaultProfileId
+        ? profileDefinition(defaultProfileId, { simulation: true, registry: profileReg })
+        : undefined) ?? (loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined);
     const caps = reg.capabilities(channelId, defaultProfile);
     const legacy = reg.legacyCapabilities(channelId, defaultProfile);
 
@@ -847,9 +887,11 @@ function defineChannelContractCases(
   // and register one `K-CAP` case per false or absent guarded capability (AC-LA-E7-01-04).
   const initialCtx = getContext();
   const initialDefaultProfileId = manifest.registration[0]?.defaultProfile;
-  const initialDefaultProfile = initialCtx.loaded.ltiProfiles.find((p) => p.id === initialDefaultProfileId) as
-    | ProfileTraits
-    | undefined;
+  const initialDefaultProfile =
+    (initialDefaultProfileId
+      ? profileDefinition(initialDefaultProfileId, { simulation: true, registry: initialCtx.profileReg })
+      : undefined) ??
+    (initialCtx.loaded.ltiProfiles.find((p) => p.id === initialDefaultProfileId) as ProfileTraits | undefined);
   const initialCaps = initialCtx.reg.capabilities(channelId, initialDefaultProfile);
   const offGuards = CAPABILITY_GUARD_TABLE.filter((g) => !g.isSupported(initialCaps));
 
@@ -862,9 +904,12 @@ function defineChannelContractCases(
       g,
     ] as const),
   )(`K-CAP.${channelId}.%s: false/absent capability -> %s`, (_guardId, _summary, guard) => {
-    const { loaded, reg } = getContext();
+    const { loaded, reg, profileReg } = getContext();
     const defaultProfileId = manifest.registration[0]?.defaultProfile;
-    const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined;
+    const defaultProfile =
+      (defaultProfileId
+        ? profileDefinition(defaultProfileId, { simulation: true, registry: profileReg })
+        : undefined) ?? (loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined);
 
     // 1. Call product code (`reg.capabilities`, `computeCapabilities`, `reg.legacyCapabilities`, `legacyProjection`,
     //    `CAPABILITY_CATALOG`) on the channel's actual manifest + profile (where the capability is false/absent)
@@ -982,14 +1027,15 @@ function defineChannelContractCases(
       const profile = def!;
       expect(profile.channel).toBe(channelId);
 
-      // Traits and capability projection
+      // Traits and capability projection (BD-A1-75: assert clientAssertionAud trait instead of legacy flag)
       expect(isSharedProfile(profile)).toBe(profile.sharing === 'shared');
       expect(isStandardProfile(profile)).toBe(profile.endpoints === 'admin');
       const profileCaps = reg.capabilities(channelId, profile);
       expect(profileCaps['platform.sharing']).toBe(profile.sharing);
       expect(profileCaps['site.serviceOrigin']).toBe(profile.serviceUrl);
       expect(typeof profile.flags.deepLinkingResponseSub).toBe('boolean');
-      expect(typeof profile.flags.clientAssertionAudArray).toBe('boolean');
+      expect(['string', 'array']).toContain(profile.clientAssertionAud.form);
+      expect(['{tokenEndpoint}', '{platformValue}']).toContain(profile.clientAssertionAud.value);
       expect(typeof profile.flags.serviceOriginCheck).toBe('boolean');
 
       // Wire LMS (BD-A1-06, load check 7)
@@ -1103,11 +1149,10 @@ function defineChannelContractCases(
     }
   });
 
-  // K-ADAPTER (AC-LA-E7-01-07, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20, BD-A1-28).
+  // K-ADAPTER (AC-LA-E7-01-07, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20, BD-A1-28, BD-A1-85).
   const initialLoaded = initialCtx.loaded;
   const isBaselineChannel = ['moodle', 'canvas', 'blackboard'].includes(channelId);
   const needsAdapter =
-    manifest.lti?.toolConfiguration === 'channel' ||
     manifest.setup.connectionCheck === true ||
     manifest.capabilities['siteApi.token'] === true ||
     manifest.capabilities['publish.createCourse'] === true ||
@@ -1120,8 +1165,8 @@ function defineChannelContractCases(
       `K-ADAPTER.${channelId}: pending LA-E1-07 (packages/channels/${channelId}/app.ts ConnectionSetup)`,
     );
   } else {
-    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20, BD-A1-28)`, async () => {
-      const { loaded, reg } = getContext();
+    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20, BD-A1-28, BD-A1-85)`, async () => {
+      const { loaded, reg, profileReg } = getContext();
       expect(Array.isArray(manifest.setup.createFields)).toBe(true);
       expect(Array.isArray(manifest.setup.bindingFields)).toBe(true);
       for (const field of [...manifest.setup.createFields, ...manifest.setup.bindingFields]) {
@@ -1130,8 +1175,28 @@ function defineChannelContractCases(
       }
 
       if (!needsAdapter && loaded.appAdapter === undefined) {
-        // Admin-value channel without app.ts (e.g. zz-canary-admin, LA-E2-03 AC-05).
-        expect(manifest.lti?.toolConfiguration).toBe('none');
+        // Admin-value channel without app.ts (e.g. lti-generic with toolConfiguration 'channel', or zz-canary-admin with 'none'; LA-E2-03 AC-05, BD-A1-85).
+        const channelCaps = reg.capabilities(channelId);
+        expect(channelCaps['setup.connectionCheck']).toBe(false);
+        expect(channelCaps['siteApi.token']).toBe(false);
+        expect(channelCaps['publish.createCourse']).toBe(false);
+        expect(channelCaps['setup.artifacts']).toEqual([]);
+        expect(channelCaps['export.packages']).toEqual([]);
+        expect(['channel', 'none']).toContain(manifest.lti?.toolConfiguration);
+
+        const declaredProfileIds = Array.from(new Set(manifest.registration.flatMap((r) => r.profiles)));
+        const channelProfiles = listProfiles({ simulation: true, registry: profileReg }).filter(
+          (p) => p.channel === channelId,
+        );
+        expect(channelProfiles.length, `${channelId}: has at least one registered LTI profile`).toBeGreaterThan(0);
+        expect(channelProfiles.map((p) => p.id).sort()).toEqual(declaredProfileIds.slice().sort());
+        for (const profileId of declaredProfileIds) {
+          const def = profileDefinition(profileId, { simulation: true, registry: profileReg });
+          expect(def, `${channelId}: profileDefinition(${profileId}) is defined`).not.toBeNull();
+          expect(def!.endpoints, `${channelId}: profile ${profileId} has endpoints 'admin' (BD-A1-85)`).toBe('admin');
+          expect(isStandardProfile(def!)).toBe(true);
+        }
+        expect(loaded.appAdapter, `${channelId}: expects no ConnectionSetup members without app.ts`).toBeUndefined();
         return;
       }
 
@@ -1159,9 +1224,13 @@ function defineChannelContractCases(
       }
 
       const defaultProfileId = manifest.registration[0]?.defaultProfile;
-      const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as
-        | (ProfileTraits & { issuer?: string | null })
-        | undefined;
+      const defaultProfile =
+        (defaultProfileId
+          ? profileDefinition(defaultProfileId, { simulation: true, registry: profileReg })
+          : undefined) ??
+        (loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as
+          | (ProfileTraits & { issuer?: string | null })
+          | undefined);
       const caps = reg.capabilities(channelId, defaultProfile);
 
       // LA-E1-08 (e29f574): extension-port assertions (`extensionRoutes`, `publishHooks`, `packageExporters`)

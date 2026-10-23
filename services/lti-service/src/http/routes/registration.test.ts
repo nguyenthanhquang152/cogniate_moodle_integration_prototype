@@ -1,6 +1,6 @@
 import type { OutboundClient, OutboundRequest, OutboundResponse } from '@cogniate/shared';
 import type { ChannelManifest, LoadedChannel } from '@cogniate/channel-kernel';
-import { loadChannelFolders } from '@cogniate/channel-kernel';
+import { BASELINE_PROFILE_WIRE_LMS, loadChannelFolders } from '@cogniate/channel-kernel';
 import { OutboundError } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
@@ -412,10 +412,13 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
 // ---------------------------------------------------------------- E2: Dynamic Registration per profile (LA-ADR-02 D5)
 
 const E2_TRAITS = ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'];
-/** The product channels without the opaque-token generic DR channel: the start page then has today's Moodle rule. */
+/**
+ * Only the baseline channels (those that hold a frozen baseline profile): no opaque-token DR profile is loaded, so the
+ * start page has today's Moodle rule. Open world (N10): any other channel folder of the product root is left out.
+ */
 async function baselineRegistry(): Promise<ProfileRegistry> {
   const loaded = await loadChannelFolders([CHANNEL_ROOT], 'lti');
-  return buildProfileRegistry(loaded.filter((e) => (e.manifest as ChannelManifest).id !== 'lti-generic'));
+  return buildProfileRegistry(loaded.filter((e) => (e.ltiProfiles ?? []).some((p) => Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, (p as { id: string }).id))));
 }
 /**
  * The baseline channels and two test channels: `zz-dr` offers Dynamic Registration of the `any-https` profile

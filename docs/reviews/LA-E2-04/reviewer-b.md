@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -42,3 +42,28 @@ Verification ran only in `/tmp/la-e2-04-review-b-p0ltlhei/repo` at the merge SHA
 - The two added review probes failed as described in B-01/B-02. All temporary changes were restored; the private checkout is clean. The separate actual manual-form probe passed after `3777e7c`, as reported in LA-E2-03 Round 2.
 
 QA still owns K1-SIM AC-03/-04/-08, the full generic kit, learner launch/score evidence and R1. Those were not run or claimed here. Request changes for B-01 and B-02; B-03 is safe to defer. No Docker, stack, commit or push was run.
+
+## Round 2
+
+**Verdict: APPROVE.** Reviewed `71da381` and `16085aa` at merge `67e5ab05c38a4eed71824ae753938bb3a772652f`, the staged manifest/DTO fix `9d52c24`, and A1's contract update `0ad9807` (BD-A1-96/-97). Blind review; the other reviewer's file was not read.
+
+**Open counts:** 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT. All three Round 1 findings close; B-04 below is new.
+
+- **B-LA-E2-04-01 — CLOSED.** The manifest now supplies the three dynamic binding fields, and the pending staged DTO retains its unapproved staged deployment IDs for pre-fill. The new rendered-wizard test and the route test both pass. I also joined the real paths in a private probe: POST a dynamic connection, complete a staged registration through `/tool/register`, GET its actual DTO, issue its grant, render `ManifestWizard` with that DTO, enter only the code, and send the captured form through the actual PUT route. It submitted exactly `{ clientId, deploymentId, grantCode }`, returned `registered`, activated the same platform and made no platform create. The long manual form remains covered separately. This was a manifest/DTO fix; no shared-wizard production change was needed.
+- **B-LA-E2-04-02 — CLOSED.** `repeatMismatch` reads the committed approval's grant and compares its bound values using the phase-1 helper before accepting a finalized repeat. Changed issuer/endpoints and added/removed/changed audience now return `422 GRANT_MISMATCH` with the differing fields; the log has `grant_rejected`, reason `mismatch`, connection id and trace id. Identical values, canonical-equivalent origins, blank absent audience, fixed-profile repeats and the short staged body keep the no-LTI-call repeat behavior. The tests also assert that refusals do not change the platform.
+- **B-LA-E2-04-03 — CLOSED.** BD-A1-96 adds `deployment_mismatch`, the staged `client_id_mismatch` case, the missing `--accept-staged` case and the pre-print `staged_values_changed` timing. The catalogue contains all 26 refusal codes checked against the operator implementation, and the staged CLI tests pin the matching repair lines and audit events.
+
+### B-LA-E2-04-04 — MINOR — A gone staged platform still gets the collision instruction
+
+- **Files:** `services/cogniate-app/src/app/redemption.ts:226`, `services/cogniate-app/src/app/redemption.ts:319`; contract: `docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md:103`.
+- **Problem:** BD-A1-97 requires the existing `409 PLATFORM_IN_USE` code to explain that the staged registration is gone and to make a new connection. The missing-record branch still uses the ordinary collision message. Support is told that a key is already connected when the platform no longer exists.
+- **Evidence:** after issuing a staged grant, removed its platform from the fake LTI service and called the real PUT route. It returned `409 PLATFORM_IN_USE` with `This your LMS developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.` The assertion requiring the gone-staged cause failed. The status/code are correct; no platform was created or activated.
+- **Suggested fix:** give this staged missing-record branch its own description, such as `The staged registration is gone. Make a new connection.`, while keeping the existing code and the ordinary collision text. Pin the full refusal in a route test, and check the portal notice too: its generic `PLATFORM_IN_USE` replacement must not hide the specific cause. This is safe to defer as an operator-text issue.
+
+### Round 2 verification and scope
+
+Used a fresh `git clone --no-hardlinks` at `/tmp/la-e2-04-r2-review-b-lmlvn0ij/repo`, with its own successful `npm ci`. Deleted `node_modules/.vitest-cache` before every Vitest run. **211 focused tests in eight files passed**, plus full lint, type checks, F1 (0 hits) and F5 (six rules, 0 hits). The wizard-to-route probe ran in a Node test with a local jsdom document and Fastify injection, with the fake LTI service; no listener or stack was started.
+
+Negative controls are discriminating: restoring the old repeat engine made the two mismatch regressions fail while the identical-repeat test passed; restoring the pre-`9d52c24` manifest broke the staged wizard but preserved the manual test; restoring the old DTO broke the staged deployment pre-fill test. Additional BD-A1-97 probes confirmed that disconnect and suspend/release leave an unredeemed staged platform unchanged and inactive, with no LTI call. The changed-value staged refusal remains covered by the route suite; the gone-platform description is B-04.
+
+The portal edit is the dispatched RQ-2 test only; the production fixes stay in the declared K paths, with the manifest/DTO change explicitly included in this review. All private mutations were restored; the private checkout is clean. Only this report was edited in the integration worktree. QA still owns K1-SIM/R1 and browser acceptance; no Docker, stack, commit or push was run.

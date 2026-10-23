@@ -165,6 +165,14 @@ Acceptance points:
 | AP-05-17 | Cancel posts a JWT with `content_items: []` to the return URL; the picker is used; no pick row; a cancel POST with another `Origin` gives `403` and changes nothing. |
 | AP-05-18 | With `acceptLineItem: false` on a channel with `content.ungraded` false, the picker shows `PLACEMENT_NOT_GRADED` and calls no Deep Linking endpoint. |
 
+Build notes (BD-A2-87; LA-E3-05, lane L2, ratified):
+
+- `PLACEMENT_NOT_GRADED` is a `/tool/*` error page with status `403`, like `NOT_DEEP_LINKING` and `ROLE_NOT_ALLOWED`. The app logs `picker_rejected {reason: "placement_not_graded"}`.
+- The picker GET and the picker POST both read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken` (the shaped token, D3d). The page never trusts a form field for them.
+- The POST re-checks and refuses with `PLACEMENT_NOT_GRADED` too, with no Deep Linking call.
+- A multi-select POST with a duplicate publication id gives `400 PUBLICATION_NOT_AVAILABLE` (the same code as 21 ids): the page never sends duplicates, so a duplicate is a broken or forged request.
+- Items go in the picker list order, not the click order (D3b "Items keep the list order").
+
 Simulator need: multi-item, empty and ungraded Deep Linking as scenario data (R5 §2.4, about 0.5 day); `accept_lineitem` and `accept_media_types` in the settings claim.
 
 ### D4. NRPS: keep the service, drop the scope (Must, D-8)

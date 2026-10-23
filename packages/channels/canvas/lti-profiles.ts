@@ -3,7 +3,6 @@ import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const flags = {
   deepLinkingResponseSub: false,
-  clientAssertionAudArray: false,
   serviceOriginCheck: true, // F-CV-18; separate page and service origins.
 };
 const canvas = {
@@ -11,9 +10,8 @@ const canvas = {
   simulation: false, productFamily: 'canvas', // F-CV-22.
   accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', // F-CV-5, F-CV-18.
   platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' }, // LA-ADR-05 D1 rule 1a.
-  // LA-ADR-02 D2: fixed endpoints. dynamicRegistration is omitted: the LTI registry gives null (no DR); Canvas DR is
-  // A2's LA-ADR-05 D6 and comes later.
-  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false,
+  // LA-ADR-02 D2: fixed endpoints; no Dynamic Registration (BD-A1-83: explicit null). Canvas DR is A2's LA-ADR-05 D6.
+  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false, dynamicRegistration: null,
   flags,
 } as const;
 

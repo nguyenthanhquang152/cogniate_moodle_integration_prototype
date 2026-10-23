@@ -1,0 +1,46 @@
+{
+  "id": "LA-IC-03",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md, docs/reviews/LA-E2-02/reviewer-a.md, docs/reviews/LA-E2-02/reviewer-b.md",
+  "ld9": {
+    "epic": "E2 (LA-E2-02, lane L, merged 865c3d0 / 3b3dadf / 678eb72)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md#d2-profile-trait-schema",
+      "docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md#d5-generic-dynamic-registration-algorithm",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-68, BD-A1-77, BD-A1-84, BD-A1-87, BD-A1-88, BD-A1-89)",
+      "docs/architecture/ltiaas/tasks/LA-E2-02.md"
+    ],
+    "goldenFields": [],
+    "authorUnitTestChanges": [
+      "services/lti-service/src/lti/registration.test.ts (adds path-prefix issuer rule, exact issuer + '/mod/lti/openid-configuration.php' config path check -> ISSUER_MISMATCH, missing LtiDeepLinkingRequest -> INVALID_OPENID_CONFIGURATION detail deep_linking_not_supported, opaque-bearer vs scope-jwt registration tokens, and registration-phase family guard tests)",
+      "services/lti-service/src/http/routes/registration.test.ts (adds start/complete tests for path-prefix Moodle config, wrong config path -> ISSUER_MISMATCH, missing LtiDeepLinkingRequest -> INVALID_OPENID_CONFIGURATION, staged I-SELF registration, and TOOL_MAY_EXIST channel text)",
+      "services/lti-service/src/store/registrations.test.ts (adds migration 021 token_kind CHECK and round-trip tests)",
+      "services/lti-service/src/lti/codes.test.ts (adds registration error-code coverage)",
+      "packages/channel-kernel/src/manifest.test.ts (adds texts.registration schema and TOOL_MAY_EXIST placeholder checks)"
+    ],
+    "qaTaskTestChanges": [
+      "tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:171-230 (QA-4 startQaPlatformRegistration helper previously served a qa-platform OpenID Configuration at /openid-<id>.json expecting 303, which the standard DR profile now refuses with 400 ISSUER_MISMATCH; updated by QA-4 in 18fa1d3 / dbc80e9 to serve ${issuer}/mod/lti/openid-configuration.php with product_family_code: 'moodle' and LtiDeepLinkingRequest)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-03.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs",
+      "tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:80-176,183-261 (G1-G4 capture: Moodle connection in G1 stays pending and makes no GET /lti/register/:account call; G2-G4 run on Blackboard and Canvas simulators)",
+      "tests/acceptance/T3b/1-registration.spec.ts:18-95 (AC-T3-01..03 starts DR from real Moodle 5.2.4 at ${urls.moodle}/mod/lti/openid-configuration.php with LtiDeepLinkingRequest and LtiResourceLinkRequest -> 303 to app register page and 200 on complete, unchanged)",
+      "tests/acceptance/T3b/2-update.spec.ts:18-78 (AC-T3-25..26 starts DR update from real Moodle 5.2.4 at ${urls.moodle}/mod/lti/openid-configuration.php -> 200 on complete with matching updatePlatformId, unchanged)",
+      "tests/acceptance/T3b/3-negative.spec.ts:32-70 (AC-T3-05 step 3 serves ${QA_ISSUER}/${file} whose document issuer is https://other-issuer.test and lacks LtiDeepLinkingRequest; check 3 fails first with 400 ISSUER_MISMATCH before message check 7 runs, matching AC-T3-05 expectation byte for byte)",
+      "tests/acceptance/T4b1/1-connect.spec.ts:58-94 (AC-T4-07..08 starts DR from real Moodle 5.2.4 at ${urls.moodle}/mod/lti/openid-configuration.php, unchanged)",
+      "tests/acceptance/T4b1/3-security.spec.ts:95-110 (AC-T4-25 tests unknown/replayed ref on real Moodle DR, unchanged)",
+      "tests/e2e/1-scenario-a.spec.ts:58-95 (U1 scenario A connects real Moodle 5.2.4 via Dynamic Registration at /mod/lti/openid-configuration.php, unchanged)",
+      "tests/ltiaas/tasks-ops/LA-E5-08/moodle-dr.ts:50-67 (U1 upgrade helper starts DR from real Moodle 5.2.4 at /mod/lti/openid-configuration.php, unchanged)",
+      "tests/ltiaas/tasks-lti/LA-E5-06/protocol-wiring.k1sim.test.ts:161-168,347-455 (createMoodleDrScenario uses ${MOODLE_SIM_ISSUER}/mod/lti/openid-configuration.php?scenario=..., whose pathname equals issuer + '/mod/lti/openid-configuration.php', unchanged)",
+      "tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:171-230 (QA-4 task suite: startQaPlatformRegistration previously served qa-platform config at /openid-<id>.json expecting 303, which standard DR now refuses with 400 ISSUER_MISMATCH; updated by QA-4 in 18fa1d3 / dbc80e9 to ${issuer}/mod/lti/openid-configuration.php with product_family_code: 'moodle' and LtiDeepLinkingRequest)",
+      "tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts:150-310 (QA-4 LA-E2-02 K1-SIM suite directly tests AC-LA-E2-02-01..08 including path-prefix Moodle issuer, wrong config path -> ISSUER_MISMATCH, and missing LtiDeepLinkingRequest -> INVALID_OPENID_CONFIGURATION)"
+    ],
+    "scanResult": "0 golden changes and 0 frozen-test changes (1 QA-4 task-suite fixture updated in tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:171-230): (1) G1-G4 do not execute Dynamic Registration; (2) real Moodle 5.2.4 in T3b, T4b1, U1/T7, and LA-E5-08, plus moodle-sim in LA-E5-06, serve OpenID Configuration at issuer + '/mod/lti/openid-configuration.php' with LtiDeepLinkingRequest and LtiResourceLinkRequest; (3) the frozen T3b AC-T3-05 negative fixture lacks LtiDeepLinkingRequest but already fails earlier at check 3 with 400 ISSUER_MISMATCH as before; (4) QA-4's tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts is the only QA task test that started DR with a qa-platform config at /openid-<id>.json expecting 303, and QA-4 updated it to ${issuer}/mod/lti/openid-configuration.php."
+  },
+  "changes": []
+}

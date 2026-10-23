@@ -486,3 +486,13 @@ Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
 | BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
 
 Changes for the Lead to route: none (contract text only).
+
+## 40. Round 39: L2's LA-E3-05 local choices (Deep Linking completeness), 2026-10-23
+
+Routed in dispatch `ctx_bf9df1eb1c35`. All five are ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-87 | (Provisional, L2's choices.) (1) `PLACEMENT_NOT_GRADED` = a `/tool/*` error page with status `403`, log `picker_rejected {reason: placement_not_graded}`. (2) The picker GET and POST read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken`. (3) The POST also refuses with `PLACEMENT_NOT_GRADED`, with no Deep Linking call. (4) A duplicate id in a multi-select POST gives `400 PUBLICATION_NOT_AVAILABLE`. (5) Items go in the picker list order. | **All five ratified.** (1) Matches the other picker refusals. (2) The server reads the shaped token and never trusts a form field. (3) The POST re-checks, never relying on the GET page. (4) The page never sends duplicates, so a duplicate is a broken or forged request, with the same code as 21 ids. (5) Is D3b. | LA-ADR-05 D3 "Build notes"; security-delta §5 (page row); LA-E3-05 notes | Process calls checked: app migration `018` = `picker_pick`, and the retention rule (keep a session with an unmatched `picker_pick` row) matches data model §5b. A1 to note the number `018` in §5b (A1's file). A1 FYI: `picker_rejected` reason `placement_not_graded` joins the app log names. |
+
+Changes for the Lead to route: **A1:** the migration number `018` in data model §5b, and the new `picker_rejected` reason in the app log list. Nothing for L2.
