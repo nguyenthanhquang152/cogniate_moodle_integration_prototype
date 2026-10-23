@@ -84,6 +84,7 @@ const manifest = {
       UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > {LMS} > Connect) and paste it in {LMS} (Manage tools > Add LTI Advantage).',
       INVALID_REQUEST: 'Start the registration again from {LMS} (Site administration > Plugins > Activity modules > External tool > Manage tools).',
       ISSUER_MISMATCH: 'The platform configuration is not from this {LMS} site. Start the registration again from Manage tools on the site itself.',
+      INVALID_OPENID_CONFIGURATION: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
       REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.',
       UPDATE_NOT_ALLOWED: 'Go back in {LMS} and choose Register as a new external tool.',
     },

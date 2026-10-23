@@ -1,0 +1,46 @@
+Verdict: CHANGES_REQUESTED
+Round: 1
+
+# LA-E2-02 review, Reviewer-B
+
+## Round 1
+
+Reviewer-B: Codex GPT-6-Astra xhigh. Date: 2026-10-23. Lens: "Can a human team own it?" Reviewed `7168908`, `ce0a506`, `ccddb68` and `9518f75` (merge `865c3d0`) against the task spec, LA-ADR-02 D2/D5, contract delta §4.5, BD-A1-55/59/68/77 and plan §6.1. Also checked the later BD-A1-84 clarification. Verification used a private `git clone --no-hardlinks` at `6d776696f6e0bd59590999c83a5b23b013879151`. No other reviewer's report was read; no Docker or stack was run.
+
+Counts: **0 BLOCKER, 1 MAJOR, 2 MINOR, 0 NIT.**
+
+### B-LA-E2-02-01 — MAJOR — Completion recovery still sends a non-Moodle admin to Moodle menus
+
+- **File:** `services/lti-service/src/http/routes/registration.ts:345`, also lines 349, 356 and 359; shared route helper at line 66.
+- **Problem:** A failed completion for a generic DR profile tells its administrator to delete a Moodle "Pending tool" in "Manage tools". This is a likely failure path where the remote write is uncertain, so the administrator needs usable recovery instructions before trying again.
+- **Evidence:** Four private route probes use the `zz-generic` profile, its `ZZ DR` channel, an opaque token and otherwise valid configuration. A timeout, `401 token_already_used`, server error and malformed successful response each return `502 PLATFORM_ERROR`, reason `tool_may_exist`, and exactly: `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Review tool', then connect again.` The chosen profile and `profileChannel` are already known at this point, but every path calls the context-free `pendingToolText`. This is distinct from the start-page limitation: BD-A1-84 allows no-context start pages, while AC-09 and D5 item 8 require channel-aware completion text.
+- **Suggested fix:** Keep the frozen Moodle helper and its baseline wording unchanged. Add a neutral recovery path for new DR channels, or a channel-owned recovery sentence with a generic default, through A1/K's text contract. It should explain that the tool may already exist, name the tool, and give a safe next step without assuming Moodle menus. Add completion-error tests for a non-Moodle channel and retain the existing Moodle assertions.
+- **Design coordination:** BD-A1-30/D12 freeze the text associated with `MOODLE_TOOL_MAY_EXIST`; they do not clearly define its use for a new generic DR flow. The coordinator reviewed this ambiguity and instructed me to report the observed defect now, with A1's clarification going to the lane L fix round. This finding does not authorize changing the frozen baseline text.
+
+### B-LA-E2-02-02 — MINOR — Migration 021 omits the specified token-kind constraint
+
+- **File:** `services/lti-service/src/db/migrations/021_registration_token_kind.sql:4`.
+- **Problem:** `token_kind` is unconstrained `TEXT`, although BD-A1-77, the task notes and data-model §4.2 require `CHECK (token_kind IN ('scope-jwt', 'opaque-bearer'))`.
+- **Evidence:** A private database probe successfully updates a real registration row to `opaque-bearre`. The store casts the value to the TypeScript union on read. The migration test proves NULL backfill and preservation of old columns, but does not test rejection of an unknown kind. Normal typed writers use valid values, so this is safe to defer.
+- **Suggested fix:** Add the declared database constraint using the team's migration policy. Test both valid kinds and NULL, plus a rejected unknown value, while retaining the old-row preservation test.
+
+### B-LA-E2-02-03 — MINOR — The completion family-guard test is stopped by an earlier rule
+
+- **File:** `services/lti-service/src/http/routes/registration.test.ts:548–552`.
+- **Problem:** The test says it checks the family guard at `complete`, but its generic configuration already fails the selected `standard` profile's issuer/configuration-path rule. Checking only `400 INVALID_REQUEST` cannot distinguish those refusals.
+- **Evidence:** Removing only the completion family-guard block at route lines 309–313 leaves **all 40 route tests passing**. A private control uses a standard-compatible configuration URL and endpoints, with family `zzdr`, so only the family differs. It gets `400`, reason `family=zzdr`, and no registration POST with the real code; the same guard-removal mutant returns `200` and fails the control. The guard works today; the gap is regression coverage for UNIT AC-01, D5 item 5.
+- **Suggested fix:** Use a configuration that satisfies the chosen profile's other rules, assert `details.reason === 'family=zzdr'`, the correct channel advice and no outbound registration. Keep the existing start-phase and successful owner-channel cases.
+
+### Ownership, design and verification
+
+The rule split is clear: the start route derives permissive rules from loaded profiles that offer DR; `complete` selects one profile and applies its exact rules before the registration POST. The pure parser owns issuer and endpoint checks. The profile guide names the issuer rule, fixed configuration path, endpoint policy and token format; the manifest must also offer a dynamic method. The stored token kind avoids a second JWKS fetch. Check 14 now calls the same kernel guard with the explicit `launch` phase.
+
+The remaining UNIT AC-01 cases have direct positive/negative assertions: issuer paths and the fixed Moodle path; endpoint origins and reserved hosts; opaque versus verified registration tokens; audience/I-SELF staging; unknown or non-DR profiles; Deep Linking and explicit scope support; and stored granted scopes. The new successful generic case would fail under the earlier standard-only completion behavior. The Moodle manifest test pins the new help key's exact baseline sentence. The completion-text and family-test gaps are recorded above.
+
+- **147 tests in 7 files passed**, including registration parser/routes/store, launch checks, protocol codes, platform rules and kernel manifest tests. The same 147 passed after restoring the private mutation. The additional family control also passed with restored code.
+- LTI service and channel-kernel type checks, ESLint on all **14 changed TypeScript files**, F1 and F5 passed. F1 found zero LMS-name hits; F5 found zero hits across six rules.
+- Evidence is under `/tmp/la-review-b-d114e80b087f/`: `reviewer-b-focused.log`, `reviewer-b-restored.log`, `reviewer-b-probes.log`, `reviewer-b-no-complete-family-guard.log`, `reviewer-b-family-control-mutant.log` and `reviewer-b-family-control-restored.log`. The private reproducer is `services/lti-service/src/http/routes/registration.reviewer-b.test.ts` there. Its four recovery assertions and one constraint assertion fail against the candidate as described above.
+- Lane L owns the route, rules and stores. `7168908` is the explicit RQ-2 change for K's kernel/Moodle text files; BD-A1-77 and the Lead's RQ-5 allocation authorize migration 021. The check-14 edit stays within its allowed call switch. No app, service wiring/configuration or `tests/**` file changed in these commits. Existing route assertions changed only for the new response field and LA-IC-03 configuration path.
+- The no-context start-page wording follows BD-A1-59/84 and is not a finding. K1-SIM AC-02–07/09, Moodle AC-08, G4 and R1/R2-lite remain QA gates. The later flag-removal/null-trait follow-up in BD-A1-75/83 is outside these four reviewed commits.
+
+Only this review file was changed in the integration worktree. No commit was made.

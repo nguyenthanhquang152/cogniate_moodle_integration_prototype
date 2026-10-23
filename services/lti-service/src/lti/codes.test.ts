@@ -13,7 +13,8 @@ describe('reserved-issuer owner names (BD-A1-31)', () => {
       issuer, authorization_endpoint: `${issuer}/auth`, token_endpoint: `${issuer}/token`, jwks_uri: `${issuer}/jwks`, registration_endpoint: `${issuer}/register`,
     } }) });
     try {
-      const page = await h.app.inject({ method: 'GET', url: `/lti/register/cogniate?openid_configuration=${encodeURIComponent(`${issuer}/config`)}` });
+      // LA-IC-03: the standard rule needs the configuration at the issuer + /mod/lti/openid-configuration.php.
+      const page = await h.app.inject({ method: 'GET', url: `/lti/register/cogniate?openid_configuration=${encodeURIComponent(`${issuer}/mod/lti/openid-configuration.php`)}` });
       expect(page.statusCode).toBe(400);
       expect(page.body).toContain('data-error-code="ISSUER_RESERVED"');
       expect(page.body).toContain(`<p data-error-action>${action}</p>`);

@@ -218,13 +218,23 @@ export function applyRegistrationUpdate(
   db: Db,
   accountId: string,
   id: string,
-  input: { clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string; active: boolean; productFamilyCode: string | null; deploymentId: string },
+  input: {
+    clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string; active: boolean; productFamilyCode: string | null; deploymentId: string;
+    /** LA-ADR-02 D5 item 7: the scopes of the registration answer; null or absent keeps the stored value. */
+    grantedScopes?: string[] | null;
+    /** D5 item 4: the platform token audience; null or absent keeps the stored value. */
+    clientAssertionAud?: string | null;
+    /** D5 item 10: the binding ref of a staged registration; null or absent keeps the stored value. */
+    bindingRef?: string | null;
+  },
 ): Platform | null {
   return transaction(db, () => {
     if (!getPlatform(db, accountId, id)) return null;
     db.prepare(`UPDATE platform SET client_id = ?, name = ?, auth_endpoint = ?, token_endpoint = ?, jwks_url = ?, active = ?,
-      product_family_code = COALESCE(?, product_family_code), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
-      .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode, Date.now(), id, accountId);
+      product_family_code = COALESCE(?, product_family_code), granted_scopes = COALESCE(?, granted_scopes),
+      client_assertion_aud = COALESCE(?, client_assertion_aud), binding_ref = COALESCE(?, binding_ref), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
+      .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode,
+        input.grantedScopes ? JSON.stringify(input.grantedScopes) : null, input.clientAssertionAud ?? null, input.bindingRef ?? null, Date.now(), id, accountId);
     db.prepare('INSERT OR IGNORE INTO deployment (platform_id, deployment_id, created_at) VALUES (?, ?, ?)').run(id, input.deploymentId, Date.now());
     return getPlatform(db, accountId, id);
   });

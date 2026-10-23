@@ -70,12 +70,13 @@ it('BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app reg
     UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > Moodle > Connect) and paste it in Moodle (Manage tools > Add LTI Advantage).',
     INVALID_REQUEST: 'Start the registration again from Moodle (Site administration > Plugins > Activity modules > External tool > Manage tools).',
     ISSUER_MISMATCH: 'The platform configuration is not from this Moodle site. Start the registration again from Manage tools on the site itself.',
+    INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
     REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.',
     UPDATE_NOT_ALLOWED: 'Go back in Moodle and choose Register as a new external tool.',
   });
 });
 
-it('BD-A1-59: texts.registration is optional, closed to the five keys and to the text placeholders', async () => {
+it('BD-A1-59: texts.registration is optional, closed to the six keys (BD-A1-68) and to the text placeholders', async () => {
   const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
   const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
   if (!parsed.ok) throw new Error('The product manifest must be valid');
