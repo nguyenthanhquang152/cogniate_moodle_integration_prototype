@@ -74,6 +74,24 @@ export function openText(handle: Buffer, blob: Uint8Array, aad: string): string 
   return Buffer.from(keyProviderFor(handle).openSync({ bytes: blob }, aad)).toString('utf8');
 }
 
+/**
+ * A-LA-E5-22-02: true when a sealed value did not open because this process has no key ring bound to the handle, or
+ * its ring lacks the key version of the value (the header version). The operator fixes that: restart the app with the
+ * right ring. So a caller tries again later or leaves the value out. A value that a ring version should open but does
+ * not (auth_failed: a moved or corrupted blob) is not this case.
+ */
+export function keyVersionUnavailable(handle: Buffer, blob: Uint8Array, err: unknown): boolean {
+  if (!(err instanceof KeyProviderError)) return false;
+  if (err.code === 'key_provider_not_bound') return true;
+  if (err.code !== 'key_open_failed') return false;
+  const version = blobKeyVersion(blob);
+  try {
+    return !keyProviderFor(handle).versions().some((v) => v.id === version);
+  } catch {
+    return true;
+  }
+}
+
 /** The runtime token MAC: the version `legacy` keeps today's value, HMAC-SHA-256(APP_MASTER_KEY, input). */
 export function runtimeTokenMac(handle: Buffer, input: string): string {
   return Buffer.from(keyProviderFor(handle).macSync('runtime-token', LEGACY_KEY_VERSION, Buffer.from(input, 'utf8'))).toString('base64url');
