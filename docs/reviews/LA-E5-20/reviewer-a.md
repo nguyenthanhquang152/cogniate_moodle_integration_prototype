@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E5-20 review: Reviewer-A
 
@@ -40,3 +40,20 @@ Reviewer: Codex GPT-6-Astra, xhigh. Lens: “Is it right and is it safe?” Revi
 - LTI-service TypeScript and ESLint on all 22 TypeScript files changed by the two review items and the lane-L preflight export pass. All ten mutation controls across both review items are detected and restored. Temporary rotation controls pass all eight shipped/probe tests and were also restored.
 - Probe sources and logs are preserved under `/tmp/la-review-a-e520-16.IVkLrG/`, notably `review-rotation.test.ts`, `additional-probes.log`, `rotation-control-fixes.log` and `mutants-summary.log`.
 - Only this review file was edited in the integration worktree for this item. No Docker, stack, host stack runner or commit was used. K1-SIM AC-01/02 and R0 stack evidence remain with QA; the two rotation findings need an author fix and another review.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh. Date: 2026-10-23 (+07). Reviewed `28d9203` (merge `8010667`) against the task spec, LA-ADR-06 D7, BD-A2-68 and plan §6.1. Test snapshot: `a3e50efeab51a92ade5c260ba489842821d3eaa8`, private clone `/tmp/la-review-a-bdddf01d8b4c`. Blind review.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+- **A-LA-E5-20-01 is closed.** The job reads the clock inside the write transaction, after asynchronous key preparation. Publication, activation and retirement use that current time. The test advances time during preparation, then checks just before and exactly at the real publication deadline; activation cannot consume preparation time as publication lead time.
+- **A-LA-E5-20-02 is closed.** `stepFor` checks the stored opt-in, active status and key state when processing an account. `recheck` repeats the decision inside the key-change transaction. A changed account is skipped with no mutation or audit event. Both later-account activation cases and both current-account preparation cases pass. The guard also verifies the planned key/action, rather than checking eligibility alone.
+
+The **five original independent rotation probes** from `/tmp/la-review-a-e520-16.IVkLrG/review-rotation.test.ts` were copied unchanged to the private clone and all passed. Restoring only the job implementation from `28d9203^` made the **five new regression tests fail**, with the three original tests still passing. The implementation was restored and compared with the snapshot afterward.
+
+The shared LA-E5-20/21 focused run passed **115 tests in 12 files**, including rotation, signing-key storage, the other Should jobs, operator job endpoints, metrics, startup and key configuration. UNIT AC-03 through AC-06 remain covered. All **11 independent probes** across the two reviews passed. TypeScript checks passed for the shared package and both services.
+
+Logs: `/tmp/la-review-a-bdddf01d8b4c-baseline.log`, `/tmp/la-review-a-bdddf01d8b4c-probes.log`, and `/tmp/la-review-a-bdddf01d8b4c-rotation-control.log`. The probe run selected names matching `review:|Reviewer-A:`; 10 existing startup tests were unselected.
+
+No new finding. This fix changes only S1's rotation job and adjacent unit tests; protected store files, shared runner, QA files and frozen assertions are untouched. It adds no LMS-specific core branch. Earlier checks of purge, expiry, cleanup and job endpoints remain in place. Only this review file was edited for this item in the integration worktree; no Docker, stack, host stack runner, commit or push was used. No Reviewer-A fix remains; QA and the Lead own final regression closeout.

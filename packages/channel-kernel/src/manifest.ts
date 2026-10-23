@@ -24,13 +24,18 @@ export interface GuardedFamily {
   level: 'launch' | 'registration';
 }
 
-/** One form field of the setup steps (D9). No `default` in E1: LA-E2-03 adds it. */
+/** One form field of the setup steps (D9). */
 export interface FieldSpec {
   key: string;
   label: string;
   kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice';
   required: boolean;
   method?: RegistrationMethod;
+  /**
+   * E2-K (LA-ADR-01 D2): a pre-filled value; the only placeholder is `{siteUrl}` (the connection site origin). A posted
+   * value always replaces it, and it is never trusted alone (Reviewer-B B-LAD-05): the grant binds the value.
+   */
+  default?: string;
 }
 
 export interface ChannelManifest {
@@ -107,6 +112,7 @@ const FIELD_SPEC = z.strictObject({
   kind: z.enum(['origin', 'id', 'grantCode', 'url', 'choice']),
   required: z.boolean(),
   method: METHOD.optional(),
+  default: z.string().min(1).refine((t) => [...t.matchAll(/\{([^{}]*)\}/g)].every((m) => m[1] === 'siteUrl'), 'only the placeholder {siteUrl}').optional(),
 });
 
 const REGISTRATION = z.strictObject({
@@ -154,6 +160,11 @@ const MANIFEST = z.strictObject({
     registration: z.strictObject(Object.fromEntries(REGISTRATION_TEXT_KEYS.map((key) => [key, TEXT.optional()])) as Record<RegistrationTextKey, z.ZodOptional<typeof TEXT>>).optional(),
   }),
 });
+
+/** A `FieldSpec.default` with `{siteUrl}` filled (LA-ADR-01 D2). The value goes in literally. */
+export function fillFieldDefault(template: string, values: { siteUrl: string }): string {
+  return template.replace(/\{siteUrl\}/g, () => values.siteUrl);
+}
 
 /** Validate one manifest against the schema (the shape part of load check 1). */
 export function parseChannelManifest(value: unknown): { ok: true; manifest: ChannelManifest } | { ok: false; problem: CheckProblem } {

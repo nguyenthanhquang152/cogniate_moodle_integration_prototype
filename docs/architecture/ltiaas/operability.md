@@ -35,7 +35,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
-Secret files (never in git; mode `0600`; mounted read only):
+Secret files (never in git; mode `0600` or `0400`, no group or world bit; mounted read only). The service checks the mode on the opened file. In `production`, a file with a group or world bit stops the start (`secret_file_mode`); other profiles log `secret_file_mode_open {setting}` (BD-A2-78). A key-ring file alone is enough to start, when it holds the version `legacy` (BD-A2-77):
 
 | File | Holder | Content |
 | --- | --- | --- |
@@ -51,7 +51,19 @@ Rules for the secret folders (build ratifications, [build decisions A2](build-de
 - The folder `infra/.secrets/lti/` (mode `0700`) must exist before any `docker compose up`. `npm run stack:up` and the QA runners (`prepare_e2e` in `infra/scripts/lib.sh`) make it. Without it, Docker makes the LTI service mount source as root, and the `e2e` container cannot start (its read-only bind of `infra/.secrets` cannot make the tmpfs mount point).
 - The `e2e` test container sees `infra/.secrets` read only, but never the key ring: an empty tmpfs covers `/repo/infra/.secrets/lti` ([security delta §10](security-delta.md#10-keys-and-secrets), visibility rule). QA writes a test ring only from its host clone (tasks README form (a)). Do not remove the tmpfs line to make the `e2e` container start: make the folder.
 
-The `production` profile refuses to start when a rule of LA-ADR-06 D12 fails. The log line `config_refused {reason}` names the rule.
+The `production` profile refuses to start when a rule of LA-ADR-06 D12 fails. The log line is `config_refused {reason, message, setting?}` (BD-A2-79).
+
+Production refusals (the message is fixed text and never holds a value):
+
+| Reason | Message |
+| --- | --- |
+| `test_knob_active` | Production does not allow test knobs. Remove every test knob setting, then start the service again. |
+| `simulation_on` | Production does not allow simulation profiles. Remove LTI_PROVIDER_SIMULATION or set it to off, then start the service again. |
+| `private_host_allowlist` | Production does not allow private outbound hosts. Remove OUTBOUND_PRIVATE_HOST_ALLOWLIST, then start the service again. |
+| `master_key_in_env` | Production does not allow the master key as an environment value. Remove LTI_MASTER_KEY and use LTI_MASTER_KEY_FILE or the key-ring file. |
+| `no_trusted_proxy` | Production needs TRUSTED_PROXY_CIDRS. Set it to the address or host name of the proxy, then start the service again. |
+| `operator_bind_not_loopback` | Production allows the operator listener on loopback only. Set OPERATOR_HOST to 127.0.0.1 or ::1, then start the service again. |
+| `secret_file_mode` (with `setting`) | A secret file has group or world access. Set the mode of the file named by the setting to 0600, then start the service again. |
 
 ## 3. Deployment topology (pilot)
 
@@ -204,7 +216,7 @@ Severity: **page** = act now; **ticket** = act within one working day. The pagin
 | `NextKeyWaiting` | a `next` key older than 7 days | ticket | Finish §6.1, or retire the `next` key. |
 | `ApiKeyExpiring`, `OperatorKeyExpiring` | expires within 14 days | ticket | §6.2, §6.4. |
 | `KeyRingNotRewrapped` | `lti_key_provider_sealed_rows` > 0 for a non-active version, 7 days after a key-ring change | ticket | Run the re-wrap (§6.3). |
-| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. |
+| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. Then follow §8a. |
 | `BackupMissing` | no verified backup within the RPO | page (pilot) | Run §7.2. |
 | `CertificateExpiry` | TLS certificate expires within 21 days | ticket | Renew (dev: `npm run gen-env`; LG: ingress). |
 | `SharedPlatformQuota` | outbound calls to one shared Blackboard platform > 8,000 per 24 h | ticket | Anthology's default limit is 10,000 REST calls per 24 h per application (R2 §9 item 13; whether AGS calls count is UNVERIFIED). Ask for a raise before the limit. |
@@ -338,6 +350,23 @@ CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the seed a
 | Tool URLs of `cogniate` after a change of `PUBLIC_APP_URL` | `npm run seed` keeps the stored tool URLs of an existing account (BD-A2-25). On an existing volume, set them with `PATCH /operator/v1/accounts/cogniate {launchUrl, deepLinkingUrl, registrationUrl}` (`<PUBLIC_APP_URL>/tool/launch`, `/tool/deep-link`, `/tool/register`). A fresh stack is not affected. |
 | Grant for an admin-value connection with a host off the issuer host | `app:grant issue` marks every bound value whose host is not the issuer host (for example a D2L token host). Before the issue, confirm with the LMS administrator, through the evidence channel, that the vendor issued this client id for this issuer at that host. Then add `--confirm-foreign-hosts`; without it the command exits 1 (LA-ADR-02 D6, A-LAD-23). Record the confirmation in `--evidence-ref`. |
 | Wrong library binding | `app:binding suspend`, then `release` (ADR-011 §4b), with `--operator` and the evidence fields (LA-ADR-07 D5). |
+
+## 8a. Jobs: read their state and run one on demand
+
+The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, then on its interval). Use this procedure when the `JobStale` alert fires, or when you must run a job now (BD-A2-81).
+
+1. List the jobs: `GET /operator/v1/jobs`. Each row has `name`, `everyMs` (`null` = on demand only), `lastRunAt` (ISO 8601 or `null`) and `lastResult`.
+2. Run one job: `POST /operator/v1/jobs/<name>/run`. Write down the `traceId` and the time of the answer.
+   - `202`: the run started. Go to step 3.
+   - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 2 again.
+   - `409 JOB_RUNNING`: a run of that job is in progress. Wait one minute, then do step 3.
+   - `404 NOT_FOUND`: the job name is wrong. Use a name from step 1.
+3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id`, or `lastResult` in step 1. If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
+   - `ok`: done. `counts` gives the work of the run.
+   - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
+   - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).
+4. For `key-rewrap`, follow §6.3 steps 5 and 6 instead (the job end event has the outcome).
+5. For `account-purge`: each purged account has one audit event `account.purge` (`GET /operator/v1/audit?action=account.purge`), with `details.counts` = a list of `{table, rows}`. The `tool_account` row stays as a closed tombstone: `GET /operator/v1/accounts/<id>` still answers `status: closed`, and the id is never used again. Its audit events stay until `audit-retention` removes them.
 
 ## 9. Incident first steps
 

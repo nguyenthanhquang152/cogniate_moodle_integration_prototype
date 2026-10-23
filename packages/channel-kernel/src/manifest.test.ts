@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
+import { LEGACY_SELF_BINDING_TEXT } from './legacy-wire.ts';
 import { loadChannelFolders } from './registry.ts';
-import { ERROR_TEXT_KEYS, parseChannelManifest } from './manifest.ts';
+import { ERROR_TEXT_KEYS, fillFieldDefault, parseChannelManifest } from './manifest.ts';
 import { DEFAULT_REGISTRATION_TEXTS, REGISTRATION_TEXT_KEYS, fillText, registrationText } from './text.ts';
 import type { RegistrationTextKey } from './text.ts';
 
@@ -31,7 +32,9 @@ it('holds the baseline texts.errors values, closed keys and {LMS} as the only pl
     return Object.fromEntries(Object.entries(m.texts.errors ?? {}).map(([key, text]) => [key, fillText(text, { LMS: m.names.text })]));
   };
   const rule1 = 'Enter only the address, for example https://school.instructure.com. No path.';
-  expect(filled('moodle')).toEqual({ SITE_RULE_1: rule1 });
+  expect(filled('moodle')).toEqual({ SITE_RULE_1: rule1,
+    // BD-A1-81
+    PLATFORM_IN_USE: 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.' });
   expect(filled('canvas')).toEqual({
     SITE_RULE_1: rule1,
     SITE_RULE_5: 'This is an Instructure-hosted address. Choose an Instructure-hosted Canvas type.',
@@ -97,4 +100,29 @@ it('BD-A1-59: a channel without its own sentence gets the core default, which na
     expect(DEFAULT_REGISTRATION_TEXTS[key]).toContain('{LMS}');
     expect(DEFAULT_REGISTRATION_TEXTS[key]).not.toMatch(/>|Manage tools|Site administration|Register as a new external tool/);
   }
+});
+
+it('LA-E2-03: FieldSpec.default is optional and takes only the {siteUrl} placeholder', async () => {
+  const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
+  const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
+  if (!parsed.ok) throw new Error('The product manifest must be valid');
+  const withDefault = (value: string) => parseChannelManifest({ ...parsed.manifest, setup: { ...parsed.manifest.setup,
+    bindingFields: parsed.manifest.setup.bindingFields.map((f) => (f.key === 'issuer' ? { ...f, default: value } : f)) } });
+  const ok = withDefault('{siteUrl}/lti');
+  expect(ok.ok && ok.manifest.setup.bindingFields.find((f) => f.key === 'issuer')!.default).toBe('{siteUrl}/lti');
+  expect(withDefault('https://lms.example.edu').ok).toBe(true);
+  for (const bad of ['', '{LMS}', '{siteUrl}/{tool}', '{serviceUrl}']) expect(withDefault(bad).ok, bad).toBe(false);
+});
+
+it('LA-E2-03: fillFieldDefault inserts the site URL literally', () => {
+  expect(fillFieldDefault('{siteUrl}/lti/{siteUrl}', { siteUrl: 'https://lms.example.edu' })).toBe('https://lms.example.edu/lti/https://lms.example.edu');
+  expect(fillFieldDefault('{siteUrl}', { siteUrl: 'https://a$&b.example.edu' })).toBe('https://a$&b.example.edu');
+  expect(fillFieldDefault('https://fixed.example.edu/auth', { siteUrl: 'https://lms.example.edu' })).toBe('https://fixed.example.edu/auth');
+});
+
+it('BD-A1-81: the Moodle texts.errors.PLATFORM_IN_USE fills to the server collision text byte for byte', async () => {
+  const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
+  const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
+  if (!parsed.ok) throw new Error('The product manifest must be valid');
+  expect(fillText(parsed.manifest.texts.errors!.PLATFORM_IN_USE!, { LMS: 'Moodle' })).toBe(LEGACY_SELF_BINDING_TEXT.collision);
 });

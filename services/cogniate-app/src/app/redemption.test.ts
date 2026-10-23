@@ -532,7 +532,7 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     expect(rows.json.map((r: Json) => r.key)).toEqual(['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields', 'grade_service', 'membership_service', 'placement']);
     expect(rows.json[0].value).toBe(BB);
     const providers = (await call('GET', '/app-api/lms-providers', a)).json.lms;
-    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
     expect(providers[2].profiles).toEqual([
       { id: 'blackboard', label: 'Blackboard Learn', simulation: false, ready: false, clientId: null },
       { id: 'blackboard-sim', label: 'Blackboard Learn (simulation)', simulation: true, ready: true, clientId: BB },
@@ -1140,13 +1140,17 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
+    // A channel without app.ts gets the kernel admin-value adapter (A1 BD-A1-79), so no adapter means a channel that
+    // is not in the registry.
     const lookup = vi.spyOn(TEST_CHANNELS, 'appAdapter').mockReturnValue(null);
+    const manifest = vi.spyOn(TEST_CHANNELS, 'channel').mockReturnValue(null);
     try {
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
       lookup.mockRestore();
+      manifest.mockRestore();
     }
   });
 

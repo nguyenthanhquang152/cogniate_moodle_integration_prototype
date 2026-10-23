@@ -82,6 +82,8 @@ New channels (`key` stable; `label` is human text):
 | `lti-generic` | `tool_name`, `login_url` (`{PUBLIC_LTI_URL}/lti/login/cogniate`), `redirect_uri` and `target_link_uri` (`{PUBLIC_LTI_URL}/lti/launch/cogniate`), `jwks_url` (`{PUBLIC_LTI_URL}/lti/keys/cogniate`), `deep_linking_url` (same as the redirect URI), `scopes` (the channel scope set), `privacy` ("Do not send the learner's name or e-mail.") |
 | `brightspace` | `tool_name`, `domain` (host of `PUBLIC_LTI_URL`), `redirect_urls`, `openid_connect_login_url`, `target_link_uri`, `keyset_url`, `extensions` ("Assignment and Grade Services, Deep Linking"), `roles` ("Send institution role"), `privacy` ("Do not send name or e-mail."). The labels follow the D2L "Register Tool" form; they are UNVERIFIED until a live check (R2-2, LA-H3). |
 
+The kernel admin-value adapter builds these rows: the generic set when the manifest has no `setup.toolRows`, else the manifest rows with the kernel placeholders filled (`brightspace`, LA-E2-05; BD-A1-78).
+
 ### 3.4 `PUT /app-api/connections/:id/platform`
 
 | Channel | Strict body | LTI step |

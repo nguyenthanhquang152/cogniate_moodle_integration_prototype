@@ -130,7 +130,7 @@ describe('AC-LA-E1-02-05: a failing load check stops the app start with one chan
   it('a valid extra root loads next to the product channels, and nothing is logged', async () => {
     const sink = logSink();
     const registry = await buildAppChannelRegistry([CHANNEL_ROOT, testRoot(testManifest())], createLogger({ service: 'cogniate-app', write: sink.write }));
-    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'zz-test']);
+    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic', 'zz-test']);
     expect(sink.lines).toEqual([]);
   });
 });
@@ -147,5 +147,5 @@ it('AC-LA-E1-02-06: the app start loads one constant root; no environment variab
   expect(createOutboundClient).toHaveBeenCalledOnce();
   expect(vi.mocked(kernel.loadChannelFolders).mock.calls).toEqual([[[CHANNEL_ROOT], 'app']]);
   const loaded = await vi.mocked(kernel.loadChannelFolders).mock.results[0]!.value;
-  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
 });

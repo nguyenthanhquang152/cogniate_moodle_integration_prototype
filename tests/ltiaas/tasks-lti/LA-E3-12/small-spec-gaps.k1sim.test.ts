@@ -84,8 +84,8 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       authorization: auth.ltik(key, v1Launch.ltik),
     });
     expect(v1Res.status).toBe(403);
-    expect(hasErrorShape(v1Res.json, 403)).toBe(true);
-    expect(errorCode(v1Res.json)).toBe('SERVICE_NOT_AVAILABLE');
+    expect(hasErrorShape(v1Res)).toBe(true);
+    expect(errorCode(v1Res)).toBe('SERVICE_NOT_AVAILABLE');
 
     // 2. Claim without service_versions -> still answers
     const noVerLaunch = await canvasLaunch(target, {

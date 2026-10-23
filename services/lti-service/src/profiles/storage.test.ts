@@ -7,7 +7,8 @@ const source = Object.fromEntries(Object.entries(profileDefinition('standard')!)
 describe('platformStorage trait (BD-A1-33)', () => {
   it('enables every Canvas profile and normalizes other absent values to null', () => {
     for (const p of listProfiles({ simulation: true })) {
-      expect(p.platformStorage).toEqual(p.channel === 'canvas' ? { targetFrame: 'from-login', origin: 'authOrigin' } : null);
+      // LA-E2-03: lti-generic sets the same value (A2 LA-ADR-05 D1 rule 1a).
+      expect(p.platformStorage).toEqual(p.channel === 'canvas' || p.channel === 'lti-generic' ? { targetFrame: 'from-login', origin: 'authOrigin' } : null);
     }
     const absent = { ...source };
     delete absent.platformStorage;

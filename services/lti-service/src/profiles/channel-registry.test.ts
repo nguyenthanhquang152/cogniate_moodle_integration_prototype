@@ -122,7 +122,7 @@ it('keeps every frozen provider-list lms value, including the explicit null', ()
   expect(listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms])).toEqual([
     ['standard', null],
     ['canvas-cloud-production', 'canvas'], ['canvas-cloud-beta', 'canvas'], ['canvas-cloud-test', 'canvas'], ['canvas-self-hosted', 'canvas'],
-    ['blackboard', 'blackboard'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
+    ['blackboard', 'blackboard'], ['lti-generic', 'lti-generic'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
   ]);
 });
 
@@ -143,13 +143,14 @@ describe('new profile listOrder', () => {
     const registry = buildProfileRegistry([...baselineCopy(), z, simulation, a]);
     expect(listProfiles({ registry, simulation: true }).map((p) => p.id)).toEqual([
       'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
-      'aa-platform', 'zz-platform', 'blackboard-sim', 'canvas-sim-cloud', 'xx-platform',
+      'lti-generic', 'aa-platform', 'zz-platform', 'blackboard-sim', 'canvas-sim-cloud', 'xx-platform',
     ]);
     expect(findProfile('xx-platform', { registry, simulation: false })).toBeNull();
   });
 
   it('derives the boundary from loaded baseline data', () => {
-    const entries = baselineCopy();
+    // LA-E2-03: a loaded new channel (lti-generic) is not baseline data; leave it out so the raised boundary checks zz.
+    const entries = baselineCopy().filter((entry) => manifestOf(entry).id !== 'lti-generic');
     firstProfile(standardEntry(entries)).listOrder = 200;
     const extra = extraChannel('zz');
     firstProfile(extra).listOrder = 200;

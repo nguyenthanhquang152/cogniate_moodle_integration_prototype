@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -167,3 +167,32 @@ Host-only verification in the private `deef75e` clone: **12/12 golden K0 tests**
 - **Problem:** The list is repeatable and its empty delta is correct, but its supporting description overstates which route returns 410 and which channel names the Author test asserts.
 - **Evidence:** The strategy includes `GET /rt/{token}` in the changed 410-body routes. That route deliberately returns **404 HTML** for an expired token (`content-host/server.ts:189-191`); only state GET and commit POST use the 410 JSON helper. The existing unit test explicitly expects the expired root route to remain 404. The JSON says the cited Author test asserts Moodle, Canvas, Blackboard and custom-name expiry bodies, but `lms-texts.test.ts:102-124` asserts only Moodle and the custom `your LMS` channel. Its ADR-01 anchor `#d12-lms-display-names-in-core-text-must` also does not exist; the heading is `D12. Texts`.
 - **Suggested fix:** Describe only `GET /rt/{token}/state` and `POST /rt/{token}/commit` as the changed 410 JSON routes, and state that the root route retains its 404 response. Describe the actual Moodle/custom-channel checks without claiming extra assertions, and use `#d12-texts`. Keep `changes: []` and the frozen-test count at zero; no product change or additional baseline waiver is needed.
+
+## Round 4
+
+## LA-IC-20
+
+Verdict: **APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (B-LD9-07).** Same Reviewer-B ownership lens, Codex GPT-6-Astra xhigh. Reviewed the LA-IC-20 record and its K0 check in `b3807f4`, plus the LA-IC-18 split in `1babba9`, against plan §6.1 LD-9, LA-ADR-04 D8 and BD-A1-63/69. Pinned verification: `d768eec`. No Reviewer-A file was opened; no Docker, stack, live capture or browser acceptance suite was run.
+
+The **0 golden / 0 frozen-test changes** conclusion is supported. The record names the five error keys, their exact generic replacements and which baseline manifests retain the old bytes. The old helper used the same Canvas/Blackboard wording for every channel; the new helper selects manifest text, then falls back to generic text:
+
+| Channel | Keys that keep their old text | Keys that now use generic text |
+| --- | --- | --- |
+| Moodle | `SITE_RULE_1` | `SITE_RULE_5`, `PLATFORM_IN_USE`, `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` |
+| Canvas | `SITE_RULE_1`, `SITE_RULE_5`, `PLATFORM_IN_USE` | `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` |
+| Blackboard | `SITE_RULE_1`, `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED` | `SITE_RULE_5`, `PLATFORM_IN_USE` |
+| No channel, or a channel without error overrides | None | All five |
+
+My independent frozen-suite scan agrees with the record. M2 checks site rules 1/5 and `PLATFORM_IN_USE` on Canvas, and `DEPLOYMENT_IN_USE` on Blackboard, so those exact strings stay valid. T4b1 and M1 check API codes; T6's invalid-platform case checks an inline error without matching its wording. G1–G4 capture API data and tool/player pages, not these portal notices. `ChannelScope` wraps both connect-route slots, and the author tests cover create and manage routes. The reviewed LD-9 changes touch QA metadata and the golden unit test, with no frozen assertion, comparator relaxation or new product branch.
+
+### B-LD9-07 — NIT — Correct the inline-error helper citation
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-20.json:34`; repeated in TEST-STRATEGY §4.7 and golden README §5.
+- **Problem/evidence:** The scan cites `tests/acceptance/lib/portal.ts:89-99` for `hasInlineError`, but those lines contain the colour helpers. `hasInlineError` is at lines **177–181**, both at `b3807f4` and the reviewed HEAD. Its implementation supports the stated conclusion: it counts invalid fields and nonempty alerts without matching provider-error text. Only navigation is wrong.
+- **Suggested fix:** Change the range to `177-181` in the record and both indexes; keep the function name and the zero-change conclusion.
+
+### LA-IC-18 follow-up and verification
+
+- **B-LD9-03 closed.** `1babba9` adds a short summary and three `visibleChanges` entries, each with what changed, before/after values, source location and why no assertion moves. The publish modal, logo colour and logo title are now independently readable. The empty delta is unchanged. Other earlier findings are outside this dispatch and retain their last reviewed status.
+- In a private `git clone --no-hardlinks`: **12/12 golden K0 tests** and **100/100 author tests across all seven files named by LA-IC-20 passed**. Six independent comparator checks confirmed that LA-IC-18 and LA-IC-20 each accept the unchanged stored capture and reject an altered API issuer or G4 string.
+- Restoring only the pre-`8e061ce` provider-error helper made **six of its seven new tests fail**, covering all three baseline channels, the generic fallback, placeholder filling and context-bound notices. The unchanged generic-independent text test still passed. The source was restored and the private clone was clean. This verifies the listed unit evidence; it does not claim execution of M2, T6 or K2.
