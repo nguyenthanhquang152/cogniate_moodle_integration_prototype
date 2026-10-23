@@ -22,6 +22,7 @@ import { createBindingCleanup } from './binding-cleanup.ts';
 import type { connectionJson } from './connections.ts';
 import { connectionDto, registerConnectionRoutes } from './connections.ts';
 import { registerConnectionCheckRoutes } from './connection-check.ts';
+import { registerConnectionHealthRoutes } from './connection-health.ts';
 import { createRedemptionEngine } from './redemption.ts';
 import { registerCourseRoutes } from './courses.ts';
 import { registerDeploymentRoutes, registerExtensionRoutes, registerExporterRoutes } from '../kernel/extensions.ts';
@@ -155,6 +156,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, extensions });
     registerConnectionRoutes(api, { channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
     registerConnectionCheckRoutes(api, { channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
+    registerConnectionHealthRoutes(api, { db: deps.db, lti: deps.lti, logger: log, now });
     // Deployment route dependencies share the common redemption engine.
     const providerDeps = {
       channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
