@@ -27,6 +27,14 @@ export default defineConfig({
     retry: 0,
     testTimeout: 30 * 60_000,
     hookTimeout: 30 * 60_000,
+    ...(level === 'k1sim'
+      ? {
+          reporters: ['default', 'json'],
+          outputFile: {
+            json: fileURLToPath(new URL('../../../acceptance/artifacts/vitest-results.json', import.meta.url)),
+          },
+        }
+      : {}),
     ...(process.env.QA_GREP ? { testNamePattern: process.env.QA_GREP } : {}),
   },
 });

@@ -93,7 +93,14 @@ function writeArtifact(name: string, data: unknown): void {
 function extractJsonScriptBlock<T>(html: string): T {
   const m = /<script\b[^>]*type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
   expect(m, 'Expected <script type="application/json"> block in HTML page').not.toBeNull();
-  return JSON.parse(m![1]!.trim()) as T;
+  const raw = JSON.parse(m![1]!.trim()) as Record<string, unknown>;
+  return {
+    ...raw,
+    storageTarget: raw.storageTarget ?? raw.target,
+    storageOrigin: raw.storageOrigin ?? raw.origin,
+    stateKey: raw.stateKey ?? raw.key,
+    stateValue: raw.stateValue ?? raw.state,
+  } as unknown as T;
 }
 
 function extractCheckTokenFromCheckPage(html: string): string {
@@ -266,8 +273,8 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
           path: '/app-api/publications',
           body: { connectionId: conn.id, courseId: aCourseId },
         },
-        // Cut Could routes (LA-ADR-08: check, health, verify) must also return 404 with 0 outbound calls:
-        { label: `${conn.label}: POST /app-api/connections/:id/check (N/A Could route)`, method: 'POST', path: `${cPath}/check` },
+        // LA-E6-04 check route (built) and unbuilt Could routes (LA-ADR-08: health, verify) must return 404 with 0 outbound calls:
+        { label: `${conn.label}: POST /app-api/connections/:id/check (LA-E6-04)`, method: 'POST', path: `${cPath}/check` },
         { label: `${conn.label}: GET /app-api/connections/:id/health (N/A Could route)`, method: 'GET', path: `${cPath}/health` },
         {
           label: `${conn.label}: POST /app-api/connections/:id/verify (N/A Could route)`,
@@ -658,7 +665,17 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
       expect(scopedRes.json?.revoked).toBe(0);
     }
 
-    // 4. Probe tenant /api/audit and /api/account with qa-second's Bearer key and cogniate parameters
+    // 4. Probe tenant /api/platforms/:id/check (LA-E6-04), /api/audit, /api/account, and /api/platforms/:id with qa-second's Bearer key and cogniate parameters
+    const checkProbe = await ltiApi('POST', `/api/platforms/${encodeURIComponent(cvTarget.platformId)}/check`, {
+      authorization: auth.bearer(secondKey),
+    });
+    expect([401, 403, 404]).toContain(checkProbe.status);
+    if (checkProbe.status === 404) {
+      expect(errorCode(checkProbe)).toBe('UNREGISTERED_PLATFORM');
+      expect(hasErrorShape(checkProbe)).toBe(true);
+    }
+    expect(checkProbe.body).not.toContain(cvTarget.platformId);
+
     for (const p of [
       '/api/audit',
       `/api/audit?accountId=${encodeURIComponent(ACCOUNT)}`,
@@ -704,12 +721,10 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     });
     expectStatus(pA, 200);
     const dupBody = {
-      url: pA.json.url,
+      profile: pA.json.profile,
       clientId: pA.json.clientId,
       name: 'QA second copy of cogniate platform',
-      authenticationEndpoint: pA.json.authenticationEndpoint,
-      accesstokenEndpoint: pA.json.accesstokenEndpoint,
-      authConfig: pA.json.authConfig,
+      siteUrl: pA.json.siteUrl,
       deploymentIds: [aCv.deploymentId],
     };
     const pSecond = await ltiApi<{ id?: string }>('POST', '/api/platforms', {
