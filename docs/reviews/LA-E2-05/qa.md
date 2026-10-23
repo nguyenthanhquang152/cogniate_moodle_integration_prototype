@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT + DOC; K1-SIM and K2 pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E2-05 E2-N Channel `brightspace` (manual) and the add-channel gate F2: QA verification
 
@@ -45,3 +45,33 @@ Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E2-05/` from `docs/archi
 - **E2-N add-channel proof (`BD-A1-94`, `BD-A1-95`):** Adding `packages/channels/brightspace/{manifest.ts,lti-profiles.ts,README.md,channel.test.ts}` (`a3d9434`) on top of `E2-K-done` (`678eb72`) modified `0` core files (`F2 PASS: core = 0, paths = 4`), increased `test:k0` from `134` to `149` passing tests, and increased `test:unit` from `3,011` (`678eb72`) to `3,017` (`71f4ced`) with `0` closed-world regressions (rule N10).
 - **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E2-05/r1/clone` is empty after the run (`status-after.txt`, 0 bytes).
 - **Measured time:** `LA-E2-05` K0 suite `92.46s` (`4/4` K0 tests passed; `2` unit files / `18/18` unit tests in `473ms`). `K1-SIM` (`AC-04`, `-05`, `-06` live, `-10`) and `K2` (`AC-07`) are `pending: Docker window`.
+
+## Round 2
+
+Tester: QA-3 (Orca task `task_e59ce20f8f0f`, dispatch `ctx_e6263da242a0`), 2026-10-23. Scope: Round 2 host-only verification of `6bfb150` (`BD-A1-85`: `lti.toolConfiguration = 'channel'` on `brightspace` and `lti-generic` so the nine D2L tool rows show through `GET /app-api/connections/:id/tool-configuration` and in the portal wizard, with K0 `K-ADAPTER` passing at `4d08fc1`) and re-run of all `LA-E2-05` rows at integration SHA `326ceae`.
+
+| Item | Value |
+| --- | --- |
+| SHA | `326ceae8db2faeb438481e4f6f1bd704b4ced697` (integration `326ceae`; holds `6bfb150` + `1b298d9`) |
+| Lane and slot | lane K; no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-04`, `-05`, `-06` live, `-10` and `K2` row `AC-07` remain `pending: Docker window`, slot 4) |
+| Clone | `~/cogniate-qa-runs/LA/run20/clone`: `git clone --no-hardlinks --no-checkout`, detached at `326ceae8db2faeb438481e4f6f1bd704b4ced697`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run20/k0/LA-E2-05/` (umask 077): `vitest.log`, `e2-05-check-clean.log`, `e2-05-ac01-f2-task-sha.log`, `e2-05-ac01-f2-head.log`, `e2-05-ac02-03-09-manifest-profile.json`, `e2-05-ac03-k0.log`, `e2-05-ac06-tool-config.json`, `e2-05-unit.log`, `e2-05-ac08-readme.md` |
+
+### Round 2 checks (`6bfb150` / `BD-A1-85` + all `LA-E2-05` rows)
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `BD-A1-85` (`B-LA-E2-05-01` / `6bfb150`): `lti.toolConfiguration = 'channel'` on `brightspace` and `lti-generic`; 9 D2L tool rows in `GET .../tool-configuration` and portal wizard | PASS | `brightspace.k0.test.ts > AC-LA-E2-05-02, AC-LA-E2-05-03, AC-LA-E2-05-09 (and Round 2 BD-A1-85 lti.toolConfiguration = channel)` + `AC-LA-E2-05-06` + `apps/portal/src/channels/shell.test.tsx > renders all four default steps from brightspace manifest data` & `from lti-generic manifest data` | Both `reg.channel('brightspace')!.lti!.toolConfiguration` and `reg.channel('lti-generic')!.lti!.toolConfiguration` equal `'channel'`; K0 `K-ADAPTER` passes (`148/148` K0 tests in `1.14s`) without `app.ts` because all profiles are `endpoints: 'admin'`; `GET /app-api/connections/:id/tool-configuration` returns the 9 D2L rows in order and `apps/portal/src/channels/shell.test.tsx` renders all four wizard steps for `brightspace` and `lti-generic`. `e2-05-ac02-03-09-manifest-profile.json`, `e2-05-ac06-tool-config.json`, `e2-05-unit.log` |
+| Re-run of `AC-LA-E2-05-01`, `AC-02`, `AC-03`, `AC-06` (host), `AC-08`, `AC-09` | PASS | `brightspace.k0.test.ts` (4/4 tests) + `packages/channels/brightspace/channel.test.ts` + `services/cogniate-app/src/kernel/setup/admin-value.test.ts` | F2 on `a3d9434` vs `678eb72` reports `F2 PASS: core = 0, paths = 4`; all D2L `FieldSpec.default` constants, profile traits, 4 AGS scopes, and README `UNVERIFIED` markers pass. `vitest.log`, `e2-05-unit.log` |
+
+### R0 `npm run check` and suite timings at `326ceae`
+
+- **R0 `npm run check` (`e2-05-check-clean.log`):**
+  - Vitest (`test:unit`): `191` files; `3,086` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail.
+  - K0 (`test:k0`): `3` files; `148` passed (`149 -> 148` expected as `brightspace` `registration.dynamic` is now `true`).
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Targeted unit + portal suite (`e2-05-unit.log`):** `3` files (`packages/channels/brightspace/channel.test.ts`, `services/cogniate-app/src/kernel/setup/admin-value.test.ts`, `apps/portal/src/channels/shell.test.tsx`), `63/63` passed (`1.75s`).
+- **Measured time:** `LA-E2-05` K0 suite `131.61s` (`4/4` K0 tests passed). `K1-SIM` (`AC-04`, `-05`, `-06` live, `-10`) and `K2` (`AC-07`) remain `pending: Docker window` (Docker slot 4).
