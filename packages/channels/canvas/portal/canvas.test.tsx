@@ -12,6 +12,7 @@ import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
 import steps from "./steps.ts";
 import manifest from "../manifest.ts";
+import canvasModule from "./index.tsx";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -327,4 +328,31 @@ it("AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits wit
   expect(url).toBe("/app-api/connections/con_dr/platform");
   expect(init).toMatchObject({ method: "PUT" });
   expect(JSON.parse(init.body as string)).toEqual({ clientId: "10000000000042", deploymentId: "43:def", grantCode: "one-use-code" });
+});
+
+it("BD-A2-101: a registered or connected connection has a closed Key JSON section that loads only when opened", async () => {
+  const panels = (current: Connection) => render(h(MemoryRouter, null, ...canvasModule.connectionPanels!.map((Panel, index) =>
+    h(Panel, { key: index, connection: current, sdk: createPortalSdk(() => undefined) }))));
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith("/tool-configuration")
+    ? json([]) : new Response('{\n  "title": "Cogniate"\n}\n', { headers: { "x-cogniate-key-id": "key-1" } })));
+  for (const status of ["registered", "connected"] as const) {
+    const view = panels({ ...connection, status });
+    const summary = screen.getByText("Key JSON");
+    expect(summary.closest("details")!.open).toBe(false);
+    // A closed section makes no export request, so a page view never changes the recorded artifact key (LA-E6-05).
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
+    fireEvent.click(summary);
+    expect(summary.closest("details")!.open).toBe(true);
+    await waitFor(() => expect((screen.getByRole("button", { name: "Download JSON" }) as HTMLButtonElement).disabled).toBe(false));
+    expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/app-api/connections/con_canvas/canvas-configuration");
+    expect(screen.getByLabelText("Put a copy of the current public key in the JSON")).toBeTruthy();
+    view.unmount();
+    fetchMock.mockClear();
+  }
+  for (const status of ["pending", "disabled"] as const) {
+    const view = panels({ ...connection, status });
+    expect(screen.queryByText("Key JSON")).toBeNull();
+    view.unmount();
+  }
 });

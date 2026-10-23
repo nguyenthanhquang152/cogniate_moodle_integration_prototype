@@ -352,6 +352,14 @@ describe("manifest portal shell", () => {
     await screen.findByRole("button", { name: "Refresh status" });
     expect(screen.queryByRole("button", { name: "Check connection" }) !== null).toBe(shown);
   });
+  it.each(["registered", "connected"] as const)("the %s Canvas connection page has a closed Key JSON section and exports nothing before it opens (BD-A2-101)", async (status) => {
+    const manifest = channelRegistry.channel("canvas")!;
+    current = connection(manifest, { status, bindingAuthority: "operatorGrant" });
+    app(`/integrations/canvas/${current.id}`);
+    const summary = await screen.findByText("Key JSON");
+    expect(summary.closest("details")!.open).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("canvas-configuration"))).toBe(false);
+  });
   it("merges a renewed URL into the existing connection", async () => {
     const existing = connection(self);
     const onChanged = vi.fn();

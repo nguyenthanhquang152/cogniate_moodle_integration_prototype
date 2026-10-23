@@ -27,6 +27,24 @@ const connection = (channel = "canvas", status: Connection["status"] = "connecte
 });
 
 describe("connection health warnings (LA-ADR-08 D5; AC-LA-E6-02-08)", () => {
+  it("warns for a stale key JSON only for an active connection (BD-A2-101: its Key JSON is on the page)", async () => {
+    const stale = health({ keys: { artifactKeyKid: "kid-0", artifactKeyCurrent: false } });
+    expect(healthWarnings(stale, NOW, false)).toEqual([]);
+    for (const status of ["pending", "disabled"] as const) {
+      fetchMock.mockResolvedValue(json(stale));
+      const view = render(<ConnectionHealth connection={connection("canvas", status)} />);
+      await screen.findByText("Last refused launch");
+      expect(screen.queryByText("Paste a new Canvas key JSON.")).toBeNull();
+      view.unmount();
+    }
+    for (const status of ["registered", "connected"] as const) {
+      fetchMock.mockResolvedValue(json(stale));
+      const view = render(<ConnectionHealth connection={connection("canvas", status)} />);
+      expect(await screen.findByText("Paste a new Canvas key JSON.")).toBeTruthy();
+      expect(screen.getByText(/Open Key JSON on this page/)).toBeTruthy();
+      view.unmount();
+    }
+  });
   it("warns for a stale key JSON only when artifactKeyCurrent is false", () => {
     expect(healthWarnings(health({ keys: { artifactKeyKid: "kid-0", artifactKeyCurrent: false } }), NOW)).toEqual(["staleKey"]);
     expect(healthWarnings(health({ keys: { artifactKeyKid: "kid-1", artifactKeyCurrent: true } }), NOW)).toEqual([]);
@@ -42,7 +60,7 @@ describe("connection health warnings (LA-ADR-08 D5; AC-LA-E6-02-08)", () => {
     fetchMock.mockResolvedValue(json(health({ keys: { artifactKeyKid: "kid-0", artifactKeyCurrent: false }, dispatch: { pending: 1, oldestPendingAt: iso(Date.now() - 2 * 3_600_000) } })));
     const view = render(<ConnectionHealth connection={connection()} />);
     expect(await screen.findByText("Paste a new Canvas key JSON.")).toBeTruthy();
-    expect(screen.getByText("The key in the key JSON that Canvas has is not the active Cogniate key. Download the JSON again and paste it into Canvas.")).toBeTruthy();
+    expect(screen.getByText("Canvas still has an old Cogniate key in its developer key. Open Key JSON on this page. Choose the key URL (it never needs a new paste), or download the JSON again. Then paste it into the Cogniate developer key in Canvas.")).toBeTruthy();
     expect(screen.getByText("Some grades wait more than 1 hour to go to Canvas.")).toBeTruthy();
     expect(fetchMock.mock.calls[0]![0]).toBe("/app-api/connections/con_canvas/health");
     expect(screen.queryByRole("alert")).toBeNull();

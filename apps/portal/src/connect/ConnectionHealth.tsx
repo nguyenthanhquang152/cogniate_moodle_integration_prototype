@@ -11,7 +11,8 @@ const HOUR_MS = 3_600_000;
 // The warnings of A2 LA-ADR-08 D5, with {LMS} filled. They name no LMS in core code.
 export const HEALTH_TEXTS = {
   staleKey: "Paste a new {LMS} key JSON.",
-  staleKeyHelp: "The key in the key JSON that {LMS} has is not the active Cogniate key. Download the JSON again and paste it into {LMS}.",
+  // BD-A2-101: the Canvas module shows "Key JSON" on a registered or connected connection.
+  staleKeyHelp: "{LMS} still has an old Cogniate key in its developer key. Open Key JSON on this page. Choose the key URL (it never needs a new paste), or download the JSON again. Then paste it into the Cogniate developer key in {LMS}.",
   backlog: "Some grades wait more than 1 hour to go to {LMS}.",
   // B-LA-E6-02-01: name only an action that the page has and values that the page shows.
   backlogCheck: "Select Check connection to test the connection to {LMS}.",
@@ -30,11 +31,14 @@ export function backlogHelp(health: Health, connection: Pick<Connection, "name">
     : [`Give your Cogniate operator ${facts}.`];
 }
 
-/** The warnings of a health answer: a stale key in the setup artifact, and grades that wait more than 1 hour. */
-export function healthWarnings(health: Health, now = Date.now()): ("staleKey" | "backlog")[] {
+/**
+ * The warnings of a health answer: a stale key in the setup artifact (only for an active connection, which launches with
+ * that key and has its key JSON on the page), and grades that wait more than 1 hour.
+ */
+export function healthWarnings(health: Health, now = Date.now(), active = true): ("staleKey" | "backlog")[] {
   const oldest = health.dispatch.oldestPendingAt === null ? null : Date.parse(health.dispatch.oldestPendingAt);
   return [
-    ...(health.keys.artifactKeyCurrent === false ? ["staleKey" as const] : []),
+    ...(active && health.keys.artifactKeyCurrent === false ? ["staleKey" as const] : []),
     ...(oldest !== null && now - oldest > HOUR_MS ? ["backlog" as const] : []),
   ];
 }
@@ -74,8 +78,9 @@ export function ConnectionHealth({ connection }: { connection: Connection }) {
   const error = answer.error ?? (answer.data !== undefined && !data ? new Error("not a health answer") : null);
   const manifest = registry.channel(channelOf(connection));
   const text = (value: string) => fillText(value, { LMS: manifest?.names.text ?? "your LMS" });
-  const warnings = data ? healthWarnings(data) : [];
-  const checkAvailable = !!manifest?.setup.connectionCheck && (connection.status === "registered" || connection.status === "connected");
+  const active = connection.status === "registered" || connection.status === "connected";
+  const warnings = data ? healthWarnings(data, Date.now(), active) : [];
+  const checkAvailable = !!manifest?.setup.connectionCheck && active;
   const help = (key: "staleKey" | "backlog", health: Health) => key === "staleKey" ? [text(HEALTH_TEXTS.staleKeyHelp)] : backlogHelp(health, connection, checkAvailable, text);
   return <>
     {data && warnings.map((key) => <Notice key={key} variant="warning" data-health-warning={key}>
