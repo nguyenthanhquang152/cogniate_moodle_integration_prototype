@@ -506,6 +506,20 @@ describe('E2 Dynamic Registration rules per profile (AC-LA-E2-02-01)', () => {
     } finally { await s.app.close(); s.db.close(); }
   });
 
+  it('A-LA-E2-02-08 (BD-A2-84): a staged complete refuses an authorization_server on a reserved host before anything is sent', async () => {
+    const s = await setup(registry);
+    try {
+      s.state.configs[G_CONFIG_URL] = genericConfig({ token_endpoint: 'https://auth.idp.test/token', authorization_server: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken' });
+      const id = idOf(String((await startAt(s, G_CONFIG_URL, 'opaque-token-r')).headers.location));
+      const r = await complete(s, id, { profile: 'zz-generic', bindingRef: 'conn-r' });
+      expect([r.statusCode, r.json().details.message, r.json().details.description])
+        .toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE', 'authorization_server is on a reserved host of a hosted LMS profile.']);
+      expect(s.state.registrations).toEqual([]);
+      expect(s.db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
   it('item 2: a configuration host of a fixed profile is PLATFORM_URL_NOT_IN_PROFILE on the start page; nothing goes to it', async () => {
     const s = await setup(registry);
     try {

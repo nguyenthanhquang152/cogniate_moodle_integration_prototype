@@ -58,6 +58,18 @@ export function endpointHostProblem(value: string, rules: AnyHttpsRules): 2 | 3 
 }
 
 /**
+ * A2 BD-A2-84 (contract delta §4.6): the client assertion audience obeys rule 2 like the endpoints, on every create or
+ * update, staged or active: an https URL whose host passes site rules 2 and 3 and is not a reserved host. We sign the
+ * assertion with our key, so an audience on a hosted LMS host could be replayed there; a grant does not make it safe.
+ */
+export function checkAudienceHost(value: string, rules: AnyHttpsRules, field = 'clientAssertionAud'): void {
+  if (!isHttpsUrl(value)) throw new ApiError('INVALID_REQUEST', `Invalid field: ${field} must be an https URL.`);
+  const problem = endpointHostProblem(value, rules);
+  if (problem === 'reserved host') throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${field} is on a reserved host of a hosted LMS profile.`);
+  if (problem !== null) throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${field} breaks rule ${problem} of the site rules.`);
+}
+
+/**
  * Contract delta §4.6.1 rule 1 for an issuer: https, no user info, no query, no fragment; a path is allowed. Its origin
  * passes site rules 1 to 3 and is not a fixed host of any loaded profile (rule 4 of the shared function). Null = passes.
  */
@@ -75,15 +87,12 @@ export function issuerSiteProblem(value: string, rules: AnyHttpsRules): SiteRule
  * A staged create (inactive, with a bindingRef) may have endpoints and an assertion audience off the issuer origin.
  * No URL is fetched here; later calls use the guarded client (rule 4).
  */
-export function checkAnyHttpsPlatform(p: PlatformUrls, staged: boolean, rules: AnyHttpsRules,
+export function checkAnyHttpsPlatform(p: PlatformUrls & { clientAssertionAud?: string | undefined }, staged: boolean, rules: AnyHttpsRules,
   fields: Record<keyof PlatformUrls, string>): void {
-  // Rule 2: each endpoint is https; its host passes site rules 2 and 3 and is not a reserved host.
-  for (const key of ENDPOINTS) {
-    if (!isHttpsUrl(p[key])) throw new ApiError('INVALID_REQUEST', `Invalid field: ${fields[key]} must be an https URL.`);
-    const problem = endpointHostProblem(p[key], rules);
-    if (problem === 'reserved host') throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${fields[key]} is on a reserved host of a hosted LMS profile.`);
-    if (problem !== null) throw new ApiError('PLATFORM_URL_NOT_IN_PROFILE', `${fields[key]} breaks rule ${problem} of the site rules.`);
-  }
+  // Rule 2: each endpoint is https; its host passes site rules 2 and 3 and is not a reserved host. The audience too
+  // (BD-A2-84), staged or not.
+  for (const key of ENDPOINTS) checkAudienceHost(p[key], rules, fields[key]);
+  if (p.clientAssertionAud !== undefined) checkAudienceHost(p.clientAssertionAud, rules);
   // Rule 3: the issuer origin is not a reserved issuer origin. A value that does not parse fails rule 1 next.
   let origin: string | null = null;
   try { origin = new URL(p.url).origin; } catch { /* rule 1 */ }

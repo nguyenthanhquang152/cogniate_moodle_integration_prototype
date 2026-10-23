@@ -14,7 +14,7 @@ import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import { statusGate } from '../../lti/account-status.ts';
-import { BINDING_REF } from '../../lti/platform-rules.ts';
+import { BINDING_REF, checkAudienceHost } from '../../lti/platform-rules.ts';
 import type { AnyHttpsRules } from '../../lti/platform-rules.ts';
 import type { ConfigurationProblem, ConfigurationRule, OpenIdConfiguration } from '../../lti/registration.ts';
 import {
@@ -340,6 +340,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       // D5 items 4 and 10 (I-SELF, D2a): only a {platformValue} profile stores authorization_server as its audience. When
       // a value is off the issuer origin, the platform is staged: inactive, with the connection's binding ref.
       const platformAud = profile.clientAssertionAud.value === '{platformValue}' ? config.authorizationServer : null;
+      // BD-A2-84 (A-LA-E2-02-08): the audience that a staged or active registration stores obeys rule 2, before anything is sent.
+      if (platformAud !== null) {
+        try { checkAudienceHost(platformAud, hosts, 'authorization_server'); } catch (err) { if (err instanceof ApiError) reject(err); throw err; }
+      }
       const staged = !endpointsOnIssuerOrigin({ ...config, authorizationServer: platformAud });
       if (profile.endpointOrigins === 'any-https' && body.data.bindingRef === undefined) {
         throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).', { details: { field: 'bindingRef' } });

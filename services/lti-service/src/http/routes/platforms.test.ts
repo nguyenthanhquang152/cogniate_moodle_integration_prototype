@@ -244,6 +244,27 @@ describe('the active-admin audience rule for every admin profile (B-LA-E2-01-01,
   });
 });
 
+describe('the audience obeys rule 2 on every create, staged or active (A-LA-E2-01-01, A2 BD-A2-84)', () => {
+  const BB_TOKEN = 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken';
+  it.each([
+    ['any-https', anyHttps, () => anyBody()], ['{platformValue} with endpointOrigins omitted', null, () => adminBody('zz-default')],
+  ] as const)('%s: a reserved, own or non-https audience is refused also when staged', async (_, fixedRegistry, body) => {
+    const { db, post } = await setup(fixedRegistry ?? await platformValueRegistry());
+    for (const mode of [{ active: false, bindingRef: 'grant-1' }, {}]) {
+      expect(refusal(await post({ ...body(), ...mode, clientAssertionAud: BB_TOKEN })))
+        .toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE', 'clientAssertionAud is on a reserved host of a hosted LMS profile.']);
+      expect(refusal(await post({ ...body(), ...mode, clientAssertionAud: 'https://SSO.canvaslms.com:8443/login/oauth2/token' }))[1]).toBe('PLATFORM_URL_NOT_IN_PROFILE');
+      expect(refusal(await post({ ...body(), ...mode, clientAssertionAud: `${URLS.lti}/token` })))
+        .toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE', 'clientAssertionAud breaks rule 3 of the site rules.']);
+      expect(refusal(await post({ ...body(), ...mode, clientAssertionAud: 'opaque-audience' })))
+        .toEqual([400, 'INVALID_REQUEST', 'Invalid field: clientAssertionAud must be an https URL.']);
+    }
+    expect(db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
+    // A foreign audience on a host of no loaded profile stays allowed when staged.
+    expect((await post({ ...body(), active: false, bindingRef: 'grant-1', clientAssertionAud: 'https://auth.brightspace.example/token' })).statusCode).toBe(201);
+  });
+});
+
 describe('E2 trait fields of GET /api/providers (contract delta §4.7, LA-IC-01)', () => {
   it('shows endpoints, issuerKind and endpointOrigins for every profile', async () => {
     const { app, headers } = await setup();
