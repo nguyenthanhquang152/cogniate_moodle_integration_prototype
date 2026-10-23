@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -36,3 +36,17 @@ An AST comparison of production `prepare`/`exec` arguments found the SQL text un
 Verification used fresh private clone `/tmp/la-review-b-dc66d95c1d77` with its own `npm ci`; the Vitest cache was deleted before every run. **1,306 tests passed across all 96 LTI unit files**. LTI typecheck, ESLint on all 95 changed files, F1, and F5 passed. Five independent SQL-portability and audit-path controls passed, including rejection of `rowid` and deletion from the old job path. AC-02 and AC-03 have coverage; AC-01 needs the correction above. All scratch files and product mutations were removed, and the private clone is clean.
 
 The changes respect the S2 B4 window and the named P/QA allowances. Applied migrations and the shared migration helper are unchanged; no production core LMS name was added. AC-04, frozen wire bytes, and full R2/R3 stack regressions remain with QA. No Docker, stack, or commit was used. Only this review file changed in integration.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-23. Lens B: can a human team own it? Scope: `7c84167b1b9da8a5c2b4e2d109f3110dbf46b8ef`, tested at integration pin `3db2a940ea8167b072cb3890aae1838e833e342d`. No Reviewer-A file was opened.
+
+**APPROVE. B-LA-E5-23-01 is closed. No new findings.**
+
+The guard now detects direct, aliased, member, and computed-member `afterCommit` calls. It resolves namespace imports against the SQLite function map. Production scanning and planted negative fixtures use the same `enforceBoundary` file walk. Allowed type imports, pure helpers, the public port, regex calls, non-executed text, and test/testkit/adapter paths retain positive controls. A separate case proves that excluded files do not hide a neighbouring production violation. These controls make the boundary rule clear to maintain and extend.
+
+I repeated the original production-path probes for `prepare`, aliased `afterCommit`, and a namespace SQLite import. Each now fails the real scan and names the scratch file and offending rule. Independent mutations that remove `afterCommit` detection or namespace detection cause five and one expected assertion failures respectively, with the fixture tests unchanged.
+
+Verification used fresh private clone `/tmp/la-review-b-21f799f3f8fc` with its own `npm ci`; the Vitest cache was deleted before every run. **24 tests passed across the boundary and port files.** LTI typecheck, ESLint on the changed file, and whitespace checks passed. All probes and mutations were removed, and the private clone is clean.
+
+The fix changes only the Author-owned boundary unit test. Production code, SQL, contracts, and protected files are unchanged; no core LMS name was added. Round 1 verification remains applicable to the unchanged implementation. AC-01 is now covered; AC-04, frozen wire bytes, and full R2/R3 stack regressions remain with QA. No Docker, stack, or commit was used. Only this review file changed in integration.
