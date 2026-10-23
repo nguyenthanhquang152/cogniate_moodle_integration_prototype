@@ -1,7 +1,20 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E5-15 Service key revocation, re-issue epoch, write scope: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 2 on `qa2-la-sim-r2`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r2`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-15-01, 02, 03, 05, 06, 07 & BD-A2-53 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts` (7 `K1-SIM` tests: `AC-LA-E5-15-01`, `02`, `03`, `05`, `06`, `07`, and `BD-A2-53`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r2 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch2.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2 --replace-tests` | All 7 `K1-SIM` tests pass (`container-LA-E5-15`, `7/7` passed in `1364 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r2-4209dcb-2026-10-23T05-00-39-765Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-2-r2.log`). |
+| AC-LA-E5-15-04 | PASS (UNIT) | `services/lti-service/src/store/service-keys.test.ts > AC-LA-E5-15-04` | `npx --no-install vitest run services/lti-service/src/store/service-keys.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 2 below. |
+
+---
+
+## Round 2 (host-only at `5b5b3a2`)
 
 Tester: QA-2 (Round 1: task `task_756d65316a50` / `ctx_eb2462bb36b5`; Round 2: task `task_00bf4a549499` / `ctx_4528c07049d5`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-15.md` (with `BD-A2-12`, `BD-A2-47`, `BD-A2-53`, `Q-LAB-04`). Suite: `tests/ltiaas/tasks-ops/LA-E5-15/` (QA-2 test-first, committed in `d40826d`, updated for `BD-A2-53` in Round 2).
 

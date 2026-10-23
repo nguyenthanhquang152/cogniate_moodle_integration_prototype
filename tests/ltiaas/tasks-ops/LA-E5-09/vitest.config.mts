@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  server: { fs: { strict: false } },
   test: {
     root: fileURLToPath(new URL('../../..', import.meta.url)),
     include: ['ltiaas/tasks-ops/LA-E5-09/**/*.test.ts'],

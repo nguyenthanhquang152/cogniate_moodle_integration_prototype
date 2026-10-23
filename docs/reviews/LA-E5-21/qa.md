@@ -1,7 +1,20 @@
 Verdict: PASS
-Round: 1
+Round: 2
 
 # LA-E5-21 Production profile and secrets from files: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 3 on `qa2-la-sim-r3`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r3`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-21-01, 07 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-21/production-profile.test.ts` (2 `K1-SIM` tests: `AC-LA-E5-21-01`, `07`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r3 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch3.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3 --replace-tests` | Both `K1-SIM` tests pass (`container-LA-E5-21`, `2/2` passed in `13,809 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r3-4209dcb-2026-10-23T05-11-11-546Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-3.log`). |
+| AC-LA-E5-21-02 .. 06 | PASS (UNIT) | `services/lti-service/src/config.test.ts`, `packages/shared/src/config.test.ts` | `npx --no-install vitest run services/lti-service/src/config.test.ts packages/shared/src/config.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 1 below. |
+
+---
+
+## Round 1 (host-only at `2a15f5b`)
 
 Tester: QA-2 (Orca task `task_d8da4ccfd3e5`, dispatch `ctx_bcd74cb4daf3`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-21.md` (with `LA-ADR-06` D12, `LA-ADR-07` D4, `Q-LAB-01`). Suite: `tests/ltiaas/tasks-ops/LA-E5-21/` (QA-2 test-first, committed in `d40826d`).
 

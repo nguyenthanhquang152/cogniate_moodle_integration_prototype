@@ -1,7 +1,17 @@
 Verdict: PASS
-Round: 3
+Round: 4
 
 # LA-E5-05 LTI CLIs as operator API clients: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 3 on `qa2-la-sim-r3`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r3`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-05-01 .. 08 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-05/cli.test.ts` (8 `K1-SIM` tests: `AC-LA-E5-05-01` .. `08`, plus `B-LA-E5-05-04` recovery text) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r3 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch3.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3 --replace-tests` | All 8 `K1-SIM` tests pass (`container-LA-E5-05`, `8/8` passed in `7530 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r3-4209dcb-2026-10-23T05-11-11-546Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-3.log`). |
+
+---
 
 ## Round 3 (fix round 2, `dc88b7d` at `836d579`)
 
