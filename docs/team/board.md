@@ -7,7 +7,13 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current host status — 2026-10-23, 16:27 UTC
+### Current status — 2026-10-23, 16:43 UTC
+
+T7 is accepted at C10 `97b68af4`. Independent QA passes all 15 criteria, three cycles of 17 tests, the demo and all four confirmation/refusal checks. The required traces and 12 PNGs pass. The strict scan has zero shared hits. Cleanup passes, all 32 complete protected volume records match, and the host was returned at 16:40 UTC. LA confirmed its hold. See [the final E-R8 decision](r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc).
+
+M1, M2, legacy and T7 runtime evidence are accepted. The Architect now applies final conformance and narrow prototype ADR status updates. The same Codex executor then applies the prepared guides. Independent Gemini Docs QA and two blind Claude reviews follow on one frozen document revision. Lead closure remains after those gates. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior host status — 2026-10-23, 16:27 UTC
 
 C10 is running under grant `msg_28bc7b21d064`. The detached receipt records launch at 16:26:20 UTC. The test runner started at 16:26:41 UTC. Cleanup is due by 16:48 UTC; the agreed host return is 16:50 UTC. No runtime PASS is claimed yet.
 

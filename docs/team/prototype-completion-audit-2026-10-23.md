@@ -1,6 +1,6 @@
 # Prototype completion audit
 
-Owner: Lead. Updated: 2026-10-23, 13:14 UTC. Overall result: **NOT COMPLETE**.
+Owner: Lead. Updated: 2026-10-23, 16:43 UTC. Overall result: **NOT COMPLETE**.
 
 The active goal is to complete all remaining tasks. This audit uses the approved M1–M4 criteria and charter. Earlier accepted evidence keeps its exact source, test SHA and scope. A missing final verdict is not a pass.
 
@@ -9,8 +9,8 @@ The active goal is to complete all remaining tasks. This audit uses the approved
 | Shared engine and provider behavior; AC-M3-01 | E-R7 accepts two equal fresh 394-row M1 rounds at C9 tests/C6 product, plus 94 separately carried C4 rows with the accepted dependency evidence. | Preserve this split in final documents; do not call it 488 freshly run rows. |
 | Portal/provider flows; AC-M3-03 | E-R6 accepts M2 r7 at C8 tests/C6 product: 64 cases, 13 criteria, seven gates and operational closure. | Preserve the actual C8 identity and separate C9 dependency equivalence. |
 | Moodle legacy regression; AC-M3-02(b) | E-R4 and E-R6 retain the twelve accepted legacy groups. | No repeat required by the current tool-only change. |
-| Final default-profile Moodle E2E; AC-M3-02(a) | Current T7 report says NOT RUN/PENDING. | Three 17-test runs, all 15 T7 criteria, demo, confirmations/refusals and complete cleanup/scan evidence on the recorded candidate. |
-| Isolation, hygiene and evidence; AC-M3-04/06/07 | Accepted M1/M2/legacy evidence remains. E-R8 preparation is active for T7 only. | Qualify copied tools, independent review, explicit runtime decision, then verify T7's full operational evidence. |
+| Final default-profile Moodle E2E; AC-M3-02(a) | E-R8 accepts C10 in `msg_c84789ebb2b4`: all 15 criteria, three 17-test cycles, demo, confirmation/refusal and trace/PNG checks PASS. The earlier C8 invocation remains FAILED history. | Preserve the exact C10 identity and accepted limits in final documents. |
+| Isolation, hygiene and evidence; AC-M3-04/06/07 | M1/M2/legacy and C10 T7 operational evidence are accepted. T7 scan has zero shared hits; all 32 complete records match; owned cleanup and LA confirmation pass. The Lead verified 897 binder entries and returned the host. | Preserve the shared-host attribution limits and original failure records. No runtime repeat is required. |
 | Live matrix; AC-M3-05 | `docs/reviews/M3/live.md` contains 13 hosted Canvas rows, one local Canvas row and 18 Blackboard rows, all UNVERIFIED with steps and authorization none. | Preserve the truthful labels and missing-environment fields. The criterion explicitly permits UNVERIFIED without authorization; this is not proof of live interoperability. |
 | Evidence labels and claim limits; AC-M4-01/02 | Earlier static Docs QA passed at guide candidate `958ee5c`. | Verify the final changed pack against accepted runtime records and all 32 live-row limits. |
 | Measured Simplified Technical English; AC-M4-03 | Earlier measured static checks passed. | Measure the final changed text with the established T9 method. |

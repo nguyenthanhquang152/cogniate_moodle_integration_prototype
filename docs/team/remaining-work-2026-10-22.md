@@ -2,7 +2,15 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 16:27 UTC
+## Current checkpoint — 2026-10-23, 16:43 UTC
+
+The final runtime gate passed. C10 T7 has independent QA PASS for all 15 criteria, all three 17-test cycles, the demo, confirmation checks, trace/PNG checks, secret scan and operational closure. The Lead accepted it in `msg_c84789ebb2b4` and returned the host. No more Docker work is required for this phase.
+
+Remaining: finish the prepared Architect conformance and narrow ADR status changes; apply the prepared guide patch; run independent Docs QA and both blind reviews together; record Lead closure. M1, M2 and legacy results remain accepted at their original revisions. The final documentation gates must still pass before the goal is complete.
+
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 16:27 UTC
 
 C10 T7 started at 16:26:20 UTC. The runner started at 16:26:41 UTC. The four-file repair has independent Gemini checks and both Claude approvals. Fresh preflight passed. Grant `msg_28bc7b21d064` requires cleanup by 16:48 UTC and host return by 16:50 UTC. The earlier failed invocation remains FAILED.
 

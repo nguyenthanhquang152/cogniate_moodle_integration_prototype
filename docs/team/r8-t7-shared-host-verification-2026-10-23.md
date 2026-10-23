@@ -108,3 +108,27 @@ The readiness response arrived after the earlier cutoff. LA explicitly revised t
 
 The new root is `t7-attempt-c10-20261023T1615Z`. Detached outputs use `notes/t7-runtime-c10-20261023T1615Z`. The receipt records launch at 16:26:20 UTC, supervisor PID 30198, a new session and no PTY. It is 1,581 bytes, SHA-256 `e90218969c42346221264f160a0ae5c4563f5e1099d53805067b5ea08f481670`. T0 binds the real grant and delivery IDs. The prelaunch guard is 5,014 bytes, SHA-256 `ca4640aaa21e17d52abff2e44ab49b9eb72f3dd33438623e01ab2f1f6cfedfca`, with no problems. Both C10 checkouts are pristine. The runner started at 16:26:41 UTC as `qa-e2e-m3-r3-97b68af4-2026-10-23T16-26-41-657Z`. Final runtime and cleanup results remain pending.
 
+### C10 runtime result and host return — 16:41 UTC
+
+The wrapper completed at 16:39:03 UTC with exit 0. Each of the three default cycles passed 17 tests, with zero failures and the permitted demo-only skip. The four confirmation/refusal checks passed. Demo preparation took 11.45 seconds; both player launches passed. The runner summary is 39,317 bytes, SHA-256 `f98813044f0e03ad2b171a4424f06fdd93cf6360c69689afcbdc8969bd8887ab`. QA reported these results in `msg_acde9f9235ad`.
+
+The operational checks all passed. The lane verified keep and teardown, with zero owned containers, networks, volumes or build runners left. The sampler recorded 48 samples, one bridge and no skew violation. W4 is 27,474 bytes, SHA-256 `3c6355d7defb765100724da696e70fb4a75791317c871075055bb91fe707cd92`. Its comparison is 2,939 bytes, SHA-256 `ed635c9b5fd55926933feb6a33384da678e887592ff681588ea433c412f38b10`, with zero problems. The Lead also compared every complete protected volume record with the accepted M2 predecessor: all 32 match. Every T12/T13 exit is zero. A fresh process snapshot found no attempt-owned process or supervisor 30198.
+
+Foreign activity remains visible. OUTER recorded removal of `sto-proj-bef1221f7fb3` and its extra volume, with full SC/SV start attribution. LANE recorded removal of `sto-proj-e289e7e84d8f`, with full SC start attribution from its own pool. Neither pool has a read failure or vanished record. The window was not exclusive. The limitations of the qualified capture method still apply.
+
+The strict secret scan passed with 162 captured values and zero shared hits, including `cmd/03-compose-config-name.log`. It checked 207 shared text files and 550 shared binary files; 1,196 hits stay confined to private raw traces. Scan: 38,847 bytes, SHA-256 `c477f68c343bed971f7f423c432d7f5db11e9d7d3333e4d1f6b207078e6bd844`. The T7 gate passed. The run binder is 382,147 bytes, SHA-256 `5a06fda52944b2a0ea13b776ab3e0debcae818cc5f0fc4498060bde3cd69118b`; the Lead verified all 897 hash, size and mode bindings.
+
+The Lead returned the host at 16:40:25 UTC in `msg_d50a68ebaa8b`. LA acknowledged in `msg_82ece7cbc893`: no LA Docker start or mutation from 16:06:50 through 16:39:03 UTC. Its watcher recorded 7,248 events and zero LA project/name events. A restart around 16:18 replayed from 16:14; no gap exceeded two minutes. LA resumed its own work. No further LTI Docker activity is authorized.
+
+Final T7 acceptance still waits for QA's complete 15-criterion report and the remaining run-3 trace/PNG judgment. All original failed evidence remains FAILED. Conformance and guide application remain held until that judgment.
+
+### Final T7 acceptance — 16:43 UTC
+
+Independent Gemini verdict `msg_cf25c0118e11` passes all 15 T7 criteria and AC-M3-02(a), AC-M3-04, AC-M3-06 and AC-M3-07. All 51 passing default-profile tests have zero outside-viewport click retries. QA inspected all 12 required PNGs. Each form shows the selected grade-completion requirement and visible footer buttons. Each B5 image shows the full picker. The residual full-page picker captures show no later footer degradation in any cycle; A-T7C10-01 stays a deferred MINOR.
+
+The Lead ACCEPTS this exact C10 T7 invocation in `msg_c84789ebb2b4`. This combines QA's functional and visual verdict, the verified 897 bindings, complete protected records, operational closure and LA confirmation. The detailed QA appendices follow without changing the accepted artifacts. The failed C8 invocation and its failed separate scan remain FAILED history.
+
+The same decision accepts ADR-012 revisions 3.3–3.7 for the prototype only. Its 72 AC-M1-41 rows remain carried within the separate 94-row C4 ledger. The measured G-1 identities, absent volume generation id, fault-branch-only and unit/host-fault evidence limits remain explicit. `operation_lock_invalid` still means STOP and escalate. This is not production or enterprise storage acceptance.
+
+The Architect may now apply final conformance and the narrow DC-1/DC-2 status changes. Final guide application, independent Docs QA, two blind reviews and Lead closure remain. All 32 live LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
