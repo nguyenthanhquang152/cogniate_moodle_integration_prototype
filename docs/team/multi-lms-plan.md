@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 02:13 UTC
+### Current directive — 2026-10-23, 02:35 UTC
+
+C9 and the v5 launcher are frozen. Common Gemini completed host-only preparation; the Lead verified its 58-entry manifest.
+Claude Reviewer-A `ctx_de7c7933e455` and Reviewer-B `ctx_ba563ee9afc1` now review the same source and launcher independently.
+No M1 runtime grant is active.
+
+M2 attempt 2 stopped on SIGHUP during W2, before tests. Its evidence remains intact.
+Attempt 3 used the validated detached launcher. All 64 M2 cases and the runner's gates passed, with no skips or retries.
+The separate lane monitor exited 1 during teardown, so overall M2 acceptance is held. Do not convert the functional PASS into a full PASS.
+W4 and the 32-volume comparison passed. QA may complete host-only evidence capture under `msg_1431eb6e25d4`.
+The runtime grant is closed and the LA window was returned in `msg_25d757ac168b`. No repeat runtime is authorized.
+Claude Architect must assess the monitor finding before a new runtime decision. T7 remains ungranted.
+
+The Common QA prep reports describe the intended C8-to-C9 dependency mapping. They do not prove a completed T7 run or final M2 acceptance.
+Final runtime, conformance, guides, Docs QA and blind reviews remain pending. All real-LMS limits, model roles and the no-push rule remain unchanged.
+
+### Prior directive — 2026-10-23, 02:13 UTC
 
 C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1` freezes the six test-only dead-handler repairs.
 Host-only validation passed 184 self-tests, TypeScript checking and the unchanged 488-row inventory.

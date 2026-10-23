@@ -92,3 +92,24 @@ Script: `notes/scripts/run-m2-window-attempt2-v2.sh`, 19,785 bytes, SHA-256 `b23
 Replacement grant `msg_b2b4ecd13c67` permits one M2 invocation during 02:12–02:25 UTC, with fresh `m2/window-attempt2` records.
 All 37 qualified tools, source, tests, assertions, deadlines, baseline and required checks remain unchanged.
 T7 and M1 still need separate grants. No PASS is implied by this checkpoint.
+
+## M2 runtime checkpoint — 2026-10-23, 02:35 UTC
+
+Attempt 2 stopped on SIGHUP during W2 after its parent tool closed. No M2 test ran.
+Its preserved failure index is `notes/m2-window-attempt2-failure-index.json`, SHA-256 `7eb5f9cf2a90834d63caa8bca43770c5438d8a377a84fa49fa8942a5c373e22a`.
+Grant `msg_b2b4ecd13c67` is closed.
+
+Attempt 3 used a host-validated detached launcher under `msg_4cbe1bd687af`.
+Run ID: `qa-e2e-sim-r6-5561e8f7-2026-10-23T02-20-19-399Z`.
+All 64 cases and PRE, CLONE, H1, M2-STACK, M3-07-M2, M3-06-M2 and TEARDOWN passed; no skips or retries.
+Runner summary SHA-256: `a8f31c5525be4d767f426a9a88255b6e4eb80943bcb7929a3fb43fcc9467a47a`.
+The separate lane monitor exited 1 with one poll `StorageBlocked`; its `isolationPass` is false.
+QA's teardown network-disappearance diagnosis is under assessment. Overall M2 is NOT ACCEPTED. No gate is waived.
+
+Formal W3 was at 02:20:15.492 UTC and W4 at 02:23:50.839 UTC. Strict comparison ended at 02:23:54.494 UTC.
+W4, sampler and anonymous-volume checks passed. All 32 complete volume records are unchanged; no lane resources remain.
+W4 SHA-256: `f9ce5dbea80e359926e0baa4bc64f6e60ecc6b91553d8403b3b2d6bf878af62c`.
+The Lead permits only host-side scan and evidence capture in `msg_1431eb6e25d4`, preserving the wrapper exit 1 and every original file.
+The two original inline binder schema mistakes were not reached. Their separate correction is evidence capture, not a runtime PASS.
+The grant is closed. The LA window is returned in `msg_25d757ac168b`; its complete-window confirmation remains pending.
+T7 remains ungranted. The next runtime decision waits for Claude's assessment of the monitor finding.

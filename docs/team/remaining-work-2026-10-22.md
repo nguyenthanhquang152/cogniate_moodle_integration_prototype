@@ -2,7 +2,18 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 02:13 UTC
+## Current checkpoint — 2026-10-23, 02:35 UTC
+
+C9 and v5 preparation are complete. Both blind Claude reviewers are active on the frozen source and launcher.
+All 64 M2 cases and runner gates passed, with zero skips or retries. Overall M2 acceptance remains held because the separate lane monitor exited 1 during teardown.
+W4 and all 32 protected volume records passed comparison. QA is capturing the original failure and final scan; no repeat run is granted.
+The shared host window is returned. Claude Architect must assess this monitor finding when a reviewer slot is free.
+
+Remaining work: resolve the M2 monitor finding; accept both M1 reviews and run the two fresh 394-row rounds; run T7; complete final conformance and guide updates, independent Docs QA and two final reviews.
+The earlier 94 carried M1 rows and accepted legacy results retain their recorded scope. No fresh full-suite claim is made.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:13 UTC
 
 The six test repairs are frozen at C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1`.
 Common Gemini passed all 184 host self-tests, TypeScript checking and the unchanged 488-row inventory.
