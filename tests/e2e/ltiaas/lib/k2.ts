@@ -88,7 +88,6 @@ import {
   libraryPage,
   manageControl,
   newestByName,
-  next,
   noForbiddenFields,
   pendingWizard,
   portalSignIn,
@@ -247,7 +246,6 @@ export {
   libraryPage,
   manageControl,
   newestByName,
-  next,
   noForbiddenFields,
   ok,
   pause,
@@ -500,9 +498,36 @@ export async function issueOperatorGrantCli(
   return { code: match[0], stdout: res.stdout };
 }
 
+/** Clicks Step 1 "Next" or "Continue" across all channel wizards. */
+export async function next(page: Page): Promise<void> {
+  await button(page, /^(Next|Continue)$/i).first().click();
+}
+
+/**
+ * Selects the registration method ('dynamic' | 'manual') on Step 1 of any channel wizard.
+ * Handles both `<select>` (`combobox "Connection method"` on `lti-generic` / `brightspace`)
+ * and radio groups (`Automatic` / `Dynamic Registration` vs `Manual` / `Developer key` on `moodle` / `canvas`).
+ */
+export async function selectRegistrationMethod(page: Page, method: 'dynamic' | 'manual'): Promise<void> {
+  const combo = page.getByRole('combobox', { name: /Connection method/i });
+  if ((await combo.count()) > 0) {
+    const label = method === 'dynamic' ? 'Automatic' : 'Manual';
+    await combo.first().selectOption({ label }).catch(async () => {
+      await combo.first().selectOption(method);
+    });
+    return;
+  }
+  const radioPattern =
+    method === 'dynamic' ? /^(Automatic|Dynamic(\s+Registration)?)/i : /^(Manual|Developer key)/i;
+  const radio = page.getByRole('radio', { name: radioPattern });
+  if ((await radio.count()) > 0) {
+    await radio.first().check();
+  }
+}
+
 /** Clicks the primary save/connect action button on Step 3 of a connection wizard. */
 export function saveWizardConnection(page: Page): Locator {
-  return button(page, /^(Save connection|Connect( .*)?|Complete setup)$/i);
+  return button(page, /^(Save( connection)?|Connect( .*)?|Complete setup)$/i);
 }
 
 /** Publishes a course via the portal "Publish to an LMS" dialog to the named connection. */
@@ -611,25 +636,26 @@ export async function installStateCookieStripper(
         await route.continue();
         return;
       }
-      const headers = { ...request.headers() };
-      const rawCookie = headers.cookie ?? '';
-      if (rawCookie) {
-        const parts = rawCookie.split(/;\s*/).filter(Boolean);
-        const kept: string[] = [];
-        for (const part of parts) {
-          if (part.startsWith('__Host-lti_state_')) {
-            removedCookies.push(part.split('=')[0] ?? part);
-          } else {
-            kept.push(part);
-          }
-        }
-        strippedUrls.push(request.url());
-        if (kept.length > 0) {
-          headers.cookie = kept.join('; ');
-        } else {
-          delete headers.cookie;
+      const jarCookies = await context.cookies(ltiOrigin);
+      for (const c of jarCookies) {
+        if (c.name.startsWith('__Host-lti_state_')) {
+          removedCookies.push(c.name);
         }
       }
+      const allHeaders = await request.allHeaders();
+      const rawCookie = allHeaders.cookie ?? request.headers().cookie ?? '';
+      if (rawCookie) {
+        for (const part of rawCookie.split(/;\s*/).filter(Boolean)) {
+          if (part.startsWith('__Host-lti_state_')) {
+            const name = part.split('=')[0] ?? part;
+            if (!removedCookies.includes(name)) removedCookies.push(name);
+          }
+        }
+      }
+      await context.clearCookies({ name: /^__Host-lti_state_/ });
+      strippedUrls.push(request.url());
+      const headers = { ...allHeaders };
+      delete headers.cookie;
       await route.continue({ headers });
     },
   );
