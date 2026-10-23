@@ -52,6 +52,11 @@ const manifest = {
       { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'manual' },
       { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'manual' },
       { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'manual' },
+      // A staged Dynamic Registration (LA-ADR-05 D6, A1 BD-A1-103): the portal pre-fills both ids from the staged
+      // platform (app API delta §3.4).
+      { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'dynamic' },
     ],
   },
   texts: {
