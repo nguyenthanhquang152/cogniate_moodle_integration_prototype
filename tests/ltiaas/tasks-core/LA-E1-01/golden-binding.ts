@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect } from 'vitest';
+import { cliBinding, G1_LMS_PROVIDERS_AND_CONNECTIONS, loadExpectedDelta } from '../../golden/lib/compare.mjs';
 
 export interface Binding {
   /** The compare command of LA-E0-03 for two capture folders and an optional expected-delta file. */
@@ -21,15 +22,16 @@ export interface Binding {
   documents?: (captureDir: string) => string[];
 }
 
-// BINDING: fill from tests/ltiaas/golden/README.md when LA-E0-03 lands.
-export const BINDING: Binding = {};
+// Bound to LA-E0-03 golden compare tool (tests/ltiaas/golden/lib/compare.mjs).
+export const BINDING: Binding = cliBinding;
 
-/** G1 `GET /app-api/lms-providers` and the connection DTOs (TEST-STRATEGY §4.6 G1). Adjust only the spelling to the capture layout. */
-export const G1_PROVIDERS_AND_CONNECTIONS = [/^G1[./]app-api[./]lms-providers\b/, /^G1[./]connections?\b/];
+/** G1 `GET /app-api/lms-providers` and the connection DTOs (TEST-STRATEGY §4.6 G1). */
+export const G1_PROVIDERS_AND_CONNECTIONS: RegExp[] = G1_LMS_PROVIDERS_AND_CONNECTIONS;
 
 /**
- * Compares the capture of the task SHA with the G-BASE capture. With `expectedDelta` (an `LA-IC` expected-delta file),
- * only differences named in that file pass, and a named change that is missing fails (AC-LA-E0-03-08).
+ * Compares the capture of the task SHA with the G-BASE capture. With `expectedDelta` (an `LA-IC` expected-delta file
+ * or comma-separated list of `LA-IC` ids / paths), only differences named in those files pass, and a named change that
+ * is missing fails (AC-LA-E0-03-08).
  * Fails on any unexplained difference inside `acDocuments`; other differences go to the artifact for the regression row.
  */
 export function expectGoldenEqual(label: string, acDocuments: RegExp[], expectedDelta?: string): void {
@@ -40,7 +42,11 @@ export function expectGoldenEqual(label: string, acDocuments: RegExp[], expected
   for (const [name, p] of [['LA_GOLDEN_CAPTURE', capture], ['LA_GOLDEN_BASELINE', baseline], ['LA_RUN_DIR', runDir]]) {
     expect(p !== '' && fs.existsSync(p), `${name} names an existing folder`).toBe(true);
   }
-  if (expectedDelta !== undefined) expect(fs.existsSync(expectedDelta), `expected-delta file ${expectedDelta} exists`).toBe(true);
+  if (expectedDelta !== undefined && expectedDelta !== '') {
+    for (const item of expectedDelta.split(',').map((s) => s.trim()).filter(Boolean)) {
+      expect(() => loadExpectedDelta(item), `expected-delta ${item} loads cleanly`).not.toThrow();
+    }
+  }
   for (const dir of [baseline, capture]) {
     const docs = BINDING.documents!(dir);
     for (const re of acDocuments) expect(docs.some((d) => re.test(d)), `${dir} holds a document that matches ${re}`).toBe(true);
