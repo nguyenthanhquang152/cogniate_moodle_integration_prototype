@@ -647,3 +647,12 @@ This verdict covers the signed-simulation and local real-Moodle prototype scope 
 - Q19–Q22, and D-1 to D-12 (`docs/human_review/decisions-needed.md`), as enterprise follow-ups.
 - No certification, enterprise-readiness, production-storage or human-approval claim.
 - Next: final guide evidence stamps, independent Gemini Docs QA, two blind Claude reviews, and Lead closure.
+
+### R7.8 Final QA report binding (2026-10-23, about 16:53 UTC)
+
+The Lead's relay is `msg_7f7ba9708954`, and QA's completion is `msg_4a438deb5171`. I re-checked these read-only, and they match:
+- `docs/reviews/T7/qa.md`: 92,706 B, SHA-256 `a1ac1e7f60c1c593a9c6a4422fd54d5a948c1dbd3ed1d59b229c92a149b4cf8d`. Its first 75,010 B are unchanged (`4b6a75df…356c`).
+- `docs/reviews/M3/qa-e2e.md`: 79,705 B, SHA-256 `0f500cd14b64005919f3c1b4044b90f44d4a20051b333b41242b37975e457855`. Its first 71,761 B are unchanged (`233a9195…30ad`).
+- The C10 artifact manifest `R/notes/t7-runtime-c10-20261023T1615Z/c10-artifact-manifest.json`: 366,538 B, SHA-256 `b0e65ca62251b42798aeb019ab74910dcc9e1dd3f0fd18d88c90e96be471d01b` (902 bindings checked by the Lead).
+
+This binding adds evidence references only. The R7.6 verdict stays **AC-M4-06: APPROVE**, with the scope and limits of R7.6–R7.7.
