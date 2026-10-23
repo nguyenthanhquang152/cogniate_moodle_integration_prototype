@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E4-04 review: Reviewer-A
 
@@ -38,3 +38,28 @@ All commands ran in `/tmp/la-review-a-03baae72b0b6`:
 - Private boundary probes in `kernel/records/records.test.ts`: **2 passed** (rollback and final first commit/stale unload), **1 failed** (legacy submission time). They remain outside the integration worktree; the reproduction above is the durable evidence.
 
 AC-02/AC-04 simulator and golden checks remain for QA. Only this review file was created for this item.
+
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Date: 2026-10-23. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.**
+
+Reviewed `4479534`, merged at `ce2a3ba`, against LA-ADR-03 D3, BD-A1-66, the revised task including AC-05 and plan §6.1. Verification used private clone `/tmp/la-reviewer-a-ctx-e1c7d3f9bf5b`, pinned to `ce2a3ba`. No Docker or stack ran. No other reviewer's file was opened.
+
+### Finding closed
+
+**A-LA-E4-04-01 closed.** `domain/attempts.ts:279,299` captures `updated_at` before the accepted commit changes it. When the already-final attempt has neither a submitted nor a final record, `kernel/records/records.ts:97-109` writes one submitted fact with the old outcome/score, `occurred_at` and `submitted_at` equal to that pre-commit time, and `created_at` equal to now. The lookup is scoped to the same attempt, learner and placement. Later records reuse this fact; no historical record is rewritten and the backfill creates no dispatch.
+
+The Round 1 two-version reproduction now passes with exact times: the old 90/100 result stays unchanged; the unrecorded 60/100 attempt created at 100 and updated at 500 gets one submitted record at 500, created at 2000, and its 75/100 progress/final records use `(started_at, submitted_at) = (100, 500)`. An added progress-only commit at 3000 and improvement to 95/100 at 4000 retain 500. Only the existing 90/100 and new 95/100 results have dispatches.
+
+Backfilling on the first accepted post-upgrade commit even when it has no other record is correct under BD-A1-66: that commit still advances the attempt's `updated_at`, so deferring the backfill would lose the chosen historical value. The dedicated no-change test pins this behavior and a later progress change. The documented timestamp remains an approximation, at or after the actual legacy submission.
+
+### Verification and scope
+
+- The shared focused run passes **239/239 tests in 16 files**, including records, runtime, AGS, results, worker and tracking. App type check and all four `no-score-sync` fitness tests pass.
+- Both new AC-05 tests fail by assertion when `records.ts` and `attempts.ts` are restored to `4479534^`. A private mutant that skips the no-change backfill fails its regression test; substituting current time for the historical time fails both AC-05 cases.
+- Four private boundary probes pass: the extended two-version case; the earlier new-attempt transaction rollback; final first commit plus stale unload; and a new legacy rollback probe. In the latter, a trigger rejects the progress insert after the submitted backfill: attempt and session return to their old state, no record or dispatch remains, and a later retry still backfills time 500.
+- After restoring all mutants, the affected records/throttle suites plus all private probes pass (**27/27**). Existing SCORM/HTML counts, previews, resumed sessions, unchanged progress and first-submission times remain covered.
+- Only the permitted `domain/attempts.ts` and `kernel/records/**` files change. The best-result policy and five-field AGS payload stay unchanged; no migration, frozen test, new reporter or LMS name in core is added. UNIT AC-01, AC-03 and new AC-05 have regression coverage.
+
+AC-02/AC-04 simulator and fresh golden evidence remain for QA. Only this review file was changed for this item.
