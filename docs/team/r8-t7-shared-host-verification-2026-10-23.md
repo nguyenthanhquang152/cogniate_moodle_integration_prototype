@@ -63,3 +63,19 @@ Runtime grant `msg_0de90d08153d` authorizes one invocation, with a hard end at 1
 
 The detached receipt confirms launch at 15:28:20 UTC, supervisor PID 59664, with a new session and no PTY. The wrapper reached the test runner at 15:28:39 UTC after its prelaunch guard and B-TW-03 checks. QA received the runtime grant in `delivery_16d648ba703c`; T0 records that delivery and every grant binding. The runner ID is `qa-e2e-m3-r3-5561e8f7-2026-10-23T15-28-39-798Z`. No final result is claimed.
 
+### Failed runtime and accepted operational closeout
+
+The invocation finished at 15:43:18 UTC with exit 1. It remains FAILED. Cycles 1, 2 and 3 recorded 17/0, 9/8 and 17/0 PASS/FAIL. Each had the permitted demo-only skip. All four confirmation/refusal checks passed. The demo passed with preparation in 12.41 seconds. Runner summary: 43,856 bytes, SHA-256 `ef37bee6dd69b657873a58f91b68b72570db6c0f9095cbb3bac634764c5a7a2b`.
+
+All observer, capture, lane, sampler and T12–T13 checks exited 0. W4 has no problems: 29,582 bytes, SHA-256 `b59aba22f1d7509fe4a21bb454e93d824428945e02b46d7ac1c0d75c834f80ec`. Its comparison has no problems: SHA-256 `e3f9e3c589a4a46b23e0a766d6c663d98cefd4dc669acb2339c3173e57d459c4`. The qualified check confirms all 32 complete protected volume records match. The lane summary is 3,603 bytes, SHA-256 `52a81db2a0442aef5a6dae1ad8fc2764122026fb37157377e830a0bbcd680ef2`; isolation and teardown pass, with no owned containers, networks or volumes left. No owned process remains. The wrapper correctly omitted T14 because the functional runner failed. A separate failure scan does not turn that omission into a T14 PASS.
+
+The Lead returned the host in `msg_99a8a0d7b296` at 15:44:55 UTC. LA acknowledged in `msg_21d8d2d54874`: its continuous watcher recorded 15,525 events from 15:09:02 through 15:43:19 UTC, with zero LA project/name events. LA reserved a new 16:15–16:40 slot, subject to readiness and a fresh handoff. No new Docker work is authorized by that reservation.
+
+### Bounded repair ownership
+
+Claude's read-only diagnosis (`msg_982acc54184d`) identifies one root and seven cascades. A4's Save and return click stayed outside the viewport after a full-page screenshot removed the observed sticky-footer body class. The class returned in the passing control. The screenshot interaction is supported by trace evidence; the exact Moodle mechanism remains inferred, and no product defect is demonstrated.
+
+Lead instruction `msg_b8ba462766d0` assigns Gemini QA exactly `tests/e2e/lib/flows.ts` and `tests/e2e/2-scenario-b.spec.ts`. Add viewport-only capture at the activity form and B5 picker, with the same evidence names and attachments. Preserve assertions, titles, timeouts, deadlines and criteria. Do not edit shared helpers used by M2 or add forced clicks, submits, retries or sleeps. The next test identity is C9 plus these two files; product C6 stays unchanged. M1, M2 and legacy load neither file, so their accepted evidence remains at its recorded identity.
+
+Instruction `msg_6078576331b5` assigns the retained Codex executor an identity-only copy of v3 after that commit exists. Preserve original tools, behavior and predecessor bindings. Independent source and identity review, a fresh preflight, a fresh attempt root and a new grant precede the next runtime. Require the unchanged three runs of 17 tests and every original operational condition. Also inspect each run's A4, B4 and B5 sticky-footer traces for viewport-click failures. Final conformance and guide claims remain held.
+

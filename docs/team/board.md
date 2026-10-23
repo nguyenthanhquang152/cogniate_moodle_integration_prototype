@@ -7,7 +7,13 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current host status — 2026-10-23, 15:05 UTC
+### Current host status — 2026-10-23, 15:51 UTC
+
+T7 failed. The three cycles recorded 17/0, 9/8 and 17/0 PASS/FAIL, each with the permitted demo-only skip. The demo passed with preparation in 12.41 seconds; all four confirmation/refusal checks passed. Operational cleanup passed at 15:43:18 UTC. All 32 protected volume records match, and no owned runtime resource remains. The Lead returned the host at 15:44 UTC. LA confirmed no mutation during the full window. See the [E-R8 attempt record](r8-t7-shared-host-verification-2026-10-23.md).
+Claude identified one root failure and seven cascades: the Save button stayed outside the viewport after a full-page screenshot. The exact Moodle script mechanism remains inferred. Gemini QA owns a bounded repair in two T7 test files. The same Codex executor prepares an identity-only launcher update and holds its prepared guides. A proposed 16:15–16:40 UTC slot needs repair review, actual handoff, fresh preflight and a new grant. No Docker work is currently authorized.
+Final conformance and guide claims remain blocked by T7. M1, M2 and legacy evidence remain accepted at their recorded revisions; no repeat is authorized. After repair and accepted T7: final conformance, guide updates, independent Docs QA, two blind reviews and Lead closure. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior host status — 2026-10-23, 15:05 UTC
 
 The corrected tools have independent Gemini PASS and focused Claude APPROVE. [E-R8](r8-t7-shared-host-verification-2026-10-23.md) accepts the bounded T7 route. LA plans an actual handoff around 15:10 UTC with at least 20 minutes. Fresh preflight and a separate runtime grant still precede T7. The same Gemini prepares runtime; the retained Architect and Codex prepare final conformance and guide updates in parallel. No T7 PASS is claimed.
 T7 remains NOT RUN/PENDING. M1, M2 and legacy remain accepted. Final conformance, guides, Docs QA and blind reviews remain after T7.

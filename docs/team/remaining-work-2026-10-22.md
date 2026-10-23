@@ -2,7 +2,15 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 15:27 UTC
+## Current checkpoint — 2026-10-23, 15:51 UTC
+
+T7 failed with one root interaction failure and seven cascades in cycle 2. Cycles 1 and 3 passed 17 tests each. The demo passed in 12.41 seconds; all four confirmation/refusal checks passed. Cleanup and boundary checks passed, including all 32 complete volume records. The host was returned at 15:44 UTC. LA confirmed no mutation during the full window.
+
+Claude's diagnosis supports one bounded repair: use viewport screenshots at two T7 evidence captures before sticky-footer actions. Gemini owns the two test files under the repository rules. The same Codex executor prepares an identity-only launcher update after the new test commit. No product code, acceptance criterion, timeout, retry or qualified operational tool changes. M1, M2 and legacy evidence stays accepted; no repeat is authorized.
+
+LA reserved 16:15–16:40 UTC, subject to readiness. Source review, actual handoff, a fresh preflight and a separate grant remain required. This is a runtime slot, not a project completion promise. After accepted T7: apply prepared conformance and ADR status updates; apply prepared guides; run independent Docs QA and two blind reviews together; close the phase. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:27 UTC
 
 Tool qualification is complete: independent Gemini PASS and focused Claude APPROVE. LA supplied the actual handoff and holds new starts through 15:50 UTC. The first external preflight failed because its shell used a private test home. The corrected preflight passed in a new directory. The Lead accepted its exact W3 record and the narrow bridge and collector-schema reconciliation in `msg_37daa6076f89`.
 
