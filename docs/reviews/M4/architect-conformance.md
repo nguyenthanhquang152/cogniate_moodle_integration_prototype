@@ -351,3 +351,29 @@ AC-T6-09 and AC-M2-11 claim keyboard operation, visible focus, focus return and 
 - AC-M4-06 verdict: PENDING. Stage 2 waits for the Lead's accepted complete fresh runtime and the independent Canvas judgments.
 - No fresh runtime result is accepted at this checkpoint. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.
 - Disclosures: I read only the two V4 index files (size, lines and hash) and the recovered `trace.zip` (size and hash). I wrote no private evidence file in this stage. I did not touch the untracked `pnpm-workspace.yaml`.
+
+## Round 4 checkpoint — M1-37 dead-handler failure and evidence route (2026-10-23, about 01:25–01:50 UTC)
+
+Author: Architect, Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Task `task_f301484bd6be`, dispatch `ctx_49da070f64c0`, run `run_ebe671ad72a9`. Authority: the [continuation brief](../../team/architect-resume-2026-10-23.md) and Lead `msg_7e411091ca22`.
+The held prefix (44,211 B, SHA-256 `2fb3f06139c93111dbee8afbd63aea16b1f7427e69512211ba4a9a1a11dfc628`) is unchanged. This section is append-only. I ran no test, Docker, build or runtime command.
+
+### R4.1 Status
+
+- Canvas SIM round 2 at C6/C8 FAILED (`M1-37.canvas.s-dead`: 200, expected 409). E-R5 is invalid for further acceptance. Rounds 1 and 2 stay preserved as history and are not counted.
+- Diagnosis ([plan §12](../M3/t6-09-failure-plan.md)): a test-harness defect, AR-M3-SD-01 (MAJOR, tests only). The graceful restart lets a held LTI call time out within the 2 s drain. The live handler then clears its lease as app contract §4.7.1 requires. The Lead accepted this diagnosis. **No product finding. The source conformance at C6 (R2.8, R3.5) stays APPROVE**, with 0 BLOCKER and 0 MAJOR in source.
+- Earlier PASS results of the seven dead-handler cases are sound: the defect can cause false FAILs only.
+
+### R4.2 Replacements for the R3.3 binding rules (after the repair, under E-R6)
+
+- Tests identity: C9 = C8 plus the six paths of plan §12.3. Product stays C6. C9 = C6 outside `docs/**` and `tests/**`.
+- M1: two fresh rounds of all 394 `sim` rows at C9 (26 common + 136 Blackboard + 232 Canvas; 387 non-browser + 7 browser), with exact per-case equality, an independent 232-row Canvas judgment per round, the 162 common and Blackboard rows judged by their full2 rule, and the seven-case precondition records. The alternative split selection (258 + 162 per round) is also sufficient.
+- Carry: 94 non-`sim` C4 full2 rows, not 230 (6 snapshot-isolated with the 1 Canvas snapshot row kept separate, 6 snapshot-upgrade, 12 migration, 70 storage). No "fresh 488" and no "fresh 233 Canvas" claim.
+- Legacy: E-R4 acceptance at C8 stays; the legacy path loads no changed file.
+- M2 and T7: may run at actual C8 under E-R6, independent of the repair. At the final binding, the four equivalence checks of plan §12.6 must hold. Product C6 equivalence stays a separate statement.
+- Any fresh failure, unequal rounds or product change voids the route and needs a new Lead decision.
+
+### R4.3 Result
+
+- AC-M4-06: PENDING. Final conformance waits for accepted complete runtime under the approved route.
+- All accepted limits and findings of R2.4, R3.4 and the dispatch list stay as written. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.
+- Disclosures: I read the two round app logs (size and SHA-256 checked against the sealed indexes), the round-2 case results, QA's v3 diagnosis and the C8 test, host, infra and product source named in plan §12. I wrote no private evidence file. I did not touch the untracked `pnpm-workspace.yaml`.

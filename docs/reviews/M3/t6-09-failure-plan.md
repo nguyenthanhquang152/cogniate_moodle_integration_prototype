@@ -368,3 +368,119 @@ Inputs: independent QA `msg_54dcc78e93bf` and Savoy `msg_b58be38c7de1`, both rel
 - the E-R4 rules of no automatic retry and void on a fresh failure.
 
 Product, tests, criteria, deadlines, launchers and tools stay unchanged. AC-M4-06 stays PENDING.
+
+## 12. Dead-handler test repair for the seven M1-37 cases (2026-10-23, about 01:25–01:50 UTC)
+
+Author: Architect, Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Task `task_f301484bd6be`, dispatch `ctx_49da070f64c0`, run `run_ebe671ad72a9`.
+Authority: the [continuation brief](../../team/architect-resume-2026-10-23.md) and Lead `msg_da818591e8de`, `msg_9be817e0a9f8`, `msg_20b6970c2578` and `msg_7e411091ca22`. My interim was `msg_3540b7d8c9b5`. The Lead accepted its no-product-change diagnosis and chose to repair all seven cases in one QA batch. This section replaces interim item 3(d) (Blackboard deferral) and item 4 (Canvas-only runtime).
+§0–§11 are unchanged: the first 45,418 B have SHA-256 `30482dc238068868f3948647270dc1e46b6422f9eadf06f8be1032a4338b4ae0`.
+This is a plan. It grants no edit and no runtime. I ran no test, Docker, build or runtime command. Under `tests/**` and the product paths, HEAD is equal to C8 (`git diff` against `5561e8f` is empty), so the line numbers below are C8 lines.
+Evidence reuse: I used the Lead-verified bindings of the continuation brief and of QA's v3 diagnosis (`…/judge/round2/r2-s-dead-failure-analysis-v3.json`, 181,589 B, `17dec36adb1c6ddd1798ccd258847970e112c201c0b2873836c8cf4e15d7cbf4`). I read the two app logs directly: round 2 `…T19-23-57-487Z/service-logs/cogniate-app.jsonl` (740,688 B, `6fb0a073150e13d05541ce0c5780075c278a9343f50c6b50980009345346e2d1`, r2 index line 18) and round 1 `…T18-54-44-439Z/service-logs/cogniate-app.jsonl` (742,107 B, `7cd1e4b360f9c9f6d79455fe11dc1d454c9d29259344d7550481428bc267635e`, r1 index line 17).
+
+### 12.1 Facts
+
+1. Round 2, `M1-37.canvas.s-dead`, app log: 2177 `grant_attempt_started` 19:34:23.188; 2178 S2 `POST` 201 at 23.240; 2179 `service_stopping` SIGTERM 27.024; 2180 `outbound_blocked` `PATCH` reason `timeout` 28.246 (same trace); 2181 `http_request` `POST` 502 28.248 (same trace); 2182 `service_started` 32.246. So the old process logged the timeout and the 502 after its SIGTERM. The retry then got 200, not 409 (`canvas/51-canvas-races.test.ts:303`).
+2. Round 1, same case (control): 2180 attempt 19:04:47.531; 2181 S2 `POST` 201 47.542; 2182 SIGTERM 50.210; 2183 `service_started` 55.223. No timeout and no 502 from the old process.
+3. QA v3 margins, attempt to SIGTERM, R1/R2: Canvas `d` 2.267/0.938 s, `v4` 1.156/1.056 s, `v6` 1.711/1.131 s. S3 start to SIGTERM for `s-dead`: 2.670/3.778 s. No other Canvas case logged a timeout before the next start. The Blackboard cases did not run in these rounds.
+4. C8 source. `restartApp()` (`M1/common/snapshot.ts:87`) sends host action `m1-restart`. `tests/host/m1-control.mjs:34-38` runs the guarded `npm run stack:restart -- cogniate-app`. `infra/scripts/stack-restart.sh` takes the lock, runs `dc config`, `prepare_content_folders` and a one-shot storage-preflight container (`lib.sh:395-402`). Only then does `up --force-recreate` (`:74`) send SIGTERM. `closeOnSignal` (`packages/shared/src/http.ts:48-56`) logs `service_stopping`, closes the servers and exits after at most 2,000 ms. It does not stop in-flight work. Each LTI call has a 5,000 ms timeout (`packages/shared/src/outbound.ts:148`); `POST` and `PATCH` get one attempt. On an LTI failure, `fail()` (`services/cogniate-app/src/app/redemption.ts:172-177`) clears the lease, ends the attempt as failed and answers 502.
+5. Blackboard `d` and `o` (`blackboard/50-races.test.ts:102-115`, `:213-227`) call `host('m1-restart')` directly. Blackboard `v5` (`blackboard/52-snapshot.test.ts:49-62`) calls `restartApp()`. The mechanism is the same. Only Canvas `v4` and `v6` have a guard (`canvas/52-canvas-snapshot.test.ts:71-73`).
+
+### 12.2 Diagnosis (accepted by the Lead)
+
+- **Test-harness defect, not a product defect.** `restartApp()` makes a dead handler only if the old process exits before its held LTI call times out. So SIGTERM must come less than about 3 s (5 s timeout − 2 s drain) after the held call starts. The guarded restart needs 1–4 s before it sends SIGTERM, and host load changes this time. In round 2 it needed 3.70 s from the host action start (19:34:23.322) to SIGTERM, and the margin was lost.
+- When the margin is lost, the handler is alive. It then does what app contract §4.7.1 requires of a live handler: no more calls, lease cleared, attempt failed, 502, grant not redeemed. The retry then redeems once, as in `s-retry`. Do not change product shutdown or timeouts.
+- Inferred, not logged: the exact exit time of the old process, and the `clearLease` write itself. The 502 from `fail()` and the later 200 show that write.
+- **AR-M3-SD-01 (MAJOR, tests only):** the seven dead-handler cases depend on host timing. Further M1 acceptance is blocked until they are repaired. No product finding.
+- **Earlier PASS results are sound.** In each case, a cleared lease makes the main assertion fail: 409 `GRANT_IN_USE`, grant `redeeming`, or `fenced` with the early release refused. So a PASS shows that the dead state occurred. The defect can cause a false FAIL, never a false PASS.
+
+### 12.3 Repair (tests only; owner: QA role, charter §1 `tests/**`; the Lead names the instance)
+
+Fault model: a dead handler is a process that stops without cleanup. Send SIGKILL, then run the unchanged guarded restart. The lease that phase 1 committed stays in SQLite. The kill now has the full 5 s budget, and the preflight time of the restart no longer counts.
+
+Exactly six paths change. `restartApp()`, the type of `host()`, all `M1/common/*` files, `canvas/browser.ts`, product and infra paths stay byte-identical.
+
+| Path | Change |
+| --- | --- |
+| `tests/host/m1-control.mjs` | Insert one block after the compat-marker refusal (`:29-33`) and before the existing `m1-restart` branch (`:34`). It runs only for `action: 'm1-restart'` with a `mode` field. A `mode` other than `'kill'`, or a service other than `cogniate-app`, returns `code: 2` and runs no command. Else: (1) `docker` with the existing `compose` arguments plus `kill -s SIGKILL cogniate-app`, `cwd: r.CLONE`, `env: r.STACK_ENV`, `timeoutMs: 30_000`; (2) only if (1) exits 0, the same `npm run stack:restart -- cogniate-app` call as `:35-37`, with the same env and timeout. Return the restart result, or the failed kill result. Its first stdout line is `kill: exit <code>, <start ISO>–<end ISO>`, and `durationMs` covers both steps. The QA-project, `h1Verified` and compat-marker guards apply first and do not change. Pure insertion: no existing line changes. |
+| `tests/host/m1-control.selftest.mjs` | Add tests that use the injected `runCommand`: kill, then restart, with exact arguments and env; a failed kill gives no restart; `lti-service` with a mode, or an unknown mode, gives code 2 and no call; the compat marker refuses with no call; a non-`qa-` project gives code 2 and no call. Existing tests do not change. |
+| `tests/acceptance/M1/canvas/51-canvas-races.test.ts` | Add `host` and `urls` to the `../common/client` import. Add helper K. `:136` (`d`) and `:299` (`s-dead`): `restartApp()` → `killApp()`. Add guard G after the kill. |
+| `tests/acceptance/M1/canvas/52-canvas-snapshot.test.ts` | Add `host`, `httpsRequest`, `poll` and `urls` to the import. Add helper K. `:70` (`v4`, `v6`): `restartApp()` → `killApp()`. The existing guard `:71-73` is G. `:93`, `:147` and `:150` keep `restartApp()`. |
+| `tests/acceptance/M1/blackboard/50-races.test.ts` | `:105` (`d`) and `:216` (`o`): add `mode: 'kill'` to the payload `{ service: 'cogniate-app' }`. Use G in place of `await first;` on `:106` and `:217`. |
+| `tests/acceptance/M1/blackboard/52-snapshot.test.ts` | Add `host`, `httpsRequest`, `poll` and `urls` to the import. Add helper K. `:56` (`v5`): `restartApp()` → `killApp()`, and G in place of `await first;`. `:95`, `:192` and `:193` keep `restartApp()`. |
+
+Helper K is one copy in each of the three files, with the same text. It is `restartApp()` with the kill mode:
+
+```ts
+/** AC-M1-37 dead handler: SIGKILL, so the old process cannot let its held LTI call time out and clear its lease. */
+async function killApp() {
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await poll(async () => {
+    try { return await httpsRequest(urls.app + '/healthz'); } catch { return { status: 0 }; }
+  }, (r) => r.status === 200, 20_000, 100);
+}
+```
+
+Guard G is the reviewed `v4`/`v6` text:
+
+```ts
+const firstAnswer = await first;
+assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+  'BLOCKED: the old handler timed out before the restart killed it');
+```
+
+`coverage.mjs:92` reports a failure with `BLOCKED:` as BLOCKED. So a lost precondition can never become a PASS or a product FAIL.
+
+Rules:
+- Keep every existing assertion, title, case id, deadline, `leaseWindow` call, `pause` and late-write control. Add no retry, timeout argument, `test.slow` or other wait. Keep existing import names, also an import that becomes unused (the tests config has no `noUnusedLocals`).
+- Use the kill only at these seven points. At each point, the held redemption is the only in-flight app work.
+- Residual: if the host stalls for more than about 5 s between the held call and the kill, G gives BLOCKED. That stops the round for a Lead decision. It is not a reason to retry.
+
+### 12.4 Host-only validation and reviews (before any runtime)
+
+| Check | Who | Pass rule |
+| --- | --- | --- |
+| Exact diff | QA, both reviewers | C8 → C9 = the six paths. The `m1-control.mjs` diff is one inserted block. C9 = C6 outside `docs/**` and `tests/**`. |
+| Self-test and typecheck | QA | `m1-control.selftest.mjs` passes. The tests typecheck exits 0. |
+| Inventories | QA | `run-m1.mjs --harness-only` (no Docker) shows the C8 values: 416 original ids, 488 rows per round, the same `PHASE_TOTALS`. The seven titles do not change. |
+| Send sites | Both reviewers | A `mode` field is sent only at the seven sites. No M2, T7, storage or other M1 file sends it. |
+| Lens A | Reviewer A | SIGKILL makes the AC-M1-37 dead handler. The phase-1 lease survives a kill. G semantics. The storage preflight after a kill: confirm from source that the ADR-012 §5/§6 refusal rows read volumes, journals and identities, not process state or `-wal`/`-shm` content (my inference). No product change is needed. |
+| Lens B | Reviewer B | No assertion is removed or weakened. Existing controller branches and common files are byte-identical. The reach statements of §12.6 hold. |
+
+Two blind reviewers: not this Architect and not the editor.
+
+### 12.5 Runtime selection, counts and ledger (needs a new Lead route, E-R6, and a grant for each invocation)
+
+**Recommended:** two rounds, each one invocation of `run-m1.mjs --phase sim --provider all`, at product C6 and tests C9. Each round has all 394 `sim` rows: 26 common (25 api + 1 host) + 136 Blackboard (api) + 232 Canvas (225 api + 7 browser) = 387 non-browser + 7 browser. All seven repaired cases are in it. This is the `sim` phase of the accepted full2 rounds, run alone.
+**Alternative:** in each round, `--provider canvas` (258 = 26 + 232) and `--provider blackboard` (162 = 26 + 136). This needs four invocations, not two, and the 26 common rows run four times.
+
+The Blackboard rows must run fresh, because two of their files change. With either choice, the v4 Canvas launcher changes in more than its identity lines (selection and expected count). Freeze it again as v5 with the C9 pins and new diff-path guards: C8 → C9 = the six paths; C6 → C9 and C4 → C9 = the four earlier test paths plus these six. The product guards do not change. A focused launcher review is necessary.
+
+Pass rules for each round: every row PASS; zero SKIP or BLOCKED; W1–W4, sampler, cleanup and scans as written. The two rounds have exact per-case equality.
+Judgments: the independent Canvas QA judges the 232 Canvas rows of each round (rule unchanged). The 162 common and Blackboard rows use the rule that accepted them in full2; the Lead names the judge. For each of the seven repaired cases, the judge records from primary logs: the held call start (gate event), the `kill:` line of the host action, and that the old process logged no `outbound_blocked` and no `http_request` for the first attempt's trace before the next `service_started`.
+Shared host: E-R5 §11.6 rules carry into E-R6. If a foreign block overlaps an invocation, the whole-invocation score reconciliation of §11.6 item 1 also covers these Blackboard rows: `M1-11.blackboard.best-scorm12` and `best-html` exactly two POSTs (80, 90); `M1-11.blackboard.scorm-incomplete` and `html-incomplete` none; `M1-33.blackboard.status-400` and `status-422` exactly two (failure, then Resend); `M1-18.blackboard.disconnect` and `M1-38.blackboard.a` none for the pending publication. Blackboard has no browser row.
+
+M1 ledger (488 unique rows):
+
+| Set | Rows | Source |
+| --- | --- | --- |
+| `sim` | 394 | fresh, the two C9 rounds |
+| `snapshot-isolated` | 6: 5 Blackboard + the 1 Canvas snapshot row (kept separate) | carried, C4 full2 |
+| `snapshot-upgrade` | 6 | carried, C4 full2 |
+| `migration` | 12 | carried, C4 full2 |
+| `storage` | 70 | carried, C4 full2 |
+
+The carried total is 94, not 230, because the 136 Blackboard `sim` rows no longer carry. Each carried row stays listed with its full2 run. Correct claim: "394 fresh `sim` rows plus 94 carried C4 rows". Incorrect claims: "fresh 488" and "fresh 233 Canvas" (232 are fresh, 1 is carried).
+Preserved as history, not counted: C8 Canvas SIM round 1 (258 PASS, index `4626b76287976982384df48149660693da8720f7f73a19832f1a11b117e49620`), round 2 (257 PASS + 1 FAIL, index `4f6e27a14fe9c933d3b7970120e1c963868325baa612124716248c258a536522`) and the round-1 reconciliation at `09510c8`.
+
+### 12.6 Evidence that stays accepted; M2 and T7
+
+- **Legacy (E-R4, `26797fd`)** stays accepted at C8. `run-m1.mjs --phase legacy` (`:201-216`) only starts `run-t*.mjs`. No legacy runner or spec loads a changed path.
+- **94 carried rows:** their test files do not change. They reach `m1-control.mjs` only through existing actions without `mode`, so the inserted block never runs for them. Helper K adds no top-level side effect, so collection of the changed files does not change.
+- **M2 and T7** can run now at tests C8 and product C6, in parallel with the repair, under a separate E-R6 route and a grant for each invocation (Lead `msg_7e411091ca22`). They do not depend on the repaired commit. M2 loads `m1-control.mjs` (it sends only `m1-profile`), `canvas/browser.ts`, `canvas/browser-diagnostics.mjs` and `common/coverage.mjs`. T7 loads `browser-diagnostics.mjs`. The repair changes none of these, except for the inserted block. At the final binding, verify: (1) C8 → C9 is exactly the six paths; (2) the `m1-control.mjs` diff is a pure insertion that only a `mode` field reaches; (3) no M2 or T7 file sends `mode`; (4) C9 = C6 outside `docs/**` and `tests/**`. Then state: "M2/T7 actual run C8; equivalent at C9 for M2/T7; product C6". If the repair changes any other path, or product code, M2 and T7 must run again.
+- Do not let runtime phases overlap each other. Our own load can make deadlines fail (§11.2).
+
+### 12.7 Open for the Lead
+
+- The E-R6 route, the selection choice of §12.5 and the judge for the 162 common and Blackboard rows.
+- The QA instance that implements, and two blind reviewers.
+- AC-M4-06 stays PENDING. Real-LMS rows stay UNVERIFIED and local Canvas stays DEFERRED.
