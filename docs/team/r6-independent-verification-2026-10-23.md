@@ -217,3 +217,17 @@ Architect checkpoint `b0fcebf` records source conformance APPROVE with no BLOCKE
 
 Independent Gemini settled in `msg_c3e76256fd81`: M1/M2 accepted, T7 PENDING. The Lead retains the same session for the later T7 retry.
 The report's fourth changed file is `docs/reviews/T7/qa.md`, rather than the original brief's tracker-repair report. The Lead reviewed and accepts this bounded QA-owned pending-status appendix; its complete committed prefix is unchanged. The tracker-repair report needs no duplicate update.
+
+## T7 preparation and pending host handoff — 2026-10-23, 07:50 UTC
+
+LA confirmed a planned 07:45–08:05 UTC exclusive window in `msg_7dcc7a1394ef`. The one-time preparation reminder fired at 07:41:03 and disabled itself (`msg_08e1ce513667`).
+The normal same-terminal retry `ctx_e685b12752a8` failed at `agent_readiness` with `timeout`, before prompt injection. It created no owned resource and is not a test failure.
+The retained Gemini terminal was live at its prompt. The dispatch recovery receipt permitted a new Task; the Lead created the bounded T7 task `task_0f19008c5331` and context-only Dispatch `ctx_992d5721e156` for that same terminal.
+The exact returned preamble was accepted under terminal request `f5d35537-8806-4f72-8b66-06d00ce60414`. This low-level dispatch does not own the terminal process. QA's new task receipt and live agent status confirm that work resumed; no duplicate agent was started.
+
+QA `msg_fd0120ef3415` reports READY FOR PREFLIGHT: Gemini 4 Argon High, all 84 original and six repaired-tool bindings pass, C8 and the frozen T7 v2 script match, and every T7 output path remains absent. No Docker command ran.
+The complete committed prefixes of `docs/reviews/T7/qa.md` and `docs/reviews/M3/qa-e2e.md` remain preserved. The new task may append only those two QA reports and new private T7 evidence.
+Use unused `t7-external-preflight-0745` for external preflight after the actual host handoff and a fresh Lead grant. Keep the earlier preflight intact.
+
+The actual LA handoff is still pending at this checkpoint. Lead message `msg_7ddf9c0d59c9` keeps QA on hold. T7 has not run.
+Lead `msg_4b7fbafa4e58` requests a full 20-minute window from the actual handoff if it is delayed beyond 07:49. No extension is assumed; the confirmed return deadline remains 08:05 until LA explicitly changes it.
