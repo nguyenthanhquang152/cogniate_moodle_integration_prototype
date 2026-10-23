@@ -17,6 +17,12 @@ const manifest = {
       profiles: ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'canvas-sim-cloud'],
       defaultProfile: 'canvas-cloud-production',
     },
+    {
+      // LA-ADR-05 D6 (LA-IC-14): the registration stages an inactive platform; the operator grant still proves ownership.
+      method: 'dynamic', authority: 'operatorGrant',
+      profiles: ['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'canvas-sim-cloud'],
+      defaultProfile: 'canvas-cloud-production',
+    },
   ],
   capabilities: {
     // ADR-009 and the developer key JSON of today (LA-E3-07 changes this list, LA-IC-04).
