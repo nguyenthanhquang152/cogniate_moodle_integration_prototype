@@ -602,3 +602,13 @@ P's five provisional choices, routed in dispatch `ctx_b9f02fbfab80`. Two change,
 | BD-A2-98 | (a) No granted AGS scope: no token request, `token.detail: invalid_scope`. (b) A bad JWKS: `invalid_jwks`, `http_<status>` or the outbound reason. (c) No `deploymentId` = the first active deployment; an unknown or inactive `deploymentId` gives `403 DEPLOYMENT_NOT_ACTIVE`. (d) One "Check connection" panel on the connection page only. (e) Another token failure: "{LMS} did not give Cogniate an access token." with the code. Staged records refused before any call. | **(b), (d), (e) and the staged refusals ratified.** **(a) changed:** `token.detail: no_granted_scope`, with its own portal text. **(c) changed for one case:** an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`; a known inactive one, or no active deployment, keeps `403 DEPLOYMENT_NOT_ACTIVE`. | LA-ADR-08 D4 ("Work", "Portal"); contract delta §2.6 (detail values, unknown deployment); LA-E6-01 notes | `invalid_scope` is an OAuth answer of the platform; reusing it for our own decision would send an operator to look for a platform refusal that never happened. `UNKNOWN_DEPLOYMENT` is the base code for an unknown id (as for `PATCH …/deployments/:deploymentId`). |
 
 Changes for the Lead to route: **P (LA-E6-01):** the `no_granted_scope` detail and its portal text; `404 UNKNOWN_DEPLOYMENT` for an unknown `deploymentId`. The RQ-2 grants are your process calls.
+
+## 51. Round 50: the log name of the token result (LA-E6-01, lane P), 2026-10-23
+
+The Lead's provisional naming call, routed in dispatch `ctx_3638d89e08e6`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-99 | (Provisional.) The shared redaction replaces every field named or ending with `token`, so the contract's log field `token` would always read `[redacted]`. The log field becomes `token_result` (LTI `platform_check`, app `connection_check`), and the audit details key `tokenResult`, with the same value `{ ok, scope?, detail? }`. `jwks` keeps its name; the HTTP answers keep `token`. No change to the redaction rule. | **Ratified.** `token_result` and `tokenResult` end in "result", so the redaction (`SECRET_KEYS`, `SECRET_SUFFIXES`) does not touch them; the value holds no secret. | contract delta §6 (`platform_check` row), §5 (`platform.check` details), §2.6 (a naming sentence); LA-ADR-08 D4 "Logs"; LA-E6-01 notes | Widening an exception for `token` in the shared rule would weaken redaction for every other log line. HTTP answers are not redacted, so their field name stays as in the contract. |
+
+Changes for the Lead to route: none beyond P's build.
