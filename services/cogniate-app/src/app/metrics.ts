@@ -85,7 +85,10 @@ const COUNTERS = {
 type Counter = keyof typeof COUNTERS;
 const OUTCOMES: readonly DeliveryOutcome['kind'][] = ['accepted', 'conflict', 'rejected', 'retryable', 'throttled', 'local_failure'];
 const GRANT_RESULTS = ['committed', 'cancelled', 'failed'] as const;
-const CODE_VALUE = /^[a-z][a-z0-9_-]{0,63}$/;
+/** A job name (runner job names use hyphens, for example `record-dispatch`). */
+const JOB_NAME = /^[a-z][a-z0-9_-]{0,63}$/;
+/** A launch refusal reason (BD-A2-88 D2, AC-LA-E4-07-07): any other value counts as `other`. */
+const REFUSAL_REASON = /^[a-z][a-z0-9_]{0,63}$/;
 const escapeLabel = (value: string): string => value.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/"/g, '\\"');
 const labelText = (labels: Labels): string => Object.keys(labels).length ? `{${Object.entries(labels).map(([k, v]) => `${k}="${escapeLabel(v)}"`).join(',')}}` : '';
 const sample = (name: string, labels: Labels, value: number): string => `${name}${labelText(labels)} ${value}\n`;
@@ -125,9 +128,9 @@ export class AppMetrics {
     for (const reporter of recordReporters(this.db)) for (const outcome of OUTCOMES) this.increment('app_dispatch_sends', { reporter: reporter.id, outcome }, 0);
   }
 
-  /** One refused launch. An unknown channel id becomes '', a reason that is not a code value becomes 'other'. */
+  /** One refused launch. An unknown channel id becomes '', a reason outside [a-z][a-z0-9_]{0,63} becomes 'other'. */
   launchRefused(reason: string, channel: string): void {
-    this.increment('app_launch_refusals', { reason: CODE_VALUE.test(reason) ? reason : 'other', channel: this.channelIds.has(channel) ? channel : '' });
+    this.increment('app_launch_refusals', { reason: REFUSAL_REASON.test(reason) ? reason : 'other', channel: this.channelIds.has(channel) ? channel : '' });
   }
 
   /** Observe before the sink filters levels, so metrics do not depend on LOG_LEVEL. No input field is copied. */
@@ -150,7 +153,7 @@ export class AppMetrics {
 
   private event(event: string, f: Record<string, unknown>): void {
     if (event === 'grant_compensation_failed') this.compensationFailures++;
-    else if (event === 'job_run' && typeof f.job === 'string' && CODE_VALUE.test(f.job) && ['ok', 'failed', 'skipped_lease'].includes(String(f.result))) {
+    else if (event === 'job_run' && typeof f.job === 'string' && JOB_NAME.test(f.job) && ['ok', 'failed', 'skipped_lease'].includes(String(f.result))) {
       this.increment('app_job_runs', { job: f.job, result: String(f.result) });
       if (f.result === 'ok') this.lastJobSuccess.set(f.job, this.now() / 1000);
     }

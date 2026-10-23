@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -23,3 +23,13 @@ One BLOCKER, no MAJOR, MINOR or NIT findings. The implementation and operator gu
 - No Docker, stack or stack-starting runner was used. K1-SIM ACs, including the LTI-outage scenario and K-HYG scrape, remain for QA; this review does not claim those gates. Only this review file was changed in the integration worktree. No commit was made.
 
 Lane R should fix B-LA-E4-07-01 and request round 2. No other Reviewer-B change is requested.
+
+## Round 2
+
+**APPROVE — no open or new findings.** Reviewed and tested `5b89f4238fd9a9572a08fbdb9bfa563aa952cb46` against the same task and BD-A1-100 rules. B-LA-E4-07-01 is closed.
+
+`app/metrics.ts:89–91` now names separate job and launch-reason patterns. The reason pattern matches AC-07; the job pattern still accepts `record-dispatch`. The boundary table in `app/metrics.test.ts:157` checks the hyphen case, 64/65-character boundary, invalid initial characters, case and empty input, with an unknown channel mapped to `''`. The real web-entry test also checks that runner-off omits send/job samples while store samples remain. AC-01 and the UNIT part of AC-05 retain the tests verified in round 1.
+
+Verification used a fresh private `git clone --no-hardlinks` with its own `npm ci`; the Vitest cache was deleted before each run. The focused metrics and web/worker suite passed **30 tests in two files**. Typecheck, ESLint for all three changed files, F1 and F5 passed. Two negative controls each failed at the intended assertion: restoring the previous production module failed the new hyphen-reason case, and applying the reason pattern to job names failed the existing `record-dispatch` assertion. After restoring the module, all **17 metrics tests** passed. Logs: `/tmp/reviewer-b-e407r2-{focused,old-reason,job-name,restored}.log`.
+
+The three-file diff stays within the existing implementation and colocated test ownership. No forbidden production file, QA-owned test or LMS-specific core branch changed. No Docker, stack or stack-starting runner was used; K1-SIM and K-HYG remain QA gates. The private mutations were restored and the clean clone removed. Only this report changed in integration; no commit was made.

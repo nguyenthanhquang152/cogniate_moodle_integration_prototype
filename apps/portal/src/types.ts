@@ -235,6 +235,8 @@ export interface ErrorDetails {
   fields?: Record<string, string> | string[];
   field?: string;
   rule?: number;
+  /** A specific cause of a refusal, for example "staged_gone" (BD-A1-102). The portal then keeps the server description. */
+  reason?: string;
   capability?: keyof LmsCapabilities;
   reasons?: RejectReason[];
   traceId?: string;

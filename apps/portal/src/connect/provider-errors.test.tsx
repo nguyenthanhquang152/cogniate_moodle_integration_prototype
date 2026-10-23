@@ -114,3 +114,40 @@ describe("channel texts only, for forms that show the server texts (A-LA-E1-12-0
     expect(shown(null, new Error("Network down"))).toEqual(["Network down"]);
   });
 });
+
+describe("an answer with details.reason keeps the server description (BD-A1-102)", () => {
+  // The staged-gone answer of the app (app API delta §3.4).
+  const stagedGone = "The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.";
+  const refusal = (details: object) => new ApiError(409, { message: "PLATFORM_IN_USE", description: stagedGone, action: "Server action.", ...details }, "trace-3");
+  const channels = [channel("moodle"), channel("canvas"), channel("lti-generic"), null];
+  const shown = (Notice: typeof ChannelErrorNotice, manifest: ChannelManifest | null, error: unknown) => {
+    const view = render(<ChannelScope manifest={manifest}><Notice error={error} /></ChannelScope>);
+    const text = within(screen.getByRole("alert")).getAllByText(/./).map((node) => node.textContent);
+    view.unmount();
+    return text;
+  };
+  it("shows the server description of PLATFORM_IN_USE with details.reason byte for byte, for every channel", () => {
+    const error = refusal({ reason: "staged_gone" });
+    for (const manifest of channels) {
+      expect(channelErrorText(error, manifest)).toBeUndefined();
+      expect(providerErrorMessage(error, manifest)).toBeUndefined();
+      for (const Notice of [ChannelErrorNotice, ProviderErrorNotice])
+        expect(shown(Notice, manifest, error), manifest?.id).toEqual([stagedGone, "Server action.", "Code: PLATFORM_IN_USE", "Trace id: trace-3"]);
+    }
+    // The rule holds for each of the five codes, also for the site rules 1 and 5.
+    for (const key of keys) {
+      const own = new ApiError(errors[key].status, { ...errors[key].details, description: "A specific cause.", reason: "some_cause" });
+      expect(providerErrorMessage(own, channel("canvas")), key).toBeUndefined();
+      expect(shown(ChannelErrorNotice, channel("blackboard"), own)[0], key).toBe("A specific cause.");
+    }
+  });
+  it("keeps the channel text, else the generic text, for PLATFORM_IN_USE without details.reason", () => {
+    const moodle = "This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.";
+    const expected = [moodle, m1.PLATFORM_IN_USE, generic.PLATFORM_IN_USE, generic.PLATFORM_IN_USE];
+    channels.forEach((manifest, index) => {
+      for (const error of [refusal({}), refusal({ reason: "" })])
+        for (const Notice of [ChannelErrorNotice, ProviderErrorNotice])
+          expect(shown(Notice, manifest, error), manifest?.id).toEqual([expected[index], "Server action.", "Code: PLATFORM_IN_USE", "Trace id: trace-3"]);
+    });
+  });
+});
