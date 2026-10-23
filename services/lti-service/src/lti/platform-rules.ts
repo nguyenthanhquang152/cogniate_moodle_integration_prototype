@@ -1,4 +1,7 @@
-// Platform URL rules (security §2.4), one pure function for the platforms API (T2a) and dynamic registration (T3b).
+// Platform URL rules (security §2.4), one pure function for the platforms API (T2a) and dynamic registration (T3b),
+// and the M1 profile rules of the platform and deployment endpoints (LTI contract §9.4 to §9.6, §9.15).
+import { checkSiteUrl } from '@cogniate/shared';
+import type { SiteRuleInput } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 
 export interface PlatformUrls {
@@ -30,4 +33,28 @@ export function checkPlatformUrls(p: PlatformUrls, fields: Record<keyof Platform
   for (const key of ['authenticationEndpoint', 'accesstokenEndpoint', 'jwksUrl'] as const) {
     if (new URL(p[key]).origin !== origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${fields[key]} is not on the issuer origin.`);
   }
+}
+
+// ---------------------------------------------------------------- M1: provider profiles (LTI contract §9.4 to §9.6)
+
+/** Site rule check of one field (shared function, ADR-011 §6). Throws 400 INVALID_SITE_URL naming the rule. */
+export function checkProfileSiteUrl(field: 'siteUrl' | 'serviceUrl', value: string, rules: SiteRuleInput): string {
+  const r = checkSiteUrl(value, rules);
+  if (!r.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: ${field} breaks rule ${r.rule} of the site rules.`, { details: { rule: r.rule, field } });
+  return r.origin;
+}
+
+/** A binding ref (contract §9.15): 1 to 64 characters [A-Za-z0-9_-]. */
+export const BINDING_REF = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** A deployment id (contract §9.5): 1 to 255 printable ASCII characters, no space. */
+export const DEPLOYMENT_ID = /^[\x21-\x7e]{1,255}$/;
+
+/**
+ * The rotation rule of contract §9.15: a request with `ifBindingRef` (also `null`) must send a new `bindingRef` that
+ * differs from it. Checked before the condition. Throws 400 INVALID_REQUEST, field bindingRef.
+ */
+export function checkRotation(body: { bindingRef?: string; ifBindingRef?: string | null }): void {
+  if (body.ifBindingRef === undefined) return;
+  if (body.bindingRef === undefined || body.bindingRef === body.ifBindingRef) throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (a conditional change must write a new bindingRef).');
 }

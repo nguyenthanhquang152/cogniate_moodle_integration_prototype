@@ -1,8 +1,8 @@
 # Contract: LTI service (LTIAAS-compatible)
 
-Status: T0 round 2. Owner: Architect. Scope and promises: [ADR-003](../adr/ADR-003-ltiaas-compatibility-scope.md). Security rules: [`../security.md`](../security.md).
+Status: T0 round 2; M0 multi-LMS additions in §9 (2026-10-20). Owner: Architect. Scope and promises: [ADR-003](../adr/ADR-003-ltiaas-compatibility-scope.md). Security rules: [`../security.md`](../security.md).
 
-Provenance: paths, header schemes and field names follow the **public** LTIAAS API reference (names only). Only the Architect read that reference (clean-room process, ADR-001). Behaviour follows the 1EdTech specs (LTI 1.3 Core, Security Framework 1.0, Deep Linking 2.0, AGS 2.0, NRPS 2.0, Dynamic Registration 1.0) and Moodle 5.2. The text is ours. Author and QA work from this file, not from the LTIAAS docs.
+Provenance: paths, header schemes and field names follow the **public** LTIAAS API reference (names only). Only the Architect read that reference (clean-room process, ADR-001). Behaviour follows the 1EdTech specs (LTI 1.3 Core, Security Framework 1.0, Deep Linking 2.0, AGS 2.0, NRPS 2.0, Dynamic Registration 1.0), Moodle 5.2 and, for §9, the Canvas and Blackboard documentation listed in [`../../research/multi-lms.md`](../../research/multi-lms.md). The text is ours. Author and QA work from this file, not from the LTIAAS docs.
 
 Base URL: `PUBLIC_LTI_URL` (dev `https://lti.cogniate.test`).
 
@@ -16,6 +16,7 @@ Base URL: `PUBLIC_LTI_URL` (dev `https://lti.cogniate.test`).
 | `GET /lti/register/{toolAccountId}`, `GET /api/registrations/:id`, `POST /api/registrations/:id/complete` | T3b |
 | `POST /api/deeplinking/form`, `POST /api/deeplinking/message`, `POST /api/lineitems`, `PUT` and `DELETE /api/lineitems/:id`, `GET /api/memberships`, `DELETE /api/platforms/:id`, OAuth2 stubs | T3c |
 | SDK tolerances (§1.4 leading `//` and double-encoded `:lineItemId`, §3.1 `services.outcomes`, §3.2 `url: null` and `custom: null`, §3.6 `user_id` and `comment: null`) | T3c round 3 |
+| Provider profiles, reserved issuers, site origins, `GET /api/providers`, deployment endpoints, check 13, claim allowlist, binding generation, `lti:shared-platform` CLI (§9) | M1 |
 
 ---
 
@@ -53,7 +54,8 @@ Authorization: Bearer <API_KEY>
 | `/api/lineitems*` | yes | yes | — |
 | `/api/memberships` | yes | yes | — |
 | `/api/registrations/*` | — | — | yes |
-| `/api/platforms*` | — | — | yes |
+| `/api/platforms*` (also `…/deployments*`, §9.5, §9.6) | — | — | yes |
+| `/api/providers` (§9.3) | — | — | yes |
 
 ### 1.3 Error body and codes
 
@@ -69,7 +71,7 @@ Authorization: Bearer <API_KEY>
 | 400 | `INVALID_LINE_ITEM_ID` | `:lineItemId` fails the URL rule (§3.4) |
 | 400 | `INVALID_URL_PARAMETER` | The `url` query fails the URL rule |
 | 400 | `INVALID_CONTENT_ITEM` | A content item breaks a rule (§3.2) |
-| 400 | `INVALID_DEEP_LINK_RETURN_URL` | The launch's `deep_link_return_url` is not https on the platform issuer origin (§3.2, A-T3c-01) |
+| 400 | `INVALID_DEEP_LINK_RETURN_URL` | The launch's `deep_link_return_url` is not https on the platform issuer origin (§3.2, A-T3c-01). M1: on the site origin of the launch deployment (§9.10). |
 | 400 | `UNSUPPORTED_AUTH_METHOD` | Platform `authConfig.method` is not `JWK_SET` |
 | 400 | `PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` | A platform endpoint is not on the issuer origin |
 | 401 | `INVALID_AUTHORIZATION_HEADER` | No header, unknown scheme, or a scheme that this endpoint does not accept |
@@ -84,11 +86,13 @@ Authorization: Bearer <API_KEY>
 | 409 | `REGISTRATION_UPDATE_NOT_ALLOWED` | Update without the matching `updatePlatformId` (§3.8) |
 | 409 | `PLATFORM_ALREADY_EXISTS` | Same tool account + issuer + client id |
 | 409 | `PLATFORM_CONFLICT` | The platform answered 409 |
-| 400, 404 | `PLATFORM_REJECTED_REQUEST` | The platform answered 400 or 404. Same status. `description` has the platform status and a short message as plain data; every page or client that shows it escapes it (B-T3a-03). |
+| 400, 404, 422 | `PLATFORM_REJECTED_REQUEST` | The platform answered 400, 404 or (M1) 422. Same status. `description` has the platform status and a short message as plain data; every page or client that shows it escapes it (B-T3a-03). |
 | 501 | `NOT_IMPLEMENTED` | OAuth2 stubs |
 | 502 | `PLATFORM_ERROR` | The platform answered 401, 403 or 5xx, or bad data. Also a `400` from the platform **token endpoint** (for example `invalid_client`): the tool cannot fix the request, so it is a platform-side error, not `PLATFORM_REJECTED_REQUEST` (confirmed in T3a QA). |
 | 504 | `PLATFORM_TIMEOUT` | No answer in 5 s |
 | 500 | `INTERNAL_ERROR` | Bug |
+
+Multi-LMS codes (`UNKNOWN_PROFILE`, `ISSUER_RESERVED`, `INVALID_SITE_URL`, `PLATFORM_URL_NOT_IN_PROFILE`, `DEPLOYMENT_NOT_ACTIVE`, `UNKNOWN_DEPLOYMENT`, `SHARED_PLATFORM_EXISTS`, `SHARED_PLATFORM_DEPLOYMENTS`, `SHARED_PLATFORM_IN_USE`, `DEPLOYMENT_ALREADY_EXISTS`): §9.2.
 
 HTML pages of the protocol endpoints use the codes in [`../security.md`](../security.md) §2.1 and §2.2, and show the code, the trace id and one action line.
 
@@ -156,7 +160,7 @@ Steps: fetch the configuration with the guarded client (with `Authorization: Bea
 
 ### 2.5 `GET /healthz` (T1)
 
-`200 {"status":"ok","service":"lti-service","profile":"default","outbound_allowlist":["moodle.test"],"knobs":[]}`. `knobs` lists active test knobs (`tasks/README.md`). `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
+`200 {"status":"ok","service":"lti-service","profile":"default","outbound_allowlist":["moodle.test"],"knobs":[],"simulation_profiles":[]}` (`simulation_profiles`: M1, §9.13). `knobs` lists active test knobs (`tasks/README.md`). `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
 
 ---
 
@@ -213,6 +217,7 @@ Query: `raw=true` gives the validated raw claims.
 | `services.assignmentAndGrades.available`, `lineItemId` | AGS claim present; its `lineitem` |
 | `services.serviceKey` | when AGS or NRPS is available (T3a). Stable per (platform, deployment, context, resource link). |
 | `services.outcomes` (addition) | always `{ "available": false }`: we offer no LTI 1.1 Basic Outcomes API. Not in the public reference; added because the `ltiaas` SDK needs the key. Not mapped from AGS (AGS is `assignmentAndGrades`). |
+| `platform.siteUrl`, `platform.profile` (additions, M1) | site origin of the launch deployment and the platform profile (§9.9) |
 
 ### 3.2 Deep Linking — LTIK-AUTH-V2
 
@@ -240,7 +245,7 @@ Rules (`400 INVALID_CONTENT_ITEM`):
 - `ltiResourceLink.url`: optional (Deep Linking 2.0). If missing or `null`, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add; such a link has no `resource` query). If present, it must start with that value.
 - `lineItem.scoreMaximum` > 0. `custom` values are strings.
 - The JWT `content_items` equal the request items, plus only the default `url` above and `custom: {}` for `custom: null`.
-- The launch's `deep_link_return_url` must be an https URL on the platform issuer origin; else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
+- The launch's `deep_link_return_url` must be an https URL on the platform issuer origin (M1: the site origin of the launch deployment, §9.10); else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
 - JWT claims: security §2.3.
 - Not a deep-linking launch → `403 SERVICE_NOT_AVAILABLE`.
 
@@ -337,7 +342,7 @@ Platform: `id`, `url` (issuer), `clientId`, `name`, `authenticationEndpoint`, `a
 | Method and path | Task | Request | Success |
 | --- | --- | --- | --- |
 | `GET /api/platforms` | T2a | query `id`, `url`, `clientId` | `200 { "platforms": [...] }` |
-| `POST /api/platforms` | T2a | `url`, `clientId`, `name`, `authenticationEndpoint`, `accesstokenEndpoint`, `authConfig`, `deploymentIds` (≥ 1), `active?` | `201`. `409 PLATFORM_ALREADY_EXISTS`. `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`. |
+| `POST /api/platforms` | T2a (profiles: M1, §9.4) | `url`, `clientId`, `name`, `authenticationEndpoint`, `accesstokenEndpoint`, `authConfig`, `deploymentIds` (≥ 1), `active?`; M1: `profile?`, `siteUrl?` | `201`. `409 PLATFORM_ALREADY_EXISTS`. `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`. Profile rules and codes: §9.4. |
 | `GET /api/platforms/:id` | T2a | — | `200`, `404 UNREGISTERED_PLATFORM` |
 | `PATCH /api/platforms/:id` | T2a | `name`, `active`, `deploymentIds` | `200` |
 | `DELETE /api/platforms/:id` | T3c | — | `204`. Revokes its ltiks and service keys. |
@@ -411,7 +416,251 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D9 | `launch.resourceLink` | Marked required | Omitted for deep-linking launches |
 | D10 | Additions | — | `launch.deepLinkingSettings`, `services.outcomes` (`available: false`), `deploymentIds`, `productFamilyCode`, `operation`, `existingPlatformId`, `updatePlatformId`, score `timestamp`, both `documentTarget` spellings |
 | D11 | OAuth2 endpoints | Documented | `501` stubs |
-| D12 | Tested LMS | Many | Moodle 5.2 only |
+| D12 | Tested LMS | Many | Moodle 5.2 live. Canvas and Blackboard: signed simulations only (`SIM`); live status in the M3 live matrix. |
 | D13 | Member personal fields in `/api/memberships` | Returned when the LMS sends them | Never returned (anonymous by default, Q3) |
 | D15 | Raw (unencoded) line item ids from the `ltiaas` 0.0.4 SDK | `lineItemID` is URL-encoded | A raw line item URL in the path (with `/` and its own `?type_id=…`) does not match the route (`404 NOT_FOUND`); it cannot be told apart from our route and query. A double-encoded id (the SDK called with an encoded id) **is** accepted by the two-decode rule (§1.4). |
 | D14 | Tolerances for the `ltiaas` 0.0.4 SDK | — | Leading `//` in the path, `user_id` as an alias of `userId` on scores GET, a content item `url` or `custom` of `null`, a score `comment` of `null`, a double-encoded line item id (§1.4). They widen what we accept; they change no answer for a request that already followed the reference. |
+| D16 | Provider profiles | — | Platforms have `profile` (default `standard`). Profiles other than `standard` derive issuer and endpoints from fixed values (§9.1). |
+| D17 | Site and service origins | Platform `url` is the LMS | `url` stays the issuer. `siteUrl` (platform and deployment), Canvas `serviceUrl`, and `platform.siteUrl` / `platform.serviceUrl` in `/api/idtoken` give the LMS page and service origins (§9). |
+| D18 | Deployments | `deploymentIds` only | Additions: `deployments` with `siteUrl` and `active`, `POST` and `PATCH` deployment endpoints, `GET /api/providers`, shared platforms (§9.4–§9.6). |
+| D19 | Claims of Canvas and Blackboard profiles | Passed through | Only an allowlist is stored (§9.8). `/api/idtoken` (also `raw=true`) never shows other claims; `launch.custom` is `{}`. |
+| D20 | Binding generations and binding refs | — | Keys and ltiks of an older binding generation of a shared deployment stop working (§9.14). Platforms and deployments can carry a binding ref, and changes can be conditional on it (§9.15). A conditional `PATCH` must write a new ref (rotation). `POST …/deployments` accepts `active: false` (staged create). |
+| D21 | Signed product family and canonical origins | — | Launch check 14 refuses a Canvas- or Blackboard-signed launch on a non-matching profile, before any claim is stored (§9.7). Site, service and self-hosted issuer URLs are stored and answered in canonical origin form (§9.1). |
+
+---
+
+
+## 9. Multi-LMS additions (M1)
+
+Design: [ADR-011](../adr/ADR-011-multi-lms.md). Security rules: [`../security.md`](../security.md) §12. Binding approval (operator grants) lives in the Cogniate app, not here (app contract §4.7, §4.8); the LTI service trusts its API key holder, as today. Every item is an addition, or applies only to profiles other than `standard`. A request without the new fields behaves as in §1 to §8. The `standard` profile is today's behaviour, except the reserved issuer rule (§9.4).
+
+### 9.1 Provider profiles
+
+The profile table is [ADR-011 §6](../adr/ADR-011-multi-lms.md#6-provider-trust-profiles). Templates in values: `{siteUrl}` (the platform or deployment site URL, an origin without a trailing `/`), `{serviceUrl}` (Canvas: the platform service URL, default `{siteUrl}`), `{clientId}` (encoded with `encodeURIComponent`).
+
+| Profile | Sharing | `siteUrl` lives on | Issuer and endpoints |
+| --- | --- | --- | --- |
+| `standard` | exclusive | — (site = issuer origin) | admin values, rules of security §2.4; issuer not reserved |
+| `canvas-cloud-production`, `canvas-cloud-beta`, `canvas-cloud-test` | exclusive | platform (also `serviceUrl`) | fixed; token endpoint from `{serviceUrl}` |
+| `canvas-self-hosted` | exclusive | platform (also `serviceUrl`) | issuer = `{siteUrl}`; fixed auth and JWKS paths on that origin; token endpoint from `{serviceUrl}` |
+| `blackboard` | shared | each deployment | fixed; JWKS from `{clientId}` |
+| `blackboard-sim`, `canvas-sim-cloud` | as their copies | as their copies | fixed `.sim.test` values; only when §9.13 says they are on |
+
+A profile id that is unknown, or a simulation profile while simulations are off: `400 UNKNOWN_PROFILE`. A stored platform whose profile is unknown at run time (a simulation profile row while simulations are off) is treated as inactive: login and launch give `PLATFORM_NOT_ACTIVE`, API calls `403 PLATFORM_NOT_ACTIVE`; `GET /api/platforms` still lists it.
+
+**Canonical origin.** Every `siteUrl`, `serviceUrl` and `canvas-self-hosted` issuer is converted before validation, storage and comparison: scheme and host to lower case, host to ASCII (punycode), a trailing `/` removed, port `443` removed. A path other than `/`, a query, a fragment, user info or another scheme is refused (`INVALID_SITE_URL`, rule 1). Answers always show the canonical form. Example: `HTTPS://School.Example.EDU:443/` → `https://school.example.edu`.
+
+**Product families** (check 14): `canvas` for the Canvas profiles, `blackboardlearn` for the Blackboard profiles, none for `standard`. The comparison ignores case.
+
+**Reserved issuer origins:** `https://blackboard.com`, `https://canvas.instructure.com`, `https://canvas.beta.instructure.com`, `https://canvas.test.instructure.com`, and, when simulations are on, `https://blackboard.sim.test` and `https://canvas.sim.test`.
+
+### 9.2 New error codes
+
+| HTTP | `details.message` | When |
+| --- | --- | --- |
+| 400 | `UNKNOWN_PROFILE` | §9.1 |
+| 400 | `ISSUER_RESERVED` | A `standard` platform (`POST /api/platforms`, or `complete` of a dynamic registration) whose issuer origin is a reserved issuer origin (§9.1). Nothing is stored and nothing is sent to the platform. |
+| 400 | `INVALID_SITE_URL` | A `siteUrl` breaks a site rule ([ADR-011 §6](../adr/ADR-011-multi-lms.md#6-provider-trust-profiles)). `description` names the rule (`rule 1` to `rule 5`). |
+| 400 | `PLATFORM_URL_NOT_IN_PROFILE` | A sent `url`, `authenticationEndpoint`, `accesstokenEndpoint` or `authConfig.key` is not the exact profile value. `description` names the field. |
+| 403 | `DEPLOYMENT_NOT_ACTIVE` | A ltik or service key of a deployment with `active: false` (checked after `PLATFORM_NOT_ACTIVE`) |
+| 404 | `UNKNOWN_DEPLOYMENT` | `PATCH …/deployments/:deploymentId` for an id that the platform does not have |
+| 409 | `SHARED_PLATFORM_EXISTS` | `POST /api/platforms` with a shared profile when the account already has a platform with that profile (any `active` value) |
+| 409 | `SHARED_PLATFORM_DEPLOYMENTS` | `PATCH /api/platforms/:id` with `deploymentIds` on a shared platform |
+| 409 | `SHARED_PLATFORM_IN_USE` | `DELETE /api/platforms/:id` on a shared platform that has an active deployment |
+| 409 | `DEPLOYMENT_ALREADY_EXISTS` | `POST …/deployments` with an id that the platform has (active or not) |
+| 409 | `BINDING_REF_MISMATCH` | A conditional change (`ifBindingRef`, §9.15) whose expected binding ref is not the stored one. Nothing changes. |
+
+The `DELETE /api/platforms/:id` endpoint (§3.9) is also the LTI step of the operator release (app contract §4.9): it removes the platform with its deployments, launches and service keys, so the issuer and client id become free.
+
+Protocol error pages (security §2.1, §2.2) get two codes. `{LMS}` is the LMS name of the platform profile (security §12).
+
+| Code | Status | Action line |
+| --- | --- | --- |
+| `DEPLOYMENT_NOT_ACTIVE` | 403 | `The connection to this {LMS} site is switched off. Ask your Cogniate admin to check the connection in the Cogniate portal.` |
+| `PROVIDER_PROFILE_MISMATCH` | 400 | `This {LMS} site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as {LMS} in the Cogniate portal.` (`{LMS}` = the LMS of the signed product family) |
+| `SERVICE_ORIGIN_MISMATCH` | 400 | `The {LMS} address in this launch is not the address saved in Cogniate. Ask your Cogniate admin to check the site URL.` |
+
+The dynamic registration start page (§2.4) gets the page codes `ISSUER_RESERVED` (400): `This address belongs to a hosted LMS. Connect it as Canvas or Blackboard in the Cogniate portal.`, and `PROVIDER_PROFILE_MISMATCH` (400), when the platform configuration (`https://purl.imsglobal.org/spec/lti-platform-configuration`) has `product_family_code` `canvas` or `BlackboardLearn` (any case): `This is a {LMS} site. Connect it as {LMS} in the Cogniate portal.` Nothing is stored and no registration session starts.
+
+### 9.3 `GET /api/providers` — Bearer
+
+`200`:
+
+```json
+{
+  "profiles": [
+    { "id": "standard", "lms": null, "label": "Standard LTI 1.3 platform", "sharing": "exclusive",
+      "issuer": null, "authenticationEndpoint": null, "accesstokenEndpoint": null, "jwksUrl": null,
+      "siteUrlOn": null, "serviceUrl": false, "simulation": false, "sharedPlatform": null },
+    { "id": "canvas-cloud-production", "lms": "canvas", "label": "Canvas, Instructure-hosted (production)", "sharing": "exclusive",
+      "issuer": "https://canvas.instructure.com",
+      "authenticationEndpoint": "https://sso.canvaslms.com/api/lti/authorize_redirect",
+      "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+      "jwksUrl": "https://sso.canvaslms.com/api/lti/security/jwks",
+      "siteUrlOn": "platform", "serviceUrl": true, "simulation": false, "sharedPlatform": null },
+    { "id": "canvas-self-hosted", "lms": "canvas", "label": "Canvas, self-hosted", "sharing": "exclusive",
+      "issuer": "{siteUrl}", "authenticationEndpoint": "{siteUrl}/api/lti/authorize_redirect",
+      "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token", "jwksUrl": "{siteUrl}/api/lti/security/jwks",
+      "siteUrlOn": "platform", "serviceUrl": true, "simulation": false, "sharedPlatform": null },
+    { "id": "blackboard", "lms": "blackboard", "label": "Blackboard Learn", "sharing": "shared",
+      "issuer": "https://blackboard.com",
+      "authenticationEndpoint": "https://developer.blackboard.com/api/v1/gateway/oidcauth",
+      "accesstokenEndpoint": "https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken",
+      "jwksUrl": "https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json",
+      "siteUrlOn": "deployment", "serviceUrl": false, "simulation": false,
+      "sharedPlatform": { "id": "plt_...", "clientId": "<Application ID>", "active": true } }
+  ]
+}
+```
+
+Order: `standard`, `canvas-cloud-production`, `canvas-cloud-beta`, `canvas-cloud-test`, `canvas-self-hosted`, `blackboard`, then `blackboard-sim` and `canvas-sim-cloud` when they are on. The beta and test entries follow the production entry with their ADR-011 §6 values. `serviceUrl: true` marks the Canvas profiles (a separate service URL is allowed); it is `false` for the others. `sharedPlatform` is `null` for exclusive profiles, and `null` for a shared profile without a platform in this account. `label` is human text and can change; tests must not compare it.
+
+### 9.4 Platforms: fields and rules
+
+A platform `id` is random and is **never reused**: a platform that is deleted and created again (also with the same issuer and client id) always gets a new id (B-M1-03 design, app contract §4.7.1 "V limit").
+
+New fields in every platform answer (§3.9):
+
+| Field | Value |
+| --- | --- |
+| `profile` | profile id |
+| `siteUrl` | platform site URL (Canvas profiles), else `null` |
+| `serviceUrl` | platform service URL (Canvas profiles; equals `siteUrl` when not sent), else `null` |
+| `bindingRef` | the platform's binding ref (§9.15), else `null` |
+| `deployments` | `[{ "deploymentId", "siteUrl", "active", "bindingGeneration", "bindingRef" }]`, all deployments, sorted by `deploymentId`. `siteUrl` is the **resolved** site origin. |
+| `deploymentIds` | unchanged name; lists the **active** deployments only |
+
+Site origin of a deployment = deployment `siteUrl`, else platform `siteUrl`, else the origin of `url` (issuer). Service origin = platform `serviceUrl`, else the site origin.
+
+`POST /api/platforms` per profile (new optional request fields `profile`, `siteUrl`, `serviceUrl`, `bindingRef`). The existing optional `active` (default `true`) works for every profile except the shared ones; `active: false` stores an inactive platform (staging, §9.15): login, launch and API calls give `PLATFORM_NOT_ACTIVE` until a `PATCH` activates it.
+
+| Profile | Required | Optional, must equal the profile value if sent | Other rules |
+| --- | --- | --- | --- |
+| absent or `standard` | as §3.9 | — | `siteUrl` and `serviceUrl` must be absent (`400 INVALID_REQUEST`, field name). Reserved issuer origin → `400 ISSUER_RESERVED`. |
+| `canvas-cloud-*`, `canvas-sim-cloud` | `clientId`, `name`, `siteUrl`, `deploymentIds` (≥ 1) | `serviceUrl` (default `siteUrl`); `url`, `authenticationEndpoint`, `accesstokenEndpoint`, `authConfig` (`method` `JWK_SET`) must equal the filled profile values | Site rules 1 to 4 for `siteUrl` and `serviceUrl`. The service stores the filled profile values. |
+| `canvas-self-hosted` | same | same (issuer = `siteUrl`) | Site rules 1 to 5 for both values. |
+| `blackboard`, `blackboard-sim` | `clientId`, `name` | same, without `serviceUrl` | `deploymentIds` absent or `[]` (`400 INVALID_REQUEST` otherwise). `siteUrl` and `serviceUrl` absent. `409 SHARED_PLATFORM_EXISTS` before any other conflict check. |
+
+Check order: body schema, `UNKNOWN_PROFILE`, `UNSUPPORTED_AUTH_METHOD`, `PLATFORM_URL_NOT_IN_PROFILE` (or the §2.4 rules for `standard`), `ISSUER_RESERVED`, `INVALID_SITE_URL`, `SHARED_PLATFORM_EXISTS`, `PLATFORM_ALREADY_EXISTS`. A non-`standard` create logs `platform_created {platform_id, profile}`.
+
+`PATCH /api/platforms/:id`:
+
+- `deploymentIds` on a shared platform → `409 SHARED_PLATFORM_DEPLOYMENTS`.
+- On other platforms `deploymentIds` is a **diff**: listed ids that exist keep their row (site, generation) and become active; new ids get new rows (active, generation 0, site from the platform); ids that are not listed are deleted. (Today's delete-and-insert gives the same result for `standard`, whose rows have no extra values.)
+- `active` and `name` work on every platform. New optional fields `bindingRef` (set) and `ifBindingRef` (condition) follow §9.15: a request with `ifBindingRef` must also send a new `bindingRef` (rotation). The Cogniate app never sends `PATCH` or `DELETE` to a shared platform (ADR-011 §4 rule 4).
+
+`DELETE /api/platforms/:id` on a shared platform with an active deployment → `409 SHARED_PLATFORM_IN_USE`. `DELETE /api/platforms/:id?ifBindingRef=<ref>` deletes only if the platform's binding ref equals `<ref>` (§9.15).
+
+`GET /api/platforms` gets the query filter `profile`. The filters `url`, `clientId` and `profile` compare **exactly** with the stored values (no canonicalization in the filter). Issuers of Canvas profiles are stored as the fixed profile value, and a `canvas-self-hosted` issuer in canonical origin form, so a caller that sends the canonical issuer finds the record. `url` plus `clientId` finds at most one platform of the account (unique key).
+
+### 9.5 `POST /api/platforms/:id/deployments` — Bearer
+
+Request: `{ "deploymentId": "<1-255 printable ASCII, no space>", "siteUrl"?: "<https origin>", "active"?: boolean, "bindingRef"?: "<1-64 characters [A-Za-z0-9_-]>" }`. `active` defaults to `true`; `active: false` stores an inactive row (staging, §9.15). A `deploymentId` outside its alphabet (for example with a space) → `400 INVALID_REQUEST`, field `deploymentId`, nothing stored.
+
+| Platform profile | `siteUrl` | New row |
+| --- | --- | --- |
+| `standard` | must be absent | `active` as sent, generation 0 |
+| Canvas profiles | absent, or equal to the platform `siteUrl` (`400 INVALID_SITE_URL` otherwise) | `active` as sent, generation 0 |
+| shared profiles | required; site rules 1 to 4 | `active: true` → active, **generation 1**; `active: false` → inactive, generation 0 (its first activation gives 1) |
+
+`201 { "deploymentId", "siteUrl", "active", "bindingGeneration", "bindingRef" }` (`siteUrl` resolved). `409 DEPLOYMENT_ALREADY_EXISTS`. `404 UNREGISTERED_PLATFORM`. Logs `deployment_added {platform_id, deployment_id}`.
+
+### 9.6 `PATCH /api/platforms/:id/deployments/:deploymentId` — Bearer
+
+`:deploymentId` is encoded with `encodeURIComponent`. Request: `{ "active"?: boolean, "siteUrl"?: "<https origin>", "bindingRef"?: "<ref>", "ifBindingRef"?: "<ref>" or null }`, at least one of `active` and `bindingRef`. `ifBindingRef` makes the whole change conditional and needs a new `bindingRef` (§9.15).
+
+| Change | Rule |
+| --- | --- |
+| `active: false` | Allowed on every platform. The generation does not change. |
+| `active: true` on an inactive deployment of a shared platform | A **new binding**: generation + 1. `siteUrl` may be sent (site rules 1 to 4) and replaces the old site. |
+| `active: true` with a new `bindingRef` on an **active** deployment of a shared platform (an adoption, §9.15) | A **new binding**: generation + 1. `siteUrl` may be sent (site rules 1 to 4) and replaces the old site. Keys and ltiks of the old generation stop working. |
+| `active: true` on an inactive deployment of another platform | Active again; generation unchanged. |
+| `active: true` without `bindingRef` on an active deployment, or on an active deployment of another platform | No change to `active` or the generation (`200`). `siteUrl` is not allowed here. |
+| `siteUrl` in any other case | `400 INVALID_REQUEST`, field `siteUrl` |
+
+`200 { "deploymentId", "siteUrl", "active", "bindingGeneration", "bindingRef" }`. `404 UNKNOWN_DEPLOYMENT`, `404 UNREGISTERED_PLATFORM`, `409 BINDING_REF_MISMATCH`. Logs `deployment_updated {platform_id, deployment_id, active, binding_generation}`.
+
+### 9.7 Login and launch changes
+
+Every platform (exclusive and shared):
+
+- Login rule 3: a sent `lti_deployment_id` must be known (`UNKNOWN_DEPLOYMENT`) and active (`DEPLOYMENT_NOT_ACTIVE`). The state record keeps it.
+- Check 9: the token `deployment_id` must be known (`UNKNOWN_DEPLOYMENT`, detail `deployment_unknown`), equal to the stored login value if there is one (`UNKNOWN_DEPLOYMENT`, detail `deployment_differs_from_login`), and active (`DEPLOYMENT_NOT_ACTIVE`, detail `deployment_inactive`).
+- There is no exception for an unknown or inactive deployment of a shared platform. A Learn site whose deployment is not bound yet gets `UNKNOWN_DEPLOYMENT`.
+
+Check 13 (new, after 12; profiles other than `standard`; security §2.2): every present URL claim is https and has no user info; AGS `lineitems`, AGS `lineitem` and NRPS `context_memberships_url` are on the **service origin**; `deep_link_return_url` is on the **site origin**. Failure: code `SERVICE_ORIGIN_MISMATCH`, detail `claim=<name> host=<origin>`, where `<name>` is `ags_lineitems`, `ags_lineitem`, `nrps` or `dl_return`, and `<origin>` is the canonical origin of the failing claim URL (an origin is neither a secret nor personal data). A claim URL that does not parse gives `host=invalid`.
+
+Check 14 (new, after 13, **every** profile including `standard`): read the signed `https://purl.imsglobal.org/spec/lti/claim/tool_platform` member `product_family_code`. If it equals `canvas` (any case), the platform profile must be a Canvas profile; if it equals `blackboardlearn` (any case), the profile must be a Blackboard profile. Else: code `PROVIDER_PROFILE_MISMATCH`, detail `family=canvas` or `family=blackboardlearn`. Any other value and a missing claim pass. The check runs before the claim allowlist and before storage, so a refused launch stores no claims.
+
+After check 14: the claim allowlist (§9.8), then the launch is stored with its site origin, service origin and the deployment's current binding generation. The redirect to the tool is unchanged (§2.2).
+
+### 9.8 Claim allowlist
+
+Profiles `canvas-*`, `blackboard`, `blackboard-sim`. The list of kept claims and members is in [ADR-011 §9](../adr/ADR-011-multi-lms.md#9-privacy-identity-and-grades). The stored claims have nothing else. When the service removes at least one claim or member, it logs `launch_claims_minimized {platform_id, claims}`: a sorted list of removed top-level claim names, and `<claim name>#<member>` for a removed member of a kept claim. No values.
+
+### 9.9 `GET /api/idtoken` additions
+
+| Field | Value |
+| --- | --- |
+| `platform.siteUrl` | site origin of the launch deployment (§9.4). For `standard`: the issuer origin. |
+| `platform.serviceUrl` | service origin of the launch deployment (§9.4); equals `platform.siteUrl` except for a Canvas platform with another service URL |
+| `platform.profile` | profile id |
+
+### 9.10 Deep Linking and platform calls
+
+- The Deep Linking return URL must be https on the **site origin** of the launch (was: issuer origin; the same value for `standard`). Else `400 INVALID_DEEP_LINK_RETURN_URL`.
+- `target` (and the `/form` action) is the `deep_link_return_url` claim exactly as received, also its query. Canvas carries its `data` value there (research F-CV-21). The response JWT has a `data` claim only when the request had `deep_linking_settings.data`.
+- The line item URL rule (§3.4) is unchanged; its claim URLs already passed check 13, so service calls go only to the service origin.
+- Profiles with `deepLinkingResponseSub` add `sub` = client id to the response JWT.
+- Profiles with `clientAssertionAudArray` send the client assertion `aud` as a one-item array.
+- The access token cache key stays (platform, scope set). Each call asks only for the one scope that it needs (score, line item read or write, results read, memberships), as today. For a shared platform one token serves all deployments; service URLs reach it only after check 13 and the §3.4 rule. A bound Learn host still receives the gateway token (ADR-011 R-M-14).
+
+### 9.11 Log events (additions to §5)
+
+| Event | Level | Fields | When |
+| --- | --- | --- | --- |
+| `platform_created` | info | `platform_id`, `profile` | §9.4, profiles other than `standard` |
+| `deployment_added` | info | `platform_id`, `deployment_id` | §9.5 |
+| `deployment_updated` | info | `platform_id`, `deployment_id`, `active`, `binding_generation` | §9.6 |
+| `launch_claims_minimized` | info | `platform_id`, `claims` | §9.8 |
+
+`launch_check_failed` gets checks `13` and `14` and the new details of check 9. A deployment id is an identifier, not a secret.
+
+### 9.12 CLI: shared platform
+
+```sh
+npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]
+```
+
+Makes the shared platform if it does not exist and prints its id. If it exists with the same client id, it prints the id and changes nothing (exit 0). If a shared platform with another client id exists, it exits 1 and prints one line that says so. It prints no secret. The existing seed CLI (`register-platform`) works only on `standard` platforms.
+
+### 9.13 Simulation profiles and `/healthz`
+
+The simulation profiles are on only when both are true: the service profile is `acceptance`, and `LTI_PROVIDER_SIMULATION=on`. The `acceptance` compose profile sets both; nothing else does. `/healthz` and `service_started` get the field `simulation_profiles`: `[]` by default, `["blackboard-sim", "canvas-sim-cloud"]` when on. This is not a test knob: `knobs` stays `[]`.
+
+### 9.14 Binding generation, service keys and ltiks
+
+| Rule | Detail |
+| --- | --- |
+| Values | `deployment.binding_generation`: 0 for every existing row and for exclusive platforms; 1 for a new active shared deployment and 0 for a new inactive one (§9.5); + 1 for each new binding (§9.6: an activation, or an adoption of an active row). |
+| Key derivation | Unchanged when the generation is 0 (existing Moodle keys keep their exact value). When it is above 0, the generation is part of the HMAC input, so each binding has other key values. |
+| Issue | On a launch, the service key row of (platform, deployment, context, resource link) gets the current generation. A row with an older generation gets a new key value (the old value stops working at once). |
+| Service key check | The key's generation must equal the deployment's generation (else `401 INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER`), and the deployment must be active (else `403 DEPLOYMENT_NOT_ACTIVE`). |
+| Ltik check | A launch's generation must equal the deployment's generation (else `401 INVALID_LTIK_AUTH_AUTHORIZATION_HEADER`), and the deployment must be active (else `403 DEPLOYMENT_NOT_ACTIVE`). |
+| Revocation | `DELETE /api/platforms/:id` still revokes. A deployment disconnect does not revoke; it uses `active` and the generation. |
+
+### 9.15 Binding refs (fencing for app recovery)
+
+A binding ref is an opaque value (1 to 64 characters, `[A-Za-z0-9_-]`) that the API caller stores on a platform (exclusive profiles) or on a deployment (all profiles). The Cogniate app writes a new random ref for each of its writes and records it first (app contract §4.7.1). The LTI service does not interpret a ref; it only stores it, returns it, and compares it.
+
+| Rule | Detail |
+| --- | --- |
+| Set | `bindingRef` in `POST /api/platforms`, `POST …/deployments`, `PATCH /api/platforms/:id` and `PATCH …/deployments/:deploymentId` sets the stored value. |
+| Condition | `ifBindingRef` in a `PATCH` body, or the `ifBindingRef` query of `DELETE /api/platforms/:id`, makes the whole request conditional: it applies only if the stored value equals the given value (`null` = "no value stored"). Else `409 BINDING_REF_MISMATCH` and nothing changes. |
+| Rotation | A `PATCH` with `ifBindingRef` must also send `bindingRef`, and that value must differ from `ifBindingRef`. Else `400 INVALID_REQUEST`, field `bindingRef`, and nothing changes (this check comes before the condition). So every successful conditional `PATCH` changes the stored value. A conditional `DELETE` removes the record. |
+| Atomicity | The comparison with the **current** stored value and the change run in one database transaction of the LTI service. So two conditional requests of the same record are serialized, and of two requests that expect the same current value, only the first one that runs can succeed; the second one then sees the changed value and gets `409 BINDING_REF_MISMATCH`, whatever mix of `active`, `siteUrl` and `bindingRef` it sends. |
+| Staging | A create with `active: false` (§9.4, §9.5) stores an inactive record with its ref. Only a later conditional `PATCH {active: true, bindingRef: <new>, ifBindingRef: <the create ref>}` activates it. A create has no condition: it succeeds only if no record with the same unique key exists (`409 PLATFORM_ALREADY_EXISTS` or `409 DEPLOYMENT_ALREADY_EXISTS` otherwise, nothing changes). |
+| Limit | The service compares with the current value only; it keeps no history of old values. It cannot prove that a value was never stored before: a caller with the API key can write `r1`, then `r2`, then `r1` again, or make an unconditional change, and an old request that expects `r1` then succeeds. It also does not know which caller is current or approved. The no-stale-write guarantee therefore comes from the **caller's protocol**. The Cogniate app writes each ref once, as a new random value that it never reuses, and records it before the call. It changes Canvas and Blackboard records only with conditional requests (app contract §4.7.1, I3). Other API key holders (the operator with raw API calls) are outside this guarantee. The app decides which values it may expect and which deployments have authority (app contract §6.1). |
+| Compatibility | A request without `ifBindingRef` behaves as before (unconditional). Old rows have `null`. Moodle calls of the app send no ref and no condition. |
+
+Use by the app (app contract §4.7.1, §4.9): every create of a Canvas or Blackboard record is inactive; every activation, adoption, switch-off and delete is conditional on a ref that the app read, and every conditional `PATCH` writes a new random ref that the app never reuses. Because no ref value returns, a delayed app request fails with `409 BINDING_REF_MISMATCH` instead of changing a record that another app request changed after it was sent.

@@ -31,7 +31,7 @@ async function setup() {
     issuer: ISSUER, clientId: CLIENT_ID, name: 'Moodle', authEndpoint: `${ISSUER}/mod/lti/auth.php`, tokenEndpoint: `${ISSUER}/mod/lti/token.php`,
     jwksUrl: `${ISSUER}/mod/lti/certs.php`, deploymentIds: ['1'], active: true,
   });
-  const launch = (messageType: string, claims: Record<string, unknown>): LaunchRecord => ({ id: 'lch', toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', messageType, claims, expiresAt: 0 });
+  const launch = (messageType: string, claims: Record<string, unknown>): LaunchRecord => ({ id: 'lch', toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', messageType, claims, expiresAt: 0, siteOrigin: null, serviceOrigin: null, bindingGeneration: 0 });
   const rlLaunch = launch('LtiResourceLinkRequest', { [CLAIM.ags]: AGS, [CLAIM.context]: { id: '2' }, [CLAIM.resourceLink]: { id: 'rl-3' } });
   const dlLaunch = launch('LtiDeepLinkingRequest', { [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN_URL, accept_types: ['ltiResourceLink'], accept_multiple: true } });
   const calls: string[] = [];
@@ -57,14 +57,14 @@ async function setup() {
     const who = String(req.headers['x-test-caller']);
     if (who === 'service') {
       if (!schemes.includes('service')) throw new ApiError('INVALID_AUTHORIZATION_HEADER');
-      return { scheme: 'service', account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null } };
+      return { scheme: 'service', account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
     }
     return { scheme: 'ltik', account, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
   };
   const app = Fastify({ maxParamLength: 2048 });
   app.decorateRequest('traceId', 'trace-test');
   app.setErrorHandler((err, _req, reply) => (err instanceof ApiError ? reply.code(err.status).send(err.body()) : reply.code(500).send({ error: String(err) })));
-  const ctx = { db, urls: URLS, logger, masterKey: MASTER_KEY, ags, outbound, now, auth } as unknown as RouteContext;
+  const ctx = { db, urls: URLS, logger, masterKey: MASTER_KEY, ags, outbound, now, auth, profiles: { simulation: false } } as unknown as RouteContext;
   registerServiceRoutes(app, ctx);
   return { db, platform, app, calls, answers, res, rlLaunch, dlLaunch };
 }

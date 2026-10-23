@@ -10,7 +10,7 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import type { DueSync } from '../domain/score-syncs.ts';
-import { beginSend, dueSyncs, isCurrentSync, recordSend, recoverInterruptedSends } from '../domain/score-syncs.ts';
+import { beginSend, dueSyncs, failDisabledSync, isCurrentSync, recordSend, recoverInterruptedSends } from '../domain/score-syncs.ts';
 import { resolveLineItem } from './line-item.ts';
 
 export interface ScoreSyncWorkerDeps {
@@ -42,6 +42,13 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
     if (!isCurrentSync(db, row.id)) return;
     const traceId = randomBytes(16).toString('hex');
     const phase = row.confirmationAfter === null ? 'send' : 'confirmation';
+    const logDisabled = () => log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: 'failed', tries: row.tries, phase });
+    // App contract §4.7.2: a disabled Canvas or Blackboard connection sends nothing; the due row becomes failed. The
+    // state is read now, not from the batch snapshot (an earlier row's await can let a suspend commit: B-M1-01).
+    if (failDisabledSync(db, row.id, now())) {
+      logDisabled();
+      return;
+    }
     let posted = false;
     let uncertain = false;
     let answer: SendAnswer;
@@ -55,7 +62,13 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
       const serviceKey = decrypt(masterKey, row.serviceKeyEncrypted);
       const lineItemId = await resolveLineItem({ db, lti }, row, serviceKey, traceId);
       if (lineItemId === null) throw new NoGradebookColumn();
-      if (!beginSend(db, row.id, now())) return;
+      // The send decision and the connection state are one transaction: a suspend during the lookup gets no POST.
+      const begin = beginSend(db, row.id, now());
+      if (begin === 'connection_disabled') {
+        logDisabled();
+        return;
+      }
+      if (begin === 'skipped') return;
       posted = true;
       await lti.postScore(serviceKey, lineItemId, row.payload, traceId);
       answer = { http: 204 };
@@ -75,6 +88,12 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
         lastError = `Internal error (${name}). The service key cannot be used. Give the trace id ${traceId} to your Cogniate admin.`.slice(0, 300);
         log.error('internal_error', { trace_id: traceId, method: 'WORKER', path: 'score_sync', error: name });
       }
+    }
+    // No POST began, and the connection was disabled during the lookup (for example the fence-out made the lookup
+    // fail): CONNECTION_DISABLED wins over the lookup result. After a POST began, its real answer is recorded.
+    if (!posted && failDisabledSync(db, row.id, now())) {
+      logDisabled();
+      return;
     }
     // The grade policy decides the row status and the next try (packages/tracking, ADR-010 rules 8 and 9).
     const tries = row.tries + (posted ? 1 : 0);

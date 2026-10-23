@@ -120,6 +120,8 @@ export interface OutboundRequest {
   traceId?: string;
   /** Override this request's deadline without changing the client's default or other guards. */
   timeoutMs?: number;
+  /** Default: retry GET once on a network error. False leaves retry ownership with the caller. */
+  retryNetworkError?: boolean;
 }
 
 export interface OutboundResponse {
@@ -245,7 +247,7 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
         return await once(url, req);
       } catch (err) {
         // One retry on a network error, for GET only (contract §4). Blocked calls are never retried.
-        if (err instanceof OutboundError && err.reason === 'network_error' && (req.method ?? 'GET') === 'GET') return once(url, req);
+        if (req.retryNetworkError !== false && err instanceof OutboundError && err.reason === 'network_error' && (req.method ?? 'GET') === 'GET') return once(url, req);
         throw err;
       }
     },

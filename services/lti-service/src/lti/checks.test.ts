@@ -16,8 +16,9 @@ import { createPlatformKeys } from './jwks.ts';
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`,
   jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'],
+  profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
-const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0 };
+const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null };
 
 function expectFail(fn: () => unknown, check: string, code: string) {
   try {
@@ -37,7 +38,7 @@ describe('checks 1 and 3: state record (single use, same statement)', () => {
     ensureAccount(db, { id: 'other', name: 'O', appUrl: URLS.app });
     const p = createPlatform(db, 'cogniate', { issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`, jwksUrl: `${ISSUER}/k`, deploymentIds: ['1'], active: true });
     const now = 1_000_000;
-    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000 }, now);
+    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000, loginDeploymentId: null }, now);
     return { db, now };
   };
 
@@ -134,7 +135,7 @@ describe('check 8: nonce', () => {
 });
 
 describe('check 9: deployment', () => {
-  it('passes for a known deployment', () => expect(check9Deployment({ [CLAIM.deploymentId]: '1' }, platform)).toBe('1'));
+  it('passes for a known deployment', () => expect(check9Deployment({ [CLAIM.deploymentId]: '1' }, platform).deploymentId).toBe('1'));
   it('fails UNKNOWN_DEPLOYMENT', () => {
     expectFail(() => check9Deployment({ [CLAIM.deploymentId]: '999' }, platform), '9', 'UNKNOWN_DEPLOYMENT');
     expectFail(() => check9Deployment({}, platform), '9', 'UNKNOWN_DEPLOYMENT');

@@ -76,14 +76,27 @@ saved_profile() {
   local p; p="$(cat "$PROFILE_FILE" 2>/dev/null || true)"
   if [[ "$p" == acceptance ]]; then echo acceptance; else echo default; fi
 }
+# M1 (M3 §3.1, §3.3, LTI contract §9.13), acceptance only: the simulation profiles of the LTI service
+# (LTI_PROVIDER_SIMULATION=on), the simulator hosts that the LTI service calls, and the app's /api/* route through the
+# transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
+SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
+  school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
+SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
+GATE_HOST=lti-gate.test
 apply_profile() {
   ACTIVE_STACK_PROFILE="$1"
   if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    ACCEPTANCE_APP_ALLOWLIST_EXTRA=",$GATE_HOST"
+    ACCEPTANCE_LTI_SIMULATION=on
+    ACCEPTANCE_LTI_API_URL="https://$GATE_HOST"
   else
     COMPOSE_PROFILES=""; ACCEPTANCE_ALLOWLIST_EXTRA=""
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA=""; ACCEPTANCE_APP_ALLOWLIST_EXTRA=""; ACCEPTANCE_LTI_SIMULATION=""; ACCEPTANCE_LTI_API_URL=""
   fi
-  export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA
+  export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA ACCEPTANCE_LTI_ALLOWLIST_EXTRA ACCEPTANCE_APP_ALLOWLIST_EXTRA \
+    ACCEPTANCE_LTI_SIMULATION ACCEPTANCE_LTI_API_URL
 }
 apply_profile "$(saved_profile)"
 
@@ -277,8 +290,10 @@ start_build_runner() {
   mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
   if build_runner_running; then return 0; fi
   rm -f "$BUILD_QUEUE_DIR/status/runner.json"
-  nohup bash "$INFRA_DIR/scripts/build-runner.sh" watch >> "$LOGS_DIR/build-runner.jsonl" 2>> "$LOGS_DIR/build-runner.err.log" &
-  echo $! > "$BUILD_RUNNER_PID_FILE"
+  # ADR-012 §7: the runner gets its OWN process group (set -m for this one job), so it never keeps a storage lock
+  # record live after stack:up ends. (A plain `nohup … &` job would stay in the command's group.)
+  ( set -m; nohup bash "$INFRA_DIR/scripts/build-runner.sh" watch >> "$LOGS_DIR/build-runner.jsonl" 2>> "$LOGS_DIR/build-runner.err.log" &
+    echo $! > "$BUILD_RUNNER_PID_FILE" )
   local i
   for i in $(seq 1 15); do
     sleep 1
@@ -307,4 +322,111 @@ stop_build_runner() {
     echo "Build Runner stopped."
   fi
   rm -f "$BUILD_RUNNER_PID_FILE"
+}
+
+# ---- ADR-012: SQLite on the project-scoped named volumes ltidb and appdb, under the operation lock of §7.
+# shellcheck source=storage-oplock.sh
+source "$INFRA_DIR/scripts/storage-oplock.sh"   # storage_lock_acquire, storage_lock_release, storage_lock_add_container, storage_run_id
+
+# M1 "Refuses <code>": the code in the command's JSON output. One storage_refused line on stdout, next to the human
+# text on stderr (which stays as it is). node builds the line, so every value is JSON-escaped; the fields are fixed
+# names and safe values only (a path relative to the checkout, a container name and id), never raw command output.
+#   storage_refusal_json <code> [<key> <value>]…
+storage_refusal_json() {
+  local command="${STORAGE_COMMAND:-$(basename "$0" .sh | sed 's/^stack-/stack:/')}"
+  node -e 'const [code, command, runId, ...kv] = process.argv.slice(1);
+const line = { event: "storage_refused", ts: new Date().toISOString(), command, code };
+if (runId) line.runId = runId;
+for (let i = 0; i + 1 < kv.length; i += 2) line[kv[i]] = kv[i + 1];
+process.stdout.write(JSON.stringify(line) + "\n");' "$1" "$command" "${STORAGE_LOCK_RUN_ID:-}" "${@:2}"
+}
+
+# Candidate guard (ADR-012 §12): every candidate command that can start a container or touch the databases refuses
+# while .tmp/compose.knobs.yaml holds the storage-compatibility marker.
+storage_compat_guard() { bash "$INFRA_DIR/scripts/storage-compat.sh" guard; }
+
+# §4 host side: infra/.data/cogniate-app and its packages/ and uploads/ (the nested-bind sources). Each one that
+# exists must be a directory of the host user and not a symbolic link (else content_path_unsafe, nothing changes);
+# each one that is absent is made as the host user with mode 0700. The scripts never chown a host folder.
+prepare_content_folders() {
+  local base="$INFRA_DIR/.data/cogniate-app" d
+  mkdir -p "$INFRA_DIR/.data"
+  for d in "$base" "$base/packages" "$base/uploads"; do
+    if [[ -L "$d" ]] || { [[ -e "$d" ]] && { [[ ! -d "$d" ]] || [[ ! -O "$d" ]]; }; }; then
+      storage_refusal_json content_path_unsafe path "${d#"$REPO_ROOT"/}"
+      echo "content_path_unsafe: $d is a symbolic link, not a directory, or not owned by $(id -un). Nothing was changed." >&2
+      return 1
+    fi
+  done
+  for d in "$base" "$base/packages" "$base/uploads"; do
+    [[ -d "$d" ]] || mkdir -m 700 "$d"
+  done
+}
+
+# One storage container (§7): a new runId, the name <project>-storage-<runId> (recorded in the lock record BEFORE the
+# container exists) and the label org.cogniate.storage.run=<runId>. A foreground child: it stays in this group.
+#   storage_run <service> <args …>      (sets STORAGE_RUN_ID)
+#   STORAGE_RUN_OPTS=(-v <host>:<container>…)  extra `run` options (for example the backup folder)
+storage_run() {
+  local service="$1"; shift
+  STORAGE_RUN_ID="$(storage_run_id)"
+  local name="$COMPOSE_PROJECT_NAME-storage-$STORAGE_RUN_ID"
+  storage_lock_add_container "$name"
+  dc --profile storage run --rm -T --name "$name" --label "org.cogniate.storage.run=$STORAGE_RUN_ID" \
+    ${STORAGE_RUN_OPTS[@]+"${STORAGE_RUN_OPTS[@]}"} "$service" "$@"
+}
+
+# B-M1-02 / ADR-012 §8: only a positively observed stop permits maintenance. Docker answers, `compose ps` succeeds,
+# and each cogniate-app and lti-service container is exited, created or dead, or absent. Else exit 1 (nothing changed).
+require_services_stopped() {
+  local states not_stopped="" service state
+  _stopped_refuse() { echo "$1 Nothing was changed." >&2; exit 1; }
+  command -v docker >/dev/null 2>&1 || _stopped_refuse "Cannot check that cogniate-app and lti-service are stopped: docker is not installed."
+  docker info >/dev/null 2>&1 || _stopped_refuse "Cannot check that cogniate-app and lti-service are stopped: Docker does not answer. Start Docker, then run the command again."
+  states="$(dc ps -a --format '{{.Service}} {{.State}}' 2>/dev/null)" || _stopped_refuse "Cannot check that cogniate-app and lti-service are stopped: docker compose ps failed."
+  while read -r service state; do
+    case "$service" in cogniate-app|lti-service) ;; *) continue ;; esac
+    case "$state" in exited|created|dead) ;; *) not_stopped+="$service ($state) " ;; esac
+  done <<< "$states"
+  [[ -z "$not_stopped" ]] || _stopped_refuse "Stop the services first: ${not_stopped}is not stopped. Use the stack's compose stop for cogniate-app and lti-service."
+}
+
+# The storage preflight (§5) of both volumes: storage_preflight <report|check|mark-started> [--prepare]
+storage_preflight() {
+  local mode="$1"; shift
+  STORAGE_RUN_ID="$(storage_run_id)"
+  local name="$COMPOSE_PROJECT_NAME-storage-$STORAGE_RUN_ID"
+  storage_lock_add_container "$name"
+  dc --profile storage run --rm -T --name "$name" --label "org.cogniate.storage.run=$STORAGE_RUN_ID" storage-preflight "$mode" \
+    --run-id "$STORAGE_RUN_ID" --project "$COMPOSE_PROJECT_NAME" --folder lti=/check/lti-service --folder app=/check/cogniate-app "$@"
+}
+
+# §10 step 1: a container of this project that still mounts a legacy bind folder at /data.
+old_layout_check() {
+  local id line lti app
+  lti="$(cd "$INFRA_DIR/.data" 2>/dev/null && pwd -P)/lti-service"; app="$(cd "$INFRA_DIR/.data" 2>/dev/null && pwd -P)/cogniate-app"
+  for id in $(docker ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME"); do
+    while IFS='|' read -r dest src; do
+      [[ "$dest" == /data ]] || continue
+      if [[ "$src" == "$lti" || "$src" == "$app" || "$src" == "$INFRA_DIR/.data/lti-service" || "$src" == "$INFRA_DIR/.data/cogniate-app" ]]; then
+        local name; name="$(docker inspect -f '{{.Name}}' "$id" | sed 's#^/##')"
+        storage_refusal_json old_layout_container container "$name" id "$id" mount "infra/.data/$(basename "$src")"
+        echo "old_layout_container: container $name ($id) still mounts $src at /data. Remove the old containers first (npm run stack:down). Nothing was changed." >&2
+        return 1
+      fi
+    done < <(docker inspect -f '{{range .Mounts}}{{.Destination}}|{{.Source}}{{println}}{{end}}' "$id")
+  done
+}
+
+# §10: the legacy scan of stack-up.sh, under the lock and before `check`. The first matching row L1–L7 decides.
+legacy_scan() {
+  old_layout_check || return 1
+  local report rc=0
+  report="$(mktemp "${TMPDIR:-/tmp}/storage-report.XXXXXX")"
+  # The decision comes from the report lines (a refused state also exits 1); a run without a summary line refuses.
+  storage_preflight report > "$report" || true
+  cat "$report"
+  node "$INFRA_DIR/scripts/stack-data.mjs" legacy-decide --data "$INFRA_DIR/.data" --report "$report" || rc=$?
+  rm -f "$report"
+  return "$rc"
 }

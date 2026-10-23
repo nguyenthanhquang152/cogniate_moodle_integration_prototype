@@ -6,6 +6,7 @@ import type { ProtocolErrorCode } from '../lti/codes.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
 import type { NrpsClient } from '../platform/nrps.ts';
+import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import type { AuthResult, Scheme } from './auth.ts';
 
 export interface RouteContext {
@@ -19,9 +20,11 @@ export interface RouteContext {
   nrps: NrpsClient;
   /** Guarded outbound client (security §9): dynamic registration calls (T3b). */
   outbound: OutboundClient;
+  /** Provider profile options (LTI contract §9.13): simulation profiles on or off. */
+  profiles: ProfileOptions;
   now: () => number;
   /** Resolve the Authorization header (contract §1.2); throws the 401 ApiError and logs api_auth_failed. */
   auth: (req: FastifyRequest, schemes: Scheme[]) => AuthResult;
   /** Protocol HTML error page (security §2.2) with its status and headers. */
-  errorPage: (reply: FastifyReply, req: FastifyRequest, code: ProtocolErrorCode, opts?: { help?: string; detail?: string; status?: number; heading?: string }) => FastifyReply;
+  errorPage: (reply: FastifyReply, req: FastifyRequest, code: ProtocolErrorCode, opts?: { help?: string; detail?: string; status?: number; heading?: string; lms?: LmsName }) => FastifyReply;
 }

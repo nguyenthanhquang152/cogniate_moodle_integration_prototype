@@ -25,7 +25,9 @@ export function registerPortal(app: FastifyInstance, deps: { db: Db; now: () => 
       throw error;
     }
   });
+  // M1 (app contract §4.2): the Canvas and Blackboard routes next to the Moodle routes.
   const routes = ['/', '/signin', '/integrations', '/integrations/moodle/connect', '/integrations/moodle/:connectionId',
+    '/integrations/canvas/connect', '/integrations/canvas/:connectionId', '/integrations/blackboard/connect', '/integrations/blackboard/:connectionId',
     '/libraries/courses', '/libraries/courses/:courseId', '/libraries/courses/:courseId/publish',
     '/publications/:publicationId/results', '/prototype/:page'];
   for (const path of routes) {

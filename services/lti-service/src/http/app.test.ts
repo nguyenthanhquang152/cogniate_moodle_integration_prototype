@@ -296,7 +296,7 @@ describe('cross-cutting', () => {
 
   it('health has status, service, profile, knobs and the outbound allowlist', async () => {
     const h = await harness();
-    expect((await h.app.inject('/healthz')).json()).toEqual({ status: 'ok', service: 'lti-service', profile: 'default', knobs: [], outbound_allowlist: [] });
+    expect((await h.app.inject('/healthz')).json()).toEqual({ status: 'ok', service: 'lti-service', profile: 'default', knobs: [], outbound_allowlist: [], simulation_profiles: [] });
   });
 
   it('unknown routes use the error shape', async () => {

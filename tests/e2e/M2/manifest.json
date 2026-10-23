@@ -1,0 +1,514 @@
+[
+ {
+  "id": "M2-01.cards",
+  "ac": "AC-M2-01",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-01 the LMS Publishing filter shows the Moodle, Canvas and Blackboard cards with their texts and initials {case:M2-01.cards}",
+  "kind": "browser",
+  "file": "e2e/M2/01-cards.m2.ts"
+ },
+ {
+  "id": "M2-01.isolated-newest",
+  "ac": "AC-M2-01",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-01 each card follows only its own LMS newest connection, with equal names and creation times {case:M2-01.isolated-newest}",
+  "kind": "browser",
+  "file": "e2e/M2/01-cards.m2.ts"
+ },
+ {
+  "id": "M2-01.moodle-card",
+  "ac": "AC-M2-01",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-01 the Moodle card text and its connect flow are unchanged {case:M2-01.moodle-card}",
+  "kind": "browser",
+  "file": "e2e/M2/01-cards.m2.ts"
+ },
+ {
+  "id": "M2-02.not-ready",
+  "ac": "AC-M2-02",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-02 without a blackboard-sim shared platform the Blackboard card shows the not-ready text and a disabled Connect {case:M2-02.not-ready}",
+  "kind": "browser",
+  "file": "e2e/M2/00-blackboard-not-ready.m2.ts"
+ },
+ {
+  "id": "M2-02.ready",
+  "ac": "AC-M2-02",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-02 after the shared platform exists, Connect works and step 2 shows the Client ID qa-bb-app {case:M2-02.ready}",
+  "kind": "browser",
+  "file": "e2e/M2/00-blackboard-not-ready.m2.ts"
+ },
+ {
+  "id": "M2-03.profile-labels",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 lists the Canvas profile labels from lms-providers, with the simulation label last {case:M2-03.profile-labels}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule1-fragment",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 1 text on the Canvas URL field and makes no connection {case:M2-03.rule1-fragment}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule1-http",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 1 text on the Canvas URL field and makes no connection {case:M2-03.rule1-http}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule1-path",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 1 text on the Canvas URL field and makes no connection {case:M2-03.rule1-path}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule1-query",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 1 text on the Canvas URL field and makes no connection {case:M2-03.rule1-query}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule1-userinfo",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 1 text on the Canvas URL field and makes no connection {case:M2-03.rule1-userinfo}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule2-ipv4",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 2 text on the Canvas URL field and makes no connection {case:M2-03.rule2-ipv4}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule2-ipv6",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 2 text on the Canvas URL field and makes no connection {case:M2-03.rule2-ipv6}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule2-localhost",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 2 text on the Canvas URL field and makes no connection {case:M2-03.rule2-localhost}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule2-sub-localhost",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 2 text on the Canvas URL field and makes no connection {case:M2-03.rule2-sub-localhost}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule3-app",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 3 text on the Canvas URL field and makes no connection {case:M2-03.rule3-app}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule3-content",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 3 text on the Canvas URL field and makes no connection {case:M2-03.rule3-content}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule3-lti",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 3 text on the Canvas URL field and makes no connection {case:M2-03.rule3-lti}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule4-service-sso",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 4 text on the service URL field and makes no connection {case:M2-03.rule4-service-sso}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule4-sso",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 4 text on the Canvas URL field and makes no connection {case:M2-03.rule4-sso}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule4-sso-port",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 4 text on the Canvas URL field and makes no connection {case:M2-03.rule4-sso-port}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.rule5-instructure",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 Canvas step 1 shows the rule 5 text on the Canvas URL field and makes no connection {case:M2-03.rule5-instructure}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.valid-default-service",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 a valid Canvas step 1 makes one pending connection (valid-default-service) {case:M2-03.valid-default-service}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-03.valid-split",
+  "ac": "AC-M2-03",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-03 a valid Canvas step 1 makes one pending connection (valid-split) {case:M2-03.valid-split}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.clipboard-denied",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 with clipboard access denied, a selectable text box shows the same JSON {case:M2-04.clipboard-denied}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.copy-json",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 Copy JSON puts exactly the canvas-configuration body on the clipboard {case:M2-04.copy-json}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.download-failure",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 a failed JSON download never shows success {case:M2-04.download-failure}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.download-json",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 Download JSON saves cogniate-canvas-lti.json with the same content {case:M2-04.download-json}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.inline",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 the public key checkbox switches Copy and Download to the inline export and shows its key id {case:M2-04.inline}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-04.rows",
+  "ac": "AC-M2-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-04 Canvas step 2 shows the four developer key rows in order, each with Copy {case:M2-04.rows}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.grant-invalid",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 a used approval code shows the GRANT_INVALID text and the connection stays pending {case:M2-05.grant-invalid}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.grant-mismatch",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 another deployment id shows GRANT_MISMATCH and marks the Deployment ID field {case:M2-05.grant-mismatch}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.invalid-values",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 an empty approval code shows the check text and marks the field {case:M2-05.invalid-values}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.lti-service-error",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 an LTI service failure shows the retry text with a trace id; the connection stays pending {case:M2-05.lti-service-error}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.platform-in-use",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 a developer key that another library uses shows PLATFORM_IN_USE {case:M2-05.platform-in-use}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-05.success",
+  "ac": "AC-M2-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-05 Canvas steps 1 to 4 with a matching approval code register the connection; the code is cleared {case:M2-05.success}",
+  "kind": "browser",
+  "file": "e2e/M2/02-canvas-wizard.m2.ts"
+ },
+ {
+  "id": "M2-06.deployment-in-use",
+  "ac": "AC-M2-06",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-06 a deployment that another library holds shows DEPLOYMENT_IN_USE; the connection stays pending {case:M2-06.deployment-in-use}",
+  "kind": "browser",
+  "file": "e2e/M2/03-blackboard-wizard.m2.ts"
+ },
+ {
+  "id": "M2-06.retry-after-error",
+  "ac": "AC-M2-06",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-06 after an LTI_SERVICE_ERROR, a second Save with the same code registers {case:M2-06.retry-after-error}",
+  "kind": "browser",
+  "file": "e2e/M2/03-blackboard-wizard.m2.ts"
+ },
+ {
+  "id": "M2-06.second-deployment",
+  "ac": "AC-M2-06",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-06 the same code with a second deployment id shows GRANT_MISMATCH; the reservation is kept {case:M2-06.second-deployment}",
+  "kind": "browser",
+  "file": "e2e/M2/03-blackboard-wizard.m2.ts"
+ },
+ {
+  "id": "M2-06.success",
+  "ac": "AC-M2-06",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-06 Blackboard steps 1 to 4 with a matching approval code register; step 4 shows Ultra and Original steps {case:M2-06.success}",
+  "kind": "browser",
+  "file": "e2e/M2/03-blackboard-wizard.m2.ts"
+ },
+ {
+  "id": "M2-07.badges",
+  "ac": "AC-M2-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-07 each connection view shows its LMS badge, and the connection list names the LMS of every connection {case:M2-07.badges}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-07.canvas-detail",
+  "ac": "AC-M2-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-07 a registered Canvas detail shows site, service URL and adds a deployment with an approval code {case:M2-07.canvas-detail}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-07.no-add-elsewhere",
+  "ac": "AC-M2-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-07 Moodle and Blackboard details have no Add deployment ID {case:M2-07.no-add-elsewhere}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-08.blackboard-no-moodle-features",
+  "ac": "AC-M2-08",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-08 a blackboard connection has no web services section and no empty Moodle course option {case:M2-08.blackboard-no-moodle-features}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-08.canvas-no-moodle-features",
+  "ac": "AC-M2-08",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-08 a canvas connection has no web services section and no empty Moodle course option {case:M2-08.canvas-no-moodle-features}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-08.moodle-controls",
+  "ac": "AC-M2-08",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-08 a Moodle connection keeps its web services section; the .mbz section is labeled Moodle only {case:M2-08.moodle-controls}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-09.blackboard-dialog",
+  "ac": "AC-M2-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-09 the Blackboard disconnect dialog has the exact text; confirm disables the connection {case:M2-09.blackboard-dialog}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-09.canvas-dialog",
+  "ac": "AC-M2-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-09 the Canvas disconnect dialog names Canvas; confirm disables the connection {case:M2-09.canvas-dialog}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-09.moodle-dialog",
+  "ac": "AC-M2-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-09 the Moodle disconnect dialog keeps its exact pre-M2 title and text {case:M2-09.moodle-dialog}",
+  "kind": "browser",
+  "file": "e2e/M2/04-detail.m2.ts"
+ },
+ {
+  "id": "M2-10.canvas-results",
+  "ac": "AC-M2-10",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-10 Canvas results show the Canvas learner label and Canvas texts {case:M2-10.canvas-results}",
+  "kind": "browser",
+  "file": "e2e/M2/05-publish-results.m2.ts"
+ },
+ {
+  "id": "M2-10.publish-dialog",
+  "ac": "AC-M2-10",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-10 Publish to an LMS lists every ready connection as name (LMS, site host) and no pending or disabled one {case:M2-10.publish-dialog}",
+  "kind": "browser",
+  "file": "e2e/M2/05-publish-results.m2.ts"
+ },
+ {
+  "id": "M2-11.add-deployment-keyboard",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 the Canvas add-deployment form works with the keyboard only {case:M2-11.add-deployment-keyboard}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-11.axe-blackboard",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 axe finds no serious or critical issue on Blackboard steps 1 to 3 {case:M2-11.axe-blackboard}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-11.axe-canvas",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 axe finds no serious or critical issue on Canvas steps 1 to 3 {case:M2-11.axe-canvas}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-11.axe-canvas-detail",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 axe finds no serious or critical issue on the Canvas connection detail {case:M2-11.axe-canvas-detail}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-11.blackboard-keyboard",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 the Blackboard wizard works with the keyboard only and announces its status {case:M2-11.blackboard-keyboard}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-11.canvas-keyboard",
+  "ac": "AC-M2-11",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-11 the Canvas wizard works with the keyboard only and announces its status {case:M2-11.canvas-keyboard}",
+  "kind": "browser",
+  "file": "e2e/M2/06-keyboard-axe.m2.ts"
+ },
+ {
+  "id": "M2-12.blackboard",
+  "ac": "AC-M2-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-12 portal Blackboard connection, publish, simulated teacher pick and learner completion end with sync Sent {case:M2-12.blackboard}",
+  "kind": "browser",
+  "file": "e2e/M2/07-sim-scenario.m2.ts"
+ },
+ {
+  "id": "M2-12.canvas",
+  "ac": "AC-M2-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-12 portal Canvas connection, publish, simulated teacher pick and learner completion end with sync Sent {case:M2-12.canvas}",
+  "kind": "browser",
+  "file": "e2e/M2/07-sim-scenario.m2.ts"
+ },
+ {
+  "id": "M2-13.cross-library",
+  "ac": "AC-M2-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-13 library B sees not found for library A connection ids {case:M2-13.cross-library}",
+  "kind": "browser",
+  "file": "e2e/M2/08-routes.m2.ts"
+ },
+ {
+  "id": "M2-13.cross-provider",
+  "ac": "AC-M2-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-13 a Canvas id under the Blackboard route (and the reverse) shows not found {case:M2-13.cross-provider}",
+  "kind": "browser",
+  "file": "e2e/M2/08-routes.m2.ts"
+ },
+ {
+  "id": "M2-13.form-state",
+  "ac": "AC-M2-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-13 values typed in the Canvas wizard never appear in the Blackboard wizard after a client-side move {case:M2-13.form-state}",
+  "kind": "browser",
+  "file": "e2e/M2/08-routes.m2.ts"
+ },
+ {
+  "id": "M2-13.no-stale-values",
+  "ac": "AC-M2-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-13 a client-side move from a Canvas detail to a Blackboard detail never shows Canvas values, also after a late Canvas answer {case:M2-13.no-stale-values}",
+  "kind": "browser",
+  "file": "e2e/M2/08-routes.m2.ts"
+ },
+ {
+  "id": "M2-13.routes-open",
+  "ac": "AC-M2-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M2-13 the four new routes open the right wizard or detail {case:M2-13.routes-open}",
+  "kind": "browser",
+  "file": "e2e/M2/08-routes.m2.ts"
+ }
+]

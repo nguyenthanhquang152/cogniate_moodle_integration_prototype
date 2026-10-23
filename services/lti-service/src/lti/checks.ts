@@ -9,7 +9,8 @@ import { readCookie, safeEqual } from '@cogniate/shared';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
 import type { Db } from '../db/index.ts';
-import type { Platform } from '../store/platforms.ts';
+import type { DeploymentRecord, Platform } from '../store/platforms.ts';
+import { findDeployment } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';
 import { consumeState } from '../store/states.ts';
 import type { ProtocolErrorCode } from './codes.ts';
@@ -147,12 +148,18 @@ export function check8Nonce(claims: Claims, state: StateRecord): void {
   if (!safeEqual(claims.nonce as string, state.nonce)) fail('8', 'INVALID_NONCE', 'nonce_mismatch');
 }
 
-/** Check 9: deployment_id is a known deployment of the platform. */
-export function check9Deployment(claims: Claims, platform: Platform): string {
+/**
+ * Check 9: deployment_id is a known deployment of the platform; M1: equal to the login `lti_deployment_id` when the
+ * login had one, and active (LTI contract §9.7). No exception for a shared platform.
+ */
+export function check9Deployment(claims: Claims, platform: Platform, state?: Pick<StateRecord, 'loginDeploymentId'>): DeploymentRecord {
   const d = claims[CLAIM.deploymentId];
-  if (typeof d !== 'string' || d === '') fail('9', 'UNKNOWN_DEPLOYMENT', 'deployment_missing');
-  if (!platform.deploymentIds.includes(d as string)) fail('9', 'UNKNOWN_DEPLOYMENT', 'deployment_unknown');
-  return d as string;
+  if (typeof d !== 'string' || d === '') return fail('9', 'UNKNOWN_DEPLOYMENT', 'deployment_missing');
+  const deployment = findDeployment(platform, d);
+  if (!deployment) return fail('9', 'UNKNOWN_DEPLOYMENT', 'deployment_unknown');
+  if (state?.loginDeploymentId && state.loginDeploymentId !== d) fail('9', 'UNKNOWN_DEPLOYMENT', 'deployment_differs_from_login');
+  if (!deployment.active) fail('9', 'DEPLOYMENT_NOT_ACTIVE', 'deployment_inactive');
+  return deployment;
 }
 
 /** Check 10: version = 1.3.0 and a supported message type. */
@@ -185,4 +192,60 @@ export function check12Target(claims: Claims, state: StateRecord, urls: PublicUr
   const target = claims[CLAIM.targetLinkUri];
   if (target !== state.targetLinkUri) fail('12', 'INVALID_TARGET_LINK_URI', 'target_differs_from_login');
   if (!isOwnLaunchTarget(target, urls, accountId)) fail('12', 'INVALID_TARGET_LINK_URI', 'target_not_own');
+}
+
+// ---------------------------------------------------------------- M1: checks 13 and 14 (security §2.2, LTI contract §9.7)
+
+/** The canonical origin of a URL for the check 13 detail, or `invalid`. */
+function originOrInvalid(value: unknown): string {
+  if (typeof value !== 'string') return 'invalid';
+  try {
+    return new URL(value).origin;
+  } catch {
+    return 'invalid';
+  }
+}
+
+/** True when `value` is an https URL without user info on `origin`. */
+function onOrigin(value: string, origin: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'https:' && u.username === '' && u.password === '' && u.origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check 13 (profiles with `serviceOriginCheck`): AGS `lineitems`, AGS `lineitem` and NRPS `context_memberships_url`
+ * on the service origin; `deep_link_return_url` on the site origin. Every present URL claim is https without user
+ * info. Detail: `claim=<name> host=<origin of the failing URL>` (an origin is neither a secret nor personal data).
+ */
+export function check13Origins(claims: Claims, origins: { site: string; service: string }): void {
+  const obj = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+  const ags = obj(claims[CLAIM.ags]);
+  const nrps = obj(claims[CLAIM.nrps]);
+  const dl = obj(claims[CLAIM.deepLinkingSettings]);
+  const list: Array<[string, unknown, string]> = [
+    ['ags_lineitems', ags?.lineitems, origins.service],
+    ['ags_lineitem', ags?.lineitem, origins.service],
+    ['nrps', nrps?.context_memberships_url, origins.service],
+    ['dl_return', dl?.deep_link_return_url, origins.site],
+  ];
+  for (const [name, value, origin] of list) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'string' || !onOrigin(value, origin)) fail('13', 'SERVICE_ORIGIN_MISMATCH', `claim=${name} host=${originOrInvalid(value)}`);
+  }
+}
+
+/**
+ * Check 14 (every profile): a signed `tool_platform.product_family_code` of `canvas` or `blackboardlearn` (any case)
+ * needs a profile of that LMS. Any other value and a missing claim pass (Moodle unchanged). Returns the refused family
+ * in the error detail (`family=canvas` or `family=blackboardlearn`).
+ */
+export function check14ProductFamily(claims: Claims, profileLms: 'canvas' | 'blackboard' | null): void {
+  const tp = claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
+  const code = tp && typeof tp === 'object' && typeof tp.product_family_code === 'string' ? tp.product_family_code.toLowerCase() : null;
+  if (code === 'canvas' && profileLms !== 'canvas') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=canvas');
+  if (code === 'blackboardlearn' && profileLms !== 'blackboard') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=blackboardlearn');
 }

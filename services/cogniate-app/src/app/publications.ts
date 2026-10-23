@@ -12,6 +12,7 @@ import { launchStats } from '../domain/launch.ts';
 import { outcomeStats } from '../domain/results.ts';
 import type { Publication } from '../domain/publications.ts';
 import { getPublication, listPublications, setShell, upsertPublication, withdrawPublication } from '../domain/publications.ts';
+import { capabilitiesOf, lmsNameOf } from '../providers/index.ts';
 import { ApiError } from './api-errors.ts';
 
 const iso = (ms: number): string => new Date(ms).toISOString();
@@ -22,6 +23,8 @@ export function publicationJson(db: Db, p: Publication) {
   return {
     id: p.id, connectionId: p.connectionId, courseId: p.courseId, courseTitle: p.courseTitle, versionId: p.versionId, version: p.version,
     format: p.format, status: p.status,
+    // M1 (§5.1)
+    lms: p.lms, connectionName: p.connectionName,
     // activities and learners (T4b2); outcome counts by each learner's best outcome and the last sent sync (T5a).
     stats: { activities, learners, inProgress, completed, passed, failed, lastScoreSync },
     createdAt: iso(p.createdAt), updatedAt: iso(p.updatedAt),
@@ -79,8 +82,12 @@ export function registerPublicationRoutes(api: FastifyInstance, deps: { db: Db; 
     if (!connection) throw notFound('connection');
     const course = getCourse(db, lib, body.data.courseId);
     if (!course) throw notFound('course');
+    // M1 (§4.7.2): the course shell is a Moodle capability; nothing is stored when it is missing.
+    if (body.data.createMoodleCourse && !capabilitiesOf(connection.lms).courseShell) {
+      throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'Only a Moodle connection can create a Moodle course.', { details: { capability: 'courseShell' } });
+    }
     if (connection.status !== 'registered' && connection.status !== 'connected') {
-      throw new ApiError('CONNECTION_NOT_READY', 'The connection is not registered yet. Finish the registration in Moodle first.');
+      throw new ApiError('CONNECTION_NOT_READY', `The connection is not registered yet. Finish the registration in ${lmsNameOf(connection.lms)} first.`);
     }
     const version = body.data.versionId !== undefined ? getVersion(db, lib, course.id, body.data.versionId) : latestVersion(db, lib, course.id);
     if (body.data.versionId !== undefined && !version) throw notFound('course version');

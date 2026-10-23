@@ -20,7 +20,8 @@ source "$(dirname "$0")/lib.sh"
 
 DIR="$INFRA_DIR/.certs"
 NAMES=("${STACK_HOSTS[@]}")   # the four public host names (lib.sh, B-T1-10)
-QA_NAMES=(evil.test qa-platform.test)
+# M1 (M3 §3.1, §3.3): the simulator hosts and the transport gate share the QA leaf (acceptance profile only).
+QA_NAMES=(evil.test qa-platform.test "${SIM_ALIASES[@]}" "$GATE_HOST")
 CA_DAYS=365
 LEAF_DAYS=90
 RENEW_DAYS=30

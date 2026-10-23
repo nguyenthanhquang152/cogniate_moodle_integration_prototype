@@ -1,6 +1,6 @@
 # Contract: Cogniate app (stand-in for the Cogniate platform)
 
-Status: T0 round 2. Owner: Architect. Security rules: [`../security.md`](../security.md). Flows: [`../flows.md`](../flows.md).
+Status: T0 round 2; M0 multi-LMS additions in §4.2–§4.9, §5.1 and §6.1 (2026-10-20; corrected after the formal M0 reviews). Owner: Architect. Security rules: [`../security.md`](../security.md). Flows: [`../flows.md`](../flows.md).
 
 NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). When Cogniate gives its contract, only this app changes.
 
@@ -20,6 +20,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 | §9 HTML runtime, results refresh, Resend, retry schedule | T5b |
 | §3 download `kind=original` | T6 |
 | §11 course shell and web services token, `kind=mbz` | T8 (stretch) |
+| §4.2–§4.9 LMS types, providers, portal routes, Canvas and Blackboard registration with operator grants, deployments, capability guards, grant and binding CLIs; §5.1 publication fields; §6.1 multi-LMS tool page rules; §12 additions | M1 (portal use: M2) |
 
 ---
 
@@ -188,6 +189,428 @@ The first valid launch from the platform sets `connected` and `lastLaunchAt`.
 
 The six values back from Moodle use the fixed keys of `PUT .../platform`: `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`.
 
+### 4.2 LMS type, provider profile and capabilities (M1)
+
+Design: [ADR-011](../adr/ADR-011-multi-lms.md). All fields below are additions. A request without them behaves as in §4 and §4.1 (LMS `moodle`, profile `standard`).
+
+Connection DTO (every connection answer; new fields marked M1):
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id`, `name`, `siteUrl`, `method`, `status`, `createdAt`, `lastLaunchAt`, `lastError`, `webServices` | as §4 | unchanged |
+| `registrationUrl`, `registrationUrlExpiresAt` | string or `null` | unchanged (pending dynamic Moodle connection only) |
+| `lms` (M1) | `"moodle"`, `"canvas"`, `"blackboard"` | stored; default `moodle` |
+| `profile` (M1) | string | LTI service profile id; stored; default per LMS: `moodle` → `standard`, `canvas` → `canvas-cloud-production`, `blackboard` → `blackboard` |
+| `serviceUrl` (M1) | string | Canvas: the service URL (https origin of the Canvas AGS and NRPS URLs and the token endpoint; the root account domain); stored; default `siteUrl`. Moodle and Blackboard: always equal to `siteUrl`. |
+| `capabilities` (M1) | object of booleans | derived from `lms` ([ADR-011 §11](../adr/ADR-011-multi-lms.md#11-capabilities)): `dynamicRegistration`, `operatorApproval`, `webServices`, `courseShell`, `addDeployment`, `canvasConfiguration` |
+| `platform` | object or `null` | `{ id, issuer, clientId, deploymentIds, productFamilyCode, siteUrl (M1), serviceUrl (M1) }`. `siteUrl` = the site origin, `serviceUrl` = the service origin (for Moodle both equal the connection `siteUrl`). Blackboard: `deploymentIds` has only this connection's deployment, never other schools' ids. Canvas and Blackboard: `deploymentIds` lists only deployments with a committed approval (§4.7.1), never an unapproved remote row. |
+
+The DTO never contains an approval code, a grant note or a grant id.
+
+Example (registered Canvas connection):
+
+```json
+{
+  "id": "con_...", "name": "School A Canvas", "siteUrl": "https://canvas.school-a.edu", "method": "manual", "status": "registered",
+  "lms": "canvas", "profile": "canvas-cloud-production", "serviceUrl": "https://school-a.instructure.com",
+  "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": true },
+  "registrationUrl": null, "registrationUrlExpiresAt": null,
+  "platform": { "id": "plt_...", "issuer": "https://canvas.instructure.com", "clientId": "10000000000042", "deploymentIds": ["12:8865aa05b4b79b64a91a86042e43af5ea8ae79eb"], "productFamilyCode": "canvas", "siteUrl": "https://canvas.school-a.edu", "serviceUrl": "https://school-a.instructure.com" },
+  "createdAt": "...", "lastLaunchAt": null, "lastError": null, "webServices": null
+}
+```
+
+`POST /app-api/connections` body: `{ name, siteUrl, method, lms?, profile?, serviceUrl? }`.
+
+| Rule | Error |
+| --- | --- |
+| `lms` not one of the three | `400 INVALID_REQUEST`, `details.field = "lms"` |
+| `profile` is not a profile of that LMS in `GET /app-api/lms-providers` (simulation profiles only when they are on) | `400 INVALID_REQUEST`, `details.field = "profile"` |
+| `method: "dynamic"` with `lms` other than `moodle` | `422 CAPABILITY_NOT_SUPPORTED`, `details.capability = "dynamicRegistration"`; nothing stored |
+| `lms` other than `moodle`: `siteUrl` or `serviceUrl` breaks a site rule ([ADR-011 §6](../adr/ADR-011-multi-lms.md#6-provider-trust-profiles); the same shared function as the LTI service) | `422 INVALID_SITE_URL`, `details.rule` (1 to 5), `details.field` (`siteUrl` or `serviceUrl`) |
+| `serviceUrl` with `lms` other than `canvas` | `400 INVALID_REQUEST`, `details.field = "serviceUrl"` |
+| `lms: "blackboard"` and the profile has no active shared platform | `409 PROVIDER_NOT_READY` with the neutral title and action of §4.7.3; log `provider_not_ready {connection_id: null, profile, cause: "platform_inactive"}` (no connection exists yet); nothing stored |
+
+Provider snapshot (M1, §4.7.3): in the same insert transaction, the create handler saves `target_issuer`, `target_platform_id` and `target_client_id` from the same `GET /api/providers` answer that it read for the rules above. No request field sets them; they are not in the DTO; they never change. A Moodle create reads no providers and saves no snapshot.
+
+A new Canvas or Blackboard connection is `pending` and has `method: "manual"`. Its `siteUrl` and `serviceUrl` are stored and answered in canonical origin form (ADR-011 §6; `HTTPS://Canvas.School.EDU:443/` → `https://canvas.school.edu`). Every Canvas profile, also `canvas-self-hosted`, accepts a separate `serviceUrl`; for `canvas-self-hosted` the issuer is the `siteUrl`. The Moodle rules of §4 do not change.
+
+Portal routes (the app serves the portal for these paths; M1 adds them to the server allowlist, M2 to the portal router): `/integrations/canvas/connect`, `/integrations/canvas/:connectionId`, `/integrations/blackboard/connect`, `/integrations/blackboard/:connectionId`, next to the existing Moodle routes. A route whose LMS is not the connection's `lms` shows the portal's "not found" view. Other unknown paths keep today's behaviour (no portal fallback for `/app-api/*`, `/tool/*`, `/play/*`).
+
+### 4.3 `GET /app-api/lms-providers` (M1)
+
+Session required. The app builds the answer from `GET /api/providers` (LTI contract §9.3). Failure of that call: `502 LTI_SERVICE_ERROR`.
+
+```json
+{
+  "lms": [
+    { "lms": "moodle", "label": "Moodle", "methods": ["dynamic", "manual"],
+      "capabilities": { "dynamicRegistration": true, "operatorApproval": false, "webServices": true, "courseShell": true, "addDeployment": false, "canvasConfiguration": false },
+      "profiles": [ { "id": "standard", "label": "Moodle site", "simulation": false, "ready": true, "clientId": null } ] },
+    { "lms": "canvas", "label": "Canvas", "methods": ["manual"],
+      "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": true },
+      "profiles": [
+        { "id": "canvas-cloud-production", "label": "Instructure-hosted Canvas (production)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-cloud-beta", "label": "Instructure-hosted Canvas (beta)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-cloud-test", "label": "Instructure-hosted Canvas (test)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-self-hosted", "label": "Self-hosted Canvas", "simulation": false, "ready": true, "clientId": null } ] },
+    { "lms": "blackboard", "label": "Blackboard Learn", "methods": ["manual"],
+      "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": false, "canvasConfiguration": false },
+      "profiles": [ { "id": "blackboard", "label": "Blackboard Learn", "simulation": false, "ready": false, "clientId": null } ] }
+  ]
+}
+```
+
+Simulation profile labels: `Canvas cloud (simulation)` for `canvas-sim-cloud`, `Blackboard Learn (simulation)` for `blackboard-sim`; they come last in their LMS list with `"simulation": true`, only when the LTI service reports them (LTI contract §9.13). `ready` = the profile is exclusive, or its shared platform exists and is active. `clientId` = the shared platform client id (the Blackboard Application ID), else `null`. Labels are app texts.
+
+### 4.4 `PUT /app-api/connections/:id/platform` per LMS (M1)
+
+Moodle (`profile: standard`): unchanged (§4). No grant.
+
+Canvas and Blackboard use a strict body. A key that is not listed (for example `issuer`, an endpoint, or `clientSecret`) gives `422 INVALID_PLATFORM_VALUES` with that key in `details.fields`, and nothing changes. A listed key that is missing also gives `422 INVALID_PLATFORM_VALUES` with that key. Values are trimmed, 1 to 255 characters, printable ASCII without spaces (`0x21`–`0x7E`); `grantCode` is 43 base64url characters.
+
+| LMS | Body | LTI service call in the redemption (§4.7) | Success |
+| --- | --- | --- | --- |
+| `canvas` | `{ clientId, deploymentId, grantCode }` | S1: `POST /api/platforms { profile, url: <saved target issuer>, clientId, name: "Cogniate (<library>)", siteUrl, serviceUrl, deploymentIds: [deploymentId], active: false, bindingRef: <ref c> }`; `url` pins the issuer saved in the attempt (the connection's `target_issuer`; for `canvas-self-hosted` the canonical `siteUrl`). Then S2/S3 of §4.7.1. | `200`, `registered` |
+| `blackboard` | `{ deploymentId, grantCode, clientId? }`. `clientId`, if sent, must equal the first non-null **local** value: the connection's `target_client_id`, then the persisted `platform.clientId`; else `422`, field `clientId`. If both are null (an old pending `011` row, §4.7.3), only its form is checked. | V, then S1: `POST /api/platforms/{target_platform_id}/deployments { deploymentId, siteUrl, active: false, bindingRef: <ref c> }`. Then S2/S3 of §4.7.1. | `200`, `registered` |
+
+Order for Canvas and Blackboard (the first failure answers; steps 1–5 are local and send **no** LTI request): (1) another library's connection → `404`; (2) no provider adapter → `409 CAPABILITY_NOT_SUPPORTED`; (3) strict body → `422 INVALID_PLATFORM_VALUES`; (4) finalized repeat → `200`; (5) phase 1 of §4.7.1, checks 1–7 with check 4a. Only after the phase-1 commit does the LTI step start (Blackboard: V first).
+
+| Case | Answer |
+| --- | --- |
+| Grant errors and races | §4.7 |
+| Canvas: the LTI service answers `409 PLATFORM_ALREADY_EXISTS` | S2 of §4.7.1: the app reads the platform and applies the adoption rule. Not adoptable: `409 PLATFORM_IN_USE` ("This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."); the grant stays unredeemed; nothing changes. |
+| Blackboard: the deployment is reserved by **another** connection that is not a `disabled` connection of the same library | `409 DEPLOYMENT_IN_USE` ("This Blackboard site is already connected to Cogniate."); no LTI service call; the grant stays unredeemed |
+| Blackboard: this connection already holds a reservation for **another** deployment id | `409 DEPLOYMENT_FIXED` ("This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection."); no LTI service call. Reached only when check 5 passes (§4.7.1 "Precedence"): with the original grant and another id, the answer is `422 GRANT_MISMATCH`. |
+| Blackboard: the LTI service answers `409 DEPLOYMENT_ALREADY_EXISTS` while this connection holds the reservation | S2 of §4.7.1: the app reads the deployment and applies the adoption rule; the activation (S3) sends `siteUrl` and starts a new binding (generation + 1). Not adoptable (an active deployment with a ref outside this connection's older history): `409 DEPLOYMENT_IN_USE`; nothing changes. |
+| `initial` on a connection without a complete provider snapshot (phase-1 check 4a), a Blackboard V that does not match, or a readiness answer of S1 (§4.7.1) | `409 PROVIDER_NOT_READY` with the neutral text of §4.7.3; log `provider_not_ready {connection_id, profile, cause}` |
+| A repeat of the call that registered this connection (same `clientId` and `deploymentId`) | `200` from the persisted `platform`, before phase 1; nothing changes, no grant is checked or used, no LTI call |
+| The LTI service fails (5xx, timeout, no answer) | `502 LTI_SERVICE_ERROR`. The attempt clears the connection lease (§4.7.1); Blackboard keeps the reservation with this pending connection. A retry with the same grant, or a replacement grant with the same values, can finish. |
+| The LTI service answers `400 INVALID_SITE_URL` | `422 INVALID_SITE_URL` |
+| The activation (S3) answers `409 BINDING_REF_MISMATCH` twice (another request changed the record after each read) | `409 GRANT_IN_USE`; the attempt clears the lease; the grant stays unredeemed; a later retry reads the record again |
+
+### 4.5 Tool configuration rows for Canvas and Blackboard (M1)
+
+`GET /app-api/connections/:id/tool-configuration` keeps the 16 Moodle rows of §4.1 for `moodle`. For the other LMS types it returns these rows, in this order. `key` is stable. `label` is the LMS form label (human text; the live checks confirm it). URLs come from `PUBLIC_LTI_URL`; the tool account is `cogniate`.
+
+Canvas (developer key form; only the Paste JSON method is supported):
+
+| # | `key` | `label` | `value` |
+| --- | --- | --- | --- |
+| 1 | `key_name` | Key Name | `Cogniate (<library name>)` |
+| 2 | `redirect_uris` | Redirect URIs | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 3 | `method` | Method | `Paste JSON` |
+| 4 | `lti_json` | LTI 1.3 Configuration | `Paste the JSON from "Copy JSON" or "Download JSON". Do not edit it.` |
+
+Blackboard (Learn tool registration; values the Learn admin compares):
+
+| # | `key` | `label` | `value` |
+| --- | --- | --- | --- |
+| 1 | `client_id` | Client ID | the shared client id (Application ID): the connection's `target_client_id`, else the persisted `platform.clientId`. No LTI call. If both are null (an old pending `011` row), the request answers `409 PROVIDER_NOT_READY` (§4.7.3), so a null row is never returned. |
+| 2 | `login_initiation_url` | Login Initiation URL | `{PUBLIC_LTI_URL}/lti/login/cogniate` |
+| 3 | `tool_redirect_url` | Tool Redirect URL(s) | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 4 | `tool_jwks_url` | Tool JWKS URL | `{PUBLIC_LTI_URL}/lti/keys/cogniate` |
+| 5 | `tool_status` | Tool Status | `Approved` |
+| 6 | `user_fields` | User Fields to Send | `Role in Course only. Do not send Name or Email Address.` |
+| 7 | `grade_service` | Allow grade service access | `Yes` |
+| 8 | `membership_service` | Allow Membership Service access | `Yes` |
+| 9 | `placement` | Placement | `Cogniate: type Deep Linking, Target Link URI {PUBLIC_LTI_URL}/lti/launch/cogniate, student access off` |
+
+Values that come back use the fixed keys of §4.4. The approval code comes from the operator, not from the LMS.
+
+### 4.6 `GET /app-api/connections/:id/canvas-configuration` (M1)
+
+Canvas connections only; other LMS types give `409 CAPABILITY_NOT_SUPPORTED`. Query `jwk`: `url` (default) or `inline`; another value gives `400 INVALID_REQUEST`. Headers: `Content-Type: application/json; charset=utf-8`, `Content-Disposition: attachment; filename="cogniate-canvas-lti.json"`, `Cache-Control: no-store`. The document is served only through this signed-in API (no public configuration URL). Body (exactly these keys; values for `cogniate`):
+
+```json
+{
+  "title": "Cogniate (<library name>)",
+  "description": "Cogniate courses (SCORM 1.2 and HTML) with grade return.",
+  "oidc_initiation_url": "{PUBLIC_LTI_URL}/lti/login/cogniate",
+  "target_link_uri": "{PUBLIC_LTI_URL}/lti/launch/cogniate",
+  "scopes": [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+    "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+  ],
+  "extensions": [
+    {
+      "domain": "<host of PUBLIC_LTI_URL>",
+      "tool_id": "cogniate",
+      "platform": "canvas.instructure.com",
+      "privacy_level": "anonymous",
+      "settings": {
+        "text": "Cogniate",
+        "placements": [
+          { "placement": "assignment_selection", "message_type": "LtiDeepLinkingRequest", "target_link_uri": "{PUBLIC_LTI_URL}/lti/launch/cogniate", "text": "Cogniate" }
+        ]
+      }
+    }
+  ],
+  "public_jwk_url": "{PUBLIC_LTI_URL}/lti/keys/cogniate",
+  "custom_fields": {}
+}
+```
+
+`domain` is the URL **host** of `PUBLIC_LTI_URL`: the lower-case host name, plus `:<port>` only when the port is not 443 (`https://lti.cogniate.test` → `lti.cogniate.test`; `https://lti.cogniate.test:8443` → `lti.cogniate.test:8443`; never `:443`). This is the form that Canvas matches: it compares the domain with the end of `.<host>[:<non-default port>]` of a tool URL (M1 review response C-1).
+
+With `jwk=inline` the key `public_jwk_url` is replaced by `public_jwk`: a **snapshot** of the active tool public key from `GET {PUBLIC_LTI_URL}/lti/keys/cogniate` (`kty`, `kid`, `alg: "RS256"`, `use: "sig"`, `n`, `e`; never a private member), and the answer has the header `X-Cogniate-Key-Id: <kid>`. Every other key is the same. Canvas does not refresh an inline key: after `lti:bootstrap --rotate-signing-key`, the Canvas admin must paste a new export, or Deep Linking and grade return fail for that installation. `platform` is `canvas.instructure.com` for every Canvas profile (it names the extension set, not a host). `link_selection` is not offered (ADR-011 §8, D-11).
+
+### 4.7 Operator approval grants, deployments, disconnect and guards (M1)
+
+#### 4.7.1 Grant redemption (two phases)
+
+Used by Canvas `PUT …/platform` (`purpose: initial`), Canvas `POST …/deployments` (`purpose: add_deployment`) and Blackboard `PUT …/platform` (`purpose: initial`). The start state of the connection is `pending` for `initial`, and `registered` or `connected` for `add_deployment`. Design: [ADR-011 §4a](../adr/ADR-011-multi-lms.md#4a-operator-approval-grant).
+
+Terms (tables in data model §4.2):
+
+| Term | Meaning |
+| --- | --- |
+| Attempt | One redemption request after phase 1. It has a random id, an order number `seq` (increases for each new attempt in the app database) and a **target**. Attempt rows are never deleted. |
+| Target | The remote record of the attempt. Phase 1 builds it from **local** data only and saves it in the attempt row: Canvas `initial` → the platform with (`lti_profile`, the connection's `target_issuer`, the request `clientId`, `deploymentId`); Canvas `add_deployment` → (the connection's `lti_platform_id`, `deploymentId`; issuer and client id from the persisted `platform`); Blackboard → (`target_platform_id`, `deploymentId`; issuer `target_issuer`; client `target_client_id`). The Canvas `initial` platform id is saved when S1 or S2 learns it; until then the target is found by `GET /api/platforms?url=<saved issuer>&clientId=<client id>&profile=<profile>` (LTI contract §9.4). |
+| Provider snapshot | `target_issuer`, `target_platform_id`, `target_client_id` on the connection, written once at create (§4.2, §4.7.3). |
+| Connection lease | `connection.redeeming_attempt` and `connection.redeeming_since`. It is **live** while `redeeming_since` is less than 60 s old. At most one live attempt per connection, for every grant of that connection. |
+| Ref history | Every binding ref that the app writes to the LTI service, with its connection, attempt (or operator command), action, target and an order number. The app commits the history row **before** it sends the call that carries the ref (write-ahead). Each ref is a new random value (`[A-Za-z0-9_-]`, 22 characters), unique in the history and never reused. History rows are never deleted. |
+| Owned | A remote record is owned by connection C when its current binding ref is in C's ref history. |
+| Older ref | For an attempt of C: a ref of C's history that was committed before this attempt's phase 1 (its history `seq` is at or below the attempt's `history_floor`, data model §4.2). |
+| Approval | An `approved_deployment` row (platform id, deployment id, connection, binding ref, grant). Only phase 2 writes it. It is the only source of launch and grade authority for Canvas and Blackboard (§6.1). |
+
+**Phase 1** (one `BEGIN IMMEDIATE` transaction, before any LTI service call). Checks in this order; the first failure answers:
+
+| # | Check | Failure |
+| --- | --- | --- |
+| 1 | `grantCode` has the right form and its SHA-256 matches a grant | `403 GRANT_INVALID` |
+| 2 | The grant is not revoked, not redeemed and not expired (**expiry is checked here only**) | `403 GRANT_INVALID` |
+| 3 | The grant's `library_id` is the session library, its `connection_id` is the path connection, and its `purpose` fits the endpoint | `403 GRANT_INVALID` |
+| 4 | The connection is in the start state of the purpose | `409 CONNECTION_NOT_PENDING` (`initial`) or `409 CONNECTION_NOT_READY` (`add_deployment`) |
+| 4a | Purpose `initial` only: the connection has a complete provider snapshot (§4.7.3) | `409 PROVIDER_NOT_READY` (neutral text, §4.7.3); log `provider_not_ready {cause: "no_snapshot"}` |
+| 5 | The grant's LMS type, profile, site URL and service URL equal the connection; its client id and deployment id equal the request (Blackboard: the connection's `target_client_id`) | `422 GRANT_MISMATCH`, `details.fields` = the request keys that differ (`clientId`, `deploymentId`), or `["connection"]` |
+| 6 | The connection lease is not live (`redeeming_attempt` is null, or `redeeming_since` is 60 s old or more). This also applies to a replacement grant. | `409 GRANT_IN_USE` |
+| 7 | Blackboard: the reservation of (shared platform, deployment) is free, **held by this connection** (retry), or held by a `disabled` connection of the same library (moved to this connection); and this connection holds no reservation for another deployment | `409 DEPLOYMENT_IN_USE` or `409 DEPLOYMENT_FIXED` |
+
+Phase 1 reads **only local rows** and makes no LTI call, for all three endpoints. It builds the target from snapshot values only after check 4a (for `add_deployment`: after check 4, from the persisted `platform`). It saves the target in the attempt row in the same transaction, before the commit. No remote resolution happens before the commit. The S1 request is built from the committed target after the commit.
+
+Precedence: check 5 comes before check 7. A request with the right grant and another deployment id therefore gets `422 GRANT_MISMATCH`. `409 DEPLOYMENT_FIXED` needs a grant for another deployment id, and the CLI does not issue one (§4.8), so it is a defensive branch for unit tests only.
+
+On success the transaction writes the attempt row (id, `seq`, grant, target), sets the connection lease (`redeeming_attempt` = the attempt id, `redeeming_since` = now; a lease older than 60 s is taken over), writes or moves the Blackboard reservation, and commits. **After** the commit it logs `grant_attempt_started {trace_id, grant_id, connection_id, attempt_id, purpose}` (exactly once per committed phase 1; never for a refusal or a rolled-back transaction; §12). Every `403` and `422` above logs `grant_rejected {reason, connection_id}` with a precise reason (`not_found`, `revoked`, `redeemed`, `expired`, `other_library`, `other_connection`, `purpose`, `mismatch`); the answer never says which of checks 1 to 3 failed. No check of phase 1 changes any LTI row.
+
+**LTI step.** No database transaction is open during an LTI call. Every call has the normal 5 s timeout. The transport gate of M3 §3.3 delays network traffic only; it does not pause the handler or its timeout.
+
+| Step | Action | Result |
+| --- | --- | --- |
+| S0 lease check | Before **every** LTI call of the attempt (V, S1, S2, S3 and compensation): one short transaction checks that `connection.redeeming_attempt` is this attempt and that at least 6 s of the 60 s lease remain. Before V, S1, S2 and S3 it also checks that the grant is not revoked and the connection is still in the start state. | Pass: send the call. Grant revoked or connection changed (before V or S1–S3): send no more V or S1–S3 calls; go to phase 2, which fails and compensates only if an S3 of this attempt succeeded. Lease lost or under 6 s: send no more calls (also no compensation); if the lease holds another attempt id, mark the attempt `cancelled`, log `grant_redemption_cancelled {reason: "taken_over"}` and answer `403 GRANT_INVALID`; else clear the lease, mark the attempt `failed` and answer `502 LTI_SERVICE_ERROR` (or, before a compensation, the phase-2 answer). Calls before phase 2: Blackboard at most six (V + S1 + S2 + S3 + S2 + S3), Canvas at most five; one compensation after it. Each runs after S0 with a 5 s timeout, so a normal attempt ends far inside the lease. |
+| V provider readiness (Blackboard `initial` only) | After S0: `GET /api/providers`, 5 s timeout. Read only. Then the post-V decision below. | Matched: S0, then S1. Else the post-V decision answers. |
+| S1 create | Write-ahead ref `c` (action `create`). Canvas `initial`: `POST /api/platforms {…, url: <saved issuer>, active: false, bindingRef: c}` (§4.4). Canvas `add_deployment`: `POST /api/platforms/{connection platform}/deployments {deploymentId, active: false, bindingRef: c}`. Blackboard: `POST /api/platforms/{target_platform_id}/deployments {deploymentId, siteUrl, active: false, bindingRef: c}`. | `201`: an inactive record with ref `c`; save the platform id in the attempt row; go to S3 and expect `c`. `409 PLATFORM_ALREADY_EXISTS` or `409 DEPLOYMENT_ALREADY_EXISTS`: go to S2. **Readiness answers** (Canvas `initial` `400 UNKNOWN_PROFILE` or `400 PLATFORM_URL_NOT_IN_PROFILE`; Blackboard `404 UNREGISTERED_PLATFORM`): the post-V decision rows 1–3, then `409 PROVIDER_NOT_READY` with row 4 handling. Another answer or a timeout: LTI failure. |
+| S2 read and decide | Read the target (Canvas `initial`: the lookup of the Terms table; else `GET /api/platforms/{id}` and its `deployments` row). Save the platform id in the attempt row. Apply the adoption rule below. | Adoptable: go to S3 and expect the ref that S2 read. Not adoptable: `409 PLATFORM_IN_USE` or `409 DEPLOYMENT_IN_USE`; the attempt clears the lease and ends (`cancelled`); the grant stays unredeemed; nothing changes. |
+| S3 activate | Write-ahead ref `a` (action `activate`). Canvas `initial`: `PATCH /api/platforms/{id} {active: true, bindingRef: a, ifBindingRef: <expected>}`. Other targets: `PATCH /api/platforms/{id}/deployments/{deploymentId} {active: true, bindingRef: a, ifBindingRef: <expected>}`, plus `siteUrl` for Blackboard (a new binding, generation + 1, LTI contract §9.6). | `200`: the record is active with ref `a`; go to phase 2. `409 BINDING_REF_MISMATCH`: go to S2 again; after the second mismatch answer `409 GRANT_IN_USE` (§4.4). Another answer or a timeout: LTI failure. |
+
+**Post-V decision** (Blackboard `initial`). One short transaction runs after every V result (an answer, an error or a timeout) and after every readiness answer of S1. The first matching row applies:
+
+| # | Condition | Answer and audit | Attempt, lease, grant, reservation |
+| --- | --- | --- | --- |
+| 1 | the lease no longer holds this attempt | `403 GRANT_INVALID`; `grant_redemption_cancelled {reason: "taken_over"}` | attempt `cancelled`; lease, grant and reservation unchanged |
+| 2 | the connection is no longer in the start state (`DELETE` or `suspend`; both also revoke the grant) | `409 CONNECTION_NOT_PENDING`; `grant_redemption_cancelled {reason: "connection_changed"}` | attempt `cancelled`; lease cleared only if it holds this attempt; grant stays revoked; reservation kept |
+| 3 | the grant is revoked or replaced by the operator (connection still in the start state) | `403 GRANT_INVALID`; `grant_redemption_cancelled {reason: "revoked"}` or `{reason: "replaced"}` (from `revoked_reason`) | as row 2 |
+| 4 | V timed out or failed | `502 LTI_SERVICE_ERROR` (no cancel event) | attempt `failed`; lease cleared only if it holds this attempt; grant unchanged (`issued`); reservation kept |
+| 5 | V answered, but the connection's profile row is missing, its `sharing` is not `shared`, its `sharedPlatform` is `NULL`, the `sharedPlatform` `id` ≠ `target_platform_id` or its `clientId` ≠ `target_client_id`, the row `issuer` ≠ `target_issuer`, or `active` is false (also a readiness answer of S1) | `409 PROVIDER_NOT_READY` (neutral text, §4.7.3); `provider_not_ready {connection_id, profile, cause}` | as row 4 |
+| 6 | V matched | continue: S0, then S1 | — |
+
+Cancellation always wins over a V result. No row makes a revoked grant usable again. Rows 1–5 make no further LTI call; the attempt has no S3, so it never compensates.
+
+**V limit.** V is a point-in-time readiness observation, not a lock in the LTI service.
+- **Deactivated after V:** S1 and S3 still go to the pinned `target_platform_id`. The LTI deployment endpoints do not check the parent platform's `active` flag, so the attempt can commit an approval (`200 registered`) under an inactive parent. Every login, launch and service call of that platform then fails in the LTI service (`PLATFORM_NOT_ACTIVE`) until the operator reactivates it. This gives no authority (I2, inactive parent).
+- **Deleted or re-created after V:** the LTI service never reuses a platform id (LTI contract §9.4), so a re-created platform has a new id. S1 to the pinned id gets `404 UNREGISTERED_PLATFORM` → the readiness answer above. No record is created, and nothing is written to the new platform. A later S2 or S3 `404` keeps the LTI-failure mapping (`502`).
+
+**Adoption rule** (S2). The attempt may expect the ref that it read only if the record has **exactly** the grant values (Canvas `initial`: profile, canonical issuer, client id, site URL, service URL, and the deployment id in its `deployments`; Canvas `add_deployment`: that deployment id on the connection's own platform; Blackboard: that deployment id on the shared platform) and one row below holds:
+
+| # | Record | Allowed only when |
+| --- | --- | --- |
+| A1 | inactive or active, current ref written by **this** attempt | always |
+| A2 | inactive or active, current ref is an **older ref** of this connection (an older attempt or an older operator command of the same connection) | Canvas `initial`: no connection has this platform as `lti_platform_id`. Canvas `add_deployment`: the deployment has no approval. Blackboard: this connection holds the reservation. |
+| A3 | **inactive**, any other ref or `null` | same as A2 |
+
+Every other record is **not adoptable**: an active record whose ref is not this attempt's and not an older ref of this connection (a foreign binding, or a ref written after this attempt began, for example by `suspend`); a record with other values; a Canvas platform that a connection owns as `lti_platform_id`. A ref of the same connection is therefore not permission by itself: it must be older than the attempt, and the adoption is always the one conditional activation S3, which sets `active: true` and a new ref together. The app never sends a ref-only adoption. An older or cancelled attempt can never adopt a newer ref, because a newer ref is not older than it, and because it has lost the lease (S0).
+
+**Phase 2** (one `BEGIN IMMEDIATE` transaction). Commit only if **all** hold: the connection lease still holds this attempt id; the grant's `revoked_at` and `redeemed_at` are null; the connection is still in the start state; and S3 of this attempt answered `200`. Then: set `redeemed_at`; clear the lease; write the `approved_deployment` row (platform id, deployment id, connection, ref `a`, grant); store ref `a` as the connection's binding ref (Canvas `initial`: `connection.lti_binding_ref` and `lti_platform_id`; Blackboard: `connection_deployment.binding_ref`); update the connection (`registered` with its platform, or the added deployment in `platform.deploymentIds`); mark the attempt `committed`; commit; log `grant_redeemed`. If a condition fails, this transaction changes nothing; the attempt compensates (below), then one short transaction clears the lease (only if it still holds this attempt id) and marks the attempt `cancelled`; the attempt logs `grant_redemption_cancelled {grant_id, connection_id, reason}` (`revoked`, `replaced`, `taken_over`, `connection_changed`), and answers `403 GRANT_INVALID` (revoked, replaced or taken over) or `409 CONNECTION_NOT_PENDING` / `CONNECTION_NOT_READY` (connection changed).
+
+**Compensation.** Only when S3 answered `200` and S0 passes. Write-ahead ref `x` (action `compensate`), then one conditional call on the target: `{active: false, bindingRef: x, ifBindingRef: a}`. `409 BINDING_REF_MISMATCH` and `404` mean "another request changed the record after S3": nothing to switch off. A timeout or another failure logs `grant_compensation_failed {grant_id, platform_id, deployment_id, error}` (error). The record then stays active with ref `a`, but it has no approval, so it has no app authority (I2). If S0 fails, the attempt sends no compensation; the cleanup owners below handle the record.
+
+**LTI failure.** Except for V (post-V decision) and the readiness answers of S1, a call that fails or has no answer within 5 s ends the attempt: no more LTI calls, the lease is cleared (only if it holds this attempt id), the attempt is marked `failed`, and the answer is `502 LTI_SERVICE_ERROR`. The grant stays unredeemed. A Blackboard reservation stays with the pending connection. The handler then ends and never resumes. The call can still reach the LTI service later (a **late write**); only the ref rules decide what it can change.
+
+Invariants. Each has an observable oracle in AC-M1-37 and AC-M1-38:
+
+| # | Invariant | Observable failure oracle |
+| --- | --- | --- |
+| I1 | At most one live attempt per connection. | A request while the lease is live, also with a replacement grant → `409 GRANT_IN_USE`; no new attempt row; the gate records no new request for it. After the old attempt ends (answer or 60 s lease), the same request → `200`. |
+| I2 | Canvas and Blackboard launch and grade authority needs an approval of that exact (platform, deployment) whose connection is `registered` or `connected` (§6.1). A remote record that is active is not an approval. | A launch of an active record without approval → page `UNKNOWN_PLATFORM`, `launch_rejected {reason: "deployment_not_approved"}`; no picker, attempt, service key use or score POST. An approved deployment of the same connection keeps working, with the same keys. |
+| I3 | A delayed write cannot undo a later successful write. Assumption: the LTI service compares only with the current ref (LTI contract §9.15); the guarantee comes from the app: every ref is a new random value (22 characters), recorded before its call and **never reused** (unique in `binding_ref_history`), and the app changes Canvas and Blackboard records only with conditional requests. A raw unconditional API change by an operator is outside this guarantee. | A held call delivered after another successful write of the same record → `409 BINDING_REF_MISMATCH` (gate phase `upstream_completed`, status 409); the record keeps the newer ref, `active` value and generation. |
+| I4 | Only the current attempt adopts, only by rows A1–A3, and always with activation in the same conditional call. | An active record with a foreign or newer ref → `409 PLATFORM_IN_USE` / `DEPLOYMENT_IN_USE`, record unchanged. A compensation that lands between a newer attempt's S2 and S3 → that S3 gets `409`; its second S2 reads the inactive record; its second S3 activates it; answer `200`. |
+| I5 | A late create gives no authority: it is inactive, and a create never replaces a record. | A held create delivered while a record exists → `409 …_ALREADY_EXISTS`, nothing changes. Delivered when no record exists (also after a cleanup found none) → one inactive record with the old ref; launches give `PLATFORM_NOT_ACTIVE` or `DEPLOYMENT_NOT_ACTIVE`; the next cleanup finds it through the saved target. |
+| I6 | Every ref is in the history before it is sent, and every target is saved at phase 1. | After any failure, `DELETE`, `suspend`, `release` and `app:grant revoke` find every record that the connection may have made, also for a pending Canvas connection without `lti_platform_id`. |
+
+Outcomes for faults and races (QA reproduces them with the transport gate of [M3 §3.3](../tasks/M3.md#33-app-to-lti-transport-gate-acceptance-only); "within 5 s" means before the caller's timeout):
+
+| Case (gate schedule) | Answer | Grant afterwards | Remote record afterwards | App authority | Next step and cleanup owner |
+| --- | --- | --- | --- | --- | --- |
+| S1 fails before it writes (`fail_before`) | `502` | unredeemed, free | none (Blackboard: reservation kept) | none | same grant → `200` |
+| S1 writes, its answer is lost (`drop_after`) | `502` | unredeemed, free | inactive, ref `c` | none | same grant → S1 `409` → S2 (A2) → S3 → `200`; one record |
+| S3 writes, its answer is lost (`drop_after`) | `502` | unredeemed, free | active, ref `a`, no approval | none (I2) | same grant → S2 (A2) → `200`; or a cleanup owner |
+| S1 or S3 held past 5 s (`hold_before`), then delivered after the handler ended (gate phase `caller_gone`, then `forwarded`) | `502` at 5 s | unredeemed, free | late S1: inactive record, or `409` and no change; late S3: active with ref `a` only if the record still had the expected ref, else `409` and no change | none (I2, I5) | same grant → `200`; or a cleanup owner |
+| App stops during a call (`hold_before`, then `stack:restart -- cogniate-app`) | none (the handler is dead) | unredeemed; lease live until 60 s after phase 1 | as the held call leaves it | none | before 60 s: a new request → `409 GRANT_IN_USE`; after 60 s: same grant → `200`; the held call delivered then → `409 BINDING_REF_MISMATCH` |
+| Revoke during a live call (`hold_after` on S3, `app:grant revoke`, `deliver` within 5 s) | `403 GRANT_INVALID` (`revoked`) | revoked | inactive, ref `x` | none | a new grant → `200` (A2) |
+| Replacement during a live call (`app:grant issue` again, `deliver` within 5 s) | `403 GRANT_INVALID` (`replaced`) | old revoked, new issued | inactive, ref `x` | none | the replacement **during** the live call → `409 GRANT_IN_USE`; **after** the old answer → `200` (A2) |
+| Replacement redeemed before an old create is delivered (`hold_before` on S1; replacement tried within 5 s; old handler times out; replacement redeemed; old S1 delivered) | old: `502`; replacement: first `409 GRANT_IN_USE`, then `200` | old revoked; new redeemed | active, ref of the replacement | the replacement only | the old S1 → `409 …_ALREADY_EXISTS`, nothing changes |
+| User disconnects during a live call | `409 CONNECTION_NOT_PENDING` / `CONNECTION_NOT_READY` | revoked | inactive (the disconnect fence-out, §4.7.2; the attempt's S3 or compensation then gets `409` or switches off) | none | a new connection and grant |
+| A second request during a live attempt | `409 GRANT_IN_USE` | unchanged | unchanged | unchanged | wait, then retry |
+| Stale compensation: attempt 1's S3 answer held (`hold_after`), the operator issues a replacement, S3 delivered within 5 s; attempt 1's compensation then held past its 5 s (`hold_before`); the replacement attempt adopts the record (A2); then deliver the compensation | attempt 1: `403` at 5 s and `grant_compensation_failed`; attempt 2: `200` | old revoked; new redeemed | active, ref of attempt 2 | attempt 2's approval only | the held call → `409 BINDING_REF_MISMATCH` |
+| Compensation lands between attempt 2's S2 and S3 (`hold_before` on attempt 2's S3; deliver attempt 1's held compensation; then deliver S3, all within attempt 2's 5 s) | attempt 2: `200` | redeemed | active, ref of attempt 2's second S3 | attempt 2's approval only | — |
+| Compensation fails (`fail_before` on it) | as phase 2 (`403` or `409`) | as phase 2 | active, ref `a`, no approval | none | a cleanup owner |
+| A local refusal (§4.4 steps 1–4, or a phase-1 check 1–7 or 4a), any endpoint | as listed there | unchanged | unchanged | unchanged | no attempt, no lease change, **zero** LTI requests |
+| Blackboard V does not match or fails (first attempt) | `409 PROVIDER_NOT_READY` or `502` | unredeemed, `issued` | none from this attempt; reservation kept | none | retry the same code after the cause is fixed; `DELETE` and `suspend` read every saved target |
+| V failure after an earlier lost S3 (attempt A left an active owned deployment; attempt B fails at V) | `409` or `502` | `issued` | A's record unchanged by B | none | `DELETE` or `suspend` finds A's saved target → `fenced`; a record with another connection's ref → `not_owned`; only a `404` at the saved id → `absent` |
+| Revoke, `DELETE` or `suspend` around V (post-V rows 1–3) | `403 GRANT_INVALID` or `409 CONNECTION_NOT_PENDING` | revoked | none from this attempt; reservation kept until `release` | none | as above |
+| Blackboard shared platform deactivated after V | `200 registered` is possible | redeemed | active deployment under an inactive parent | approval, but every LTI login, launch and service call of that platform fails until reactivation | the operator reactivates, or `suspend` |
+| Blackboard shared platform deleted or re-created after V | `409 PROVIDER_NOT_READY` (S1 `404`), or the post-V rows 1–3 answer if a cancellation came first | `issued`, or revoked if cancelled | none; nothing on the new platform | none | `DELETE` reads the saved old id → `absent`; a new connection binds on the new platform |
+| Canvas `initial` S1 `400 UNKNOWN_PROFILE` or `400 PLATFORM_URL_NOT_IN_PROFILE` | `409 PROVIDER_NOT_READY`, or the post-V rows 1–3 answer if a cancellation came first | `issued`, or revoked if cancelled | none | none | retry after the profile returns, or a new connection (§4.7.3) |
+
+Cleanup owners for a record that an attempt made but did not commit (inactive, or active without approval):
+
+| Owner | When | Result |
+| --- | --- | --- |
+| The next attempt of the same connection | a retry, or a replacement grant | adopts it (A2), then approval |
+| `app:grant revoke --grant <id>` (§4.8) | the operator cancels that grant; the connection may stay `registered` | fences out every record whose current ref was written by an attempt of **that grant** and that has no approval; approved deployments and their keys do not change |
+| `DELETE` or `app:binding suspend` (§4.7.2, §4.9) | the connection is to be disabled | fences out every owned record |
+| `app:binding release` (§4.9) | after suspend | deletes owned inactive Canvas platforms; removes the connection's own reservation and approvals |
+
+A cleanup reads the remote state when it runs. A late create can arrive after a cleanup found no record (I5). The record is then inactive and has no approval, so it has no authority; the same cleanup command, run again, finds it through the saved target and history.
+
+#### 4.7.2 Deployments, disconnect, score rules and guards
+
+| Method and path | Request | Success / errors |
+| --- | --- | --- |
+| `POST /app-api/connections/:id/deployments` | `{ deploymentId, grantCode }` (strict body) | Canvas connections that are `registered` or `connected`. Order of the checks, before any grant lookup: (1) a connection of another library → `404`; (2) `lms` is not `canvas` → `409 CAPABILITY_NOT_SUPPORTED`; (3) status is not `registered` or `connected` → `409 CONNECTION_NOT_READY`; (4) strict body → `422 INVALID_PLATFORM_VALUES`; then the finalized repeat, then phase 1 of §4.7.1. Checks (1) to (3) read no grant and log no `grant_rejected`. No step reads providers and there is no V. Check (3) also answers `409 CONNECTION_NOT_READY` when the committed `lti_platform_id` or `platform` is missing. Phase 1 builds the target (`lti_platform_id`, `deploymentId`; issuer and client id from the persisted `platform`) from local data. **Finalized repeat:** the connection already has an approval for (its platform, `deploymentId`) → `200` connection, no change, no LTI call; the code is not checked or used. **Else** the redemption of §4.7.1 (`purpose: add_deployment`) on the connection's own platform: S1 `POST /api/platforms/{id}/deployments {deploymentId, active: false, bindingRef}`, S2 on `409 DEPLOYMENT_ALREADY_EXISTS`, S3, phase 2 → `200` connection with the id in `platform.deploymentIds`. A remote deployment that is active but has no approval is **not** a repeat: it needs a grant, and S2 decides (A2 or A3). This endpoint, its compensation and its cleanup never change the platform record or an approved deployment, so the approved deployments and their keys keep working. Other LMS types: `409 CAPABILITY_NOT_SUPPORTED` (`addDeployment`). |
+| `DELETE /app-api/connections/:id` | — | One transaction: the connection becomes `disabled` and its unredeemed grants are revoked (`revoked_reason: disconnect`). Then the **fence-out** below. `moodle`: platform `active: false` (unchanged, unconditional). Answer `204` when every fence-out call succeeded. Else `502 LTI_SERVICE_ERROR`; the connection stays `disabled`; the operator repairs it with `app:binding suspend`. A live attempt is not stopped; its S3 or compensation then meets the new ref (I3), and its phase 2 fails (`connection_changed`). |
+
+**Fence-out** of a Canvas or Blackboard connection C (used by `DELETE` and `app:binding suspend`):
+
+1. Records: each distinct record of C's committed binding (Canvas: `lti_platform_id`; Blackboard: the reservation's deployment) and of every attempt target of C (§4.7.1 Terms). For Canvas the record is the **platform** (one switch-off covers all its deployments); for Blackboard it is the **deployment** on the shared platform.
+2. Read each record. Absent (`404`, or the lookup finds no platform) → nothing to do. Current ref not in C's history → **not owned**: leave it (a foreign or newer binding of another connection).
+3. Owned → write-ahead ref `s` (action `fence_out`, operator or disconnect), then one conditional call `{active: false, bindingRef: s, ifBindingRef: <read ref>}`, **also when the record is already inactive**: the new ref makes every older held write of C fail (I3). On `409 BINDING_REF_MISMATCH`: read again and repeat steps 2–3 once; a second mismatch is a failed call.
+
+The shared platform and the other deployments never change. The reservation and the approvals stay with the disabled connection as history until `release`.
+
+Score syncs of a disabled Canvas or Blackboard connection (ADR-011 §12). A disable does not change score rows at once. The worker sends nothing for such a row. At the first worker pass at or after the row's due time (`next_try_at`: the time of the row's last `score_sync` event plus the retry delay of §10, or its creation time before the first try; a row that is already due is due at once), the row becomes `failed` with `lastError = "CONNECTION_DISABLED"`, `tries` unchanged, with one `score_sync` event without a POST (`phase: "send"`). The worker polls every 2 s, so the change is visible at the latest 2 poll intervals (4 s) after the due time, plus the time of one pass. A row whose due time is later stays `pending` until then. `POST /app-api/score-syncs/:id/resend` and `POST /app-api/publications/:id/results/refresh` for such a connection: `409 CONNECTION_NOT_READY`. Moodle connections are unchanged.
+
+Capability guards (nothing is stored when they fire):
+
+| Request | Guard |
+| --- | --- |
+| `PUT /app-api/connections/:id/web-services` (§11) on a connection that is not `moodle` | `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "webServices"`; no outbound call |
+| `POST /app-api/publications` with `createMoodleCourse` for a connection that is not `moodle` | `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "courseShell"`; no publication is made or changed |
+| `POST /app-api/connections/:id/registration-url` on a connection that is not `moodle` | `409 CONNECTION_NOT_PENDING` (unchanged code: only a pending dynamic connection has a URL) |
+
+#### 4.7.3 Provider snapshot, old `011` rows and the readiness text (M1)
+
+Fields (migration `012`, data model §4.3):
+
+| Field | Value, from the one `GET /api/providers` answer that `POST /app-api/connections` reads (§4.2) | Needed for |
+| --- | --- | --- |
+| `target_issuer` | Canvas cloud and sim: the row `issuer` (a fixed value). `canvas-self-hosted`: the row template `{siteUrl}` filled with the canonical `siteUrl` of the create body (the value after site rules 1–5, which the grant binds as `--site`). Blackboard: the row `issuer`. | `initial` |
+| `target_platform_id` | Blackboard: `sharedPlatform.id` (active at create). Else `NULL`. | Blackboard `initial` |
+| `target_client_id` | Blackboard: `sharedPlatform.clientId`. Else `NULL`. | Blackboard `initial` |
+
+Rules:
+- Only the create handler writes the fields, in its insert transaction, from that one answer.
+- There is no `UPDATE` path, no request field and no CLI flag for them. They are not in the DTO, and Moodle rows keep them `NULL`.
+- A snapshot is **complete** when `target_issuer` is not null (Canvas), or when all three fields are not null (Blackboard). A partial Blackboard snapshot is treated as missing.
+- Migration `012` adds the fields without a backfill. So a Canvas or Blackboard row made by an `011` build has no snapshot:
+
+| State of an old row without a snapshot | Operation | Result |
+| --- | --- | --- |
+| `pending` | `PUT …/platform` | §4.4 steps 1–4 as usual; phase 1 checks 1–4 as usual (`403` for an invalid code); then check 4a → `409 PROVIDER_NOT_READY` (`cause: no_snapshot`); no attempt, no lease, no new reservation, no LTI call |
+| `pending` | `app:grant issue --purpose initial` | exit 1, no grant stored, no older grant revoked, no LTI call (§4.8) |
+| `pending` Blackboard | `GET …/tool-configuration` | `409 PROVIDER_NOT_READY` (no local client id) |
+| `pending` Canvas | `GET …/tool-configuration`, `GET …/canvas-configuration` | unchanged |
+| `registered` or `connected` | `PUT …/platform`, same values | `200` finalized repeat from the persisted `platform` |
+| `registered` or `connected` | `PUT …/platform`, other values | the normal ordered phase-1 errors, grant checks first: unknown code → check 1 `403` (`not_found`); the connection's own redeemed `initial` code → check 2 `403` (`redeemed`); an `add_deployment` code → check 3 `403` (`purpose`). Check 4 `409 CONNECTION_NOT_PENDING` needs an unredeemed `initial` grant on a registered connection, which the CLI never issues. Check 4a is not reached. Zero LTI requests. |
+| `registered` or `connected` Canvas | `app:grant issue --purpose add_deployment`; `POST …/deployments` | unchanged: the committed platform, no snapshot, no provider read, no V |
+| `registered` or `connected` Blackboard | `GET …/tool-configuration` | `client_id` = persisted `platform.clientId` |
+| `disabled` | `DELETE`, `suspend`, `release`, revoke cleanup | unchanged (saved attempt targets, reservation, `lti_platform_id`) |
+
+**Recovery of an old pending connection C0.** C0 can still hold a Blackboard reservation (check 7 refuses a reservation held by a **pending** connection). It can also own an active Canvas orphan after a lost S3 answer (adoption refuses an active record with another connection's ref). Use only these accepted operations, in this order:
+
+| Step | Operator action | Expected result |
+| --- | --- | --- |
+| 1 | The library makes a new connection C1 with the rightful values. | `201 pending`, complete snapshot |
+| 2 | `app:grant issue --purpose initial` for C1 (the rightful grant first, as in the D-12 operator order, §4.9). | exit 0 |
+| 3 | `app:binding suspend --connection C0` | exit 0. Per saved target: an owned record → `fenced`; no record → `absent`. On `failed`: run `suspend` again. |
+| 4 | `app:binding release --connection C0` (preconditions of §4.9: `disabled`; lease not live, else "retry after <n> s"; no owned active record) | exit 0. Per saved target: an owned inactive record → `deleted` (Canvas) or `kept_inactive` (Blackboard); no record → `absent`. Then C0's own reservation and approvals are deleted. On `failed`, or after a late write: run `suspend` and `release` again. |
+| 5 | C1 redeems its code at once. | Blackboard: C1 takes the free reservation. After `kept_inactive`: S1 `409` → S2 adoption (A3) → generation + 1. After `absent`: S1 creates the deployment inactive (generation 0) → S3 activates it (generation 1). Canvas: S1 creates a new platform. Each → `200`. |
+
+Every other connection, approval and key stays unchanged. The D-12 limit applies between steps 4 and 5: a grant-free Moodle connect can take a released `canvas-self-hosted` issuer and client id first; step 2 before step 3 makes that window short and does not close it. Nothing is backfilled, no snapshot is edited, no attempt, grant or ref history is deleted, and no reservation rule is bypassed.
+
+**Readiness text.** `409 PROVIDER_NOT_READY` has one public code and no public reason field. Its title and action are the same for every LMS and every cause:
+
+| Field | Text |
+| --- | --- |
+| Title | `This LMS setup is not ready in Cogniate.` |
+| Action | `Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.` |
+
+Operator diagnosis is internal: the app logs `provider_not_ready {connection_id, profile, cause}` (warn, §12). The `cause` values, with the first matching rule logged:
+
+| Source | Condition | `cause` |
+| --- | --- | --- |
+| create (§4.2) | Blackboard profile without an active shared platform | `platform_inactive` (`connection_id: null`) |
+| check 4a | no complete snapshot | `no_snapshot` |
+| V, in this order | 1. the profile row is missing | `profile_missing` |
+| | 2. `sharing` is not `shared` | `platform_changed` |
+| | 3. `sharedPlatform` is `NULL` | `platform_inactive` |
+| | 4. `sharedPlatform.id` ≠ `target_platform_id`, or its `clientId` ≠ `target_client_id` | `platform_changed` |
+| | 5. the row `issuer` ≠ `target_issuer` | `issuer_changed` |
+| | 6. `sharedPlatform.active` is false | `platform_inactive` |
+| S1 readiness answer | Blackboard `404 UNREGISTERED_PLATFORM` | `platform_changed` |
+| | Canvas `400 UNKNOWN_PROFILE` | `profile_missing` |
+| | Canvas `400 PLATFORM_URL_NOT_IN_PROFILE` | `issuer_changed` |
+
+A replaced platform with another id is therefore logged as `platform_changed`, also when it is inactive. `app:grant issue` prints its own line for each refusal (§4.8). The Blackboard **card** text for a profile that is not ready (`lms-providers` `ready: false`) is a separate portal text and does not change.
+
+### 4.8 Operator CLI: approval grants (M1)
+
+The operator runs it in the app service (`docker compose exec cogniate-app …`). It is not reachable over HTTP.
+
+```sh
+npm run app:grant -w services/cogniate-app -- issue --library <lib_id> --connection <con_id> --site <origin> [--service-url <origin>] \
+    --client-id <id> --deployment-id <id> [--purpose initial|add_deployment] [--ttl-seconds 86400] --note "<evidence reference>"
+npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>
+npm run app:grant -w services/cogniate-app -- list --connection <con_id>
+```
+
+| Rule | Detail |
+| --- | --- |
+| Issue checks | `--library` is the connection's library. The connection is `canvas` or `blackboard`. `initial`: the connection is `pending`. `add_deployment`: a Canvas connection that is `registered` or `connected`, and `--client-id` equals its platform client id. `--site` equals the connection `siteUrl` and `--service-url` (Canvas only; default `--site`) equals its `serviceUrl`, both after canonicalization (ADR-011 §6). `initial` (Canvas and Blackboard): the connection has a complete provider snapshot (§4.7.3), else exit 1 "This connection has no provider snapshot. Make a new connection." Then one `GET /api/providers` read (a read failure → exit 1). Canvas: the connection's profile row exists and its `issuer` (filled with the canonical `siteUrl` for `canvas-self-hosted`) equals `target_issuer`, else exit 1 "The Canvas profile changed after this connection was made. Make a new connection." Blackboard: the profile row has an active shared platform whose `id`, `clientId` and row `issuer` equal the snapshot (else exit 1 "The Blackboard shared platform changed after this connection was made. Make a new connection.", or "… is not active."), `--client-id` equals that client id, and if the connection already holds a reservation, `--deployment-id` must be that reserved id. `add_deployment` reads no providers and needs no snapshot. Ids: 1 to 255 printable ASCII without spaces. `--ttl-seconds`: 60 to 604800 (default 86400). `--note`: 1 to 500 characters. Any failure: exit 1 with one line, nothing stored, no older grant revoked. |
+| Issue output | First the library name, the connection name, the LMS profile and every bound value (canonical form); then the grant id, the approval code (shown only here, once) and the expiry time. A new grant for the same connection and purpose revokes older unredeemed ones (`revoked_reason: replaced`; also one that an attempt holds; that attempt then cancels, §4.7.1). `issue` makes no LTI write (it never creates, changes or deletes an LTI record). An `initial` issue (Canvas and Blackboard) reads `GET /api/providers` once (Issue checks); if that read fails, exit 1 and nothing is stored. An `add_deployment` issue makes no LTI call. The replacement adopts what the old attempts made (A2). While the old attempt is live, a redemption of the replacement gets `409 GRANT_IN_USE` (I1). |
+| Revoke | Sets `revoked_at` (`revoked_reason: operator`) on an unredeemed grant, also while an attempt holds the lease. A redeemed grant cannot be revoked (exit 1, nothing changes); use `app:binding suspend` instead. Then the **grant cleanup**: if an attempt of this grant holds a live lease, revoke makes no LTI call, prints "a running redemption will cancel and switch off its own record; run revoke again after 60 s to check" and exits 0. Else, for each distinct target of this grant's attempts: read the record; act only if its current ref was written by an attempt of **this grant** and the record has no approval; then write-ahead ref `s` (action `revoke_cleanup`) and send `{active: false, bindingRef: s, ifBindingRef: <read ref>}` (Canvas `initial`: on the platform; Canvas `add_deployment` and Blackboard: on the deployment). It never changes the platform of a registered connection or an approved deployment. Output: one line per target, `fenced`, `absent`, `not_owned` or `failed`. Exit 0 when no line is `failed`, else exit 1. Revoke of an already revoked grant repeats the cleanup (exit 0 or 1 as above; it is the repair after a late write). Logs one `grant_cleanup {grant_id, platform_id, deployment_id, result}` per target. |
+| List | Grant id, purpose, site, service URL, client id, deployment id, created, expires, state (`issued`, `redeeming`, `redeemed`, `expired`, `revoked`). Never the code or its hash. `redeeming` means an attempt of this grant holds the live connection lease. |
+| Logs | `grant_issued {grant_id, connection_id, purpose, expires_at}`, `grant_revoked {grant_id}`. Never the code. |
+
+### 4.9 Operator CLI: binding containment and recovery (M1)
+
+ADR-011 §4b. Same shell access as §4.8; not reachable over HTTP. Each LTI call of the CLI (and of `app:grant revoke`) has the normal 5 s timeout; a timeout or an error gives the line `failed`. The fence-out, revoke cleanup and release write their refs to the history first, like an attempt.
+
+```sh
+npm run app:binding -w services/cogniate-app -- suspend --connection <con_id> --note "<evidence reference>"
+npm run app:binding -w services/cogniate-app -- release --connection <con_id> --note "<evidence reference>"
+```
+
+| Command | Rule |
+| --- | --- |
+| `suspend` | Any LMS type and status. Prints the library name, connection name and binding first. One transaction: the connection becomes `disabled` and its unredeemed grants are revoked (`revoked_reason: suspend`). Then the fence-out of §4.7.2 (Moodle: platform `active: false`, unconditional). It finds records through the saved targets and the ref history, so it also works for a pending Canvas connection that has no `lti_platform_id` (a lost create or activation answer). Output: one line per record, `fenced`, `absent`, `not_owned` or `failed`. Exit 0 when no line is `failed`; else exit 1 and the connection stays `disabled`. Running it again repeats the fence-out (the repair for a failed call, a failed compensation or a late write). Logs `binding_suspended {connection_id, note_present: true}` and one `binding_fenced {connection_id, platform_id, deployment_id, result}` per record. |
+| `release` | Preconditions, checked first; any failure → exit 1, nothing changes: the connection is `disabled`; its lease is not live (else "a redemption may still run; retry after <n> s"); a fresh read of every record of the fence-out list finds no **owned** record that is active (else "binding still active; run suspend first"). Then for each record: absent → `absent`; not owned → `not_owned` (left unchanged; a foreign or newer binding); owned and inactive → Moodle: `DELETE /api/platforms/{id}` (unchanged); Canvas: `DELETE /api/platforms/{id}?ifBindingRef=<read ref>` → `deleted` (this removes the platform, its deployments, launches and service keys); a `409 BINDING_REF_MISMATCH` → read again once: now not owned → `not_owned`, else `failed`; Blackboard: the LTI deployment is not deleted (it stays inactive with C's fence-out ref) → `kept_inactive`. If no line is `failed`, one transaction then deletes **only C's own** local rows: C's reservation (Blackboard) and C's `approved_deployment` rows, and exit 0. Else no local row changes and exit 1 (run `release` again). Rows of other connections are never selected for deletion. The connection keeps `platform`, `platform_json`, attempts, grants and ref history as history. A repeated release finds the records absent or not owned and exits 0. Logs one `binding_released {connection_id, platform_id, deployment_id, result}` per record. It moves no publication, resource link, attempt or score sync row. |
+| Late write after a release | A late create of an old attempt can arrive after release (I5). It makes one **inactive** Canvas platform with the old ref; it has no approval and no owner connection, so no launch passes. A new connection with exactly the same values adopts it (A3). A new connection with other values (for example a corrected service URL) gets `409 PLATFORM_IN_USE`; the operator runs `release` on the old connection again (it finds the record through the saved target; result `deleted`); then the new redemption → `200`. A late S3 or a late compensation of an old attempt fails on a record that the fence-out changed (`409 BINDING_REF_MISMATCH`). Blackboard, row **existed** at the fence-out: the fence-out rotated its ref and the app never deletes it, so every later conditional write of the old connection fails and a late S1 gets `409 DEPLOYMENT_ALREADY_EXISTS`. Blackboard, row **absent** at the fence-out (a held S1 delivered later): the late S1 creates one **inactive** deployment (generation 0) with the old ref; it has no approval, so no launch passes (`DEPLOYMENT_NOT_ACTIVE`). The next connection that holds the reservation adopts it (A3, generation 1). Without one, `suspend` or `release` of the old connection, run again, finds it through the saved target and fences it out. |
+| After a release | The freed Canvas client id or Blackboard deployment id can be bound again. A new **Canvas or Blackboard** binding always needs a grant. A Moodle (`standard`) manual connect needs **no** grant. So after a release of a `canvas-self-hosted` binding, an authenticated library can make a `standard` platform with the same issuer and client id before the rightful redemption (accepted deferral, ADR-011 D-12). This race exists only for `canvas-self-hosted`: hosted Canvas issuers and the Blackboard issuer are reserved, so a `standard` connect with them gets `400 ISSUER_RESERVED` (LTI contract §9.1). Check 14 still refuses its Canvas launches before any claim is stored. But the rightful redemption gets `409 PLATFORM_IN_USE`. Operator order: (1) issue the rightful grant, (2) suspend, (3) release, (4) ask the rightful library to redeem the code now. This order makes the window short; it does **not** close it. If the race happens, suspend and release the new `standard` connection, and repeat the order. Blackboard: the next activation gives generation + 1, so old keys and ltiks fail (`401`). Canvas: a new platform has new keys; old keys fail (`401`, unknown key). |
+
 ## 5. Publications — T4b1 (results: T5a, T5b)
 
 ```json
@@ -227,6 +650,10 @@ ResultRow (one per learner per activity; preview attempts are rows with `preview
 
 `scoreSyncs` lists every row, oldest first. `gradebook` is `null` until a refresh. After a refresh, if `gradebook.resultScore / resultMaximum` differs from `best.scoreGiven / scoreMaximum` while the last sync is `sent`, the row has `gradebookDiffers: true`, and the portal shows "Moodle keeps another grade, for example a teacher override".
 
+### 5.1 Publication fields for the portal (M1)
+
+Every publication answer gets two additions: `lms` (the connection's LMS type) and `connectionName`. The portal shows them in the publish dialog, the course page and the results page.
+
 ## 6. Tool pages and player shell — T4b1 (`/tool/register`), T4b2 (the others)
 
 Server-rendered HTML. No cookies. Headers per page: security §5. Every tool error page logs exactly one event (§12) with its code and, when the error came from the LTI service, `lti_status` and `lti_code`. Every error page shows the code, the trace id and one action line, marked with `data-error-code`, `data-trace-id` and `data-error-action` (security §2.2). Log events: §12.
@@ -234,7 +661,7 @@ Server-rendered HTML. No cookies. Headers per page: security §5. Every tool err
 | Method and path | Input | Result |
 | --- | --- | --- |
 | `GET /tool/launch` | `ltik` | Handoff (security §4): single use (`409 HANDOFF_USED`); `GET /api/idtoken`; publication from the signed `launch.target` (`resource`); resource link upsert by (connection, deployment, context, resource link) with `lineItemId` and service key; attempt (data-model §2, incl. the rule after a rebind); play session. `303 /play/{playId}`, or `303 /play/{playId}/embedded` when `documentTarget` is `iframe` (`frame` and `window` open the player directly). Errors: `401` page `INVALID_LTIK` (bad or expired ltik: `launch_rejected {reason: invalid_ltik}`; a valid deep-linking ltik sent to `/tool/launch`: `launch_rejected {reason: not_resource_link}`), `502` page `LTI_SERVICE_ERROR` (the LTI service failed), `404` page "This course is not available" (`PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_PLATFORM`), `410` page "This course is no longer available" (`PUBLICATION_WITHDRAWN`). No attempt on error. |
-| `GET /tool/deep-link` | `ltik` | Checks in this order: (1) single use (`409 HANDOFF_USED`, `handoff_rejected`); (2) `GET /api/idtoken` (`401` page `INVALID_LTIK`, `deep_link_rejected {reason: invalid_ltik}`; `502` page `LTI_SERVICE_ERROR`); (3) `launch.type` is `LtiDeepLinkingRequest` (`403` page, `not_deep_linking`); (4) a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator` (`403` page, `role_not_allowed`); (5) `platform.id` belongs to a connection (`404` page, `deep_link_rejected {reason: unknown_platform}`). Then a picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted, and `303 /tool/picker/{pickerId}`. |
+| `GET /tool/deep-link` | `ltik` | Checks in this order: (1) single use (`409 HANDOFF_USED`, `handoff_rejected`); (2) `GET /api/idtoken` (`401` page `INVALID_LTIK`, `deep_link_rejected {reason: invalid_ltik}`; `502` page `LTI_SERVICE_ERROR`); (3) `launch.type` is `LtiDeepLinkingRequest` (`403` page, `not_deep_linking`); (4) a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator` (`403` page, `role_not_allowed`; M1: the role sets of §6.1); (5) `platform.id` belongs to a connection (`404` page, `deep_link_rejected {reason: unknown_platform}`). Then a picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted, and `303 /tool/picker/{pickerId}`. |
 | `GET /tool/picker/{pickerId}` | — | Radio list (single select) of the connection's `available` publications: title, format badge ("SCORM 1.2" / "HTML"), version. Unknown id: `404` page `PICKER_NOT_FOUND`; used: `410` page `PICKER_USED`; expired: `410` page `PICKER_EXPIRED`. |
 | `POST /tool/picker/{pickerId}` | form `publicationId` (exactly one) | Checks: picker exists (`404 PICKER_NOT_FOUND`), not used (`410 PICKER_USED`), not expired (`410 PICKER_EXPIRED`), `Origin` (403), publication of this connection and `available` (`400 PUBLICATION_NOT_AVAILABLE`, no deep-linking call). Calls `POST /api/deeplinking` with one item (flows §6b). The returned `target` (deep-link return URL) must be on the platform issuer origin, else `502` page `RETURN_URL_MISMATCH` with no "try again" advice (the action line says: give the trace id to your Moodle administrator), and no form is posted. Page with a hidden form (`JWT`, action = `target`) and a nonce script that submits it. Marks the picker used. |
 | `GET /tool/register` | `registrationId`, `ref` | Checks `ref` (`pending`, not expired, not used). `GET /api/registrations/{id}`. Checks `url` origin = `siteUrl` origin (`SITE_MISMATCH`). If `operation = update`: page `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new external tool"), always (security §2.5). Else the confirm page: site URL, Moodle version, library, "Learners are anonymous: Moodle does not send names or emails." Button "Connect". On submit the button is disabled (no second submit) and the page shows "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." (B-FIX-02; the `complete` call can take 15 s, §6 failure pages). Errors: `400` page `REF_INVALID`, `REF_EXPIRED`, `SITE_MISMATCH`. |
@@ -245,6 +672,23 @@ Server-rendered HTML. No cookies. Headers per page: security §5. Every tool err
 | `GET /app-api/play/{playId}/status` | — | `200 { outcome, scoreGiven, scoreMaximum, preview, scoreSync: { status, scoreGiven, scoreMaximum } }`; `scoreSync` is the **newest** score sync of this learner on this activity (any attempt), with the score of that row; all three fields are `null` before the first one. Unknown id → `404`. The shell polls every 5 s. Status text (P11, Lead decision): if this attempt's score equals the synced row's score (same `scoreGiven / scoreMaximum`), the texts stay as they are (for example "Completed — score 80 sent to Moodle"). If the scores differ (this attempt 60, synced row 80): `sent` → "Completed — score 60. Moodle keeps your best score: 80"; `pending` → "Completed — score 60. Sending your best score, 80, to Moodle"; `failed` → "Completed — score 60. Your best score, 80, was not sent to Moodle"; `conflict` → unchanged ("Completed — Moodle has a grade with a newer time"). If this attempt has no score, the texts have no score of their own: `sent` → "Completed. Moodle keeps your best score: 80"; `pending` → "Completed. Sending your best score, 80, to Moodle"; `failed` → "Completed. Your best score, 80, was not sent to Moodle". Scores use the existing format (a whole number, or `n/max` when the maximum is not 100). |
 
 Play session: `PLAY_TTL_SECONDS` (default 24 h). It holds the SHA-256 hash of the runtime token and a session id. It holds no ltik. The runtime token is derived from the play id with the app master key (HMAC); only its hash is stored, so a database copy alone cannot rebuild a runtime URL.
+
+### 6.1 Multi-LMS rules for tool pages and the player (M1)
+
+These rules replace the matching parts of the §6 table. For a Moodle connection every result stays the same, because its site origin is its issuer origin.
+
+| Topic | Rule |
+| --- | --- |
+| Launch routing | `/tool/launch` and `/tool/deep-link` find the connection in this order: (1) an `approved_deployment` row for (`platform.id`, `platform.deploymentId`) whose connection is a `canvas` or `blackboard` connection that is `registered` or `connected`; (2) a `moodle` connection whose `lti_platform_id` is `platform.id` and that is `registered` or `connected` (unchanged Moodle rule). If (1) finds no row but a `canvas` or `blackboard` connection owns `platform.id` as `lti_platform_id`, or holds a reservation for (`platform.id`, `platform.deploymentId`): page `UNKNOWN_PLATFORM`, `reason: deployment_not_approved` with `platform_id` and `deployment_id` (an active remote record without a committed approval, ADR-011 §4a). None: page `UNKNOWN_PLATFORM` (`reason: unknown_platform`). In both cases: no picker, no attempt, no service key use. An approval is the only source of Canvas and Blackboard launch and grade authority: every picker session, attempt and score sync row of such a connection comes from a launch that passed (1). |
+| Site check | `platform.siteUrl` and `platform.serviceUrl` (LTI contract §9.9) must equal the connection `siteUrl` and `serviceUrl`. Else page `UNKNOWN_PLATFORM`, log `launch_rejected` or `deep_link_rejected` with `reason: site_mismatch`, `expected_site`, `launch_site`, `expected_service`, `launch_service` (canonical origins). No attempt, no picker. |
+| LMS check | After the site check (second line behind LTI check 14): the profile's LMS (`standard` → `moodle`, `canvas-*` → `canvas`, `blackboard*` → `blackboard`) must equal the connection `lms`; and if `platform.productFamilyCode` equals `canvas` or `blackboardlearn` (any case), the connection `lms` must be `canvas` or `blackboard` respectively. A missing or other value passes. Else page `UNKNOWN_PLATFORM`, log reason `lms_mismatch` with `connection_lms` and `family`. No attempt, no picker, no use of the service key. |
+| Return link from another host | The launch return URL (`launch.presentation.returnUrl`) is kept only if it is https on `{site}`. A return URL on any other host (for example a third Canvas page host) is dropped, and "Back to …" goes to `{site}/`. The launch itself is not refused for this reason (ADR-011 §5, third-host table). |
+| Canvas embedded page | Canvas sends `documentTarget = iframe` for every launch (ADR-011 §8). For a `canvas` connection, `/play/{playId}/embedded` has a nonce script: if the page is the top-level page (`window.top === window`), it replaces the location with `/play/{playId}` at once; in a frame it shows the existing "Open in a new window" button. CSP: `frame-ancestors {site}; form-action 'none'; script-src 'nonce-…'`. Moodle and Blackboard keep the static page without script. |
+| Site origin | The picker pages and `/play/{playId}/embedded` use `frame-ancestors {site}` (security §5). `POST /tool/picker/{id}` requires the returned `target` on `{site}` (`RETURN_URL_MISMATCH` otherwise). The launch return URL is kept only if it is https on `{site}`. "Back to …" without a return URL goes to `{site}/`. |
+| Roles | Deep Linking needs a context staff role or an admin role. A launch is graded only with a context learner role and no context staff role; any other launch is a preview. The sets are in [ADR-011 §10](../adr/ADR-011-multi-lms.md#10-roles). Codes and log reasons stay (`ROLE_NOT_ALLOWED`, `role_not_allowed`). |
+| Content item | Unchanged for `moodle`. For `canvas` and `blackboard`, if `launch.deepLinkingSettings.acceptPresentationDocumentTargets` contains `window`, the item also has `"window": { "targetName": "_blank" }`. The publication id stays in the `resource` query of the item URL; no custom parameters. |
+| LMS name in texts | Every text that names Moodle (tool error pages, player "Back to Moodle", player status texts, `UNKNOWN_PLATFORM` and `ROLE_NOT_ALLOWED` actions) uses the LMS name of the connection: `Moodle`, `Canvas` or `Blackboard`. Without a connection, the name comes from `platform.profile` (`canvas-*` → Canvas, `blackboard*` → Blackboard, else Moodle). Moodle texts stay byte for byte. |
+| Learner label | `Learner {sub} @ {host of the connection siteUrl}` (results, §5). |
 
 ## 7. Content host — T5a
 
@@ -362,7 +806,9 @@ Depends on the "Cogniate HTML export markup v1" (Q7):
 | `input[data-cog-correct="true" | "false"]` inside it | one option; `true` = correct |
 | `a[href$=".html"]` without a scheme | internal link: the runtime removes `target` and `rel` |
 
-Rules: ADR-004 "HTML: option C". The runtime does not change package bytes. It attaches to each child document when `readyState` is `interactive` or `complete` (poll and `load`), never only on `load`, because a hanging external host blocks `load`.
+Rules: ADR-004 "HTML: option C". The runtime does not change package bytes. It attaches to each child document that it observes when `readyState` is `interactive` or `complete`, never only on `load`, because a hanging external host blocks `load`.
+
+Observation (M3 repair R1, product `4008afb`): a document that a check sees while it is `loading` gets one `DOMContentLoaded` listener, and the runtime attaches at that event. A fast check runs every 10 ms on the runtime page's timers: at the start, and after `pagehide` on the window of an observed child document. It stops when a check sees a new document, or after 5 s. The 150 ms check and the frame `load` check stay as fallbacks. The runtime does not observe every document: a document that is parsed and replaced between two checks is not seen. ADR-004 "HTML: option C" lists the limits.
 
 ## 10. Score sync worker — T5a (retry schedule and Resend: T5b)
 
@@ -376,7 +822,7 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 | --- | --- |
 | `204` | `sent`, except that a required P2 confirmation keeps the first accepted send `pending` (below). |
 | `409 PLATFORM_CONFLICT` | `conflict` (no retry; "Moodle has a grade with a newer time"). A teacher override alone does **not** cause a 409: Moodle 5.2.4 accepts the score and keeps the override (`scores.php` compares times; `grade_item::update_raw_grade` does not change an overridden final grade). |
-| `400`, `404` (`PLATFORM_REJECTED_REQUEST`) | `failed` at once, `lastError` = description |
+| `400`, `404`, `422` (`PLATFORM_REJECTED_REQUEST`; `422` from M1) | `failed` at once, no retry, `lastError` = description. Canvas `400` for a score older than its stored result is this case, not `conflict`. |
 | `403` from the LTI service (for example `SERVICE_NOT_AVAILABLE`, `PLATFORM_NOT_ACTIVE`) | `failed` at once (a retry cannot fix it), `lastError` = the code |
 | `401`, `5xx`, `502`, `504`, network error | retry: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `createdAt`, then `failed` |
 
@@ -440,8 +886,8 @@ Course shell (web services):
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
-| `PUT /app-api/connections/:id/web-services` | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. Moodle unreachable or a Moodle error → `502 MOODLE_WS_ERROR`. |
-| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) and `shellError` (plain text when `failed`, else `null`) |
+| `PUT /app-api/connections/:id/web-services` (Moodle only, §4.7) | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. Moodle unreachable or a Moodle error → `502 MOODLE_WS_ERROR`. |
+| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` (Moodle connections only, §4.7) | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) and `shellError` (plain text when `failed`, else `null`) |
 
 Connection field `webServices`: `{ siteName, release }` after a successful `PUT .../web-services`, else `null`. The token is stored encrypted and never returned.
 
@@ -463,10 +909,10 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `package_accepted` | info | `version_id`, `format` |
 | `package_rejected` | warn | `codes` |
 | `handoff_rejected` | warn | `code` (`HANDOFF_USED`) |
-| `launch_rejected` | warn | `reason`: `publication_not_in_connection`, `publication_withdrawn`, `unknown_platform`, `invalid_ltik`, `not_resource_link` (a valid deep-linking ltik on `/tool/launch`), `lti_service_error`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
+| `launch_rejected` | warn | `reason`: `publication_not_in_connection`, `publication_withdrawn`, `unknown_platform`, `deployment_not_approved` (M1; with `platform_id`, `deployment_id`), `site_mismatch` (M1; with the four origin fields of §6.1), `lms_mismatch` (M1; with `connection_lms`, `family`), `invalid_ltik`, `not_resource_link` (a valid deep-linking ltik on `/tool/launch`), `lti_service_error`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `launch_accepted` | info | `attempt_id`, `preview` |
 | `resource_link_rebound` | info | `resource_link_id`, `from_publication`, `to_publication` |
-| `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik`, `unknown_platform`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
+| `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik`, `unknown_platform`, `deployment_not_approved` (M1), `site_mismatch` (M1), `lms_mismatch` (M1); plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `picker_rejected` | warn | `reason`: `not_found`, `used`, `expired`, `publication_not_available`, `lti_service_error`, `return_url_mismatch`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `retention_cleanup` | info | `table`, `deleted` |
 | `platform_orphan_deactivated` | warn | `platform_id` |
@@ -477,4 +923,26 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries`, `phase` (`send` or `confirmation`). `status` is the persisted row status. When the first accepted P2 send stays pending, include `send_result: "sent"`. When a send ends after its row was superseded (ADR-010 rule 5), the row stays `superseded` and the line has `status: "superseded"` plus `send_result` = the status that the send would have set (`sent`, `pending`, `conflict` or `failed`) (B-FIX-01). One event per actual POST. |
+| `grant_issued` | info | `grant_id`, `connection_id`, `purpose`, `expires_at` (§4.8; M1) |
+| `grant_redemption_cancelled` | warn | `grant_id`, `connection_id`, `reason` (`revoked`, `replaced`, `taken_over`, `connection_changed`) (§4.7.1; M1) |
+| `grant_cleanup` | warn | `grant_id`, `platform_id`, `deployment_id`, `result` (`fenced`, `absent`, `not_owned`, `failed`) (§4.8; M1) |
+| `binding_fenced` | warn | `connection_id`, `platform_id`, `deployment_id`, `result` (`fenced`, `absent`, `not_owned`, `failed`) (fence-out of `DELETE` and `suspend`, §4.7.2; M1) |
+| `grant_compensation_failed` | error | `grant_id`, `platform_id`, `deployment_id`, `error` (§4.7.1; M1) |
+| `binding_suspended` | warn | `connection_id`, `note_present` (§4.9; M1) |
+| `binding_released` | warn | `connection_id`, `platform_id`, `deployment_id`, `result` (`deleted`, `kept_inactive`, `absent`, `not_owned`, `failed`) (§4.9; M1) |
+| `grant_revoked` | info | `grant_id` (§4.8; M1) |
+| `grant_redeemed` | info | `grant_id`, `connection_id`, `purpose`, `platform_id`, `deployment_id`, `attempt_id` (§4.7; M1) |
+| `grant_rejected` | warn | `reason` (§4.7; M1), `connection_id` |
+| `grant_attempt_started` | info | `grant_id`, `connection_id`, `attempt_id`, `purpose`. Written **after** the phase-1 commit: exactly once per committed phase 1 in a healthy process; never for a refusal or a rolled-back transaction. The buffered log stream keeps first-in, first-out order, but the line is not durable (a crash or restart can lose it) (§4.7.1; M1) |
+| `provider_not_ready` | warn | `connection_id` (`null` for the create-time refusal), `profile`, `cause` (`no_snapshot`, `platform_inactive`, `platform_changed`, `issuer_changed`, `profile_missing`) (§4.7.3; M1) |
+| `deployment_orphan_deactivated` | warn | `platform_id`, `deployment_id` (a compensation of §4.7.1 switched off a record; M1) |
+| `deployment_orphan_deactivate_failed` | error | `platform_id`, `deployment_id`, `error` (M1) |
 | `gradebook_refresh_failed` | warn | `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (one per row that "Refresh from Moodle" could not read) |
+
+## Dated clarification — §4.7.1 "App stops during a call" (2026-10-23)
+
+Reason: Reviewer A finding A-DH-01 (`docs/reviews/M1/dead-handler-reviewer-a.md`) and `docs/reviews/M3/t6-09-failure-plan.md` §12–§13. No rule, outcome, invariant, timeout or product behavior changes. The text above is unchanged.
+
+- The §4.7.1 row "App stops during a call" covers a handler that ends **without** running its failure path, for example after a process kill, a crash or a host loss. The lease then stays live until 60 s after phase 1, as the row says.
+- A graceful stop does not always give that state. On SIGTERM a service closes its listeners and exits after at most 2 s (`closeOnSignal`, `packages/shared/src/http.ts:48`), and in-flight work continues until then. If a held call reaches its 5 s timeout before the exit, the handler is alive. The "LTI failure" rule and the row "S1 or S3 held past 5 s" then apply: lease cleared, `502`.
+- QA reproduces the "App stops during a call" row with SIGKILL of `cogniate-app`, followed by the unchanged guarded `stack:restart -- cogniate-app` (M1 task, dated clarification of AC-M1-37).

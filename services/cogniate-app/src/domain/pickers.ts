@@ -11,6 +11,8 @@ export interface PickerSession {
   connectionId: string;
   ltikEncrypted: Uint8Array;
   issuerOrigin: string;
+  /** M1: frame-ancestors and return URL origin (the connection site URL); old rows: the issuer origin. */
+  siteOrigin: string;
   deploymentId: string;
   contextId: string;
   contextTitle: string;
@@ -20,19 +22,19 @@ export interface PickerSession {
 }
 
 const toPicker = (r: Record<string, unknown>): PickerSession => ({
-  key: String(r.id), connectionId: String(r.connection_id), ltikEncrypted: r.ltik_encrypted as Uint8Array, issuerOrigin: String(r.issuer_origin),
+  key: String(r.id), connectionId: String(r.connection_id), ltikEncrypted: r.ltik_encrypted as Uint8Array, issuerOrigin: String(r.issuer_origin), siteOrigin: r.site_origin === null || r.site_origin === undefined ? String(r.issuer_origin) : String(r.site_origin),
   deploymentId: String(r.deployment_id), contextId: String(r.context_id), contextTitle: String(r.context_title), createdAt: Number(r.created_at),
   expiresAt: Number(r.expires_at), usedAt: r.used_at === null ? null : Number(r.used_at),
 });
 
 export function createPicker(
   db: Db,
-  input: { connectionId: string; ltikEncrypted: Uint8Array; issuerOrigin: string; deploymentId: string; contextId: string; contextTitle: string; expiresAt: number },
+  input: { connectionId: string; ltikEncrypted: Uint8Array; issuerOrigin: string; siteOrigin?: string; deploymentId: string; contextId: string; contextTitle: string; expiresAt: number },
   now: number,
 ): string {
   const id = randomId('pck_');
-  db.prepare(`INSERT INTO picker_session (id, connection_id, ltik_encrypted, issuer_origin, deployment_id, context_id, context_title, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(sha256Hex(id), input.connectionId, input.ltikEncrypted, input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
+  db.prepare(`INSERT INTO picker_session (id, connection_id, ltik_encrypted, issuer_origin, site_origin, deployment_id, context_id, context_title, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(sha256Hex(id), input.connectionId, input.ltikEncrypted, input.issuerOrigin, input.siteOrigin ?? input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
   return id;
 }
 

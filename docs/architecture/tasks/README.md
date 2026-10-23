@@ -1,6 +1,6 @@
 # Tasks, QA rules and test knobs
 
-Status: T0 round 2. Task DAG: [`../README.md`](../README.md) §7.
+Status: T0 round 2; Blackboard and Canvas phase M1–M4 added in M0 (2026-10-20). Task DAG: [`../README.md`](../README.md) §7.
 
 ## 1. Task list
 
@@ -27,6 +27,19 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 | [T8](T8.md) | Stretch: native channel and course shell | yes | AC-T8-02 to AC-T8-10 |
 | [T9](T9.md) | Docs and human review pack (Docs role) | yes | AC-T9-01 to AC-T9-04 |
 
+### Blackboard and Canvas phase (from 2026-10-20)
+
+Design: [ADR-011](../adr/ADR-011-multi-lms.md); SQLite storage: [ADR-012](../adr/ADR-012-sqlite-volume-storage.md) (accepted for implementation, design only, revision 3.3; 72 AC-M1-41 rows, so 488 mandatory rows per full round). Roles: from the owner's 2026-10-20 direction, every remaining task uses Claude Code Opus 5.5 xhigh; the model names below that say Codex record who did the earlier work. Order: M0 review → M1a ∥ M2 (against the contract) ∥ QA simulator → M1b → M2 integration → M3 → M4.
+
+| Task | Title | Owner | Verified by | AC ids |
+| --- | --- | --- | --- | --- |
+| [M1](M1.md) | Backend: profiles, reserved issuers, signed product family, canonical site and service origins, deployments and generations, two-phase operator grants, operator containment, Canvas and Blackboard registration, guards, backup and restore, SQLite volume storage (ADR-012 revision 3.3, accepted design) (M1a LTI service, M1b app) | Author (Claude) | common QA (Codex in earlier rounds; an independent Claude session from 2026-10-20) | AC-M1-01 to AC-M1-41 |
+| [M2](M2.md) | Portal: Canvas and Blackboard cards, wizards with approval codes, routes, generic labels | Author-2 (Codex; any further Canvas repair: a dedicated Claude author) | QA-E2E (Claude) | AC-M2-01 to AC-M2-13 |
+| [M3](M3.md) | Simulator, independent QA, Moodle regression, live matrix | QA, QA-E2E | — | AC-M3-01 to AC-M3-07 |
+| [M4](M4.md) | Guides, review pack, final conformance | Docs, Architect | Reviewers | AC-M4-01 to AC-M4-08 |
+
+File ownership does not overlap: M1 = `services/**`, `apps/player/**`, `packages/**`, `infra/**`; M2 = `apps/portal/**`; M3 = `tests/**` and its review files; M4 = the files in M4.
+
 AC id rule: an AC keeps the number of the task where it was first written (for example AC-T3-12 is in T3a). New ACs continue the number sequence. Removed numbers are not reused. The mapping is in [`../review-response-T0.md`](../review-response-T0.md).
 
 ## 2. QA rules
@@ -43,6 +56,8 @@ QA writes tests from the task specs and contracts only (charter §1). It does no
 | Moodle CLI read-only (`admin/cli/cfg.php` without `--set`), and `admin/cli/cron.php` (`npm run moodle:cron`) | Test knobs in T7 |
 | `infra/.secrets/seed.json`, `infra/.logs/*.jsonl` (read-only mount in `e2e`) | Copying code from the `ltiaas` SDK or from LTIAAS docs |
 | `npm run stack:restart -- <service> --env K=V` for the knobs below | |
+| M1 (AC-M1-06): `docker compose exec lti-service npm run lti:shared-platform …`; M1 and M2: `docker compose exec cogniate-app npm run app:grant …` and `… app:binding …`; the transport gate control API `https://lti-gate.test/__gate/*` (M3 §3.3); `npm run stack:restart -- cogniate-app` and `-- lti-service` (with `--env` for AC-M1-35) during M1 race and gate tests — on QA's own compose project only | The same commands on another project; any gate or simulation setting outside the `acceptance` profile |
+| M1 (AC-M1-23, AC-M1-30): the exact sequences of those ACs in QA's own clone (code switched while both services are stopped; damaged **copies** of the backup for the refusal checks; SHA-256 of the owned database and backup files) | A destructive reset of any other stack; editing a migration ledger or a table |
 
 Determinism rules:
 
@@ -80,6 +95,7 @@ Knob tests: QA runs `npm run stack:restart -- <service> --env K=V` on the host, 
 | --- | --- | --- |
 | `test` | `e2e` container | T1 |
 | `acceptance` | `evil.test` sink (`sink_hit` → `infra/.logs/sink.jsonl`) and `qa-platform.test` static host (`tests/fixtures/qa-platform/`, QA-owned; `qa_platform_hit` → `infra/.logs/qa-platform.jsonl`), second leaf certificate, allowlist entries, `profile: "acceptance"` in `/healthz`. Start: `STACK_PROFILE=acceptance npm run stack:up`. | T2b |
+| `acceptance` (M1 additions) | `lms-sim` service (QA code in `tests/sim/`, [M3 §3](M3.md#3-signed-platform-simulator-and-transport-gate)) with the `.sim.test` host names, their SANs and LTI service allowlist entries; the `lti-gate` transport gate (`lti-gate.test`, app allowlist; M3 §3.3); `LTI_PROVIDER_SIMULATION=on`, so `/healthz` shows `simulation_profiles`. Not a knob: `knobs` stays `[]`. | M1 |
 
 `npm run test:acceptance` starts the stack with the `acceptance` profile and restores the default at the end (local-stack §3). `npm run test:e2e` does not use it.
 

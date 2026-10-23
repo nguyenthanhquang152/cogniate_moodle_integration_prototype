@@ -17,7 +17,12 @@ import { registerLaunchPages } from '../tool-pages/launch.ts';
 import { registerPickerPages } from '../tool-pages/picker.ts';
 import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.ts';
 import { registerRegisterPages } from '../tool-pages/register.ts';
-import { registerConnectionRoutes } from './connections.ts';
+import { registerCanvasConfigurationRoutes } from './canvas-configuration.ts';
+import { registerCanvasDeploymentRoutes } from './canvas-deployments.ts';
+import { createBindingCleanup } from './binding-cleanup.ts';
+import type { connectionJson } from './connections.ts';
+import { connectionDto, registerConnectionRoutes } from './connections.ts';
+import { createRedemptionEngine } from './redemption.ts';
 import { registerCourseRoutes } from './courses.ts';
 import type { MoodleWsClient } from '../clients/moodle-ws.ts';
 import { registerMbzRoutes } from './mbz.ts';
@@ -122,6 +127,10 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     status: 'ok', service: 'cogniate-app', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
   }));
 
+  // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
+  const engine = createRedemptionEngine({ db: deps.db, lti: deps.lti, logger: log, now });
+  const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
+
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
   await app.register(async (api) => {
     // CSRF (security §6): every write needs Origin = PUBLIC_APP_URL (also the login).
@@ -144,7 +153,14 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     });
     registerSessionRoutes(api, { db: deps.db, now });
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, ...(deps.buildQueueDir ? { buildQueueDir: deps.buildQueueDir } : {}) });
-    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now });
+    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
+    // Provider route modules (Canvas configuration and deployments): one shared deps object with the common engine.
+    const providerDeps = {
+      db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
+      redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, libraryName),
+    };
+    registerCanvasConfigurationRoutes(api, providerDeps);
+    registerCanvasDeploymentRoutes(api, providerDeps);
     registerPublicationRoutes(api, { db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
     if (deps.buildQueueDir) registerMbzRoutes(api, { db: deps.db, now, buildQueueDir: deps.buildQueueDir, buildKnobs: deps.buildKnobs ?? { hold: false, failAt: '' } });
     if (deps.moodleWs) registerWebServiceRoutes(api, { db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });

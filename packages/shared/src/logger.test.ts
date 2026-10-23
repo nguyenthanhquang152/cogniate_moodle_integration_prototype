@@ -1,8 +1,8 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { BOOT_TRACE_ID, createLogger, redact, redactPath, redactString } from './logger.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BOOT_TRACE_ID, createCliLogger, createLogger, redact, redactPath, redactString } from './logger.ts';
 
 const fixed = () => new Date('2026-10-16T12:00:00.000Z');
 const parse = (lines: string[]) => lines.map((l) => JSON.parse(l) as Record<string, unknown>);
@@ -49,6 +49,36 @@ describe('createLogger', () => {
     const rows = readFileSync(join(dir, 'demo.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(rows.map((r) => r.event)).toEqual(['test_knob_active', 'boom']);
     expect(rows.every((r) => typeof r.trace_id === 'string' && r.trace_id !== '')).toBe(true);
+  });
+});
+
+describe('createCliLogger', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('appends each line to <dir>/<service>.jsonl at once (a CLI can exit after it), and nothing to stdout', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-cli-log-'));
+    const stdout = vi.spyOn(process.stdout, 'write');
+    const logger = createCliLogger({ service: 'demo', dir, now: fixed });
+    logger.info('grant_issued', { trace_id: 'cli-trace', grant_id: 'grt_1' });
+    logger.warn('binding_fenced', { result: 'fenced' });
+    // No wait: the lines are in the file when log() returns.
+    const rows = parse(readFileSync(join(dir, 'demo.jsonl'), 'utf8').trim().split('\n'));
+    expect(rows).toEqual([
+      { ts: '2026-10-16T12:00:00.000Z', level: 'info', service: 'demo', event: 'grant_issued', trace_id: 'cli-trace', grant_id: 'grt_1' },
+      { ts: '2026-10-16T12:00:00.000Z', level: 'warn', service: 'demo', event: 'binding_fenced', trace_id: BOOT_TRACE_ID, result: 'fenced' },
+    ]);
+    expect(stdout).not.toHaveBeenCalled();
+  });
+
+  it('writes to stderr when no folder is set, and keeps the level and redaction rules', () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const logger = createCliLogger({ service: 'demo', dir: '', now: fixed });
+    logger.debug('hidden');
+    logger.warn('binding_suspended', { client_secret: 'abc', note_present: true });
+    expect(stderr).toHaveBeenCalledTimes(1);
+    const row = JSON.parse(String(stderr.mock.calls[0]![0])) as Record<string, unknown>;
+    expect(row.event).toBe('binding_suspended');
+    expect(row.client_secret).not.toBe('abc');
   });
 });
 

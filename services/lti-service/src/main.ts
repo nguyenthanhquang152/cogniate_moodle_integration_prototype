@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createLogger, createOutboundClient, readServiceKnobs, startRetention } from '@cogniate/shared';
 import { loadConfig } from './config.ts';
 import { openDb } from './db/index.ts';
-import { buildApp } from './http/app.ts';
+import { buildApp, simulationProfileIds } from './http/app.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
 import { createNrpsClient } from './platform/nrps.ts';
@@ -24,12 +24,12 @@ const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, lo
 const ags = createAgsClient({ outbound, tokens, clock: createScoreClock() });
 const app = await buildApp({
   db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens }), outbound,
-  profile: config.profile, knobs, outboundAllowlist: outbound.allowlist,
+  profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
 });
 await app.listen({ port: config.port, host: '0.0.0.0' });
 logger.info('service_started', {
   node: process.version, port: config.port, public_url: config.urls.lti, profile: config.profile,
-  outbound_allowlist: outbound.allowlist, knobs,
+  outbound_allowlist: outbound.allowlist, knobs, simulation_profiles: simulationProfileIds(config.simulationProfiles),
 });
 // Retention (data-model §2.1): at start and every 10 min.
 const retention = startRetention({ logger, run: () => cleanupExpired(db, Date.now()) });

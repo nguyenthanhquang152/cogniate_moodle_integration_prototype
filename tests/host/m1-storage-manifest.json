@@ -1,0 +1,723 @@
+[
+  {
+    "id": "M1-41.common.a-fresh",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Fresh lane start writes a fresh pair, prepared roots and mountpoints, and host content folders",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-second-start",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Second start and a stop/start keep the identities and the data",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-restart",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Each guarded service restart runs a passing preflight and keeps the identities",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-restart-refusal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A planted unknown root entry makes stack:restart refuse before it recreates the service",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-serialize",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A backup and a start serialize on the operation lock",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-first-start-resume",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Product-made FIRST_START and FRESH_INIT_PARTIAL states resume with the same pairId",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-lock-wait",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A held lock makes stack:up wait 120 s and refuse operation_in_progress without a change",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-lock-stale",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Stale records are reclaimed; a live process group keeps a record live",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-lock-scope",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A host-control restart during test:acceptance takes the lock between the suite starts",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.a-lock-reentry",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A guarded command inside storage-oplock.sh run refuses operation_lock_reentry at once",
+    "kind": "host",
+    "phase": "storage",
+    "group": "a",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.b-oracle-lti",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "QA two-process WAL oracle shows lock enforcement in the ltidb volume",
+    "kind": "host",
+    "phase": "storage",
+    "group": "b",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.b-oracle-app",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "QA two-process WAL oracle shows lock enforcement in the appdb volume",
+    "kind": "host",
+    "phase": "storage",
+    "group": "b",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.b-sequence",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Three fresh-lane start, seed and API cycles keep both databases intact",
+    "kind": "host",
+    "phase": "storage",
+    "group": "b",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.c-selftest",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Candidate probe selftest gives its three controlled results in the container layer",
+    "kind": "host",
+    "phase": "storage",
+    "group": "c",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.c-host-negative",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Conditional: the probe reports lock_not_enforced where the QA oracle shows the host fault",
+    "kind": "host",
+    "phase": "storage",
+    "group": "c",
+    "conditional": true,
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-clean",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "No probe scratch entry remains after the guarded preflights",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-stale",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Stale probe files are removed; a near-match name is refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-unknown",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Unknown entries, a journal and a database in the wrong volume are refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-symlink",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A symbolic link with a database sidecar name is refused and not changed",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-owner",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A root-owned database is refused without a recursive repair",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-mountpoint",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Root-owned empty mountpoints are fixed; unsafe mountpoints are refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.d-content-folder",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "An unsafe host content folder is refused; absent folders are created with mode 0700",
+    "kind": "host",
+    "phase": "storage",
+    "group": "d",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-fresh-refusal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Legacy files next to FRESH volumes are refused with legacy_present",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-import",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A legacy backup and import put the legacy bytes into a new imported pair",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-kept",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Kept legacy files equal to legacySources give the kept warning only",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-changed-byte",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A changed legacy byte is refused with legacy_conflict",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-added-wal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "An added legacy sidecar is refused with legacy_conflict",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-not-same-import",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Legacy files next to a fresh pair are refused with legacy_conflict",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-import-nonfresh",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "An import into an OK pair is refused with import_target_not_fresh",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-content-missing",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A missing referenced package folder is refused with content_missing",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-old-layout",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A container with an old bind layout is refused with old_layout_container",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-hot-journal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A legacy hot journal is refused by start and by legacy backup",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-old-schema",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Released-v10 databases import into FRESH volumes and start on the candidate",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-import-recover",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "An interrupted import recovers to FRESH and runs again",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.e-provenance-restore",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A restore on an imported lane keeps legacySources and the kept warning",
+    "kind": "host",
+    "phase": "storage",
+    "group": "e",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-pairid",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A changed pairId is refused with identity_mismatch",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-identity-missing",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A missing app identity next to both databases is refused with identity_missing",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-db-without-identity",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Databases without identities are refused with db_without_identity",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-project",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Another composeProject and an invalid identity are refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-half-pair",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A completed pair with one or no database is refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.f-originals-back",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Original bytes back after each identity case give a passing start",
+    "kind": "host",
+    "phase": "storage",
+    "group": "f",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-prepared-lti",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at prepared-lti recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-prepared",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at prepared recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-staged",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at staged recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-swap-lti-mid",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at swap-lti-mid recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-swapped-lti",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at swapped-lti recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-swap-app-mid",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at swap-app-mid recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-swapped",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at swapped recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-identity-lti",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at identity-lti recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-identity-app",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at identity-app recovers to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-committed-lti",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore drill stop at committed-lti completes the commit to B",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-rollback-mid",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A forced failure after swapped and a stop at rollback-mid recover to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-recover-idempotent",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A second recover after each drill finds nothing to recover",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-tamper",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A tampered previous file makes the rollback fail without deleting a file",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-quarantine",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Quarantine copies everything and removes only the two volumes and service containers",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-damaged",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Damaged backup copies are refused before any journal write",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-fresh-target",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A restore into the quarantined FRESH lane equals B after an interrupted try",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-orphan-refusal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "An active orphaned maintenance container blocks recover, start and backup",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-orphan-complete",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "After the orphan completes, the lock is reclaimed and the pair equals B",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-orphan-stopped",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "After the operator stops the orphan, recover rolls back to the state before",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.g-quarantine-in-use",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Quarantine refuses volume_in_use for a foreign volume user and keeps everything",
+    "kind": "host",
+    "phase": "storage",
+    "group": "g",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-nomanifest",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A backup without a manifest and an INCOMPLETE folder are refused",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-volume-manifest",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A volume backup manifest has source, pair fields and QA-equal hashes",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-legacy-manifest",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A legacy backup manifest lists every legacy file with QA-equal hashes",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-open-journal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A backup refuses an open journal and writes no manifest",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-pair-mismatch",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A restore of another pair into an OK lane is refused with pair_mismatch",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-old-manifest",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "A manifest without source counts as legacy for restore and import",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.h-target-state",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Restore and import refuse journal_open and FIRST_START target states",
+    "kind": "host",
+    "phase": "storage",
+    "group": "h",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.i-enable-refusal",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Compatibility enable refuses existing test knobs and makes no copy",
+    "kind": "host",
+    "phase": "storage",
+    "group": "i",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.i-candidate-guard",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Candidate commands refuse while the compatibility marker is present",
+    "kind": "host",
+    "phase": "storage",
+    "group": "i",
+    "file": "host/storage-rows.mjs"
+  },
+  {
+    "id": "M1-41.common.j-migration",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Old-route qualification records for every b0b83a8 step of AC-M1-23 and AC-M1-30",
+    "kind": "host",
+    "phase": "migration",
+    "group": "j",
+    "file": "host/storage-compat-route.mjs"
+  },
+  {
+    "id": "M1-41.common.j-snapshot",
+    "ac": "AC-M1-41",
+    "environment": "SIM",
+    "title": "Old-route qualification records for every 9f96f7b step of AC-M1-38 h1 to h5",
+    "kind": "host",
+    "phase": "snapshot-upgrade",
+    "group": "j",
+    "file": "host/storage-compat-route.mjs"
+  }
+]

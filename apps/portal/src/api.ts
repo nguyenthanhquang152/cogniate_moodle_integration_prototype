@@ -1,4 +1,4 @@
-import type { CourseVersion, ErrorDetails } from "./types.ts";
+import type { CanvasConfigurationSnapshot, CourseVersion, ErrorDetails } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -64,6 +64,29 @@ export async function api<T>(
   return body as T;
 }
 export const idPath = (id: string): string => encodeURIComponent(id);
+
+/** Keep the exact export bytes and its snapshot header together. */
+export async function canvasConfiguration(
+  connectionId: string,
+  inline: boolean,
+  signal?: AbortSignal,
+): Promise<CanvasConfigurationSnapshot> {
+  const response = await fetch(
+    `/app-api/connections/${idPath(connectionId)}/canvas-configuration${inline ? "?jwk=inline" : ""}`,
+    { credentials: "same-origin", cache: "no-store", signal },
+  );
+  if (!response.ok) {
+    const details = errorDetails(await response.json().catch(() => null));
+    sessionExpired(response.status, details.message);
+    throw new ApiError(response.status, details, response.headers.get("x-trace-id"));
+  }
+  const text = await response.text();
+  // Refuse a malformed response rather than copying an error page as configuration.
+  JSON.parse(text);
+  const keyId = response.headers.get("x-cogniate-key-id");
+  if (inline && !keyId) throw new Error("The key id is missing. Reload the configuration.");
+  return { text, keyId };
+}
 
 // XHR exposes real upload progress. Fetch cannot report transferred request bytes.
 export function uploadPackage(

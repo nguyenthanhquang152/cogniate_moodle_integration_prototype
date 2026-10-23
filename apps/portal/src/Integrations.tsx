@@ -7,7 +7,9 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { useApi } from "./hooks.ts";
-import type { Connection } from "./types.ts";
+import type { Connection, LmsProvidersResponse } from "./types.ts";
+import { BLACKBOARD_NOT_READY, isLms } from "./lms.ts";
+import { providerWizards } from "./connect/wizards.ts";
 import {
   ConnectionBadge,
   ConnectionError,
@@ -32,6 +34,20 @@ const integrations = [
     color: "orange",
     description:
       "Export SCORM packages and sync course content with your Moodle LMS.",
+  },
+  {
+    name: "Canvas",
+    mark: "Cv",
+    category: "LMS Publishing",
+    color: "red",
+    description: "Publish Cogniate courses to Canvas with LTI 1.3.",
+  },
+  {
+    name: "Blackboard",
+    mark: "Bb",
+    category: "LMS Publishing",
+    color: "blue",
+    description: "Publish Cogniate courses to Blackboard Learn with LTI 1.3.",
   },
   {
     name: "Figma",
@@ -96,10 +112,10 @@ export function Integrations() {
   const { data, error, loading, reload } = useApi<{
     connections: Connection[];
   }>("/connections", 5000);
+  const providers = useApi<LmsProvidersResponse>("/lms-providers");
   const connections = [...(data?.connections ?? [])].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
+    b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
   );
-  const newest = connections[0];
   return (
     <>
       <div className="mt-[26px] mb-[30px] [&_h1]:mt-[7px] [&_h1]:mb-2.5 [&_p:not(.eyebrow)]:text-muted-foreground">
@@ -117,6 +133,8 @@ export function Integrations() {
         onValueChange={setFilter}
       />
       <ErrorNotice error={error} />
+      <ErrorNotice error={providers.error} />
+      {!!providers.error && <Button variant="link" onClick={providers.reload}>Reload LMS providers</Button>}
       {error ? (
         <Button variant="link" onClick={reload}>
           Try again
@@ -131,7 +149,14 @@ export function Integrations() {
       >
         {integrations
           .filter((item) => filter === "All" || item.category === filter)
-          .map((item) => (
+          .map((item) => {
+            const type = item.name.toLowerCase();
+            const lms = isLms(type) ? type : null;
+            const newest = lms ? connections.find((connection) => connection.lms === lms) : undefined;
+            const provider = providers.data?.lms.find((entry) => entry.lms === lms);
+            const ready = lms === "moodle" || (!!provider?.profiles.some((profile) => profile.ready) && !!providerWizards[lms as "canvas" | "blackboard"]);
+            const notReady = lms === "blackboard" && !!provider && !provider.profiles.some((profile) => profile.ready);
+            return (
             <Card
               as="article"
               spacing="integration"
@@ -145,7 +170,7 @@ export function Integrations() {
                   mark={item.mark}
                   color={item.color}
                 />
-                {item.name !== "Moodle" ? (
+                {!lms ? (
                   <span title="Not part of this prototype">
                     <Button
                       variant="secondary"
@@ -160,44 +185,45 @@ export function Integrations() {
                   <Loading />
                 ) : newest ? (
                   <Link
-                    id="moodle-manage"
+                    id={`${lms}-manage`}
                     className={buttonVariants({
                       variant: "secondary",
                       size: "sm",
                     })}
-                    to={`/integrations/moodle/${newest.id}`}
+                    to={`/integrations/${lms}/${newest.id}`}
                   >
                     Manage <ArrowUpRight size={14} aria-hidden="true" />
                   </Link>
-                ) : !error ? (
+                ) : !error && ready ? (
                   <Link
-                    id="moodle-connect"
+                    id={`${lms}-connect`}
                     className={buttonVariants({
                       variant: "secondary",
                       size: "sm",
                     })}
-                    to="/integrations/moodle/connect"
-                    state={{ opener: "moodle-connect" }}
+                    to={`/integrations/${lms}/connect`}
+                    state={{ opener: `${lms}-connect` }}
                   >
                     Connect
                   </Link>
-                ) : null}
+                ) : <Button variant="secondary" size="sm" disabled>Connect</Button>}
               </div>
               <h2 id={`integration-${item.name.replaceAll(" ", "-")}`}>
                 {item.name}
               </h2>
               <p>{item.description}</p>
-              {item.name === "Moodle" && newest && (
+              {notReady && <p role="status">{BLACKBOARD_NOT_READY}</p>}
+              {lms && newest && (
                 <div className="mt-[15px] flex flex-col items-start gap-2.5 border-t border-[#ffffff12] pt-3 [&>a]:inline-flex [&>a]:items-center [&>a]:gap-1 [&>a]:text-[12px] [&>a]:text-[#d7b9ff] [&>a]:no-underline">
                   <ConnectionBadge connection={newest} />
-                  <Link
-                    id="moodle-connect-another"
-                    to="/integrations/moodle/connect"
-                    state={{ opener: "moodle-connect-another" }}
+                  {ready && <Link
+                    id={`${lms}-connect-another`}
+                    to={`/integrations/${lms}/connect`}
+                    state={{ opener: `${lms}-connect-another` }}
                   >
                     <Plus size={14} aria-hidden="true" />
                     Connect another site
-                  </Link>
+                  </Link>}
                   <ConnectionError
                     connection={newest}
                     libraryName={session?.library.name}
@@ -205,7 +231,7 @@ export function Integrations() {
                 </div>
               )}
             </Card>
-          ))}
+          ); })}
       </div>
       <p className="mt-8 text-center text-[12px] text-[#a9a1b8]">
         One library. Your tools, connected.

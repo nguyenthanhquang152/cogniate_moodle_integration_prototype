@@ -7,6 +7,7 @@ import type { Scorm12Api } from '../scorm12/api.ts';
 import { createScorm12Api } from '../scorm12/api.ts';
 import { flattenSaved, toCommitCmi } from '../scorm12/cmi-shape.ts';
 import { commitBody, createTransport, progressBody } from './transport.ts';
+import { lmsName } from '../lms-name.ts';
 
 declare global {
   interface Window {
@@ -17,6 +18,7 @@ declare global {
 /** Start the runtime in `win` (the runtime page). Returns when the package frame src is set. */
 export async function startRuntime(win: Window): Promise<void> {
   const doc = win.document;
+  const name = lmsName(doc.body);
   const token = win.location.pathname.split('/')[2] ?? '';
   const base = `/rt/${encodeURIComponent(token)}`;
   const message = (text: string) => {
@@ -29,8 +31,8 @@ export async function startRuntime(win: Window): Promise<void> {
   let state: RuntimeState;
   try {
     const res = await win.fetch(`${base}/state`, { credentials: 'omit', cache: 'no-store' });
-    if (res.status === 410) return message('This course session expired. Open the activity again in Moodle.');
-    if (!res.ok) return message('This course session does not exist. Open the activity again in Moodle.');
+    if (res.status === 410) return message(`This course session expired. Open the activity again in ${name}.`);
+    if (!res.ok) return message(`This course session does not exist. Open the activity again in ${name}.`);
     state = (await res.json()) as RuntimeState;
   } catch {
     return message('Cogniate cannot load this course now. Try again in a minute.');

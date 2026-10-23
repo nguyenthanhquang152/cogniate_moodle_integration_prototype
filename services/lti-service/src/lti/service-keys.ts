@@ -19,7 +19,7 @@ export function serviceKeyForLaunch(db: Db, masterKey: Buffer, launch: LaunchRec
   if ((!ags && !nrps) || typeof contextId !== 'string' || typeof resourceLinkId !== 'string') return undefined;
   const issued = issueServiceKey(db, masterKey, {
     toolAccountId: launch.toolAccountId, platformId: launch.platformId, deploymentId: launch.deploymentId, contextId, resourceLinkId,
-    agsClaim: ags, nrpsClaim: nrps,
+    agsClaim: ags, nrpsClaim: nrps, bindingGeneration: launch.bindingGeneration,
   }, now);
   return 'serviceKey' in issued ? issued.serviceKey : undefined;
 }

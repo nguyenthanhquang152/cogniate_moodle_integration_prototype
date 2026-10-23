@@ -1,0 +1,539 @@
+# Remaining work after the model transition
+
+Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
+
+## Current checkpoint — 2026-10-23, 17:39 UTC
+
+**No required prototype implementation, QA, review or documentation task remains.**
+All runtime and conformance gates are accepted. Final Gemini Docs QA passes all eight criteria at `911219b0`.
+Both final blind Claude reviews APPROVE. Their reports are committed at `524d1c64`.
+The retained Codex executor applied the exact reviewed closure patch; the Lead verified and committed it at `206ad2b9`.
+
+The [final handover](multi-lms-final-handover-2026-10-23.md) links the guides, accepted evidence and future work.
+Two final MINOR findings are registered. Other nonblocking follow-ups keep their recorded status.
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+Live validation, enterprise hardening and human decisions belong to the next phase. No push or main merge occurred.
+
+## Historical checkpoint — 2026-10-23, 16:55 UTC
+
+All runtime gates and final Architect conformance are accepted. The QA report bindings and narrow prototype ADR status changes are committed. No further Docker work is required.
+The same Codex executor is applying the prepared guides. Then independent Gemini Docs QA and two blind Claude reviews run together on one frozen revision. Lead closure follows their accepted results. Any blocking document findings return to the same executor in one batch.
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 16:43 UTC
+
+The final runtime gate passed. C10 T7 has independent QA PASS for all 15 criteria, all three 17-test cycles, the demo, confirmation checks, trace/PNG checks, secret scan and operational closure. The Lead accepted it in `msg_c84789ebb2b4` and returned the host. No more Docker work is required for this phase.
+
+Remaining: finish the prepared Architect conformance and narrow ADR status changes; apply the prepared guide patch; run independent Docs QA and both blind reviews together; record Lead closure. M1, M2 and legacy results remain accepted at their original revisions. The final documentation gates must still pass before the goal is complete.
+
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 16:27 UTC
+
+C10 T7 started at 16:26:20 UTC. The runner started at 16:26:41 UTC. The four-file repair has independent Gemini checks and both Claude approvals. Fresh preflight passed. Grant `msg_28bc7b21d064` requires cleanup by 16:48 UTC and host return by 16:50 UTC. The earlier failed invocation remains FAILED.
+
+The remaining sequence is concrete:
+
+1. Finish this T7 invocation and judge all functional, screenshot, secret-scan and operational evidence.
+2. Apply prepared Architect conformance and narrow prototype ADR status updates after acceptance.
+3. Apply the same Codex executor's prepared guide changes.
+4. Run independent Gemini Docs QA and both blind Claude reviews together, then record Lead closure.
+
+M1, M2 and legacy checks remain accepted; no repeat is required. Their import closures exclude the four C10 files. Their typecheck globs include the E2E files; C10 typecheck passed. This runtime previously took about 15 minutes. Final document checks still follow, so the host deadline is not a project completion promise.
+
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:51 UTC
+
+T7 failed with one root interaction failure and seven cascades in cycle 2. Cycles 1 and 3 passed 17 tests each. The demo passed in 12.41 seconds; all four confirmation/refusal checks passed. Cleanup and boundary checks passed, including all 32 complete volume records. The host was returned at 15:44 UTC. LA confirmed no mutation during the full window.
+
+Claude's diagnosis supports one bounded repair: use viewport screenshots at two T7 evidence captures before sticky-footer actions. Gemini owns the two test files under the repository rules. The same Codex executor prepares an identity-only launcher update after the new test commit. No product code, acceptance criterion, timeout, retry or qualified operational tool changes. M1, M2 and legacy evidence stays accepted; no repeat is authorized.
+
+LA reserved 16:15–16:40 UTC, subject to readiness. Source review, actual handoff, a fresh preflight and a separate grant remain required. This is a runtime slot, not a project completion promise. After accepted T7: apply prepared conformance and ADR status updates; apply prepared guides; run independent Docs QA and two blind reviews together; close the phase. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:27 UTC
+
+Tool qualification is complete: independent Gemini PASS and focused Claude APPROVE. LA supplied the actual handoff and holds new starts through 15:50 UTC. The first external preflight failed because its shell used a private test home. The corrected preflight passed in a new directory. The Lead accepted its exact W3 record and the narrow bridge and collector-schema reconciliation in `msg_37daa6076f89`.
+
+One T7 runtime is now authorized by `msg_0de90d08153d`, with completion and cleanup due by 15:48 UTC. A launch or PASS is not inferred from that grant. See [the E-R8 attempt record](r8-t7-shared-host-verification-2026-10-23.md) for the evidence and limits.
+
+The Architect and the same Codex executor have finished private conformance and guide preparation. After accepted T7, they apply final conformance and narrow ADR status updates, then guide evidence updates. Independent Docs QA and two blind reviews run together on the final document revision. Lead closure follows accepted results. M1, M2 and legacy results need no repeat. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 15:05 UTC
+
+The user set the active goal to complete all remaining tasks. The Lead selects reversible shared-host tool preparation under [E-R8 preparation](r8-t7-shared-host-preparation-2026-10-23.md), without changing Savoy's owner's no-pause instruction. The earlier scheduling choice no longer blocks this preparation. No runtime exception or grant is approved yet.
+The corrected r2 candidate has independent Gemini PASS (55 suite controls and four regressions) and focused Claude APPROVE. The Lead accepts [E-R8](r8-t7-shared-host-verification-2026-10-23.md). Existing product code, tests, accepted checks and original QA tools remain unchanged. Initial failures and QA fixture corrections remain disclosed.
+LA confirmed a planned actual handoff around 15:10 UTC, with at least 20 minutes from handoff. The actual stack-down evidence, fresh external preflight and separate runtime grant are still required. The retained Gemini prepares that one T7 attempt under `ctx_73b31b9cc18d`.
+The same Codex session (`ctx_d0945a6ff5d3`) prepares final guide changes privately. The retained Architect (`ctx_ad74f34fb2d1`) prepares conformance and narrow ADR status updates. Neither may apply final PASS claims before accepted T7 evidence. Then finish independent Docs QA, two blind final reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 12:23 UTC
+
+Claude completed the bounded route plan and clarification in [the failure plan, sections 15–16](../reviews/M3/t6-09-failure-plan.md). The Lead verified both appended sections and all preserved prefixes. This is a planning deliverable; E-R8 is not approved and no tool or runtime grant exists.
+The user has been asked to choose between a coordinated 25-minute Savoy pause, or continued Savoy activity with new copied QA tools and a focused review (Claude estimates 2–3 hours for that work). The pause needs the owner's authorization because Savoy's coordinator declined it. Neither choice is assumed.
+
+Under the pause option, Savoy must remove only its own resources, LA must also hold, and the original external preflight and explicit Lead grant still apply. Section 16 discloses the unchanged v2 wrapper's bridge gap and the decision needed before use.
+Under the concurrent option, positive attribution must use sufficient captured metadata; unexplained changes fail closed. Sections 15–16 are the proposal for implementation and review, not runtime acceptance evidence.
+
+Gemini's bounded attempt settled in `msg_67761a8db0a0` solely on the external scheduling block. T7 remains NOT RUN/PENDING, with zero Docker calls and no test failure. Its report appendix is verified. The same Gemini and Claude sessions are retained without process action, ready for the selected route.
+M1, M2 and legacy results remain accepted. After T7: final conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 12:10 UTC
+
+The user resumed work. LA supplied its actual handoff at 11:58 (`msg_b032782139a5`) and explained that its coordinator was down from about 06:47 to 11:57. This explains the missed earlier handoff.
+The retained Gemini session is READY FOR PREFLIGHT under `task_d59003f88ba1` / `ctx_4df8a8c1c7d6`. All 84 original and six repaired-tool bindings match, report prefixes are preserved, and all new runtime paths remain absent (`msg_dc754e02d52e`). LTI has made zero Docker calls in this resumed attempt.
+
+Savoy confirms ownership of the new `sto-*` containers and their anonymous volumes. Its owner will not pause Docker or supply per-window resource lists (`msg_987ebb0a6be7`, `msg_293cd9f61de2`). It reports that it uses only its fresh containers, anonymous volumes and `sto-*` networks and never mutates the 32 protected volumes. An exclusive window is therefore unavailable. The Lead returned LA's unused reservation at 12:07; LA acknowledged and resumed its own work. No runtime clock or grant started.
+
+The retained Claude Architect is active on one bounded technical decision, `task_5eeaa543c47b` / `ctx_8e0b8f913da4`. Its actual model is `claude-opus-5-5`; the existing xhigh setting is not observable in-session. It will assess a concrete safe T7 route against the frozen tools and report the required evidence. This planning task grants no Docker activity, tool edit or change to acceptance criteria. Gemini holds under `msg_5f5caf07dee5`.
+
+T7 remains NOT RUN/PENDING. M1, M2 and legacy results remain accepted and need no repeat. After accepted T7: final Architect conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 08:04 UTC
+
+The planned 07:45–08:05 UTC slot was unused. LA did not deliver the actual host handoff. No preflight or runtime grant was issued, and LTI made zero Docker calls.
+The retained Gemini session passed all 84 original and six repaired-tool binding checks and verified unused T7 output paths. T7 remains NOT RUN/PENDING; this is an external scheduling block, not a failed T7 test.
+QA settled the runtime attempt as externally blocked in `msg_85f57a3c0b6b`. Its report precision follow-up succeeded in `msg_e9d44f927eae`; the Lead verified both preserved prefixes and retained the same terminal. `msg_95e0396cb18f` tells LA that LTI never took the host and has no new stack or runtime process to remove.
+
+Question `msg_ed58480e255f` requests the actual stack-down handoff and a newly confirmed 20-minute exclusive window. The original deadline no longer leaves a safe runtime margin; no extension is assumed.
+At 07:58, the authoritative inbox showed the handoff requests still unread. The reason for the coordinator's lack of response is unknown. Do not infer a quota failure or restart that coordinator.
+The one-time reminder fired and disabled itself. Retain the same prepared QA session; resume only after the actual handoff and a fresh bounded grant. Preserve the unused `t7-external-preflight-0745` and all T7 output paths.
+
+After T7: final Architect conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure. M1, M2 and legacy results remain accepted and need no repeat.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 06:26 UTC
+
+LA asked for the remaining LTI host needs in `msg_a769094a7cd8`. The Lead replied in `msg_6e526b30c9e4`; LA accepted the planned exclusive T7 window **07:45–08:05 UTC** in `msg_7dcc7a1394ef`.
+The existing block remains in force through 07:45. The reservation is not a start grant. LA must first return the host with its stack down, the full 32-volume inventory, network inventory and its event-watcher extract.
+Before launch, reconcile the full records and any legitimate pre-W3 network change, then issue a fresh bounded T7 grant. Keep all strict runtime and cleanup checks. Do not start if the remaining time cannot cover the run and safe cleanup; return the host by 08:05.
+
+The one-time reminder `a270830b-c5f8-4b21-a686-f7b2020bc70c` now runs at **07:40 UTC (14:40 Vietnam time)** for host-only preparation of the retained Gemini session. It still sends only one coordinator message and disables itself. It does not launch a worker or grant Docker activity.
+Use a new Dispatch for the retained QA session. No Docker command, wake or boundary capture is allowed before 07:45 and the actual handoff.
+
+T7 is the only remaining planned Docker work. After an accepted run and cleanup, LA may use the host from 08:05 for its work. Any unexpected LTI runtime repair needs a new agreed window.
+Final Architect conformance, guide evidence updates, independent Docs QA, two blind reviews and Lead closure remain after T7; these steps are host-only. The slot is not a project completion promise.
+M1, M2 and legacy results remain accepted. All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 04:38 UTC
+
+M1 and M2 are accepted. M1 passed both 394-row rounds and equality, with 94 carried C4 rows separate. M2 r7 passed all 64 cases, 13 criteria, seven gates and operational checks.
+T7 did not start before its 04:33 cutoff. The evidence handoff consumed the available margin; the external preflight completed at 04:35:27. This is a scheduling hold, not a failed T7 test.
+The host was returned at 04:38:30 UTC with all LTI stacks down and all 32 complete volume records unchanged. No LTI Docker activity or new window request is allowed through 07:45 UTC (14:45 local).
+07:45 is the earliest scheduling opportunity. No new reservation or completion time is promised.
+
+Orca reminder `a270830b-c5f8-4b21-a686-f7b2020bc70c` is scheduled for 2026-10-23 07:46 UTC (14:46 local), using Codex GPT-6-Astra xhigh.
+It is date-gated and disables itself on its first run. It sends one message to the existing coordinator to check host availability; it grants no Docker work and starts no QA worker.
+All current dispatches are settled and no worker needs cleanup. The independent QA and Architect sessions are retained; the next attempt must use new Dispatch IDs.
+
+Remaining: T7 runtime and its operational closure; final Architect conformance and narrow ADR status updates; guide evidence updates; independent Docs QA; two blind final reviews; Lead closure.
+Retain the same QA, Architect and Codex sessions. Do not repeat accepted M1, M2 or legacy checks for this scheduling hold.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 04:24 UTC
+
+Both fresh M1 rounds and equality are accepted. Each passed 394 cases, all seven dead-handler preconditions, scans and operational closure; the 94 carried C4 rows remain separate.
+M2 has one fresh r7 grant through 04:31 UTC (`msg_1d96a40f0530`), using the reviewed monitor repair. T7 follows only after M2 passes.
+The final host return is 04:45 UTC. After return, LTI must make no Docker phase or new window request through 07:45 UTC.
+
+After runtime: final Architect conformance and narrow ADR status closure; guide evidence updates; independent Docs QA; two blind final reviews; Lead closure.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 03:50 UTC
+
+M1 Round 1 is accepted: 394/394 PASS, seven dead-handler preconditions PASS, independent sink/browser scan PASS and clean operational closure.
+Round 2 has one-invocation grant `msg_d0ead4f3d22c` through 04:20 UTC. Its result and independent equality check remain.
+The repaired M2/T7 monitor passed focused Claude review at `b84b53e`; E-R6 amendment `5ecf069` binds its use. M2 and T7 still need separate runtime grants after M1.
+
+LA confirmed an extended host reservation through 04:35 UTC. After return, LTI plans no Docker activity through 07:35 UTC.
+Remaining work after runtime is final conformance, guide evidence updates, independent Docs QA and two final reviews, all host-only.
+The reservation is not a promised project completion time. All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 03:25 UTC
+
+M1 Round 1 is running under grant `msg_01cc4a7ce777` on the approved C6/C9 inputs.
+It started at 03:12:17 UTC. QA reports healthy containers and progressing acceptance tests; no final result is claimed.
+LA confirmed its stack is down and reserved 03:07–04:22 UTC for serial LTI runtime in `msg_8c651b7c1586`.
+Round 2, M2 and T7 each still need their own grant and the preceding run's accepted closure.
+
+The private monitor repair passed 39 mock checks across 54 scenarios. The focused Claude review has no code BLOCKER or MAJOR so far; its final invocation review is pending.
+The frozen M2 v5 script uses a fresh `qa-e2e-sim-r7` namespace and a grant-bound preceding W4. T7 uses its frozen v2 script.
+M2 attempt 3 remains NOT ACCEPTED. Product C6 and tests C8/C9 are unchanged.
+
+Remaining sequence: finish both 394-row M1 rounds and independent equality judgment; run repaired-monitor M2 and T7; final conformance; guide evidence updates, Docs QA and two final reviews.
+The 04:22 UTC boundary is the host reservation, not a project completion promise. Final documents and reviews follow runtime.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:54 UTC
+
+Both independent Claude reviews approve C9 and v5 (`e81fb2b`, `4b571d9`). E-R7 at `65f812a` selects two fresh 394-row M1 rounds and 94 carried C4 rows.
+Common Gemini prepares those runs. Independent Gemini repairs the separate M2/T7 lane monitor in a fresh tool directory under Claude's §13 plan at `5c8f2dc`.
+M2 attempt 3 stays NOT ACCEPTED despite 64/64 functional PASS. The monitor repair needs a focused independent review and one M2 rerun; T7 then uses the repaired monitor.
+M1 and legacy are independent of that private tool change. Product C6, C8 and C9 stay unchanged.
+
+Remaining sequence: two M1 rounds and independent equality judgment; repaired-monitor M2 and T7; final conformance; final guide evidence updates, independent Docs QA and two final reviews.
+The host reservation allows these runtime checks through 04:05 UTC at latest, subject to the other QA session's pause confirmation and each separate grant. This is a reservation, not a promised completion time.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:35 UTC
+
+C9 and v5 preparation are complete. Both blind Claude reviewers are active on the frozen source and launcher.
+All 64 M2 cases and runner gates passed, with zero skips or retries. Overall M2 acceptance remains held because the separate lane monitor exited 1 during teardown.
+W4 and all 32 protected volume records passed comparison. QA is capturing the original failure and final scan; no repeat run is granted.
+The shared host window is returned. Claude Architect must assess this monitor finding when a reviewer slot is free.
+
+Remaining work: resolve the M2 monitor finding; accept both M1 reviews and run the two fresh 394-row rounds; run T7; complete final conformance and guide updates, independent Docs QA and two final reviews.
+The earlier 94 carried M1 rows and accepted legacy results retain their recorded scope. No fresh full-suite claim is made.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:13 UTC
+
+The six test repairs are frozen at C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1`.
+Common Gemini passed all 184 host self-tests, TypeScript checking and the unchanged 488-row inventory.
+The Lead verified all 13 Stage A evidence bindings. No product or live-provider test ran in this check.
+The same QA prepares the v5 launcher. Claude Reviewer-A `ctx_de7c7933e455` reports no source BLOCKER or MAJOR so far.
+Its two MINOR documentation clarifications remain recorded. The launcher review and second blind review are pending.
+
+M2's first preflight failed before Docker because of zsh command interpretation. The failure remains preserved.
+The checked Bash replacement has grant `msg_b2b4ecd13c67` for 02:12–02:25 UTC. No M2 PASS is claimed.
+T7 remains ungranted. Two fresh M1 rounds, final conformance, guide stamps, independent Docs QA and final blind reviews remain.
+Model roles, all 32 real-LMS UNVERIFIED rows, local Canvas DEFERRED and the no-push rule remain unchanged.
+
+## Historical checkpoint — 2026-10-23, 01:52 UTC
+
+Claude completed the seven-case repair plan. The Lead committed the plan and conformance checkpoint at `5116227`.
+The diagnosis is a test-harness defect: graceful restart can let the old handler clear its lease before exit.
+No product change is planned. Common Gemini `task_4acf2acaf2b9` / `ctx_b34c29c515f2` owns the six test paths in plan §12.3.
+It will run host-only checks, hold the source for a Lead commit, and prepare the private v5 launcher.
+Two blind Claude reviews must approve the repair and launcher before any new M1 runtime grant.
+
+Independent Gemini `ctx_8449a3df3e54` resumed in its retained session. Its 84-entry readiness manifest passed.
+[E-R6](r6-independent-verification-2026-10-23.md), committed at `7df8ba4`, permits separate M2 and T7 invocations at C8 tests and C6 product.
+M2 has grant `msg_4dd81c22cc1a` for 01:46–02:07 UTC and is in preflight. No runner start or PASS is claimed.
+T7 has no grant yet. LA confirmed its stack is down and holds new starts during the agreed 01:46–02:25 window.
+Runtime phases remain serial. Test repair and source review are host-only parallel work.
+
+Remaining sequence: repair and two reviews; two fresh M1 SIM rounds; M2 and T7 closure; final conformance; final guide stamps, Docs QA and two blind reviews.
+The selected M1 rounds each cover 394 rows: 26 common, 136 Blackboard and 232 Canvas.
+The final M1 ledger will distinguish these fresh rows from 94 carried C4 rows. Independent Gemini will judge all 394 rows and round equality.
+M1 still needs a new route decision after the repair and launcher reviews. No E-R5 shared-host exception is adopted by this checkpoint.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 01:24 UTC
+
+The user resumed the goal after more than five hours. The Lead confirmed that all prior attempts were settled and the integration checkout had no new changes.
+Claude Architect retry `ctx_49da070f64c0` started on the same task with effective model Opus 5.5 and xhigh effort.
+Its first deliverable is the bounded seven-case repair plan. Quota availability is being checked from the actual worker response; a start receipt alone is not proof of progress.
+The existing continuation brief and corrected v3 diagnosis remain authoritative. No model substitution is authorized.
+QA and implementation have no new active attempt yet. No runtime or source/test edit is granted.
+All accepted evidence, remaining verification gates and real-LMS limits are unchanged. No push or main merge is authorized.
+
+## Historical checkpoint — 20:13 UTC
+
+The bounded repair plan is blocked by Claude's quota. Three Architect attempts have explicit session-limit events.
+The Lead stopped only those proven stopped attempts: `ctx_422d7f0f0928`, `ctx_e364fb2df6f9` and `ctx_0477b67db595`.
+The last retry stopped immediately. No further duplicate session will start without a quota reset or new user direction.
+The user was asked to keep Claude's architecture role and wait, or explicitly authorize Codex GPT-6-Astra for this bounded plan.
+No answer or role change is assumed. The retained Codex executor has not started architecture work.
+
+Independent Gemini's corrected failed-round and equality report is committed at `64a1b62`.
+The Lead verified its preserved prefix and all 12 primary input bindings. The report discloses earlier metadata errors.
+Gemini `ctx_806443ba13cd` closed this attempt with outcome FAILED at 20:14:55 UTC because the planning dependency is blocked.
+Its accepted evidence remains committed. M2 and T7 were not executed. Its external terminal is released from this attempt and available for later reuse.
+E-R5 remains invalidated. No runtime, product edit or test edit is granted.
+The Lead released LTI's standing Docker hold for LA in `msg_8451370d9f2a`; LTI has no active host reservation.
+Final runtime, conformance, guides, Docs QA and reviews remain pending. Real-LMS and no-push limits remain unchanged.
+
+## Historical checkpoint — 20:00 UTC
+
+Independent Gemini QA confirms round 2 FAIL and round equality FAIL, with one differing case.
+Its primary-log assessment supports a test setup defect: graceful restart can let the held request time out and clear its lease before exit.
+It identifies seven related dead-handler cases across Canvas and Blackboard for one consolidated assessment.
+This diagnosis does not establish a product defect. Claude must propose the bounded repair and revalidation before any edit or run.
+
+The previous Claude Architect hit its session limit at 19:37 UTC, confirmed from its transcript.
+The Lead stopped that attempt and started replacement `ctx_e364fb2df6f9` on the same task, using Claude Opus 5.5 xhigh.
+The [continuation brief](architect-resume-2026-10-23.md) preserves all completed work and records the corrected log binding.
+Independent Gemini `ctx_806443ba13cd` remains active. Common QA's failed attempt is settled and its terminal release is accounted.
+E-R5 remains invalidated. No runtime, product edit or test edit is granted.
+All final runtime and handover gates listed below remain pending; real-LMS and no-push limits remain unchanged.
+
+## Historical checkpoint — 19:46 UTC
+
+Canvas SIM round 2 FAILED: `M1-37.canvas.s-dead` returned HTTP 200 where the lease test required HTTP 409.
+The other 257 functional cases passed. The runner ended at 19:38:16 UTC.
+W4 comparison, cleanup and secret scan passed. All 32 protected volume records are unchanged.
+This fresh functional failure invalidates E-R5 for further acceptance. No retry, M2 or T7 run is granted.
+Claude Architect and the existing independent Gemini QA session are diagnosing the same frozen failure.
+The retained Codex session remains the product repair owner if the diagnosis requires a product change.
+
+Round 1's corrected independent reconciliation is committed at `09510c8`.
+The Lead checked its source records and trace citations; the original incorrect report stays preserved.
+Savoy's full-window confirmations remain pending. No link between its work and the new failure is established.
+Final conformance, guide updates, Docs QA and two blind reviews remain pending.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 19:32 UTC
+
+Canvas SIM round 1 completed with 258/258 cases PASS: 232 Canvas and 26 common-engine cases.
+Strict W4 comparison, cleanup and secret scans passed. All 32 protected volume records are unchanged.
+The Lead verified the 67-entry index and committed Common QA's results at `8d703d6`.
+Final acceptance remains pending: the independent extra-evidence report has unsupported identifiers and conflicting counts.
+The same independent Gemini session must correct that report from the frozen logs in a new artifact.
+The original report and primary evidence remain unchanged. Savoy's full-window confirmation is also pending.
+
+Canvas SIM round 2 started at 19:23:57 UTC under grant `msg_f8c62bde4938`.
+Its startup checks passed. The result and exact equality with round 1 remain pending.
+M2 and T7 still need separate grants after accepted runtime evidence.
+Final conformance, guide updates, independent Docs QA and two blind reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 19:02 UTC
+
+Canvas SIM round 1 started at 18:54:44 UTC under Common Gemini dispatch `ctx_72afbef88d8c`.
+Grant: `msg_3ff504c1cbee`; startup: `msg_a4de323a84f4`. The unchanged suite has 258 cases.
+All 32 full protected volume records and Docker settings match the accepted legacy boundary.
+The preflight VM wake replaced the bridge before formal W3; the record discloses that transition.
+Savoy reports one overlapping block, 19:01:14–19:01:33 UTC, with two named containers and no build or network.
+Independent Gemini will check the required E-R5 evidence for the whole invocation. Final cleanup and whole-window confirmation remain pending.
+Round 2, M2 and T7 remain ungranted. No fresh Canvas runtime result is accepted yet.
+Final conformance, guide updates, independent Docs QA and two blind reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:48 UTC
+
+The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for shared-host execution within the confirmed resource boundaries.
+Claude finalized the unchanged verification requirements in section 11.6 of the failure plan; Gemini confirmed the artifact types are available.
+This claims no Docker reservation and does not override Savoy's immediate-access instruction.
+The user has already authorized LTI verification. No answer to the optional exclusive-priority question is inferred.
+
+All original tests, deadlines, resource comparisons, scans and cleanup checks remain required.
+If foreign work overlaps an invocation, independent QA must supply the extra negative-check evidence in E-R5.
+M2 must prove cancellation through the specified logs; an unclear overlapped result requires a window without foreign work for M2.
+Every invocation still needs a separate Lead grant. First: Canvas SIM round 1, then round 2, M2 and T7.
+Legacy remains accepted under E-R4 with the non-exclusive window disclosed. No legacy rerun is required.
+
+Final conformance, guide updates, independent Docs QA and two blind reviews follow accepted runtime.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:40 UTC
+
+Legacy functional and criterion evidence remains accepted under E-R4. No legacy rerun is required.
+The two Canvas SIM rounds, independent Canvas judgments and equality, M2 and T7 have not started.
+Savoy declined an exclusive Docker hold because its machine-owner instruction gives its work immediate access.
+Its latest reported block ended at 18:37:29 UTC; it reports no further work scheduled, but no reservation is agreed.
+
+Claude found no ready isolated Docker environment. A second engine would require new infrastructure and validation.
+Its conditional shared-host proposal is committed at `dfb8d24`, section 11 of the [failure plan](../reviews/M3/t6-09-failure-plan.md).
+The proposal keeps all original tests and checks. It requires extra retained evidence for specific timing-sensitive negative checks.
+Independent Gemini QA is checking whether the frozen artifacts can supply that evidence. No shared-host route or runtime grant is accepted yet.
+Savoy has confirmed resource boundaries in `msg_962e480b30de`; network-subnet and full-window chronology details remain pending.
+
+The user's scheduling question remains open. Claude recommends about 75 minutes for a reserved window, including preflight and cleanup.
+The underlying test estimate remains about 50–60 minutes, plus handoffs or new failures.
+Final conformance, necessary guide updates, independent Docs QA and two blind reviews follow accepted runtime.
+No completion time is committed while the execution route is unresolved.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:04 UTC
+
+All twelve legacy groups passed: 304 raw entries and 251 as the sum of unique IDs within each subrun.
+The QA disclosure is committed at `e8a1947`. It records the non-exclusive window, exposure ledger and corrected counts.
+The Lead verified all 74 evidence entries against their restored original hashes.
+Two derived files were temporarily revised and restored; the disclosure preserves that history. All 72 underlying entries stayed unchanged.
+
+The Lead accepted Claude Architect's P1 proposal at `a8354f2` under [E-R4](r4-evidence-decision-2026-10-22.md).
+Savoy supplied its whole-window activity confirmation in `msg_779552416a56`; LA confirmed its hold in `msg_25fb37c37283`.
+The legacy functional and criterion results are accepted with the non-exclusive window disclosed. No legacy rerun is required.
+E-R3 remains VOID as a historical grant. No new runtime is granted by E-R4 alone.
+Savoy expects further short Docker runs. The user's scheduling choice remains pending.
+
+The remaining runtime is two 258-row Canvas SIM rounds, independent 232-row Canvas judgments and equality, then M2 and T7.
+These need about 50–60 minutes of reserved Docker time, excluding handoffs or new failures.
+Final conformance, necessary guide updates, independent Docs QA and two blind reviews follow.
+There is no reliable completion time until the host schedule is resolved.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 17:33 UTC
+
+The C6/C8 legacy runner finished with exit 0 at 17:23:51 UTC. All twelve functional groups passed.
+The previously failing AC-T5-36, AC-T6-07 and AC-T6-09 passed without retries.
+The final comparison and secret scan also passed. All 32 original full volume records are unchanged.
+
+Savoy confirmed temporary Docker activity from 17:20:16 to 17:22:57 UTC, before the final snapshot.
+This violated the grant's exclusive-host condition despite unchanged start/end resources.
+The Lead has made E-R3 VOID; see [the runtime isolation decision](runtime-isolation-2026-10-22.md).
+The attempt preserves functional PASS results but is not accepted as complete runtime proof.
+
+Common Gemini QA is closing the evidence. Claude Architect will assess the smallest justified remediation.
+Independent Gemini Canvas/M2/T7 QA remains ready and host-only. No new runtime or automatic retry is authorized.
+The user has been asked to resolve the remaining shared Docker schedule.
+Final conformance, guide completion, Docs QA and two final reviews remain pending.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 16:49 UTC
+
+The fresh C6/C8 legacy run started at 16:38:27 UTC under `ctx_72afbef88d8c`.
+Its current reservation ends at 17:35 UTC. A timing update is due by 17:20 UTC.
+The Lead verified the starting snapshot: no containers and all 32 original full volume records unchanged.
+No fresh runtime result is accepted yet. All 12 legacy groups must complete with strict isolation and cleanup checks.
+
+The pre-launch inbox check completed at 16:37:50 UTC. A scheduling hold arrived four seconds later.
+The Lead authorized the existing invocation to continue in `msg_688d2d426edd`.
+Savoy's exact-window acknowledgment did not precede launch and remains pending at this checkpoint.
+Any external activity after the formal start must remain visible in the isolation result.
+
+Claude's architecture Stage 1 is committed at `b2d2aae`; final conformance remains PENDING.
+Independent Gemini's final C8 test and trace bindings are committed at `2039ba4`.
+Its Canvas/M2/T7 preparation is ready; it remains host-only pending separate runtime grants.
+The next runtime phases are two 258-row Canvas SIM rounds, independent Canvas judgments, M2 and T7.
+Final conformance, necessary guide edits, independent Docs QA and two final reviews follow.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 16:33 UTC
+
+Both independent Claude reviewers approved C8 and the held v4 launchers with no BLOCKER or MAJOR.
+The Lead accepted [E-R3](r3-evidence-decision-2026-10-22.md) for execution. Runtime acceptance remains pending.
+C8 stays `5561e8f`; product stays C6 `4008afb`. All test deadlines and assertions stay unchanged.
+
+- Common Gemini QA: task_0b7729855fc5 / ctx_72afbef88d8c. Preparation is held; wait for each explicit runtime window.
+- Independent Gemini Canvas/M2/T7 QA: task_3ca468cb75c8 / ctx_806443ba13cd. Host-only preparation is active.
+- Both successful review workers are released. Their quota-stopped predecessors remain stopped.
+- Final Claude architecture conformance is next. The retained Codex session owns any product repair and final guide edits.
+
+The accidental guard-control run is UNAUTHORIZED/STOPPED. Its gate message is VOID.
+Cleanup passed, and all 32 original full volume records are unchanged. The run gives no test credit.
+Fresh work remains: all 12 legacy groups, two 258-row Canvas SIM rounds, independent Canvas judgments, M2 and T7.
+The source identity, exact reuse limits, findings and launcher constraints are recorded in the E-R3 decision.
+No fresh runtime has started at this checkpoint. Its explicit grant will record the actual reservation.
+Final conformance, guide completion, Docs QA and two final reviews follow. Real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+## Historical checkpoint — 15:55 UTC
+
+C8 is committed at `5561e8f72a83de36a68877c6b26ffc8288ade735`.
+Its tests tree is `65eaefab31ec6800fca06aee50e5e25c95713f8a`.
+The R3 repair adds 33 lines across two keyboard test files and removes no C7 lines.
+Tests typechecking passed. The T6 inventory remains 18 tests; M2 remains 64 tests.
+All files outside docs and tests match product C6.
+
+- Common Gemini QA: task_0b7729855fc5 / ctx_72afbef88d8c. Prepare v4 launchers without Docker, then wait for the runtime grant.
+- Claude Reviewer A: task_78835a8bce35 / ctx_cea4b49eec71. Review C8 and v4 independently.
+- Claude Reviewer B: task_ca18cab27865 / ctx_46e72195723f. Review C8 and v4 independently.
+- The R3 Gemini edit task settled successfully. Its terminal is released from that task and available for later independent runtime judgment.
+- The retained Codex session remains the sole executor for any product repair and final guide edits.
+
+The earlier missing-trace statement is superseded. QA recovered the current failed test trace,
+and the Lead checked its test title and 15:06:15.174 UTC start time. The exact callback sequence remains an inference.
+The C6/C7 attempt stays FAILED. E-T5R stays VOID. No new runtime or replacement evidence route is accepted yet.
+Both reviews must finish before the Lead can decide the next route and grant an exclusive host window.
+
+Savoy confirmed cleanup and no further Docker jobs. LA's host-only hold remains recorded.
+All 32 original volume records stay protected. The fresh preflight must compare their full records.
+Required work remains: fresh runtime gates, final architecture conformance, guide completion, independent Docs QA and two final reviews.
+Real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 15:18 UTC
+
+The C6/C7 legacy attempt ended at 15:06:57 UTC with ten groups passed, T6 failed and T8 not run.
+AC-T5-36 and AC-T6-07 passed. AC-T6-09 failed while waiting for the wizard registration URL.
+Claude strongly indicates a test focus race; no connection POST occurred, but the lost trace prevents proof of the exact focus sequence.
+Final W4 separately failed from Savoy overlap. All 32 starting volume records are unchanged; own cleanup and the public scan passed.
+
+E-T5R is VOID. The Lead accepted a test-only R3 repair plan covering T6 and analogous M2 keyboard flows in one batch.
+QA owns the test edits. Claude supplies the technical plan; two independent reviews must approve the repair and new launcher identities.
+The same retained Codex executor still owns any product repair. No product change is currently authorized.
+No runtime retry is granted. LTI remains host-only during Savoy's announced 40–60 minute window from 15:06 UTC.
+After review and a new route decision, all twelve legacy groups require a fresh exclusive run before the remaining runtime gates.
+The earlier completion forecasts are withdrawn. Re-estimate after the repair and shared-host return are confirmed.
+
+## Historical checkpoint — 15:05 UTC
+
+This checkpoint supersedes the 14:34 UTC owner and timing entries below.
+
+- Common Gemini QA remains task_6bc986323143 / ctx_c5acede76614. Ten of twelve legacy groups have passed. T6 and T8 are still pending.
+- T5b passed all 24 tests without skips or retries. The previously failing AC-T5-36 passed in 14.58 seconds against its unchanged 60-second deadline.
+- The existing invocation started at 14:21:27 UTC. Its operational reservation now ends at 15:12 UTC. No test deadline changed and no retry was granted.
+- At 15:01:40 UTC, measured step timings suggested final cleanup around 15:11–15:12 UTC, about 50 minutes after launch. The earlier 37–40 minute estimate was too short.
+- Independent Gemini QA is now task_1ba9065e802b / ctx_131f17449322. It is preparing exact-C7 M2/T7 runs and independent Canvas judgments without Docker use.
+- Guide-command captures and their factual errata are committed through 9b93a35. Final runtime and architecture acceptance remain pending.
+
+Savoy requested Docker use from 15:06 UTC for 40–60 minutes under a machine-owner instruction.
+The Lead requested a short deferral until the current LTI run finishes its final W4 comparison.
+That adjustment is not yet acknowledged. No handoff or next LTI runtime grant has been issued.
+Any overlap must remain visible in the isolation result; different ports do not waive the comparison.
+All 32 pre-existing volume records remain protected, including the 22 anonymous volumes Savoy identified as its own.
+
+The earlier 15:46–15:58 UTC runtime forecast no longer applies.
+After legacy acceptance, two Canvas SIM rounds and M2/T7 still need about 48–57 minutes of exclusive runtime, plus handoffs.
+The proposed external window adds 40–60 minutes if confirmed. Final conformance, Docs QA and reviews remain downstream.
+No final completion time is committed until the shared-host sequence is resolved.
+
+## Historical checkpoint — 14:34 UTC
+
+The model-transition owner table and timing below are historical. This checkpoint supersedes them.
+
+- Common Gemini QA: task_6bc986323143 / ctx_c5acede76614. The fresh C6/C7 legacy run started at 14:21:27 UTC. Its grant ends at 15:05 UTC.
+- Independent Gemini QA: task_709c13882df3 / ctx_9d66e36e9919. The exact four-path identity and README consumer proof passed. Host-only guide command captures are complete; the final evidence appendix is being assembled.
+- Claude Architect: task_e34f6bb75e2d / ctx_d2821ebd6a6b. Source conformance and bounded tracker wording are committed at 0f5a9ba. Final runtime conformance is pending.
+- The same retained Codex executor owns every future product repair and final Docs. It has no active repair now.
+
+Product C6 is 4008afb; tests C7 are 620c03d. Independent host QA and both source/launcher reviews passed.
+E-T5R eligibility is accepted. Required fresh runtime is all twelve legacy groups, two Canvas SIM runs of 258 cases, all 64 M2 cases, and three T7 runs.
+Every repeated row uses its fresh result. The final ledger distinguishes reused C4 evidence from fresh C6/C7 evidence.
+A fresh failure, unequal rounds or another product change voids E-T5R. Both historical failed attempts remain FAILED.
+
+Measured planning ranges: legacy 37–40 minutes; each Canvas SIM 14–16 minutes.
+M2 has a 6–8 minute estimate; T7 has a 14–17 minute estimate.
+Together these runtime phases take about 85–97 minutes from the legacy start, excluding handoff delays or failures.
+This suggests a runtime finish around 15:46–15:58 UTC (22:46–22:58 Vietnam), not a promise of project completion.
+Final conformance, necessary Docs stamps, independent Docs QA and two final blind reviews still follow.
+Reuse prior checks for unchanged work. Do not expand optional cleanup or rerun passed suites without a new reason.
+
+All 32 full baseline volume records are protected. No pruning is authorized.
+Real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical owners at the model transition
+
+| Work | Model | Current owner |
+| --- | --- | --- |
+| Common/Blackboard runtime QA | Antigravity Gemini 4 Argon (High), high effort | `ctx_77546b08ce17` |
+| Independent Canvas QA and M2/T7 | Antigravity Gemini 4 Argon (High), high effort | `ctx_296da6e34f11` |
+| Implementation repairs and Docs execution | Codex GPT-6-Astra, xhigh | `ctx_131c9c349fd8` |
+| Architecture, technical design and final reviews | Claude Code Opus 5.5, xhigh | Separate scopes when dependencies and slots permit |
+
+The original QA owners settled only because the user changed model assignments. Their results and reports remain intact. Their old sessions have no active task authority. The exited Claude repair owner is fenced. The native Antigravity chat runtime was unavailable. The installed Antigravity CLI 1.4.5 showed Gemini 4 Argon (High), and Orca attached each CLI to its supervised retry task. No model substitution was made.
+
+## Completion sequence
+
+1. Common QA finishes the current full2 evidence: round 2, equality, all 12 legacy groups, final W4, scans, inventories and owned cleanup. Canvas QA judges round 2 independently while legacy runs. Do not restart the existing driver.
+2. Canvas QA runs fresh M2, then fresh T7, with separate Lead grants. M2 must pass 64 cases and 13 criteria. T7 must pass all 15 criteria, three 17-test runs, the permitted demo-only skip, the demo and four confirmation checks.
+3. Codex prepares the bounded guide delta during runtime. It may change only the nine named draft paths from `82aff91`. Final claims and stamps wait for accepted runtime evidence and Claude Architect conformance.
+4. Claude completes conformance. Gemini performs independent Docs QA. Two separate Claude reviewers perform blind final reviews. None may approve its own authored work.
+5. The Lead records closure after all required gates pass. No push or main merge is authorized. Real LMS rows stay UNVERIFIED and local Canvas stays DEFERRED.
+
+Use at most three active workers plus the Lead. Common QA's completion frees the next architecture or Docs QA slot. Keep the single Codex session for any failure batch. Do not add idle replacement workers.
+
+## Time evidence
+
+Round 2 storage started at 08:36:44 UTC. Prior storage phases took about 20–23 minutes, so the next round result is expected around 08:57–09:00 UTC (15:57–16:00 Vietnam). Legacy duration remains unmeasured. Re-estimate from its first two closed folders. The planner's wider project range is provisional; it is not a completion promise. Batch administrative checks instead of adding fixed waiting periods.
+
+## Lead decisions
+
+- Keep all accepted diagnostics, controls, host checks, source reviews, preparation and first-round judgments. A model change does not require a rerun.
+- The current full2 grant ends at 11:30 UTC. If a valid unchanged driver still runs near expiry, report early for an explicit extension. No planned interruption is authorized.
+- Before each M2/T7 runner starts, compare its W3 with all ten full2 starting volume records. An unexpected difference blocks launch until resolved. Do not edit tools or delete preexisting resources.
+- LA and Savoy remain on Docker hold until the Lead's explicit handoff after the final Docker window. Send a scheduling update by 09:15 UTC or earlier full/legacy closure. An update is not a handoff.
+- The proposed legacy-only retry is a contingency for a future concrete failure. No such retry is authorized now.
+- Guide preparation is parallel work. Finalization, independent Docs QA and final approvals retain their real evidence dependencies.
+
+## Guide wording alignment (08:55 UTC)
+
+Codex prepared the nine granted draft paths and held final claims for QA. The Lead then granted one extra row in `infra/README.md`: align `operation_lock_invalid` with the existing operator guide. Stop and escalate; no validated manual recovery procedure exists. Do not remove or move the lock folder. This grant (`msg_ddbd419caeff`) changes prose only. Independent Gemini Docs QA must check the row and the pending A-SI-05/B-SI-09 document findings. Architecture, tests and executable files remain outside this grant.
+
+## Runtime checkpoint (09:03 UTC)
+
+Both full2 rounds passed all 488 unique cases on C4. Round 2 storage closed at 08:58:28 UTC. The Lead checked exact phase/accounting bindings, case equality and raw R4/R5 evidence, then accepted the round in msg_bdb3feab05d2. Independent Canvas round-2 judgment is running under msg_8a7fc83b1a13 while the existing driver runs all 12 legacy groups. Final W4, scans, inventories, cleanup and overall acceptance remain pending. The guide draft has nine changed files plus the one-row infra clarification. Its final claims remain held.
+
+## Canvas and host checkpoint (09:15 UTC)
+
+Independent Canvas round 2 passed 233/233. Both 233-case and 488-case comparisons passed. The Lead accepted 89 input bindings, 16 record bindings, all 119+17+23 manifest entries and 29 browser artifact hashes. D-5 retains the initial binder error and corrected summary.sha check. The two authorized Canvas reports now record this milestone; overall acceptance remains pending. LA and Savoy received scheduling updates at 09:08 UTC. LA acknowledged its hold. The next host update is due by 09:45 UTC or full/legacy closure, whichever comes first; no Docker handoff was made.

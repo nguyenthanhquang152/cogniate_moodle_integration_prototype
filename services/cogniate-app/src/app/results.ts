@@ -8,7 +8,8 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import { getPublication } from '../domain/publications.ts';
 import { publicationResults } from '../domain/results.ts';
-import { gradebookTargets, resendSync, saveGradebookRead, syncRow } from '../domain/score-syncs.ts';
+import { gradebookTargets, resendSync, saveGradebookRead, syncConnectionDisabled, syncRow, syncRowInLibrary } from '../domain/score-syncs.ts';
+import { getConnection } from '../domain/connections.ts';
 import { resolveLineItem } from '../worker/line-item.ts';
 import type { Logger } from '@cogniate/shared';
 import { ApiError } from './api-errors.ts';
@@ -41,6 +42,9 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
   // logs gradebook_refresh_failed with the contract fields (B-T5b-01, A-T5b-04); the other rows go on.
   api.post<IdParams>('/publications/:id/results/refresh', async (req) => {
     const p = publicationOf(req);
+    // App contract §4.7.2: no refresh for a disabled Canvas or Blackboard connection.
+    const c = getConnection(db, libraryId(req), p.connectionId);
+    if (c && c.lms !== 'moodle' && c.status === 'disabled') throw new ApiError('CONNECTION_NOT_READY', 'The connection is switched off.');
     for (const target of gradebookTargets(db, p.connectionId, p.courseId)) {
       if (target.serviceKeyEncrypted === null) continue; // no AGS in the launch: no gradebook column
       try {
@@ -61,6 +65,10 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
 
   // Resend a failed or conflict row (ADR-010 rule 10). Else 409 SYNC_NOT_RESENDABLE.
   api.post<{ Params: { syncId: string } }>('/score-syncs/:syncId/resend', async (req) => {
+    // App contract §4.7.2: no resend for a disabled Canvas or Blackboard connection (the library check comes first).
+    if (syncRowInLibrary(db, libraryId(req), req.params.syncId) && syncConnectionDisabled(db, req.params.syncId)) {
+      throw new ApiError('CONNECTION_NOT_READY', 'The connection is switched off.');
+    }
     const r = resendSync(db, libraryId(req), req.params.syncId, now());
     if (!r.ok) throw new ApiError(r.reason === 'not_found' ? 'NOT_FOUND' : 'SYNC_NOT_RESENDABLE', r.description);
     deps.kickSync?.();

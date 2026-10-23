@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import { toolPageHeaders } from '../tool-pages/page.ts';
 import type { TestApp } from '../testkit.ts';
-import { QA_B, TEST_URLS, THANH, formBody, testApp } from '../testkit.ts';
+import { QA_B, TEST_URLS, THANH, formBody, ltiPlatform, testApp } from '../testkit.ts';
 import { badPlatformFields, toolName } from './connections.ts';
 
 let t: TestApp;
@@ -98,7 +98,7 @@ describe('connections (app contract §4)', () => {
   it('AC-T4-36 (1): the dev seed platform is never adopted -> 409 PLATFORM_IN_USE; the seed platform is not changed', async () => {
     t = await testApp();
     // The dev seed platform: made through the LTI API (seed:lti-manual), bound to no connection.
-    t.lti.platforms.set('plt_seed', { id: 'plt_seed', url: TEST_URLS.moodle, clientId: 'seed-client', name: 'Moodle (seed)', active: true, deploymentIds: ['2'], productFamilyCode: null });
+    t.lti.platforms.set('plt_seed', ltiPlatform({ id: 'plt_seed', url: TEST_URLS.moodle, clientId: 'seed-client', name: 'Moodle (seed)', active: true, deploymentIds: ['2'], productFamilyCode: null }));
     const cookie = await t.login(QA_B);
     const c = (await json('POST', '/app-api/connections', cookie, { name: 'B', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
     const r = await json('PUT', `/app-api/connections/${c.id}/platform`, cookie, manualValues('seed-client', '2'));
@@ -414,7 +414,7 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     t = await testApp();
     const cookie = await t.login(QA_B);
     const { id, ref } = await pending(cookie);
-    t.lti.platforms.set('plt_off', { id: 'plt_off', url: TEST_URLS.moodle, clientId: 'off-client', name: "Cogniate (Thanh's Library)", active: false, deploymentIds: ['4'], productFamilyCode: 'moodle' });
+    t.lti.platforms.set('plt_off', ltiPlatform({ id: 'plt_off', url: TEST_URLS.moodle, clientId: 'off-client', name: "Cogniate (Thanh's Library)", active: false, deploymentIds: ['4'], productFamilyCode: 'moodle' }));
     const orig = t.lti.client.completeRegistration;
     t.lti.client.completeRegistration = async () => ({ platformId: 'plt_off', html: '' });
     const r = await post(t.lti.addRegistration(), ref);

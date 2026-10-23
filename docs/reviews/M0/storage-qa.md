@@ -1,0 +1,817 @@
+Verdict: FAIL (design testability) — 13 required fixes (MAJOR), 6 MINOR, 2 NIT; no BLOCKER
+Round: 1, task `task_f86ec03635e4`, dispatch `ctx_cccf34f08216`, 2026-10-21
+
+# Storage design testability review (common QA)
+
+Owner: the independent common/Blackboard QA session (Claude Code Opus 5.5, xhigh). This is a design review only. It is
+not an acceptance run, it gives no acceptance credit, and it does not open the implementation gate.
+
+| Item | Value |
+| --- | --- |
+| Frozen review candidate | `6a5eb6a89b3ee6bb377f93244b00e6488e9e2314` (architecture and Lead records only) |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet` on `services apps packages infra tests` and the root build files) |
+| Scope | ADR-012 (new), the ADR-006 and ADR-011 §14 amendments, `local-stack.md`, `tasks/M1.md`, `tasks/M3.md`, `architecture/README.md`, `tasks/README.md` |
+| Old builds read for feasibility | `b0b83a8289e1bf9cf349068aca184f0879e9aaf0`, `9f96f7b24cd0aed702e4dc40373bdda4307aad31` |
+| Independence | I did not read either storage reviewer report or any other new storage review or worker draft. I read the committed tree with `git show <sha>:<path>`, not the evolving working tree. |
+| Docker | none |
+
+All file and line references are at `6a5eb6a`. "ADR" means `docs/architecture/adr/ADR-012-sqlite-volume-storage.md`.
+
+## 1. Method
+
+1. I wrote the case map of §4 from the criteria (AC-M1-41, the changed AC-M1-23/30/38 (h1), AC-M3-01) and from the ADR
+   rules. I did this before I read any implementation note. No implementation exists yet.
+2. For each case I asked four questions: what can QA observe, what is the independent oracle, what fixture makes the
+   case happen, and which result would be a false PASS.
+3. I built interruption and counterexample schedules for each state table and each journal boundary.
+4. I checked feasibility against the source of both old builds and the candidate (§5). I ran no product command.
+
+## 2. Required fixes
+
+Each of these forces a QA guess, permits a false PASS, or makes a required path impossible. Severity follows charter §5.
+
+### Q-S-01 MAJOR — The start-state table is not total; an interrupted first start has no defined result
+
+- Location: ADR §5 lines 122–129; ADR §4 step 8, line 85; ADR §7 line 191.
+- Problem: several reachable states match no row, so QA cannot state the expected result.
+- Evidence (schedules):
+  1. A guarded `stack:up` on a fresh lane. The preflight writes the lti identity, then the process dies before it writes
+     the app identity (step 8 writes two files and is not journaled). Next start: "only one identity" → `IDENTITY_*`
+     refusal with "no automatic repair", on an empty lane.
+  2. The preflight writes both identities (`generation 0`, `fresh`). Then `dc up` fails before any service migrates
+     (port busy, image error). Next start: two identities, no database. `FRESH` needs "no identity". `OK` needs "both
+     databases present". `HALF_PAIR` needs "exactly one database". No row matches.
+  3. The same, but `lti-service` has created `lti.db` and `cogniate-app` has not. Next start: `HALF_PAIR` refusal on a
+     lane that holds only empty first-start data.
+  4. A restore into `FRESH` volumes (line 191) is rolled back. After it: terminal journals, no identity, no database.
+     `FRESH` needs "no journal". `OK` needs identities. No row matches.
+- Consequence: QA cannot write the oracle for these schedules. An operator meets a dead end, or the product does
+  something that the contract does not state.
+- Fix: make the table total and ordered. Define each of the four states above explicitly, with its exact result and
+  message. Either allow a defined recovery for a generation-0 `fresh` pair whose databases are absent or partial, or
+  refuse it with an exact message and the exact reset command.
+
+### Q-S-02 MAJOR — Reason codes are wildcards, and the precedence between states is not defined
+
+- Location: ADR §4 result row, line 87 (`identity_*`); ADR §5 lines 126–129 (`IDENTITY_*`); M1.md lines 218–219.
+- Problem: several states can hold at the same time, and the codes are not enumerated.
+- Evidence: at the drill boundary `identity-lti`, the lti identity has `generation + 1` and the app identity does not.
+  So `JOURNAL_OPEN` (journals `swapped`) and `IDENTITY_*` (identities differ) both hold. AC-M1-41 (g) (M1.md:219)
+  expects `JOURNAL_OPEN`. A removed identity plus a removed database in one volume also matches two rows.
+- Consequence: if QA accepts any `identity_*` or any refusal, a wrong reason passes. That is a false PASS, and the
+  operator can get the wrong advice (for example, no mention of `--recover`).
+- Fix: enumerate every reason code (for example `identity_missing`, `identity_mismatch`, `identity_project`,
+  `db_without_identity`, `half_pair`, `journal_open`, `rollback_failed`, `unknown_entry`). Give one evaluation order (I
+  suggest: `rollback_failed`, `journal_open`, `unknown_entry`, then identity, then half pair). Give the message for each.
+
+### Q-S-03 MAJOR — The ownership rule conflicts with the Docker-made mountpoints of the nested binds
+
+- Location: ADR §4 step 1, line 78; ADR §3 line 48 and the allowed entries, lines 54–60; ADR §10 assumptions 1–2,
+  lines 256–257.
+- Problem: step 1 fails `owner_mismatch` when "any existing file or folder inside" has another owner. The appdb volume
+  holds the mountpoint folders `packages` and `uploads`. Docker normally creates a missing mountpoint as `root:root`.
+- Evidence (schedule, to confirm in the build step): fresh lane → preflight passes (no mountpoint yet) →
+  `cogniate-app` starts and Docker creates `packages` and `uploads` in the volume → the next guarded start (any
+  `stack:restart`; the M1 suite does dozens) → the preflight sees root-owned folders → `owner_mismatch` → refusal.
+- Consequence: if assumption 1 holds as expected, every later guarded start refuses. The expected results of (a) and
+  (d) are then unknown.
+- Fix: state the owner and mode of the two mountpoint folders. Either exempt them by exact name and type, or set them
+  non-recursively in step 1. Define whether "inside" means direct children or the whole tree. Add a (d) case for the
+  chosen rule.
+
+### Q-S-04 MAJOR — QA has no defined route to read and write the volumes
+
+- Location: ADR §9 line 250 ("through the maintenance container", "a read-only one-shot copy"); M1.md:218 ("through the
+  maintenance container"); ADR §7 line 177.
+- Problem: many required oracles and fixtures need direct volume access, and the ADR defines no QA interface for it.
+- Evidence: the needs are the AC-M1-30 stale-sidecar fixture (today a host write, `tests/host/m1-migration.mjs:149`),
+  the snapshot and ledger reads (`m1-migration.mjs:16`, `:38`), the P5 fixture (`tests/host/p5-fixture.mjs:11`), and
+  AC-M1-41 (a) identity reads, (b) the oracle scratch files, (d) planted entries and a foreign-owner file, (f) identity
+  tamper and (g) the tamper of `.previous`. The maintenance service is listed in §9 line 248, but its commands, mounts
+  and modes are not defined.
+- Independence: if QA reads the state only through the product's own maintenance code, the oracle is not independent.
+- Scratch naming: QA's oracle in (b) must create files in a volume root. Every name other than `.lock-probe-*` is an
+  unknown entry (§3 line 60), and `.lock-probe-*` is reserved for the product probe (step 3 deletes it).
+- Fix: authorize and specify a QA fixture container: pinned image ID, `--network none`, the project label, only
+  `<project>_ltidb` and `<project>_appdb`, read-only for reads, read-write only for named fixture writes while both
+  services are positively stopped, a QA-owned script, and removal after use. State that this is a test fixture, not an
+  overlay. Name an allowed scratch pattern for QA's lock oracle (or require `.lock-probe-qa-*` with QA cleanup and a
+  passing preflight afterwards).
+
+### Q-S-05 MAJOR — The clean old-checkout rule contradicts the existing old-route harness
+
+- Location: ADR §8 line 233 ("clean (`git status` shows no tracked change)"); M1.md:200 ("the old checkout is clean").
+- Problem: the migration and snapshot routes check out the old SHA and then install the frozen candidate tests over it
+  (`tests/host/m1-migration.mjs:103–104`, `:154–155`, `:177–178`).
+- Evidence: `b0b83a8` tracks 138 files under `tests/`, and 93 of them differ from the candidate. `9f96f7b` tracks 201
+  files, and 56 differ. So `git status` always shows tracked changes during an old step.
+- Consequence: every old step is `BLOCKED` by the letter of the rule, or QA must reinterpret the rule.
+- Fix: define cleanliness exactly. For example: every tracked path outside `tests/` equals the old SHA; `tests/` equals
+  the frozen candidate test tree (by tree hash); no other untracked file outside the ignored paths.
+
+### Q-S-06 MAJOR — The old-route command list is incomplete, and the disable order cannot be run
+
+- Location: ADR §8 line 235; ADR §8 line 230 ("`stack:storage-compat` (candidate tree)"); M1.md:203 (AC-M1-23 step 3)
+  and M1.md:184 ((h1): "stop, disable the override, back up").
+- Problem 1: the actual routes also run old `npm ci`, old `npm run gen-env`, old `npm run build` (`m1-migration.mjs`
+  `old-ci-restored`, `old-build-restored`), the harness's `docker compose config` (the name guard in `tests/host/core.mjs`),
+  `git checkout` and the test install. The CLI route uses the harness's own `docker compose -f infra/compose.yaml
+  --env-file .env exec` (`tests/host/m1-control.mjs`), not the old `dc exec`. None of these is allowed or forbidden.
+- Problem 2: AC-M1-23 step 3 and (h1) disable the override and then check out the candidate. At that moment the old SHA
+  is checked out, so the candidate-only `stack:storage-compat` script does not exist in the tree.
+- Consequence: QA must guess whether an unlisted command makes the row `BLOCKED`, and the stated order cannot run.
+- Fix: state the rule as a principle plus a complete list. For example: "any old command that does not create,
+  recreate or restart a service container is allowed; compose `up`, `create`, `run` and `restart` of a service without
+  the knobs file, and old `stack:restart` and `stack:reset`, are forbidden." Give the order "check out the candidate
+  with both services stopped, then disable", or let the frozen source's script target the clone.
+
+### Q-S-07 MAJOR — AC-M1-41 has no enumerated subcase IDs and no phase placement
+
+- Location: M1.md:212–222; M3.md:84 (AC-M3-01).
+- Problem: "every subcase individually mandatory in both full runs" is required, but each letter holds several
+  independent observations: (d) 5, (e) about 9, (f) 5, (g) 10, (h) 4, (i) 4.
+- Evidence: the runner checks an exact list of IDs and compares the result of each ID between the two rounds
+  (`tests/host/run-m1.mjs`; `verifyResults` in `tests/acceptance/M1/common/coverage.mjs`).
+- Consequence: if one row covers a whole letter, a failing observation can hide behind the others. If QA invents the
+  split, its accounting may not match the Lead's.
+- Fix: enumerate stable IDs, as for B-M1-03, assign each to a phase, and state the new total per round (§4 below gives
+  a proposal: 416 + 45).
+
+### Q-S-08 MAJOR — `NOT APPLICABLE` in (c) has no place in the run accounting
+
+- Location: M1.md:215 ("recorded `NOT APPLICABLE` … never a PASS"); M3.md:84 ("a `BLOCKED`, skipped, empty or missing
+  row fails the run").
+- Problem: the runner and AC-M3-01 accept only PASS for a mandatory row. (c) also mixes a portable self-test with a
+  host-dependent negative in one subcase.
+- Consequence: on a host where locks work, the row can never be complete, so the full run fails. A host whose oracle
+  result changed between rounds would also break the "same result per test" rule.
+- Fix: split (c) into (c1) the portable self-test, which must PASS, and (c2) the host negative. For (c2), give an
+  allowed outcome set, for example PASS (fault shown and the preflight refused) and PASS-NA (the oracle showed
+  enforcement, with the oracle evidence attached). Define how AC-M3-01 counts PASS-NA. Require the QA oracle and the
+  probe to use the same scratch folder in the same round.
+
+### Q-S-09 MAJOR — The probe interface is not defined for the required observations
+
+- Location: ADR §4 lines 66–87; M1.md:213 ("filesystem type recorded") and M1.md:215 ("the probe's portable
+  self-test", "pointed at that scratch folder by a QA-only test mount"); the M1 Self-check (M1.md:228: supplemental
+  unit tests are "never a `SIM` row").
+- Problem:
+  - Only a failure line is defined, so (a) has no defined output that records `fs_type` on a pass.
+  - No `selftest` mode exists. If the self-test exists only as a unit test, it cannot fill the (c) SIM row.
+  - No argument or environment variable points the probe at a folder. So a "QA-only test mount" means a QA-made compose
+    change, which the no-overlay rule forbids.
+- Fix: define the command line (mode, folder list), a `selftest` mode with its three scenarios and outputs, a success
+  line such as `storage_preflight_passed {runId, folder, fs_type}`, and the exit codes. Then QA can run the program in
+  its own fixture container (Q-S-04) without editing the product compose file.
+
+### Q-S-10 MAJOR — Restore drills can give a false PASS and miss real crash points
+
+- Location: M1.md:219 ((g)); ADR §7 lines 177–216, especially the drill list at line 216.
+- Problem 1, false PASS: if the drill backup equals the in-place state, then `before` equals `after` for every file. A
+  recovery that wrongly leaves the `after` files in place then still "equals `before`".
+- Problem 2, missing boundaries: there is no drill point inside one volume's swap. Two examples: the old files are
+  already in `.previous-<opId>/` and the staged files are not yet in place (no database in place); or `lti.db` has moved
+  and `lti.db-wal` has not. The listed unit cases (M1.md:228: partial staged copy, partial identity `.tmp`, `fsync`
+  failure, the gaps between the journal writes and between the identity writes) do not cover these points. There is
+  also no drill for an interrupted rollback (`rolling_back`), and no stack-level check that `--recover` is idempotent.
+- Problem 3: the `rollback_failed` tamper has no stated boundary. At `committed-lti`, recovery goes forward (ADR line
+  205), so a `.previous` tamper does not cause a rollback there.
+- Fix:
+  - Require a drill backup that differs from the in-place state in every listed file (a write after the backup).
+    Require QA to hash the in-place files on its own before each drill.
+  - Add drill points inside a swap and for an interrupted rollback, or name them as library-API unit cases with exact
+    states.
+  - State the tamper boundary, for example `swapped`.
+  - Add one more `--recover` run with the expected result "nothing to recover", exit 0.
+
+### Q-S-11 MAJOR — No row covers the import of an old-schema bind installation, and the (e) fixture is undefined
+
+- Location: ADR-011 §14 (the amended upgrade procedure, "A bind-layout installation that has never used the volumes
+  first runs the one-time import"); M1.md:217 ((e): "from QA's own backup"); M1.md:200–203 (AC-M1-23 now uses the
+  volumes from the start).
+- Problem: the documented upgrade path for every existing installation is: old schema on bind folders → legacy backup
+  → import → candidate start → migrations. No acceptance row runs it. The (e) fixture has no stated schema or source.
+- Consequence: the main operator path for real installations stays unverified, and a candidate-schema fixture would
+  hide migration problems after an import.
+- Fix: choose one of two.
+  - Define the (e) fixture as QA's own released-v10 lane data (made on the volumes under the override, then copied at
+    rest as a legacy set), and add a row where import plus a candidate start applies `011`/`012` and keeps `K0` and the
+    rows.
+  - Record explicitly that the old-schema import is not verified, as a human-review limit.
+
+### Q-S-12 MAJOR — A legacy `-journal` file has no defined import result
+
+- Location: ADR §6 line 133 (the legacy set includes `<db>-journal`); ADR §3 line 60 (`<db>-journal` in a volume root
+  is an unknown entry); ADR §6 steps 1–5, lines 149–154.
+- Problem: a legacy set with a hot rollback journal can be imported in only two ways, and both are wrong. Either the
+  journal is copied, and the next preflight refuses `unknown_entry`. Or it is left out, and the imported database can be
+  inconsistent.
+- Fix: the import refuses a legacy set that holds `<db>-journal`, with an exact code (for example
+  `legacy_hot_journal`), and nothing changes. Add an (e) case.
+
+### Q-S-13 MAJOR — The "no live database" statement is false for running-stack paths, and restart refusal is undefined
+
+- Location: ADR line 89 ("It runs before any service opens a database, so no CLI can be active"); ADR §4 coverage
+  table, lines 96–97 (`stack:restart`; `test:acceptance` runs `stack-up.sh` while the stack runs).
+- Problem: in `stack:restart` and in the second `stack-up.sh` of `test:acceptance`, the services run while the
+  preflight runs. The preflight state checks then see live databases and sidecars. Also, QA's host control handles
+  requests concurrently, so two preflights can overlap. Step 3 of one run can then delete the live scratch files of the
+  other. In my analysis that fails closed (a refusal), but it is a spurious refusal.
+- Testability: AC-M1-41 has no case for the restart path. If the restart preflight fails, the contract does not say
+  whether the running container is kept.
+- Fix: correct line 89. State that a failing preflight in `stack:restart` leaves the running container unchanged and
+  exits 1. Serialize preflights per project (or limit step 3 to entries of finished runs). Add a case: `stack:restart`
+  runs a new preflight (a new run ID), and a planted unknown entry makes the restart refuse without recreating the
+  container.
+
+## 3. Other findings
+
+### Q-S-14 MINOR — (i) mixes product behavior and harness self-checks in SIM rows
+
+- Location: M1.md:221; ADR §8 line 232 ("The harness also recomputes them").
+- Problem: the `enable` refusal and the candidate `stack:up` guard are product behavior. The one-byte hash change and
+  the added environment key test QA's own harness checks.
+- Fix: keep the two product checks as SIM rows. Record the two harness negatives as harness self-checks of the run,
+  not as product rows.
+
+### Q-S-15 MINOR — "Exactly the fields of §4" does not enumerate the `storage-preflight` service
+
+- Location: ADR §8 line 234, item (d); ADR §4 lines 66–70.
+- Problem: §4 names the image, `network_mode`, the profile and the mounts. The probe also needs at least a user (root
+  for step 1), the `HOST_UID`/`HOST_GID` environment and a command, and the restart policy is not stated.
+- Fix: enumerate the full service definition, so that the config check of item (d) is exact.
+
+### Q-S-16 MINOR — The method to compute C0 and C1 is not stated
+
+- Location: ADR §8 line 234.
+- Problem:
+  - The old `lib.sh` exports the profile environment (`ACTIVE_STACK_PROFILE`, `COMPOSE_PROFILES`, `ACCEPTANCE_*`). A
+    plain `docker compose config` call does not get it, so C0 and C1 can differ for reasons that are not the override.
+  - Item (d) is visible only with `--profile storage`.
+  - `test:acceptance` also uses `--profile test`.
+- Fix: state that C0 and C1 are computed through the old `dc()` with the same saved profile, for each compose profile
+  that the step uses (including `test` and `storage`). State that volume lists are compared by `target`.
+
+### Q-S-17 MINOR — The `scratch_overflow` bound counts entries, and the state after an overflow is undefined
+
+- Location: ADR §4 step 3, line 80.
+- Problem: one interrupted probe can leave three entries (`.db`, `-wal`, `-shm`). So three interrupted runs reach the
+  bound of 9. The contract does not say whether anything is deleted when it fails `scratch_overflow`, or how the
+  operator recovers.
+- Fix: count probe sets, or state the bound in sets. Define the state after an overflow and the recovery command. Test
+  9 (removed, pass) and 10 (refused).
+
+### Q-S-18 MINOR — No rule for a backup from another pair or a newer generation
+
+- Location: ADR §7 lines 177–191 ("A restore into `OK` volumes keeps the `pairId`").
+- Problem: the contract does not say whether a valid same-project backup whose `pairId` differs from the target, or
+  whose `generation` is newer, is accepted or refused.
+- Fix: define the rule, and add a case.
+
+### Q-S-19 MINOR — The detection of an old-layout container is not defined
+
+- Location: ADR §6 step 1, line 136.
+- Problem: "any container of this project" and the mount match are not defined.
+- Fix: state the label (`com.docker.compose.project=<project>`) and the match (destination `/data`; the source is the
+  host folder).
+
+### Q-S-20 NIT — The SIM label meaning for AC-M1-41
+
+- Location: M1.md:212 (label `SIM`); M3.md:20 (SIM defined as a signed provider simulation).
+- Problem: no provider simulation takes part in AC-M1-41.
+- Fix: add one sentence that defines SIM for AC-M1-41 as local QA-lane infrastructure checks with synthetic fixtures.
+
+### Q-S-21 NIT — The QA impact list misses one file
+
+- Location: ADR §9 line 250.
+- Problem: `tests/host/m1-migration.selftest.mjs` also writes and reads `infra/.data/...` database files (lines 12–32).
+- Fix: add it to the list.
+
+### Optional design preferences (not required)
+
+- O-1: Restrict `--stop-after` to a test-only switch (for example an environment guard), or state that it is available
+  in every profile on purpose.
+- O-2: Add a run ID and the measured lock-wait times to the preflight success line, for evidence.
+- O-3: State where `stack:up` prints the preflight result, so evidence does not need container logs after `--rm`.
+
+## 4. Independent case map and inventory proposal
+
+The two existing rounds keep all **416** rows unchanged, with the same IDs, phases and labels (common 42, Blackboard
+141, Canvas 233; 392 API, 7 browser, 17 host). Each round adds the AC-M1-41 host rows below. The existing route rows
+(M1-23.*, M1-30.*, M1-38.common.h1–h5) keep their IDs and add the ADR §8 evidence qualifier. The new rows are owned
+by common QA.
+
+Phase proposal: a new host phase `storage` in each round, after `sim`. It uses its own fresh clone and the same lane,
+so its resets and planted states never touch the `sim` lane. Two route-qualification rows go into the existing phases.
+
+| Proposed ID (`M1-41.common.*`) | Phase | Observable and independent oracle | Fixture | False-PASS guard |
+| --- | --- | --- | --- | --- |
+| `a-fresh` | storage | Pass lines for both folders with `fs_type` (Q-S-09). The preflight container exits before the first service starts (Docker events). QA's own read: equal `pairId`, `generation 0`, `kind fresh` | fresh lane | a missing pass line or a wrong order fails |
+| `a-restart` | storage | `stack:restart` runs a new preflight (new run ID). A planted unknown entry → refused, container unchanged | QA fixture write | needs Q-S-13 |
+| `b-oracle-lti`, `b-oracle-app` | storage | QA's oracle: READY/PING, the holder alive and in its transaction before and after, errcode 5 only, release-positive control | scratch name per Q-S-04 | a non-lock error is never "enforced" |
+| `b-sequence` | storage | 3 fresh-lane cycles: `stack:up`, `seed`, `GET /api/providers` 200; zero `internal_error`; `integrity_check` `ok` on a stopped copy | `stack:reset` between cycles | files alone are no evidence |
+| `c-selftest` | storage | the probe's three self-test scenarios | `selftest` mode (Q-S-09) | not a unit test |
+| `c-host-negative` | storage | QA oracle on a scratch bind under `.tmp/`; probe on the same folder → `lock_not_enforced`, exit 1 | QA fixture container | PASS/PASS-NA per Q-S-08 |
+| `d-clean`, `d-stale`, `d-overflow`, `d-journal`, `d-owner`, `d-mountpoints` | storage | no probe entry left; 1 stale entry removed; 9 removed and 10 refused; `<db>-journal` → `unknown_entry`, nothing starts; foreign owner → `owner_mismatch`, that file unchanged; the mountpoint rule (Q-S-03) | QA writes as root, services stopped | the file is hashed and its owner read before and after |
+| `e-fresh-refusal`, `e-import`, `e-kept`, `e-changed-byte`, `e-added-wal`, `e-not-same-import`, `e-import-nonfresh`, `e-content-missing`, `e-old-layout` | storage | the §6 table rows and messages; import `committed`, the volume bytes equal the legacy bytes before migrations, `legacySources` equal QA's own hashes, a new `pairId`, `kind import`; refusals change nothing (hashes) | legacy set at rest per Q-S-11 | QA hashes the legacy files and volumes on its own |
+| `e-hot-journal` (Q-S-12), `e-old-schema` (Q-S-11, if adopted) | storage | refusal with no change / migrations after import | QA fixture | — |
+| `f-pairid`, `f-identity`, `f-db`, `f-project`, `f-restore` | storage | the exact reason per Q-S-02; the original files back → start | QA fixture writes | exact reason, not any refusal |
+| `g-prepared` … `g-committed-lti` (8), `g-tamper`, `g-damaged` | storage | exit 3; `stack:up` refuses `journal_open`; `--recover` result; in place = QA's own `before` hashes (or `after` for the forward commit); old identities back; then a start; the tamper → exit 2, folders kept; a damaged backup → exit 1, no journal | a backup that differs from the in-place state (Q-S-10) | `before` ≠ `after` for every file |
+| `h-restore-nomanifest`, `h-import-nomanifest`, `h-volume-manifest`, `h-legacy-manifest` | storage | refusal; manifest fields; QA's own hashes | interrupted backup folder | — |
+| `i-enable-refusal`, `i-candidate-guard` | storage | refusal, the existing knobs file unchanged (hash); the candidate `stack:up` refuses with the marker | — | harness negatives are not rows (Q-S-14) |
+| `j-migration` | migration | per old step: both override hashes, C0/C1 difference only (a)–(d), clean rule (Q-S-05), preflight exit 0, mount check | — | a missing record fails the row |
+| `j-snapshot` | snapshot-upgrade | the same for `9f96f7b` | — | same |
+
+Proposed count: 45 new rows in each round (2 + 3 + 2 + 6 + 9 + 5 + 10 + 4 + 2 + 2), so 461 per round, or 463 if
+`e-hot-journal` and `e-old-schema` are added. The Architect fixes the final list and the number. `sim` keeps 394 rows,
+`snapshot-isolated` 6, `snapshot-upgrade` 5 + 1, `migration` 11 + 1, and the new `storage` phase 43 (394 + 6 + 6 +
+12 + 43 = 461). Each guarded restart in `sim` now also runs a
+preflight. That adds time, not rows.
+
+Feasibility of the other requested checks:
+
+- Held lock, refusal and release: feasible with QA's own oracle. My bounded diagnostic used the same method (READY/PING,
+  `inTransaction`, errcode 5 only, release-positive control, and a `nolock=1` negative control).
+- Wrong-error control: the probe treats errcode 6 and other errors as FAIL (ADR line 82). QA's oracle and its negative
+  control exclude non-lock errors.
+- Paired identities: feasible through QA's own read-only reads (Q-S-04).
+- All legacy source and target combinations: feasible for the rows in ADR §6. The two undefined rows are in Q-S-12 and
+  Q-S-11.
+- Partial rename, journal and identity crashes: the journal and identity gaps are covered by drills. The partial
+  rename gap is Q-S-10. The first-start identity gap is Q-S-01.
+- Exact old-build fixture comparisons: feasible after Q-S-05, Q-S-06, Q-S-15 and Q-S-16.
+- Negative tamper: (f), (g) and (i) are feasible with a QA write route (Q-S-04).
+- Both old migration routes: feasible (§5). The order of the disable step is Q-S-06.
+
+## 5. Feasibility checks against the source (read-only)
+
+| Check | Result |
+| --- | --- |
+| Product and test tree at the candidate | identical to `8138097` |
+| Override injection in both old builds | `dc()` adds `-f .tmp/compose.knobs.yaml` when it exists (`b0b83a8` `infra/scripts/lib.sh:94`, `9f96f7b` `:107`), with `--project-directory infra` (`:93`, `:106`). So relative paths in the override resolve from `infra/`. |
+| Who writes or deletes the knobs file in the old builds | only `stack-restart.sh` writes it, and only `stack-reset.sh:31` deletes it. Old `stack-up.sh`, `qa-suite.sh` and `seed.sh` keep it. |
+| Compose calls that bypass `dc()` in the old builds | only the Build Runner's own build project (`build-runner.sh:160`, `:171`, `:194`). It does not mount the SQLite files. |
+| Old SQLite mounts | `lti-service` `./.data/lti-service:/data` (`b0b83a8` `compose.yaml:143`, `9f96f7b` `:146`); `cogniate-app` `./.data/cogniate-app:/data` (`:177`, `:183`). The build-queue mounts are outside `/data`. Items (a)–(b) cover every database mount. |
+| `HOST_UID` in the old builds | exported by the old `lib.sh` and used by the old compose files |
+| Old routes and the forbidden old `stack:restart` | the probes of `migration.probe.ts` and the `snapshot-seed` stage of `snapshot-migration.probe.ts` call no `m1-restart` or `m1-profile`. `restartApp()` (`snapshot.ts:87`) is used only in the candidate phases. |
+| Tracked `tests/` in the old SHAs | 138 files (`b0b83a8`) and 201 (`9f96f7b`); 93 and 56 differ from the candidate → Q-S-05 |
+| QA files that touch host database paths | `tests/host/m1-migration.mjs`, `m1-migration.selftest.mjs`, `p5-fixture.mjs`, `run-t1.mjs` (information scan only) → Q-S-21 |
+| In-container test reads of database files | none. The e2e container mounts the checkout read-only (`..:/repo:ro`), and no acceptance or e2e test reads `lti.db` or `cogniate.db`. |
+
+## 6. What this review does not claim
+
+- It does not claim that any assumption of ADR §10 is true or false. Q-S-03 is a high-likelihood conflict from normal
+  Docker behavior and must be settled in the build step.
+- It does not claim that the bind mount fails in DELETE mode, that every bind mount fails, or that the Docker update
+  caused the fault. Those questions stay open, as the ADR says.
+- It approves no implementation and makes no acceptance claim. Every stack-level gate must run again on the
+  storage-repaired candidate. All 32 live rows stay UNVERIFIED.
+
+Checks used: `git show`/`git diff` at the SHAs above; `git ls-tree` and `git grep` at `8138097`, `b0b83a8` and
+`9f96f7b`. No Docker, stack or product command was run.
+
+## Round 2
+
+Verdict (Round 2): FAIL (design testability) — 5 MAJOR, 5 MINOR, 2 optional; no BLOCKER. All 13 Round 1 MAJOR findings are closed (some with a residual, listed below).
+Round: 2, task `task_30e5c7f55481`, dispatch `ctx_ab90749064c8`, 2026-10-21
+
+The Round 1 text above is unchanged. Its first 30,362 bytes still have SHA-256
+`a1cba5040d7573e74a9e62fb015452426c3def2ac77ddc1ca4df9b6f0fa88c51`.
+
+| Item | Value |
+| --- | --- |
+| Frozen design candidate | `7a6374460dd02c3544b6dbf043086b0facefceb2` (ADR-012 revision 2) |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet` on `services apps packages infra tests` and the root build files) |
+| Read | ADR-012 rev 2, `review-response-storage.md`, the M1, M3, ADR-006, ADR-011 §14, `local-stack.md` and index changes, and the Lead's phase-plan synthesis |
+| Not read | both storage reviewer reports, every other worker's Round 2 review or draft, and the optional Author feasibility report (I used only the facts that ADR-012 §17 quotes) |
+| Method | Read-only `git show`/`git diff` at the SHAs above, and source reads of `b0b83a8`, `9f96f7b` and `8138097`. No Docker, no stack, no product command. |
+
+References are at `7a63744`. "ADR" means ADR-012 revision 2 (`docs/architecture/adr/ADR-012-sqlite-volume-storage.md`).
+
+### R2.1 Recheck of the Round 1 findings
+
+| Id | Round 2 status | Evidence at `7a63744` | Residual |
+| --- | --- | --- | --- |
+| Q-S-01 | Closed | ADR §6, lines 174–195: one total, ordered table. Row 10 `FRESH_INIT_PARTIAL`, row 13 `FRESH` (accepts `rolled_back` journals), row 14 `FIRST_START`, row 18 `state_unclassified`. Row `a-first-start-resume` | — |
+| Q-S-02 | Closed | Exact codes, no wildcards. Rows 1–3 (journal) come first (lines 176–178, 195) | §5 step 1 runs before the table: R2-06 (MINOR) |
+| Q-S-03 | Closed | ADR §4, lines 80–89: precreate the mountpoints, fix an empty root-owned one, otherwise `mountpoint_unsafe`; measured fact M2 (line 518). Row `d-mountpoint` | — |
+| Q-S-04 | Closed in principle | ADR §11, lines 356–369: QA fixture container, read and write modes, `.qa-scratch-*`, the independence rule | The mount list does not cover the probe file, the host-negative scratch bind or the decoy container: R2-04 (MAJOR) |
+| Q-S-05 | Closed | ADR §12 exact tree rule, lines 391–397 | — |
+| Q-S-06 | Closed | ADR §12 command rule, lines 414–430. The order is checkout, then disable (lines 434–447). The copied `storage-compat.sh` runs after the old checkout (line 389). I confirmed from source that the old `seed.sh` uses only `dc exec`, that the old `stack-down.sh` removes neither the volumes nor the knobs file, and that the old `gen-env.sh` keeps an existing `.env` (line 23 comment), in both old SHAs. | — |
+| Q-S-07 | Closed | ADR §13, lines 456–469: 63 ids, phases and totals. I recounted: 6+3+2+7+13+6+16+6+2+2 = 63; `storage` 61 | — |
+| Q-S-08 | Closed | ADR §14, lines 477–485; M3 AC-M3-01: one conditional row, reported apart, never counted as PASS | The two-round equality rule for that row is not stated: R2-08 (MINOR) |
+| Q-S-09 | Closed | ADR §5, lines 99–154: command line, modes, one JSON line per folder, a summary line, exit codes, self-test | The self-test folder is not stated: R2-04 (MAJOR) |
+| Q-S-10 | Partly closed | New drill points, a backup that differs, the `swapped` tamper point and `g-recover-idempotent` (ADR lines 300–318; M1.md:268–270) | The drill oracle compares only the main database hash: R2-01 (MAJOR) |
+| Q-S-11 | Closed in design | Row `e-old-schema` (M1.md:257); the `storage` phase runs after `migration` (ADR line 454) | The fixture copies the master keys only: R2-03 (MAJOR) |
+| Q-S-12 | Closed | `legacy_hot_journal` for start and for backup (ADR lines 228, 348); row `e-hot-journal` | — |
+| Q-S-13 | Closed | ADR §7 line 208: a failed restart preflight exits before the recreate; lines 217–220 replace the old claim. Rows `a-restart`, `a-restart-refusal` | The new operation lock brings a scope problem: R2-02 (MAJOR) |
+| Q-S-14 | Closed | Harness self-checks are apart from the rows (ADR lines 473–475; M1.md:287) | — |
+| Q-S-15 | Closed | The full `storage-preflight` field table (ADR lines 110–122) | — |
+| Q-S-16 | Closed | C0/C1 go through the old `dc()` with `--profile storage` and the step profiles, keyed by `target` (ADR lines 401–405). Also confirmed from source: the old `lib.sh` sets `KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"` (line 9 in both old SHAs), an **absolute** path. So §17 assumption 2 (relative `-f` resolution, fact M6) does not apply to the old builds. | — |
+| Q-S-17 | Closed | No count cap; delete under the lock; `scratch_cleanup_failed` (ADR line 130). Row `d-stale` (12 files and one near-match) | — |
+| Q-S-18 | Closed | The pair-rule table (ADR lines 246–250) | Targets other than `OK` and `FRESH`: R2-07 (MINOR) |
+| Q-S-19 | Closed | ADR §10 step 1, line 340 (label, destination `/data`, resolved source) | — |
+| Q-S-20 | Closed | M1.md:219 defines `SIM` for these rows | — |
+| Q-S-21 | Closed | ADR §11 line 369 and §16 line 507 | — |
+
+### R2.2 Required fixes (Round 2)
+
+#### R2-01 MAJOR — The drill oracle uses only the main database hash, so a wrong recovery can pass
+
+- Location: M1.md:223 ("The oracle checks the database SHA-256 … It does not require a difference in `-wal` or `-shm` files"); M1.md:268 ("both databases equal their state before the restore"); ADR §13, line 471.
+- Problem: with WAL, a committed write can stay in `<db>-wal` until a checkpoint. A main-file hash then does not prove the logical state, before or after the drill.
+- Schedule:
+  1. QA takes backup `B`, then makes the write after `B` (a new platform and a new connection).
+  2. QA stops the services. If the services stop without a final checkpoint (not stated anywhere), the write is only in `lti.db-wal` and `cogniate.db-wal`, and the main files can still equal `B`'s main files.
+  3. In that state, the precondition "the two generations differ in both databases" is false when it is checked by main-file hash. It is not detected.
+  4. After a drill and `--recover`, a defective rollback leaves `B`'s `-wal` in place, or does not move the old `-wal` back. The main-file hash still equals "before", so the row passes, but SQLite then reads `B`'s state or a mixed state.
+- Consequence: a false PASS on the most important recovery rows (11 drill rows plus `g-fresh-target`).
+- Fix:
+  - Precondition: QA reads stopped copies of each database with its sidecars (in its fixture container). The pre-drill pair must contain the new platform and connection, and `B` must not.
+  - Result for the rollback rows: QA's listing of the in-place set (name, size and SHA-256 of `<db>`, `-wal`, `-shm`, where "absent" counts as a value) equals the pre-drill listing, and the same logical read shows the pre-drill rows.
+  - Result for `committed-lti` and `g-fresh-target`: the in-place set equals `B`'s listed set, with no unlisted sidecar.
+  - Keep "no sidecar difference is required" only for the fixture, not for the oracle.
+
+#### R2-02 MAJOR — The scope and re-entry of the operation lock for `test:*` are not defined; the literal rule deadlocks
+
+- Location: ADR §7, line 200 ("Every guarded command of the table below takes the lock before its first Docker command, and keeps it until it ends") and line 209 (`test:acceptance`, `test:e2e`, `e2e:reset` are guarded); ADR §12, line 428 ("The harness holds the operation lock for the whole command"); ADR §7, line 201 (a second command waits 120 s and then refuses).
+- Schedule 1, the literal reading: `npm run test:acceptance` takes the lock. Its own internal `stack-up.sh` (also guarded) then waits 120 s and refuses `operation_in_progress`. The suite never starts. No re-entry rule exists.
+- Schedule 2, if the outer command keeps the lock for its run: in phase `sim`, the M1 suite asks the QA host control for `stack:restart` many times (`m1-restart`, `m1-profile`: AC-M1-29, 35, 37, 38). The host control runs `npm run stack:restart` as a separate process, not as a child of `qa-suite.sh`. Each restart waits 120 s and refuses, so those mandatory rows fail.
+- Schedule 3: the snapshot-upgrade and migration probes run the candidate `test:acceptance`. If the harness applies line 428 to them too, the same deadlock follows.
+- Consequence: a correct implementation of the literal text fails required rows. QA cannot tell which scope is intended.
+- Fix:
+  - State that `test:acceptance`, `test:e2e` and `e2e:reset` take the lock only inside each internal `stack-up.sh` or `stack-reset.sh` run, and not around the whole command.
+  - State that the lock is not re-entrant.
+  - Limit line 428 to old-build commands (the old scripts take no lock). The harness never holds the lock around a candidate command.
+  - Add one `a-serialize` check: a `stack:restart` from the host control during a running candidate `test:acceptance` succeeds.
+
+#### R2-03 MAJOR — `e-old-schema` copies only the master keys, but its oracle needs the matching credentials
+
+- Location: M1.md:257 ("sets that lane's two service master keys from the AC-M1-23 lane"; "the v10 platform and connection of AC-M1-23 are listed through the public API").
+- Problem: the imported `lti.db` holds the AC-M1-23 lane's tool-account API key hash. The imported `cogniate.db` holds that lane's portal password hashes. The app uses `infra/.secrets/app/lti-api-key` to call the LTI service. The storage lane has other values from its own `gen-env` and `seed`, or no key files after a `stack:reset` (`stack-reset.sh:31` at `8138097` removes `seed.json` and `lti-api-key.*`).
+- Schedule: import, then `stack:up`. Then `GET /api/platforms` with the storage lane's key → `401`, or the portal sign-in with the storage lane's password fails. The row fails although the product is right, unless QA guesses which secrets to carry over.
+- Fix: list the full synthetic credential set that QA copies from the AC-M1-23 lane: the two master keys, `infra/.secrets/lti-api-key.*`, `infra/.secrets/app/lti-api-key` and the portal user credentials (`seed.json`). The storage lane keeps its project name, port, subnet and certificates. State that the oracle authenticates with the copied values, and that no `seed` runs between the import and the oracle.
+
+#### R2-04 MAJOR — The fixture container cannot run `c-selftest` and `c-host-negative` as written, and the self-test folder is not stated
+
+- Location: ADR §11, line 364 (mounts: "only `<project>_ltidb` and `<project>_appdb`, and QA's own script and output folder"); ADR §14, line 480 ("runs the probe on the same folder … in QA's fixture container"); ADR §5, line 149 (`selftest` "runs in one empty folder"); M1.md:236 ("in an empty scratch folder"); M1.md:255 (the `e-old-layout` decoy binds a legacy folder at `/data`).
+- Problem 1: both rows need the product probe file mounted read-only, and `c-host-negative` needs the `.tmp/` scratch bind. §11 forbids both mounts. The decoy container of `e-old-layout` is also outside the §11 rule.
+- Problem 2: `selftest` scenario `normal` must pass, so its folder must enforce WAL locks.
+- Schedule: QA runs `selftest` in its mounted output folder, a host bind. On the measured host, WAL locks fail there, so `normal` reports `lock_not_enforced` and the program exits 1. The mandatory row fails although the probe is right.
+- Fix:
+  - Allow in §11 the candidate probe file read-only (for `c-selftest` and `c-host-negative`), the `.tmp/qa-host-negative-<16 hex>/` bind (for `c-host-negative` only), and the decoy container exactly as M1.md:255 describes it.
+  - State that `selftest` runs in a new folder of the container's own writable layer (for example `/tmp/qa-selftest-<hex>`), never in a bind mount.
+
+#### R2-05 MAJOR — `a-serialize` has a random order, so its result can differ between runs
+
+- Location: M1.md:230 ("`stack:data-backup` and `stack:up` started at the same time (services stopped): one waits for the other; both exit with their normal result; the backup has a manifest").
+- Schedule: both commands start, and `stack:up` creates the lock folder first. It starts the services. Then the backup takes the lock, sees running services, and correctly refuses (exit 1, no manifest). So the stated oracle fails in about half of the runs, and the two rounds can differ.
+- Fix: make the order fixed. Start the backup; wait until `owner.json` names it; then start `stack:up`. Check that `stack:up` waits (lock owner record, or Docker events: no service container is created before the backup ends), that the backup exits 0 with a manifest and no `INCOMPLETE` file, and that `stack:up` then exits 0. If both orders must be covered, give each its own expected result.
+
+### R2.3 Other findings (Round 2)
+
+| Id | Sev. | Location | Problem | Narrow fix |
+| --- | --- | --- | --- | --- |
+| R2-06 | MINOR | ADR §5 step 1 (line 128) runs §4 before step 4; §6 order (lines 172–195) | `--prepare` runs before the table. An unsafe mountpoint can refuse before rows 1–3, and prepare changes owner and mode even when the table then refuses (for example a `rollback_failed` lane kept as evidence). No current row conflicts. | State that prepare records an unsafe mountpoint and lets the table decide, and that prepare changes nothing when rows 1–3 match. |
+| R2-07 | MINOR | ADR §8 pair rule, lines 246–250 | Only target `OK` and `FRESH` are defined. A restore or import into `FIRST_START` or `FRESH_INIT_PARTIAL` has no result. | Refuse with an exact code, for example `restore_target_not_ok:<state>`, and add a unit case. |
+| R2-08 | MINOR | ADR §14; M3 AC-M3-01 | The rounds must give "the same result per test". For `c-host-negative`, PASS in one round and `NOT_APPLICABLE` in the other is not ruled. | State whether such a difference fails the gate (I suggest: it fails, because the host fault must be stable). |
+| R2-09 | MINOR | ADR §10 legacy table, lines 345–352 | The table does not say "first matching row". A legacy `-journal` next to a pair in `journal_open` matches two rows. | Declare first-match order, and the position of the §6 refusal row. |
+| R2-10 | MINOR | ADR §7, line 202 (`storage_lock_reclaimed`) | The sink and fields of the lock events are not stated, but `a-serialize` checks that the event is "logged". | Name the sink (stdout and `infra/.logs/storage-preflight.jsonl`) and the fields (`project`, `oldOwner`, `newOwner`, `ts`). |
+
+Optional (not required):
+- O2-1: add `ts` to each `storage_preflight` line. Then the `a-fresh` order ("logged before the first service container is created") needs no Docker event stream.
+- O2-2: every guarded `stack:restart` now adds a preflight. Rows with fixed time windows (for example the 60 s lease windows of AC-M1-37) stay valid only while a restart stays short. QA will record the restart durations; no design change is asked.
+
+### R2.4 Final case inventory (as designed at `7a63744`)
+
+| Item | Value |
+| --- | --- |
+| Original mandatory rows, each round | **416**, with unchanged ids, phases and labels (common 42, Blackboard 141, Canvas 233; API 392, browser 7, host 17) |
+| New AC-M1-41 rows, each round | **63**: a 6, b 3, c 2, d 7, e 13, f 6, g 16, h 6, i 2, j 2 |
+| Rows per full round | **479** |
+| Phase order and counts | `sim` 394 → `snapshot-isolated` 6 → `snapshot-upgrade` 6 (5 + `j-snapshot`) → `migration` 12 (11 + `j-migration`) → `storage` 61 (new; its own fresh clone and lane; after `migration`, because `e-old-schema` uses that round's AC-M1-23 backup) |
+| Full rounds | 2, at the same product and test SHA, with the same result per row |
+| Conditional row | only `M1-41.common.c-host-negative`: PASS, or `NOT_APPLICABLE` with same-round oracle evidence; reported apart and never counted as PASS (see R2-08) |
+| Not rows | the harness self-checks (one-byte change → `BLOCKED`; added environment key → not-allowed difference) and the supplemental unit and integration cases |
+| After both rounds | all legacy groups of AC-M3-02 (b); separately, M2 and three T7 runs by QA-E2E; all 32 live rows stay UNVERIFIED |
+
+Oracle independence, per group, once R2-01 to R2-05 are fixed:
+- (a), (d), (f): QA's own listings and identity parses in its fixture container; container ids and start times from `docker inspect`.
+- (b): QA's own two-process oracle in `.qa-scratch-*`.
+- (c): the product probe is the tested object; the `c-host-negative` comparison is QA's own oracle on the same folder.
+- (e), (h): QA's own hashes of the legacy files and manifests, and logical reads of stopped copies.
+- (g): the full in-place listing plus a logical read (R2-01).
+- (i), (j): QA's harness log and its hash and config checks.
+
+No row uses a product maintenance command as its own oracle (M1.md:220).
+
+### R2.5 What Round 2 does not claim
+
+It does not claim any §17 assumption beyond the source facts stated above. It approves no implementation and gives no
+acceptance credit. Every stack-level gate must run again on the storage-repaired candidate.
+
+## Round 3
+
+Verdict (Round 3): FAIL (design testability) — 2 MAJOR (both are narrow text fixes with no design change), 4 MINOR, 1 NIT; no BLOCKER. All Round 2 findings R2-01 to R2-10 are closed.
+Round: 3, task `task_0e99b6e5fb12`, dispatch `ctx_010e8e2ab9d8`, 2026-10-21
+
+Rounds 1 and 2 above are unchanged. Their first 47,421 bytes still have SHA-256
+`50b83fbdc6c50645be16c54e7ddf2b8c35e450cadae9e83325c2841c567a2194`.
+
+| Item | Value |
+| --- | --- |
+| Frozen design candidate | `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9` (ADR-012 revision 3) |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet` on `services apps packages infra tests` and the root build files) |
+| Read | ADR-012 rev 3, the Round 3 section of `review-response-storage.md`, the M1, M3, ADR-011 §14 and index changes, and the Lead's phase-plan synthesis |
+| Not read | both storage reviewer reports and every other worker's Round 3 report or draft |
+| Method | Read-only `git show`/`git diff` at the SHAs above, and source reads of `8138097` (`infra/scripts/*.sh`, `tests/host/p5-fixture.mjs`, `tests/host/run-t5.mjs`, `tests/acceptance/T5a/0-setup.spec.ts`, `package.json`). No Docker, stack or product command. |
+
+References are at `b3bd22e`. "ADR" means ADR-012 revision 3.
+
+### R3.1 Recheck of the Round 2 findings
+
+| Id | Round 3 status | Evidence at `b3bd22e` |
+| --- | --- | --- |
+| R2-01 | Closed | ADR §8 "File set" (line 348): `<db>`, `-wal`, `-shm` and the identity; equality is never the main file alone. ADR §13 "Recovery oracle" (lines 602–606): the full file set plus logical rows from stopped copies with their sidecars. M1.md:224–225 defines "equals the state before" and "equals `B`" with both parts; the logical precondition is at M1.md:224. Every `g-*` and `e-*` recovery row uses these terms (M1.md:277, 283, 285–286). |
+| R2-02 | Closed | ADR §7 Scope (lines 263–272): candidate `test:acceptance`, `test:e2e` and `e2e:reset` hold no lock; each internal start takes and releases it. The lock is not re-entrant (A4, line 242). Rows `a-lock-scope` and `a-lock-reentry` (M1.md:235–236). The trace in R3.3 finds no deadlock. |
+| R2-03 | Closed for credentials | M1.md:263–266: the four `.env` values and four secret files; no `gen-env`, `seed`, `lti:bootstrap` or `seed-portal` before the oracle; the oracle uses only the copied values. A **new** gap in the same row: R3-01 (package content). |
+| R2-04 | Closed | ADR §11 container kinds (lines 483–489). The `selftest` folder is in the container's own writable layer (ADR line 161; M1.md:242). `c-host-negative` uses a `storage-oracle` and then a `storage-probe` container on the same bind folder (M1.md:243). |
+| R2-05 | Closed | `a-serialize` has a fixed order and an order-independent oracle (M1.md:232). A precision point: R3-04. |
+| R2-06 | Closed | ADR §5 `check` steps 1–6 (lines 138–143): read, then the journal gate with no change, then preparation, which records an unsafe mountpoint for row 5, then the privilege drop, the cleanup and the table. |
+| R2-07 | Closed | ADR §8 "Other target states" (line 338); row `h-target-state` (M1.md:294). A precision point: R3-05. |
+| R2-08 | Closed | ADR §14 "Two rounds" (line 620); M3 AC-M3-01. |
+| R2-09 | Closed | ADR §10 first-match rows L1–L7 (lines 459–469). |
+| R2-10 | Closed | ADR §7 "Lock events" (lines 276–284): sink, fields with `ts`, and the event list. |
+| O2-1, O2-2 | Done | `ts` on every storage line (lines 155–157, 166, 404); §17 assumption 8 (line 682). |
+
+The Round 1 and Round 2 closures still hold at `b3bd22e`. The §6 table is unchanged and total. The exact codes, the
+tree rule, the command rule (now with the `run --` wrapper, lines 516–521), the C0/C1 method, the mountpoint rule and
+the legacy hot-journal rule are all still present. A takeover can never move a newer lock, for two reasons. A stale
+record cannot become live again, because the live test compares `pid` with `pidStart`. And a takeover is a `rename` to
+the never-deleted name `stale-<runId>`, which fails onto a non-empty folder (lines 243–252). This proof depends on §17
+assumption 4, which stays unmeasured.
+
+### R3.2 Required fixes (Round 3)
+
+#### R3-01 MAJOR — `e-old-schema` cannot pass: the import's content check refuses, because no package folder is copied
+
+- Location:
+  - M1.md:263–266. The row runs "after QA's `stack:reset` of the storage lane". It copies "the two databases … It also
+    copies the complete synthetic credential set … and nothing else".
+  - ADR §8 line 340: every restore **and import** runs the content check. Every `package.storage_path` must exist under
+    `infra/.data/cogniate-app/packages`, else `content_missing`.
+- Evidence:
+  - AC-M1-23 step 1 (M1.md:208) runs the unmodified `SETUP-T5a` (`tests/host/m1-migration.mjs:107–108`). That setup
+    creates and uploads SCORM, HTML and blank-SCO courses (`tests/acceptance/T5a/0-setup.spec.ts:24`, `:32–33`). So the
+    v10 app database in the AC-M1-23 step 4 backup has `package` rows with `storage_path` values.
+  - The candidate `stack-reset.sh` removes `infra/.data/cogniate-app` (ADR §3 line 56; §15).
+- Schedule: `stack:reset` empties the storage lane's packages folder → QA copies the v10 databases and credentials →
+  legacy backup → `stack:data-import` → the staged content check finds a missing `storage_path` → refuses
+  `content_missing` (correct product behavior) → the mandatory row fails in both rounds.
+- Fix (text only): add to the copy list the package folders that the copied app database references, from the AC-M1-23
+  clone's `infra/.data/cogniate-app/packages/` (QA's own synthetic course content), placed before the legacy backup. The
+  row's oracle should also record that the content check passed.
+
+#### R3-02 MAJOR — The T5b P5 fixture contradicts the §11 write rule
+
+- Location: ADR §11 line 485 (write mode "only while both services are positively stopped and QA holds the operation
+  lock"; the only running-stack exception is `a-restart-refusal`); ADR §11 line 493 and M3 AC-M3-02 (b) ("keeps its
+  approved app-stop guard and its assertions; only its database access moves into the `storage-fixture` container").
+- Evidence:
+  - `tests/host/p5-fixture.mjs:17–22` stops **only** `cogniate-app` (`docker compose stop cogniate-app`). It edits
+    `cogniate.db`, then runs `docker compose start cogniate-app`; `lti-service` keeps running.
+  - P5 is a required T5b case (`tests/host/run-t5.mjs:39`), so it is part of the legacy suites of AC-M3-02 (b).
+- Schedule: the T5b legacy run reaches P5 → QA must write `cogniate.db` in `appdb` while `lti-service` runs → §11
+  forbids it → QA either breaks §11 or changes the approved P5 guard. Both are forbidden, so the legacy group cannot run
+  within the rules.
+- I should have found this in Round 2; the same text was present at `7a63744`.
+- Fix (text only): add P5 as a second named running-stack exception in §11. Its write is limited to `cogniate.db` (and
+  the sidecars that SQLite uses) in `appdb`. It needs `cogniate-app` positively stopped (the approved guard) and the lock
+  held through `storage-oplock.sh run --`. `lti-service` may run, because it does not mount `appdb`. In the same place,
+  state that the existing harness `docker compose stop` and `start` of an existing service container are accepted
+  harness actions, not supported operator starts. These are P5, the P2 app recovery of `run-t5.mjs`, and the M1-23/30
+  stops. They change no storage layout.
+
+### R3.3 Scope trace: candidate suites, the host control and the lock (no deadlock)
+
+| Path | Source fact at `8138097` | Lock behavior at `b3bd22e` | Result |
+| --- | --- | --- | --- |
+| `npm run test:acceptance` (`qa-suite.sh`) | starts with `STACK_PROFILE=acceptance stack-up.sh` (line 56); its `EXIT` trap runs `STACK_PROFILE=default stack-up.sh` (line 45) | the command holds no lock; each internal `stack-up.sh` takes and releases it | the suite container runs with the lock free |
+| `npm run test:e2e` / `e2e:reset` | `qa-suite.sh` line 62 runs `e2e-reset.sh`, which runs `stack-reset.sh` (27), `stack-up.sh` (29) and `seed.sh` (31) one after another | each internal run takes and releases the lock; `seed` takes none | no nesting |
+| Host-control `m1-restart` / `m1-profile` during a suite | `tests/host/m1-control.mjs` runs `npm run stack:restart` from the harness process (ADR §17 S4) | not a child of a lock holder, so `COGNIATE_STORAGE_LOCK_RUN` is absent; A1–A2 acquire; concurrent restarts wait (≤ 120 s) | no deadlock; checked by `a-lock-scope` |
+| QA fixture writes | `storage-oplock.sh run -- <QA command>` | the QA command is not a guarded command | no re-entry |
+| Old route | `storage-compat.sh run -- npm run test:acceptance` holds the lock for the whole old command; old scripts take none; the host control refuses old restarts under the marker | — | no nested wait |
+| `demo` | `demo.sh:11–12` runs `stack-up.sh`, then `seed.sh` | not named in the §7 scope table: R3-07 | consistent if it holds no lock of its own |
+
+### R3.4 Other findings (Round 3)
+
+| Id | Sev. | Location | Problem | Narrow fix |
+| --- | --- | --- | --- | --- |
+| R3-03 | MINOR | ADR §9 steps 1–2 (lines 432–438) | The volume-user check lists "every container, in any state" that references the lane volumes. It does not exclude the command's own copy container (`oneoff=True`, a storage service). If that container still exists at step 2, quarantine refuses `volume_in_use` and names itself. | State that steps 2–5 run on the host after the copy container has ended and is removed, or exclude the containers whose `org.cogniate.storage.run` is this command's `runId`. |
+| R3-04 | MINOR | M1.md:232 (`a-serialize`) | QA "waits until the lock record names that backup". A fast backup can acquire and release before the first read, and then the wait never ends. The row itself says a fast backup can finish early. | Wait for the backup's `storage_lock_acquired` event in `storage-lock.jsonl`, or the live record, whichever comes first. |
+| R3-05 | MINOR | M1.md:294 (`h-target-state`, "after `--stop-after staged` on another lane") | The `storage` phase has one lane and one checkout ("one checkout per project", ADR §7 line 274). A second lane needs another project, `.env` and stack, and no rule defines one. | Use the same lane: `--stop-after staged`, check the refusal, then `--recover`. Or define the second lane. |
+| R3-06 | MINOR | M1.md:283 (`g-fresh-target`) and M1.md:292 (`h-pair-mismatch`) | After `g-fresh-target`, the lane carries `B`'s `pairId` again. A backup "made before `g-quarantine`" then has the same `pairId`, so a restore succeeds and `pair_mismatch` cannot happen. The row needs a new fresh pair, and the sequence does not make one. | State the order and fixture: for example, one more `stack:data-quarantine`, then a fresh `stack:up` (a new `pairId`), then the old-pair restore. |
+| R3-07 | NIT | ADR §7 scope table (lines 265–270) | `demo` and `demo:prepare` are in the candidate guard (line 562) but not in the scope table. `demo.sh` calls `stack-up.sh`. | Add "no lock of its own, like the `test:*` commands". |
+
+### R3.5 Inventory and oracle independence (as designed at `b3bd22e`)
+
+| Item | Value |
+| --- | --- |
+| Original mandatory rows, each round | **416**, with unchanged ids, phases and labels |
+| AC-M1-41 rows, each round | **72**: a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2 (I recounted from ADR §13 lines 589–598 and M1.md:219–299) |
+| Rows per full round | **488** |
+| Phases | `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70; `storage` runs after `migration` in each round, and `e-old-schema` runs last |
+| Rounds | 2, at the same product and test SHA, with the same result per row (also for `c-host-negative`) |
+| Conditional | only `c-host-negative`: PASS or `NOT_APPLICABLE` with same-round evidence, reported apart, never counted as PASS |
+| Not rows | harness self-checks (copied-file hashes, an added environment key, host-control refusal under the marker) and unit/integration cases |
+
+None of my Round 3 findings adds or removes a row.
+
+Oracle independence: every group is decided by QA's own parsing and hashing, through the five fixture container kinds of
+§11 and `docker inspect`/`ps`. The lock rows (`a-lock-*`, `g-orphan-*`) use QA's own reads of the lock records and
+events, and QA's container listings. The product probe is the tested object only in `c-*`. No row uses a product
+maintenance command as its own oracle (M1.md:221).
+
+### R3.6 Dispositions
+
+| Finding | Disposition |
+| --- | --- |
+| R2-01 – R2-10, O2-1, O2-2 | Closed (R3.1) |
+| R3-01, R3-02 | Required before the design passes. Each is a narrow text fix; neither needs a design change. |
+| R3-03 – R3-06 | Precision fixes; not blocking alone |
+| R3-07 | NIT |
+
+The design is otherwise testable as written. Once R3-01 and R3-02 are fixed, I see no remaining required gap in the
+case map, the phases or the oracles. This review approves no implementation and gives no acceptance credit. Every
+stack-level gate must run again on the implemented candidate, and the §17 assumptions remain to be verified there.
+
+## Round 3 bounded-disposition addendum (revision 3.1)
+
+Verdict (bounded check): FAIL (bounded design testability) — R3-01 to R3-07 are all closed; 1 new MAJOR (a narrow text fix with no design change), found in the corrected row `h-target-state` (2); no BLOCKER.
+Task `task_9266d07c15ec`, dispatch `ctx_39c390bc5118`, 2026-10-21. This is a bounded disposition check, not a fourth review round.
+
+Rounds 1–3 above are unchanged. Their first 60,680 bytes still have SHA-256
+`ee614e70eba8aeae165533109eb36bf8089412c8a62ce42b7cad91b1b0dec1df`.
+
+| Item | Value |
+| --- | --- |
+| Frozen candidate | `a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0` (ADR-012 revision 3.1); Round 3 reports and escalation at `7f2c2c5`; base design `b3bd22e` |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet`) |
+| Read | the `b3bd22e` → `a65a4ee` diffs of ADR-012, M1, M3 and ADR-011, the "Round 3 bounded corrections" section of `review-response-storage.md`, and the Lead synthesis; source traces of `tests/host/lib.mjs`, `tests/host/p5-fixture.mjs` and `tests/host/m1-migration.mjs` at `8138097` |
+| Not read | every other reviewer's Round 3 report or addendum |
+| Docker | none; no product or test change; no data access |
+
+References are at `a65a4ee`: ADR = ADR-012 revision 3.1, M1 = `docs/architecture/tasks/M1.md`.
+
+### Dispositions
+
+| Id | Disposition | Evidence |
+| --- | --- | --- |
+| R3-01 | **Closed** | M1:266: the copy list adds exactly the package folders that the copied app database names. QA reads the distinct `storage_path` values from a copy of that database, and the folders are placed before the legacy backup. The oracle records `storage_content_check` `result: "pass"` and `checked` equal to QA's own count (M1:263–267); the line is defined at ADR:367. Source trace: `package.storage_path` is relative to `DATA_DIR`, and the AC-M1-23 clone keeps its host `packages/` folder after its phase (bind folders survive the volume teardown). |
+| R3-02 | **Closed** | ADR:517: kind `storage-p5`, only `<project>_appdb` read-write, never `ltidb`. The approved stop, the stopped check, the write and the start all run inside one `storage-oplock.sh run --`. The write touches only `cogniate.db` and its SQLite sidecars, and `lti-service` may run. ADR:326 and §11 "Harness actions" accept the existing `docker compose stop`/`start` actions (P2, P5, the AC-M1-23/30 stops, Moodle). M3:93 lists the access change, and the P5 assertions and harness actions stay unchanged. This matches the source at `tests/host/p5-fixture.mjs:17–22`. No assertion is waived. |
+| R3-03 | **Closed** | ADR:459: the copy runs in one storage container of this run, and its ended container is removed by run label before step 2. |
+| R3-04 | **Closed** | M1:232: QA waits for the `storage_lock_acquired` event or the live record, whichever comes first. |
+| R3-05 | **Closed** for the wording (one lane, two points; M1:295). The fixture of point (2) has a new MAJOR: R3B-01. | — |
+| R3-06 | **Closed** | M1:293: one more quarantine, then `stack:up` makes a fresh pair whose `pairId` QA checks against `B`'s, then the restore of `B` refuses `pair_mismatch`. |
+| R3-07 | **Closed** | ADR:292: `demo` holds no lock of its own; the other `demo:*` commands start no container. |
+
+### Regression check of the added lock changes (A-S-12 group rule, B-S-20 primitives)
+
+| Row or check | Result |
+| --- | --- |
+| `a-lock-stale` (M1:234) | Consistent. Cases (1)–(3) now plant an **empty** group, so a record with an ended owner and a non-empty group cannot be reclaimed by mistake under the new rule (ADR:234). Case (4) tests the group rule. All planted values use `LC_ALL=C`. |
+| `g-orphan-refusal`, `g-orphan-stopped` (M1:285 ff.) | Consistent. The command runs as its own detached group, and QA checks that the group is empty after the `SIGKILL`. So the record becomes stale only through the group rule, and `storage_writer_active` still comes from the active container. |
+| `a-lock-wait`, `a-serialize`, `a-lock-reentry`, `a-lock-scope` | Unchanged results; normal releases are not affected by the group rule. |
+| Shared harness group | Source fact S7 (`tests/host/lib.mjs` `run` does not detach and kills the child pid only on timeout). A timed-out guarded command can therefore keep its record live through the harness group, and later commands of that phase then refuse `operation_in_progress` (fail-closed, ADR "Process ownership"). This affects only a phase that has already failed with that timeout. The next phase uses a new clone and a new `.tmp/`. Not a finding. |
+| Lock self-check | ADR:266–274: a harness self-check once per round before `storage`, and the phase is `BLOCKED` on failure. It is not a row. |
+
+### R3B-01 MAJOR — A QA fixture write into a lane without volumes is impossible, and it creates unlabeled volumes that escape the fresh-lane and cleanup checks
+
+- Location:
+  - M1:295, `h-target-state` (2), changed in this revision: "In the `FRESH` state after `g-quarantine` … QA writes two `pending` fresh identities".
+  - M1:237, `a-first-start-resume`: "in a `FRESH` lane (a new lane, or one after `stack:data-quarantine`), QA writes one identity only". This is pre-existing; I missed it in Rounds 2 and 3.
+  - ADR:512 (`storage-fixture`: user `HOST_UID:HOST_GID`; root only for `d-owner` and `d-mountpoint`).
+  - ADR:467 (quarantine removes both lane volumes).
+  - ADR:685 (fact M1: a new volume root is `root:root 0755`, and the service user cannot write in it).
+  - ADR:658 (fresh-lane rule checked "with the label `com.docker.compose.project=<lane>`").
+  - `tests/host/lib.mjs:234–240` (`projectResources`, used by the run teardown, finds volumes by that label only).
+- Schedule:
+  1. `g-quarantine` removes `<lane>_ltidb` and `<lane>_appdb`.
+  2. For `h-target-state` (2), QA's `storage-fixture` container mounts both volume names. Docker silently creates two new volumes with no Compose labels, and their roots are `root:root 0755`.
+  3. As `HOST_UID`, QA cannot create the identity files (permission denied). Root is not allowed for this step.
+  4. Even with a workaround, the unlabeled volumes stay. The run teardown and the §15 fresh-lane and cleanup checks look up volumes by label only, so they do not see these volumes. They can then survive cleanup and carry state into the next lane with the same project name, while the cleanup check reports "none". That is a false PASS of the isolation rule (AC-M3-06).
+- Consequence: two mandatory rows (`h-target-state`, `a-first-start-resume`) cannot run as written, and the run's isolation evidence can pass falsely.
+- Fix (text only):
+  1. §11: a QA container never mounts an absent lane volume. QA checks the volume by exact name before every fixture mount.
+  2. The two rows make the lane volumes through the product: one `dc --profile storage run --rm storage-preflight check --prepare …` under QA's `storage-oplock.sh run --`. Compose then creates labeled volumes with `HOST_UID 0700` roots and two `pending` fresh identities, which is exactly the `FIRST_START` state. For the partial variant, QA then removes one identity as `HOST_UID`.
+  3. The fresh-lane, cleanup and boundary checks of §15 and AC-M3-06 also list the two volumes by exact name, not only by label.
+
+### Inventory (unchanged)
+
+Each round still has **488** mandatory rows: the **416** original rows (ids, phases, labels and assertions unchanged) plus
+the **72** AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2). The phases are `sim` 394,
+`snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12 and `storage` 70, in two rounds. The lock self-check is a
+separate harness self-check, not a row, and `c-host-negative` stays the only conditional row. R3B-01 adds no row.
+
+### Remaining limits
+
+This is design testability only. It gives no implementation, runtime or acceptance credit. Every stack-level M1, legacy,
+M2 and T7 gate runs again on the implemented candidate. The ADR-012 §17 assumptions (including 10 and 11) remain
+unmeasured. All 32 live rows stay `UNVERIFIED`. The G1 escalation at `9124cfd` is not decided by this check.
+
+## G1 bounded-disposition addendum (revision 3.2)
+
+Verdict (bounded check): PASS (bounded design testability) — R3B-01 is closed; 2 new MINOR (fail-closed, QA-owned handling, no design change needed); no BLOCKER and no new MAJOR. This gives no G-1, runtime or acceptance credit.
+Task `task_c1ad8c306bab`, dispatch `ctx_7aed1436bc04`, 2026-10-21. This is a bounded G1 disposition of R3B-01 and its direct regressions, not a new design review.
+
+All text above this addendum is unchanged. The first 68,830 bytes of this file still have SHA-256
+`5ae7988ddcf37cff10cb336b85bc115abd2d9b23315433378382715a2e3fd12d` (the whole report at `0928c88` and `d0bdda0`).
+
+| Item | Value |
+| --- | --- |
+| Frozen candidate | `d0bdda06cbb7176fcb7d2b66797d81edd95de6fe` (ADR-012 revision 3.2, file SHA-256 `d1d95e5c5432f21afadd895bba9dd8a22e4fd8426d8ad13bd4d1d21dabb494b7`; `review-response-storage.md` SHA-256 `f78179767075debd396cf01b3d30993821ab112feb4a5ae99791b677db7e5079`); base revision 3.1 at `a65a4ee` |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (`git diff --quiet` on `services apps packages infra tests` and the root build files); no change under `tests`, `services` or `infra` from `a65a4ee` to `d0bdda0` |
+| Read | the `a65a4ee` → `d0bdda0` diffs of ADR-012, M1, M3 and `local-stack.md`; ADR-012 §3–§7, §10–§15 and §17 at `d0bdda0`; the G1 section of `review-response-storage.md` (lines 237–271); source traces at `d0bdda0` of `infra/scripts/lib.sh`, `tests/host/lib.mjs`, `tests/host/core.mjs`, `tests/host/run-m1.mjs` and the three M1 manifests; the volume records of my own earlier QA run (`protected-volumes-before.json` and `-after.json` of the `aff4882` run, outside the repository) |
+| Not read | every other reviewer's G1 report or addendum. `HEAD` moved to `e2d8f9f`, which changes only `storage-reviewer-b.md` and `multi-lms-plan.md`; I did not read them. **Independence disclosure:** `orca orchestration check` showed only the subject of the Lead's checkpoint message (`msg_9f20464bcaf8`). So I read its body with `orca orchestration inbox --json`. That output also listed the summary text of Reviewer-A's `worker_done` message (`msg_47587678d2c7`, about A-S-13 and G-1). My R3B-01 tracing and dispositions were complete before that exposure. I read no other addendum file. This addendum does not use that summary, and I derive no G-1 conclusion from it. I told the Lead at once (reply `msg_da29995b1e87`). |
+| Docker | none; no product command; no data access |
+
+References are at `d0bdda0`: ADR = ADR-012 revision 3.2, M1 = `docs/architecture/tasks/M1.md`, M3 = `docs/architecture/tasks/M3.md`, LS = `docs/architecture/local-stack.md`.
+
+### R3B-01 disposition: Closed
+
+| Part of the fix | Result | Evidence |
+| --- | --- | --- |
+| Absent-volume precheck | **Closed** | ADR:521. Before every mount, by every QA kind and also before `docker create`, QA runs `docker volume inspect <project>_ltidb <project>_appdb` and reads each result by exact name. It mounts a volume only when that name exists with `com.docker.compose.project=<project>` and `com.docker.compose.volume=ltidb` (or `appdb`). An absent name is recorded `absent` and is never mounted. A name with other labels or none is not mounted, changed or removed; the row FAILs, and before the first start the lane is `BLOCKED`. M1:222 states the same rule for every AC-M1-41 row. Kind trace (ADR:513–518): only `storage-fixture`, `storage-volume-user` and `storage-p5` mount a lane volume; `storage-probe`, `storage-oracle` and `storage-decoy` mount none. So the rule covers every QA path that could make an unlabeled volume. |
+| Product `check --prepare` setup under QA's lock | **Closed; can run** | ADR:522–524. (a) Scope: ADR:295 allows `storage-oplock.sh run --` for QA fixture writes and forbids only a wrapped guarded command. `dc … run storage-preflight` is not a guarded command, so no `operation_lock_reentry` occurs. (b) ADR:248 A6: the wrapper checks that no storage container of P is active before its first Docker write. The setup container is a storage container of P (ADR:215; label `org.cogniate.storage: "preflight"`, ADR:131), so a guarded command that starts at the same time waits or refuses; there is no parallel writer. (c) The command line matches the program syntax (ADR:106, `--prepare` only with `check`) and the caller form (ADR:134). The folders match the service mounts `ltidb:/check/lti-service` and `appdb:/check/cogniate-app` (ADR §5 service table). (d) `source infra/scripts/lib.sh` from the checkout root works at `d0bdda0`: `REPO_ROOT` comes from `BASH_SOURCE` (lib.sh:4), the project name from `.env` (lib.sh:19–37), `HOST_UID` and `HOST_GID` are exported (lib.sh:39–40) for the service's `${HOST_UID}`, and `dc()` is at lib.sh:105–110. (e) Effect on absent volumes: Compose makes both declared volumes (ADR:524; that it labels them is ADR:746, assumption 6, which the next part checks independently). Step 3 `--prepare` changes the `root:root 0755` roots (fact M1, ADR:698) and creates both mountpoints as `HOST_UID:HOST_GID 0700` (ADR:84–89). The service has no nested binds, so fact M2 does not apply. The state is row 13 `FRESH` (ADR:202), and step 11 then writes both identities after the privilege drop (ADR:150; §4 privilege rule). The result is `FIRST_START` (ADR:203). The setup output is never the oracle (ADR:524). |
+| Independent setup check | **Closed** | ADR:525 lists every fact that the two rows need: both labels read by exact name; both roots and both mountpoints `HOST_UID:HOST_GID 0700`; both identities parsed by QA's own script (`kind: fresh`, `generation 0`, `pending`, one `pairId`); no database and no journal. Any other result → `BLOCKED`, and the row does not run. After the setup, the read-mode mount is allowed by the precheck. |
+| `FIRST_START` and the partial-identity scenario | **Closed** | ADR:526: QA removes only the `appdb` `.storage-identity.json`, in write mode as `HOST_UID:HOST_GID`, with the services stopped and QA's lock held (write-mode rule, ADR:513). The file is the service user's, in a `HOST_UID 0700` root, so no root step is needed. The remaining lti identity matches row 10 `FRESH_INIT_PARTIAL` (ADR:199). `stack:up` then writes the missing identity with the same `pairId` (ADR:150, ADR:199), the services create both databases, and `mark-started` (ADR:317) completes both identities. This is exactly the M1:238 oracle. The variant (the setup without the removal) is row 14 and gives the same result. `h-target-state` (2), M1:296: the setup runs on the volumes that `g-quarantine` removed. The restore reads the target state and refuses `restore_target_state` naming `FIRST_START`, and the import refuses `import_target_not_fresh` (ADR:366). Only `stack-up.sh` runs the legacy scan (ADR:481), so the legacy files of the e-group do not change these refusals. "Nothing changes" is compared with the listing after the setup. QA then removes both identities as the service user. The labeled, prepared volumes then hold only the empty mountpoints, which is row 13 `FRESH` and also `FRESH` by item 5, so `g-fresh-target` (M1:285) restores into `FRESH` (ADR:362). |
+| Exact names and labels in the fresh-lane and teardown checks | **Closed** (one wording gap: G1-QA-01) | ADR:668 and ADR:671, M3:98, LS:60, M1:229 (`a-fresh`), M1:283 (`g-quarantine`: "neither exact name exists"). Before the first start and after cleanup, QA checks both exact names with any labels or none, and the project label. "A label-only check is not enough." An unlabeled `<lane>_ltidb` now fails both checks, so the false PASS of AC-M3-06 that R3B-01 described cannot occur. |
+| Preservation of unproven resources | **Closed** | ADR:669–670 and M3:98. A volume counts as made by the run only with a `CreatedAt` after the run start and this project's labels. The cleanup removes only recorded resources that still have the exact name and the labels. Every unrecorded, unlabeled or other-project resource with a lane name stays, is reported, and fails the isolation check. This is fail-closed: an unproven resource can make the isolation check FAIL, never PASS. |
+| Item 5: absent volumes in oracles | **Closed** (precision note: G1-QA-02) | ADR:527. Trace: `stack-up.sh` reads the pair state with `report` before `check` (§10 steps 1–4). That `dc run` makes absent declared volumes with Compose labels, a `root:root 0755` root and no entry. Row 13 (ADR:202) and the row 5 note make this `FRESH`. Item 5 accepts exactly that state, and only with this project's labels and a `CreatedAt` after the command start. A QA mount cannot make a labeled volume, so a product creation and a QA mount cannot be confused. |
+
+Fixture paths that I traced myself (the result agrees with the response's table at lines 249–259):
+- Volumes absent before a **product** command, and QA mounts only afterwards: `a-fresh` (M1:229), `e-fresh-refusal` (M1:254), `e-content-missing`, `e-import`, `e-import-recover`, `e-old-schema` (M1:264; after `stack:reset`, QA copies into the host legacy folders, not into a volume), `b-sequence` (M1:241; the product starts again after each `stack:reset`), `h-pair-mismatch` (M1:294).
+- Volumes made by the setup: `a-first-start-resume` (M1:238) and `h-target-state` (2) (M1:296).
+- Volumes that exist at the QA step: `g-quarantine-in-use` (M1:282; the `g-tamper` state, `docker create` after the precheck); the `d-*`, `f-*` and `g-*` drills; the `b-oracle-*` scratch; P5 (`storage-p5`, `appdb` of the running sim stack); the `m1-migration.mjs` copies.
+- Old builds: the override adds the top-level volumes `ltidb` and `appdb` (ADR §12 items (a)–(c)), so these volumes also carry `com.docker.compose.volume=ltidb` (or `appdb`) and pass the precheck.
+- No lane volume: `c-*`, the `e-old-layout` decoy, and the credential and package copies.
+
+Notes for QA's own implementation and order (not findings):
+- `a-first-start-resume` needs empty legacy sets. With legacy files present, `stack:up` refuses `legacy_conflict` (ADR:495, L7): `FRESH_INIT_PARTIAL` is not in L6, and the setup writes no `legacySources`. QA therefore runs this row in a new lane of the `storage` phase, or in the storage lane while both legacy sets are empty. This constraint existed before revision 3.2.
+- At `d0bdda0` the harness still removes resources by label only (`tests/host/lib.mjs:234–240`, `tests/host/core.mjs:140–145` and `346–368`). The M1 runner already refuses `--clean-project` (`tests/host/run-m1.mjs:92`), so its boundary never removes anything before the fresh-lane check. The §15 teardown is QA-owned work of the implementation step (ADR:688). It is not part of this design check.
+- A QA read-mode container can run "at any time" (ADR:513). QA runs its rows in sequence, so a product command cannot remove a volume between the precheck and the mount. If this happens anyway, the new volume has no labels, and the teardown keeps and reports it (fail-closed).
+
+### Direct regressions (A-S-13, B-S-22) on my rows
+
+| Change | Result |
+| --- | --- |
+| B-S-22: the exact group read `LC_ALL=C ps -A -o pid= -o pgid=` (ADR:235), the self-check field `psCommand` (ADR:277), and the M1 unit list (M1:309) | Consistent. The harness self-check before the `storage` phase stays "exit 0, every scenario `ok`"; QA also records `psCommand`. For `a-lock-stale` (M1:235), QA checks its planted empty groups with the same exact read, so QA and the product read the same table. No row, oracle or count changes. |
+| A-S-13: build-step gate G-1 (ADR:730–738), M1:309, M3:88 | Consistent. It is a gate before implementation acceptance. While G-1 is unmeasured or fails, AC-M1-41 and the stack-level reruns stay `BLOCKED` (ADR:737). It changes no row, oracle or count. No row of mine kills the setup wrapper, so the setup does not use the orphan guarantee. |
+
+### G1-QA-01 MINOR — The ownership record defines the proof for volumes only
+
+- Location: ADR:669 ("QA records each lane volume …"); ADR:670 and M3:98 ("removes only resources that QA recorded as made by this run").
+- Problem: containers and networks with the project label (the service containers, `<lane>-storage-<runId>`, the project network) have no record rule. If QA reads the text strictly, the teardown leaves them. The after-cleanup check (ADR:671: "no resource has the lane's project label") then fails. The result is a false FAIL of the teardown and isolation check, never a false PASS.
+- Reproduction (from the text only):
+  1. A fresh lane passes ADR:668.
+  2. `a-fresh` runs `stack:up`, which makes the service containers and the project network with the project label.
+  3. QA records the lane volumes (ADR:669), because no rule asks it to record the containers or the network.
+  4. At teardown, ADR:670 lets QA remove only recorded resources, so the containers and the network stay.
+  5. ADR:671 then finds resources with the lane's project label, and the isolation check fails.
+  The current lookup (`tests/host/lib.mjs:234–240`) lists exactly these three kinds by the label.
+- QA handling (no design change needed): QA applies the same proof to every kind that it lists by label (containers, volumes and networks, as in `projectResources`): Docker `Created` after the run start, and this project's labels. Optional wording: "QA records each lane resource (container, volume, network) …".
+
+### G1-QA-02 MINOR — `CreatedAt` has whole-second precision on the Docker clock
+
+- Location: ADR:527 ("a `CreatedAt` after the command started"); ADR:669 ("after the run's start").
+- Fact: Docker shows a volume's `CreatedAt` in whole seconds (UTC), from the Docker engine's clock. My own earlier run records show this form in all 7 entries, for example `"CreatedAt": "2026-10-18T06:18:05Z"`. The file is `cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source/tests/host/artifacts/qa-multi-r1-aff48823-2026-10-20T14-42-33-520Z/protected-volumes-before.json`, under my home folder and outside the repository. QA takes the command start from the host clock, in milliseconds.
+- Problem: a product command can make a volume in the same second in which it started. Then `CreatedAt` is earlier than the recorded start, and "nothing changes" gives a false FAIL. A difference between the host clock and the Docker VM clock adds the same risk. This never gives a false PASS. For the run start of §15, the time to the first volume is minutes, so there is no practical risk there.
+- Reproduction (from the text only):
+  1. `e-fresh-refusal` (M1:254) or `e-content-missing` (M1:261) starts with both lane volumes absent, which is `FRESH` by ADR:527.
+  2. "Refuses" includes "nothing changes" (M1:224).
+  3. QA records the command start at, for example, `10:00:00.700` host time.
+  4. The command's first storage container (the `report` run of `stack:up`, or the import's state read) makes the volumes at `10:00:00.950`. Docker shows `CreatedAt` `10:00:00Z`.
+  5. `10:00:00Z` is earlier than `10:00:00.700`, so ADR:527 says that the volume did not appear through this command. The row FAILs, but the product behaved correctly.
+- QA handling (no design change needed): QA compares in whole seconds, with the command start rounded down to the second and read from the Docker engine's clock (`docker system info`, `SystemTime`). QA also records the host time. A tolerance of less than one second is safe here: only Compose can make a labeled lane volume, and QA lists the volumes before each command. Optional wording: "not earlier than the second in which the command started (Docker clock)".
+
+### Dispositions
+
+| Id | Severity | Disposition |
+| --- | --- | --- |
+| R3B-01 | MAJOR | **Closed** at `d0bdda0` (evidence above) |
+| R3-01 to R3-07 | — | Stay closed. The revision 3.2 diff does not change their text (`git diff -U0 a65a4ee d0bdda0`: the changed lines are ADR:3, 11–12, 235, 260, 277, 520–528, 668–671, 686, 688, 730–739, 744, 746, 750; M1:25, 219, 221–222, 229, 238, 283, 296, 309). |
+| G1-QA-01 | MINOR | New; open; non-blocking; fail-closed; QA-owned handling |
+| G1-QA-02 | MINOR | New; open; non-blocking; fail-closed; QA-owned handling |
+
+### Inventory (recounted)
+
+- **416** original rows: the M1 manifests at `d0bdda0` have common 42, Blackboard 141 and Canvas 233 rows (API 392, host 17, browser 7). By the `phase` field: `snapshot-isolated` 6, `snapshot-upgrade` 5, and 405 without a field (`sim` 394 + `migration` 11). No file under `tests/` changed from `a65a4ee` to `d0bdda0`, so ids, phases, labels and assertions are unchanged. The isolation and teardown results (`M3-ISOLATION` at `tests/host/core.mjs:363`, `TEARDOWN` at `:368`) are harness records, not manifest rows. So the changed AC-M3-06 text adds or changes no row.
+- **72** AC-M1-41 rows: the ADR §13 table (ADR:626–637) has 72 distinct ids, the same set as at `a65a4ee`: a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2. The M1 text has 61 row bullets and 11 ids in shared bullets (`b-oracle-app` and ten `g-*` drill ids), which makes 72, with no extra id.
+- **488** = 416 + 72 per full round. Phases: `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6 (5 + `j-snapshot`), `migration` 12 (11 + `j-migration`), `storage` 70. There are two rounds. `c-host-negative` stays the only conditional row (ADR §14), with the same result in both rounds. The lock self-check stays a harness self-check, not a row. R3B-01 adds no row.
+
+### Remaining limits
+
+- This is design testability only. It gives no G-1, implementation, runtime or acceptance credit.
+- G-1: QA does not decide G-1 and gives it no credit. The Lead's handoff states that diagnostic `task_0b882dfdab3f` found the `docker` front process and the `compose` plugin in the command's group in 4/4 trials. In that diagnostic, a parent-only kill left a client that later created its target, and a whole-group kill showed no container for only about 2.7 s. That does not meet the 30 s bound of ADR:733 and ADR:736. I did not check that evidence. The follow-up is `task_e33f7d22129d`. Until G-1 passes, AC-M1-41 and the stack-level reruns stay `BLOCKED` (ADR:737, M3:88).
+- The ADR-012 §17 assumptions 1–9 and 11 remain unmeasured, including assumption 6 (Compose volume labels), which the independent setup check reads.
+- Every stack-level M1, legacy, M2 and T7 gate runs again on the implemented candidate. All 32 live rows stay `UNVERIFIED`. G1 is not closed by this check; the Lead decides it.

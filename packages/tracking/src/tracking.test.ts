@@ -184,6 +184,9 @@ describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () 
     expect(syncResult({ http: 204 }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
     expect(syncResult({ http: 409 }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
     for (const http of [400, 403, 404]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
+    // M1 (AC-M1-33): a platform 422 is permanent too; 409 stays conflict and a 5xx still retries.
+    expect(syncResult({ http: 422 }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
+    expect(syncResult({ http: 503 }, 1, t0, t0).status).toBe('pending');
     for (const http of [0, 401, 500, 502, 504]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
     expect(syncResult({ http: 502 }, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null }); // 24 h are over
     expect(syncResult({ local: 'no_gradebook_column' }, 1, t0, t0).status).toBe('failed');

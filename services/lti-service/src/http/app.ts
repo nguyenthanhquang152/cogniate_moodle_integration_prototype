@@ -9,7 +9,8 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
-import { PROTOCOL_ERRORS } from '../lti/codes.ts';
+import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
+import { listProfiles } from '../profiles/index.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
 import type { NrpsClient } from '../platform/nrps.ts';
@@ -46,10 +47,17 @@ export interface AppDeps {
   knobs: Knob[];
   /** Active outbound allowlist, shown in /healthz (T2b). */
   outboundAllowlist?: readonly string[];
+  /** Simulation profiles on (profile acceptance AND LTI_PROVIDER_SIMULATION=on, contract §9.13). Default off. */
+  simulationProfiles?: boolean;
   now?: () => number;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/; // contract §1.4
+
+/** `simulation_profiles` of /healthz and service_started (contract §9.13). */
+export function simulationProfileIds(on: boolean): string[] {
+  return listProfiles({ simulation: on }).filter((p) => p.simulation).map((p) => p.id);
+}
 const BODY_LIMIT = 256 * 1024; // contract §1.4
 const MAX_PARAM_LENGTH = 2048; // :lineItemId is a URL-encoded line item URL (contract §1.4)
 
@@ -88,18 +96,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(new ApiError('NOT_FOUND', 'Unknown route.').body()));
 
+  const profiles = { simulation: deps.simulationProfiles ?? false };
   const ctx: RouteContext = {
-    db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now,
+    db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
     auth: (req, schemes) => authenticate(deps.db, req.headers.authorization, schemes, now(),
       (scheme, code) => log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code })),
     errorPage: (reply, req, code, opts = {}) =>
       reply.code(opts.status ?? PROTOCOL_ERRORS[code].status).headers(ERROR_PAGE_HEADERS)
-        .send(renderErrorPage(code, req.traceId, opts.help ?? PROTOCOL_ERRORS[code].action, opts.detail, opts.heading)),
+        .send(renderErrorPage(code, req.traceId, opts.help ?? protocolAction(code, opts.lms), opts.detail, opts.heading, opts.lms)),
   };
 
   // Health (contract §2.5)
   app.get('/healthz', async () => ({
     status: 'ok', service: 'lti-service', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
+    simulation_profiles: simulationProfileIds(profiles.simulation),
   }));
 
   registerProtocolRoutes(app, ctx);

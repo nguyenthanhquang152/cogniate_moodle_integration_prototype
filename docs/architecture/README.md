@@ -1,6 +1,6 @@
 # Architecture: Cogniate × Moodle LTI prototype
 
-Status: T0 done; kept in line with the built code. §6 names the tested SHAs, passed regressions and remaining handover gates. Owner: Architect. Date: 2026-10-19.
+Status: T0 done; kept in line with the built code. §6 names the tested SHAs, passed regressions and remaining handover gates. Blackboard and Canvas phase designed in M0 ([ADR-011](adr/ADR-011-multi-lms.md), tasks M1–M4); not built yet. Owner: Architect. Date: 2026-10-20.
 
 This page is the overview. Details are in other files:
 
@@ -11,9 +11,11 @@ This page is the overview. Details are in other files:
 | [`data-model.md`](data-model.md) | Tables and state machines of both services |
 | [`local-stack.md`](local-stack.md) | Host names, TLS, ports, dev-only settings, fallbacks |
 | [`contracts/`](contracts/) | LTI service API (LTIAAS-compatible) and Cogniate app API |
-| [`adr/`](adr/) | Decisions ADR-001 to ADR-010 |
+| [`adr/`](adr/) | Decisions ADR-001 to ADR-012 (ADR-012 accepted for implementation, design only, revision 3.3) |
 | [`tasks/`](tasks/) | Task specs, QA rules, test knobs |
 | [`open-questions.md`](open-questions.md) | Decisions for humans |
+| [`review-response-M0.md`](review-response-M0.md) | ID-by-ID disposition of the formal M0 review findings (Blackboard and Canvas design) |
+| [`review-response-storage.md`](review-response-storage.md) | ID-by-ID response to the independent storage reviews of ADR-012 (Round 1 → revision 2, Round 2 → revision 3, Round 3 → bounded corrections in revision 3.1, R3B-01 → bounded fixture correction in revision 3.2, design accepted at `5f3337a`, four nonblocking precision items in revision 3.3 addressed pending implementation verification) |
 
 ## 1. Goal
 
@@ -53,6 +55,13 @@ Use these words. Use the same word for the same thing.
 | **Score sync** | One job that sends one score to Moodle with AGS. | "grade sync" |
 | **Course shell** | An empty Moodle course made with web services (stretch, T8). | "course" |
 | **ltik / service key / API key** | Launch token (24 h) / token per resource link (no expiry) / secret of a tool account. | — |
+| **LMS type** (M1) | `moodle`, `canvas` or `blackboard`; a field of the connection. | — |
+| **Provider profile** (M1) | Fixed trust rules of one LMS kind in the LTI service: issuer, endpoints, site rule, sharing (ADR-011 §6). | — |
+| **Site URL** (M1) | The origin of the LMS pages and services. Equal to the issuer origin for Moodle; different for Canvas cloud and Blackboard. | — |
+| **Shared platform** (M1) | One Blackboard registration (one client id) for many schools; each school is one deployment owned by one connection. | — |
+| **Service URL** (M1, Canvas) | The origin of the Canvas AGS and NRPS URLs and the token endpoint (the account domain). Default: the site URL. | — |
+| **Approval grant** (M1) | A one-time, expiring operator approval for one Canvas or Blackboard binding; the portal calls its secret the approval code. | — |
+| **Approval** (M1) | The committed app row for one (platform, deployment) after a grant redemption; the only source of Canvas and Blackboard launch and grade authority (app contract §4.7.1). | — |
 
 ## 3. Context
 
@@ -123,6 +132,8 @@ flowchart TB
 | [008](adr/ADR-008-repo-layout-and-stack.md) | npm workspaces, Node 24 + TypeScript, Fastify, Vitest, Playwright 1.56.0, React + Vite + Tailwind. |
 | [009](adr/ADR-009-moodle-connection-methods.md) | Dynamic registration first, manual fallback, privacy `anonymous`, refuse foreign "update". |
 | [010](adr/ADR-010-grade-and-completion-policy.md) | Send only final results, `FullyGraded`, choose the best result, bounded confirmation after uncertain delivery, 409 = conflict. |
+| [011](adr/ADR-011-multi-lms.md) | Canvas and Blackboard through fixed provider profiles; signed product family check; site (and Canvas service) origins separate from the issuer; tenancy by deployment; every new binding needs a one-time operator grant with two-phase redemption; operator suspend and release for wrong bindings; Moodle unchanged; backup-and-restore rollback; signed simulations until live tenants exist. |
+| [012](adr/ADR-012-sqlite-volume-storage.md) | **Accepted for implementation (design only), revision 3.3** (the Lead accepted revision 3.2 at `5f3337a`: Reviewer-A and Reviewer-B APPROVE, QA PASS; revision 3.3 adds four nonblocking precision items, addressed pending implementation verification; gate G-1 passed for `docker compose run` on the bound host and client identities only; no implementation or runtime result is accepted; response: [review-response-storage](review-response-storage.md)): SQLite files on project-scoped Docker named volumes (`ltidb`, `appdb`); content files stay on bind folders; narrow folder preparation; a WAL lock preflight under one operation lock per checkout and project that also waits for live storage containers; an ordered start-state table; pair identity, journaled paired restore with total recovery, a non-destructive quarantine and explicit legacy import; a storage-only override for the two old builds only. Amends ADR-006 and ADR-011 §14. |
 
 ## 6. What the plan proves
 
@@ -143,6 +154,7 @@ Status from the QA reports (`docs/reviews/<task>/qa.md`). Each SHA identifies th
 | Native `.mbz` channel, course shell | AC-T8-02 to AC-T8-10; C-T8-01, C-T8-02 races | proven on local Moodle 5.2.4: [T8 QA round 2](../reviews/T8/qa.md) PASS at 8059c31. Same-version requests return one build id; the library limit and runner lock checks pass. The later dd6dd11 follow-ups and d54c607 P2 repair change no native channel, Build Runner or infra path; no new T8 run is claimed. MoodleCloud restore remains unverified (Q5). |
 | Final regression of the conformance fixes | T4b1, T4b2, T5a, T5b, T6; P1, P2/P5, P11 and review follow-ups | **PASS at the listed SHAs:** T4b1 (10 ACs), T4b2 (17 ACs), P1 and both TTL passes at a5d9ddc (product dd6dd11); see [T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19) and [T4b2 QA](../reviews/T4b2/qa.md#replacement-qa-final-regression--2026-10-19). Full [T5a](../reviews/T5a/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), [T5b](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) and [T6](../reviews/T6/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) at d54c607: all 49 ACs, 65 executed tests including runtime expiry; no failure or flake, own cleanup zero. Reports committed in c5683f8. Fresh T7 on c5683f8 (same product) also PASS, recorded in a563369. |
 | P2/P5/P11 repair checks | AC-T5-30 outage order, stopped-Moodle and in-flight P2 with app restart; fixture-assisted P5; P11 sent, pending and failed | **PASS at d54c607:** [T5b final QA](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d). First accepted 90 stays pending across app restart; confirmation succeeds after 5.623 s; Moodle stays 90 for 90 s with no obsolete retry or repeat confirmation. P5 removes exactly one higher failed sync and refuses lower Resend with 409 under the [approved fixture exception](tasks/T5b.md#final-regression-p5-bounded-fixture-exception). P11 keeps current attempt 75 separate from best sync 90 in all three tested states. |
+| Canvas and Blackboard (M1–M4) | AC-M1-01 to AC-M1-41 (AC-M1-41: 72 storage rows, ADR-012 accepted design, not yet implemented; 488 rows per full round), AC-M2-01 to AC-M2-13, M3 live matrix | **planned**: designed in M0; simulation evidence (`SIM`) after M3; live rows UNVERIFIED (blockers B-1 to B-3, ADR-011 §13) |
 | **Not proven** | Teacher Deep Linking in browsers other than the tested Chromium browser, including Firefox and Safari (Q16). MoodleCloud (Q5). **Not supported:** Moodle in a subfolder, for example `https://school.edu/moodle` (dynamic registration refused, web services use the wrong path, manual connect not tested; Q18). Player in Firefox and Safari, video playback (the export has no visible video), a real person closing a real window, mobile browsers (T5-spike). A normal pointer click on the HTML menu lesson link (QA used a DOM click; Q17). Load and scale. 1EdTech certification. | — |
 | **Not proven (T5/T6 boundaries)** | A live 24 h retry window; P11 lower-score conflict and scoreless-attempt variants. Portal viewports other than 1440 px, every card/error state, and accessibility beyond the specified keyboard checks and serious/critical axe scans of five surfaces. | [T5b final QA](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), [T6 final QA](../reviews/T6/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d). |
 | **Not proven (T8 boundaries)** | Restore through Moodle pages (QA used the local CLI). The portal web-services form (QA used the API). The 10 min build timeout, start-up sweep of interrupted builds, planted-file rejection, and `.mbz` copy checks. | [T8 QA §5](../reviews/T8/qa.md#5-not-covered); passing ACs do not cover these paths. |
@@ -182,6 +194,22 @@ flowchart LR
 ```
 
 Thick arrows = the order for one Author. Dotted arrows = real dependencies that allow parallel work: T2a and T4a need only T1, T3a's code needs only T2a (its acceptance tests need the T2b profile), and T5a uses the T5-spike decision note. T2b runs right after T2a in the one-Author order, because it proves the launch security.
+
+### 7a. Blackboard and Canvas phase (M0 design)
+
+```mermaid
+flowchart LR
+    M0[M0 design review] ==> M1a[M1a LTI service: profiles, deployments, check 13]
+    M0 --> SIM[QA: signed simulator + M1 tests]
+    M0 --> M2[M2 portal against the contract]
+    M1a ==> M1b[M1b app: LMS types, registration, guards]
+    M1b ==> M2i[M2 integration]
+    SIM --> M3[M3 QA, Moodle regression, live matrix]
+    M2i ==> M3
+    M3 ==> M4[M4 guides, review pack, conformance]
+```
+
+Specs: [M1](tasks/M1.md), [M2](tasks/M2.md), [M3](tasks/M3.md), [M4](tasks/M4.md). File ownership does not overlap ([tasks README](tasks/README.md#blackboard-and-canvas-phase-from-2026-10-20)).
 
 ## 8. Simplified versus production
 

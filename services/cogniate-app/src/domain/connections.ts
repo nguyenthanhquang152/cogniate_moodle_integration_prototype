@@ -15,6 +15,8 @@ export interface PlatformInfo {
   productFamilyCode: string | null;
 }
 
+export type LmsType = 'moodle' | 'canvas' | 'blackboard';
+
 /** The last failed connect attempt of a pending connection (B-T4b1-01). Codes only. */
 export interface ConnectError {
   code: string;
@@ -41,7 +43,48 @@ export interface Connection {
   lastError: ConnectError | null;
   /** T8: a checked web services token exists (never the token itself). */
   webServices: { siteName: string; release: string } | null;
+  /** M1 (app contract §4.2): LMS type, LTI profile and the canonical service origin (= siteUrl unless Canvas sets one). */
+  lms: LmsType;
+  profile: string;
+  serviceUrl: string;
+  /** Canvas: the activation ref of the committed binding (history). */
+  ltiBindingRef: string | null;
+  /** The connection lease (app contract §4.7.1). */
+  redeemingAttempt: string | null;
+  redeemingSince: number | null;
+  /** M1 B-M1-03 (migration 012): the provider snapshot, written once at create; never in the DTO. */
+  snapshot: ProviderSnapshot;
 }
+
+/**
+ * The provider snapshot of a Canvas or Blackboard connection (data model §4.3, app contract §4.7.3): written once by
+ * POST /app-api/connections from its one GET /api/providers answer. All null for Moodle and for a row of an 011 build.
+ */
+export interface ProviderSnapshot {
+  /** Canonical issuer of the provider target (Canvas profile issuer or canonical site; Blackboard shared issuer). */
+  issuer: string | null;
+  /** Blackboard: the shared platform id at create. */
+  platformId: string | null;
+  /** Blackboard: the shared client id at create. */
+  clientId: string | null;
+}
+
+/** A complete snapshot: Canvas `issuer`; Blackboard all three fields. */
+export interface CompleteSnapshot {
+  issuer: string;
+  platformId: string | null;
+  clientId: string | null;
+}
+
+/** App contract §4.7.3: the complete snapshot of a Canvas or Blackboard connection, else null (a partial row counts as missing). */
+export function completeSnapshot(c: Pick<Connection, 'lms' | 'snapshot'>): CompleteSnapshot | null {
+  const { issuer, platformId, clientId } = c.snapshot;
+  if (c.lms === 'canvas') return issuer !== null ? { issuer, platformId: null, clientId: null } : null;
+  if (c.lms === 'blackboard') return issuer !== null && platformId !== null && clientId !== null ? { issuer, platformId, clientId } : null;
+  return null;
+}
+
+const NO_SNAPSHOT: ProviderSnapshot = { issuer: null, platformId: null, clientId: null };
 
 export interface RefToken {
   hash: string;
@@ -65,20 +108,41 @@ const toConnection = (r: Record<string, unknown>): Connection => ({
     traceId: String(r.last_error_trace_id), at: Number(r.last_error_at),
   },
   webServices: r.ws_token_encrypted === null || r.ws_token_encrypted === undefined ? null : { siteName: String(r.ws_site_name ?? ''), release: String(r.ws_release ?? '') },
+  lms: (r.lms ?? 'moodle') as LmsType,
+  profile: String(r.lti_profile ?? 'standard'),
+  serviceUrl: r.service_url === null || r.service_url === undefined ? String(r.site_url) : String(r.service_url),
+  ltiBindingRef: r.lti_binding_ref === null || r.lti_binding_ref === undefined ? null : String(r.lti_binding_ref),
+  redeemingAttempt: r.redeeming_attempt === null || r.redeeming_attempt === undefined ? null : String(r.redeeming_attempt),
+  redeemingSince: r.redeeming_since === null || r.redeeming_since === undefined ? null : Number(r.redeeming_since),
+  snapshot: {
+    issuer: r.target_issuer === null || r.target_issuer === undefined ? null : String(r.target_issuer),
+    platformId: r.target_platform_id === null || r.target_platform_id === undefined ? null : String(r.target_platform_id),
+    clientId: r.target_client_id === null || r.target_client_id === undefined ? null : String(r.target_client_id),
+  },
 });
 
 export function createConnection(
   db: Db,
   libraryId: string,
-  input: { name: string; siteUrl: string; method: ConnectionMethod },
+  input: { name: string; siteUrl: string; method: ConnectionMethod; lms?: LmsType; profile?: string; serviceUrl?: string | null; snapshot?: ProviderSnapshot },
   ref: RefToken | null,
   now: number,
 ): Connection {
   const id = randomId('con_');
-  db.prepare(`INSERT INTO connection (id, library_id, name, site_url, method, status, ref_token_hash, ref_token_encrypted, ref_expires_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`)
-    .run(id, libraryId, input.name, input.siteUrl, input.method, ref?.hash ?? null, ref?.encrypted ?? null, ref?.expiresAt ?? null, now, now);
+  // The snapshot is part of this one INSERT (written once; no UPDATE path exists, app contract §4.7.3).
+  const snap = input.snapshot ?? NO_SNAPSHOT;
+  db.prepare(`INSERT INTO connection (id, library_id, name, site_url, method, status, ref_token_hash, ref_token_encrypted, ref_expires_at, created_at, updated_at,
+      lms, lti_profile, service_url, target_issuer, target_platform_id, target_client_id)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, libraryId, input.name, input.siteUrl, input.method, ref?.hash ?? null, ref?.encrypted ?? null, ref?.expiresAt ?? null, now, now,
+      input.lms ?? 'moodle', input.profile ?? 'standard', input.serviceUrl ?? null, snap.issuer, snap.platformId, snap.clientId);
   return getConnection(db, libraryId, id)!;
+}
+
+/** By id in any library: launch routing, the redemption engine and the operator CLIs (never a portal request). */
+export function getConnectionAnyLibrary(db: Db, id: string): Connection | undefined {
+  const row = db.prepare('SELECT * FROM connection WHERE id = ?').get(id);
+  return row ? toConnection(row) : undefined;
 }
 
 /** Newest first. */
@@ -119,11 +183,32 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
 
 /**
  * Security §8: at launch, platform.id -> connection -> library. Only a registered or connected connection takes
- * launches (a disabled one does not).
+ * launches (a disabled one does not). Moodle rule only (app contract §6.1 step 2): use routeLaunch.
  */
 export function findLaunchConnection(db: Db, platformId: string): Connection | undefined {
-  const row = db.prepare("SELECT * FROM connection WHERE lti_platform_id = ? AND status IN ('registered', 'connected')").get(platformId);
+  const row = db.prepare("SELECT * FROM connection WHERE lti_platform_id = ? AND lms = 'moodle' AND status IN ('registered', 'connected')").get(platformId);
   return row ? toConnection(row) : undefined;
+}
+
+export type LaunchRoute =
+  | { ok: true; connection: Connection }
+  | { ok: false; reason: 'deployment_not_approved' | 'unknown_platform' };
+
+/**
+ * Launch routing (app contract §6.1): (1) an approval of (platform, deployment) whose Canvas or Blackboard connection
+ * is registered or connected; (2) a Moodle connection whose lti_platform_id is the platform. If (1) finds nothing but a
+ * Canvas or Blackboard connection owns the platform or holds a reservation for the deployment: deployment_not_approved.
+ * An approval is the only source of Canvas and Blackboard launch and grade authority.
+ */
+export function routeLaunch(db: Db, platformId: string, deploymentId: string): LaunchRoute {
+  const approved = db.prepare(`SELECT c.* FROM approved_deployment a JOIN connection c ON c.id = a.connection_id
+    WHERE a.lti_platform_id = ? AND a.deployment_id = ? AND c.lms IN ('canvas', 'blackboard') AND c.status IN ('registered', 'connected')`).get(platformId, deploymentId);
+  if (approved) return { ok: true, connection: toConnection(approved) };
+  const moodle = findLaunchConnection(db, platformId);
+  if (moodle) return { ok: true, connection: moodle };
+  const owner = db.prepare("SELECT 1 FROM connection WHERE lti_platform_id = ? AND lms IN ('canvas', 'blackboard')").get(platformId)
+    ?? db.prepare('SELECT 1 FROM connection_deployment WHERE lti_platform_id = ? AND deployment_id = ?').get(platformId, deploymentId);
+  return { ok: false, reason: owner ? 'deployment_not_approved' : 'unknown_platform' };
 }
 
 /** Data-model §3: the first valid launch from the platform sets `connected`; every launch sets lastLaunchAt. */
@@ -132,7 +217,7 @@ export function markLaunched(db: Db, connectionId: string, now: number): void {
     WHERE id = ? AND status IN ('registered', 'connected')`).run(now, now, connectionId);
 }
 
-/** The connection that owns a platform (any library), or undefined: security §2.6 orphan rule. */
+/** The connection that owns a platform as lti_platform_id (any library), or undefined: security §2.6 orphan rule. */
 export function platformOwner(db: Db, platformId: string): string | undefined {
   const row = db.prepare('SELECT id FROM connection WHERE lti_platform_id = ?').get(platformId);
   return row ? String(row.id) : undefined;

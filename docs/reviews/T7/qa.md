@@ -202,3 +202,330 @@ Additional required checks:
 No new finding. T7 does not place the P2 late-write race or test lower-retake P11 variants. Those claims use the separate T5b regression at `d54c607`. This PASS does not remove the post-confirmation late-write risk or reconstruct unrecorded sends from before migration 010. Chromium/local Moodle and the HTML menu DOM-click limitation remain the tested boundary.
 
 The full T7/root result and zero-resource teardown were sent to the Lead promptly. This worker remains active for the final committed T9 pack; this section does not declare T9 complete.
+
+## M3 regression checkpoint — 2026-10-20
+
+**NOT RUN / HOLD.** Task `task_e28388df4dcc`, independent Codex Canvas QA replacement. The planned final-SHA T7 gate was product/test `eb43247d02df622d5da72dafac41d919f65a91fe`, default profile, three consecutive runs plus demo and confirmation checks. While M2 was running, Lead `msg_478c680eab7a` superseded that candidate and required a hold before T7. No T7 stack or acceptance command started, so none of AC-T7-01 through AC-T7-15 is newly passed here; the historical rounds above retain their original SHA limits.
+
+The preceding M2 stack was fully removed with the seven baseline Docker volumes unchanged. The next T7 run requires the repair freeze and another serialized window on `qa-e2e-m3-rN`, port `8543`, subnet `172.31.0.0/16`. It must record default health, no knobs, `simulation_profiles: []`, and absence of `lms-sim` and `lti-gate`. No T7 test or assertion changed in this checkpoint. See [M3 QA-E2E](../M3/qa-e2e.md) and [M2 QA round 4](../M2/qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20).
+
+### M3 checkpoint update — second M2 candidate
+
+**T7 remains NOT RUN / HOLD.** Product/test `ae130a3501f3a2502c6a34e36319629e3dcdfb09` finished M2 with 61 PASS and three FAIL; conditional T7 authorization required all 64 PASS and cleanup. Therefore no default T7 stack, three-run sequence, demo or confirmation command began. Cleanup returned to zero containers and seven exact baseline volume metadata records.
+
+The only shared learner glue change prepared here formats failed frame-wait URLs without runtime/play/picker capabilities; all Moodle navigation, real-course steps, exact completion text, grade and scenario assertions stay unchanged. Both actual frame timeout branches pass synthetic negative controls; T7 discovery remains unchanged. This does not establish a new T7 PASS. Product and diagnostic repairs need Lead integration, exact refreeze and another serialized window. See [M3 round 2](../M3/qa-e2e.md#5-round-2--current-verification-status) and [M2 round 5](../M2/qa.md#6-round-5--second-frozen-m2-run-and-diagnostic-hygiene-2026-10-20).
+
+### M3 checkpoint update — third M2 candidate (`e3cd7db`)
+
+**T7 remains NOT RUN / HOLD.** Product/test `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` finished M2 with 60 PASS and 4 FAIL (QA harness races, see [M2 round 6](../M2/qa.md#7-round-6--third-frozen-m2-run-at-e3cd7db-2026-10-20)). Lead's conditional T7 authorization (`msg_88bc0ba11c4c`) required all 64 PASS and complete cleanup. Therefore no default T7 stack, three-run sequence, demo or confirmation command began. Cleanup returned to zero containers and seven exact baseline volume records.
+
+No T7 test or assertion changed. The held repairs authorized in `msg_3590cf55633f` and `msg_b4e09fd0ad1a` change no T7 file. T7 learner glue imports only the unchanged `diagnosticUrl` from the diagnostics module; the T7 test list is unchanged. QA read the current `run-t7.mjs` at this SHA. It has no health assertion of its own, so the next T7 window will record default health (no knobs, `simulation_profiles: []`, no `lms-sim` or `lti-gate`), image identities and the Build Runner with the external read-only observer. See [M3 round 3](../M3/qa-e2e.md#6-round-3--third-m2-run-at-e3cd7db).
+
+### M3 checkpoint update — fourth candidate (`004568b`): T7 executed, FAIL
+
+**FAIL / HOLD.** Product/test `004568bd4ab8390d64945cb73f16cfdd51d566bf`, after M2 passed 64/64 at the same SHA ([M2 round 7](../M2/qa.md#8-round-7--fourth-frozen-m2-run-at-004568b-2026-10-20)). Lead window: `msg_b6726e8da143`. Run `qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`; project `qa-e2e-m3-r1`; port `8543`; subnet `172.31.0.0/16`; default profile. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-004568b-HS9Wwxx3`. Artifacts: `R/source/tests/e2e/artifacts/runs/qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`. Runtime clone: `/Users/quangnguyen/cogniate-qa-runs/qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-m3-r1 PUBLIC_PORT=8543 STACK_SUBNET=172.31.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-t7.mjs --sha 004568bd4ab8390d64945cb73f16cfdd51d566bf --runs 3 --demo --check-confirm
+```
+
+Runner exit `1`. All three runs gave the same result: **8 PASS, 9 FAIL, 1 SKIP**, each run in 125 s with `e2e:reset` in 37–38 s. The skip is `DEMO AC-T7-15`, which runs only in the demo pass by design. Both B-T7-01 confirm-"no" checks and both A-T7-04 fail-closed checks are OK. The demo pass is OK: `e2e:reset` exit 0, `demo:prepare` in 8.05 s, player check exit 0. Teardown OK.
+
+**Root cause: a QA harness race in `tests/e2e/lib/portal.ts` `publishCourse` (QA-E2E glue, H-6 edit).** It reads the `LMS connection` options once with `select.evaluate()`. This is the same pattern that was repaired in M2 at `004568b`. QA missed this T7 copy when it judged T7 unaffected.
+- In A3, the SCORM publish passed, and the HTML publish failed with "the Publish dialog has no connection option".
+- Run 1 app log: the HTML dialog's `GET /app-api/connections` completed at `14:01:46.914Z`, and A3 ended at `14:01:46.999Z`.
+- A4, A5, A6, AC-T7-04, AC-T7-05, AC-T7-06 and B5 fail through `need()` on A3/A4 state.
+- B6 completes its own course 102 activity (grade 100). It then fails on Thanh's SCORM results row for `cg_student`, which needs A5.
+- QA found no product defect.
+
+| Criterion | Result at `004568b` | Evidence and limit |
+| --- | --- | --- |
+| AC-T7-01 | FAIL | `npm run test:e2e` exit 1 in each run (125 s ≤ 25 min). |
+| AC-T7-02 | NOT VERIFIED | A1-A2 PASS (registered); the `connected` state after A4 was not reached. |
+| AC-T7-03 | NOT VERIFIED | A4 did not run (cascade). |
+| AC-T7-04 to AC-T7-06 | NOT VERIFIED | Cascade from A3. |
+| AC-T7-07 | NOT VERIFIED | A5 and A6 did not run. B6's learner launch reached the player, but the B6 case failed. |
+| AC-T7-08 | NOT VERIFIED | B4 PASS; B5 failed through cascade. |
+| AC-T7-09 | NOT VERIFIED | B6 grade 100 reached; the Thanh results part failed through cascade. |
+| AC-T7-10 | PASS in each run | C1 `INVALID_STATE` and C2 scan PASS. |
+| AC-T7-11 | FAIL | Three consecutive runs did not pass. |
+| AC-T7-12 | Partial | This section, run artifacts, screenshots and traces. No grader report, completion or portal results screenshot was reached. |
+| AC-T7-13 | PASS in each run | T7-START and T7-END PASS. |
+| AC-T7-14 | PASS in each run | A1-A2 PASS. |
+| AC-T7-15 | PASS | Demo pass OK. |
+
+Default profile, from the external observer across all resets:
+- **Health:** LTI, app and content returned 200 `ok`, `profile: default`, `knobs: []`, `simulation_profiles: []`, and no `lms-sim` or `lti-gate` ran.
+- **Images:** Node `sha256:44fce696f38b…`, Moodle `sha256:3a310197e51f…`, Caddy `sha256:d8542f48d34a…`, Postgres `sha256:721873c34ceb…`. The e2e image is rebuilt in each pass (`4dc3d13b6d32…`, `1da03e9bfa6c…`, `7e3f9a6a90d9…`, `e8b97479953b…`).
+- **Browser:** Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Build Runner:** fresh PIDs `94898`, `2778`, `9197`, `17599`, each alive with the image ready.
+
+Privacy:
+- The runner deletes each run's private capture file, so a read-only watcher kept the union in `R/private/` (mode `0600`): 60 entries.
+- Independent scan of those values and the clone `.env` secrets over 103 shared text files (artifacts, runner stdout, observer): 0 hits.
+
+Boundary after T7 (`R/baseline-after-t7.json`, `14:08:57Z`): zero containers. The seven volume records, networks and Docker MemTotal/NCPU are exactly equal to before. No Build Runner; ports `8543` and `8643` free.
+
+QA requested a bounded test-only repair in `msg_019380277074`. Lead authorized it in `msg_859204e81d48`. The three failed runs, the demo-only skip, the confirm and demo results, and the privacy and cleanup evidence above remain the record for `004568b`; this is not a T7 PASS.
+
+**Held repair (no stack):** `tests/e2e/lib/portal.ts` `publishCourse` now waits for the exact expected option before the unchanged label read: an escaped, anchored RegExp of `<name> (Moodle, <site host>)`, `waitFor({ state: 'attached', timeout: 15_000 })`. Options in a closed select are attached, not visible. The exact text and host match, the missing-option throw, the selection, Publish and the "Available in Moodle" check are unchanged. No other helper, scenario, case selection or demo-skip behavior changed. The latent one-shot `Connect` count in `startConnect` is outside this repair; it passed in all three runs.
+
+Evidence (synthetic only; `R/publish-repair/`):
+- **Scratch control** (host Google Chrome, Playwright `1.56.0`): 6/6 behave as stated. The spec uses verbatim copies of the old (HEAD) and new (working tree) `publishCourse`, with their SHA-256 values recorded.
+  - P1: the old function on a delayed list throws "no connection option" (reproduces A3).
+  - P2: the new function selects a delayed valid option and reaches "Available in Moodle".
+  - P3–P5: a missing option, the same name on another host, and a different name on the same host still fail.
+  - P6: a Publish that never shows "Available in Moodle" still fails.
+- `node tests/e2e/host/run-m2.mjs --harness-only`: 6/6 PASS, typecheck PASS, all 64 M2 cases, T7 selection unchanged.
+- T7 inventory (`QA_SUITE=e2e playwright test --list`): 18 tests in 6 files (unchanged).
+
+Next: Lead commits the repair and freezes one new product/test SHA, then a fresh full M2 and three default T7 passes with demo and confirmation checks under a new window.
+
+### M3 checkpoint update — final candidate (`aff4882`): T7 PASS
+
+**PASS.** Product/test `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`, after M2 64/64 at the same SHA ([M2 round 8](../M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Lead window: `msg_987f8e232e3b`, a T7-only window after the observer controls. Run `qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`; project `qa-e2e-m3-r2`; port `8543`; subnet `172.31.0.0/16`; default profile. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s`. Artifacts: `R/source/tests/e2e/artifacts/runs/qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`. Fresh runtime clone: `/Users/quangnguyen/cogniate-qa-runs/qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-m3-r2 PUBLIC_PORT=8543 STACK_SUBNET=172.31.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-t7.mjs --sha aff48823a4c6206d6314d91a95f5eb0979d3e0e7 --runs 3 --demo --check-confirm
+```
+
+Runner exit `0`, summary "ALL OK".
+
+| Pass | Exit | Time | `e2e:reset` | PASS | FAIL | SKIP |
+| --- | --- | --- | --- | --- | --- | --- |
+| Run 1 | 0 | 172 s | 37 s | 17 | 0 | 1 |
+| Run 2 | 0 | 174 s | 38 s | 17 | 0 | 1 |
+| Run 3 | 0 | 173 s | 37 s | 17 | 0 | 1 |
+| Demo pass | 0 | — | 38 s | 1 (DEMO) | 0 | 0 |
+
+In each run, the skip is `DEMO AC-T7-15`, which runs only in the demo pass by design. The demo pass ran `demo:prepare` in 8.21 s, then the DEMO case alone, and it passed. All four checks pass: B-T7-01 confirm "no" for `e2e:reset` and `test:e2e` (asked, stopped, stack unchanged), and A-T7-04 fail-closed for both (refused, stack unchanged). Teardown OK.
+
+| Criterion | Result at `aff4882` | Evidence |
+| --- | --- | --- |
+| AC-T7-01 | PASS | `npm run test:e2e` exit 0 in each run, 172–174 s (≤ 25 min) |
+| AC-T7-02 | PASS | A1-A2 and A4 in each run |
+| AC-T7-03 | PASS | A4 in each run |
+| AC-T7-04 | PASS | A5, A6 and the AC-T7-04 case in each run |
+| AC-T7-05 | PASS | AC-T7-05 case in each run |
+| AC-T7-06 | PASS | AC-T7-06 case in each run |
+| AC-T7-07 | PASS | A5, A6 and B6 in each run |
+| AC-T7-08 | PASS | B4 and B5 in each run |
+| AC-T7-09 | PASS | B6 in each run |
+| AC-T7-10 | PASS | C1 and C2 in each run |
+| AC-T7-11 | PASS | Three consecutive runs pass with `retries: 0` |
+| AC-T7-12 | PASS | This section; per-run screenshots, traces and run times under the artifact directory |
+| AC-T7-13 | PASS | T7-START and T7-END in each run |
+| AC-T7-14 | PASS | A1-A2 in each run |
+| AC-T7-15 | PASS | Demo pass: `demo:prepare` 8.21 s, DEMO case PASS |
+
+Observer (pinned `R/observe2.mjs`, SHA-256 `d60dc920…`, across resets; no `observer_error`):
+- **Health:** all 4 full-health snapshots, one per stack lifecycle, show LTI, app and content 200 `ok`, `profile: default`, `knobs: []`, `simulation_profiles: []`, and no `lms-sim` or `lti-gate` service.
+- **Images:** Node `sha256:44fce696f38b…`, Moodle `sha256:3a310197e51f…`, Caddy `sha256:d8542f48d34a…`, Postgres `sha256:721873c34ceb…`. The e2e image was built 4 times (`393461480e5e…`, `98472d4be733…`, `bbfd8ce90214…`, `fd1589038474…`).
+- **Browser:** Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Build Runner:** fresh PIDs `39229`, `48743`, `57203`, each alive with the image ready.
+
+Privacy:
+- The private union watcher kept 174 entries (145 unique values) across all passes in `R/private/` (mode `0600`).
+- Independent scan of those values plus the clone `.env` secrets (153 values) over 128 shared text files (artifacts, runner stdout, observer output, watcher log): 0 hits.
+- C2 passes in every run.
+
+Boundary after T7 (`R/baseline-after-t7.json`, `14:38:28Z`): zero containers. The seven volume records, networks and Docker MemTotal/NCPU are exactly equal to before. No Build Runner; ports `8543` and `8643` free.
+
+The failed T7 runs at `004568b` remain history. This PASS is SIM-free Moodle regression on the local stack; it is not live LMS validation.
+
+## M3 regression — candidate C3 `c4c6d04` (2026-10-22): NOT RUN
+
+**NOT RUN. No T7 result at this candidate.** A fresh Claude QA-E2E session wrote this section: `claude-opus-5-5`, xhigh; Orca session `34e03f7b-2209-4749-8db7-c5b507717b71`; task `task_5f3f8aa499cb`, dispatch `ctx_1fd6cb09010e`. It did not execute the earlier T7 runs.
+
+- Candidate product = test `c4c6d045b3a132f72bf059d77367d278de9222fa`. `tests/e2e` did not change since `aff4882` (T7 list: 18 tests in 6 files).
+- Reason: AC-M3-02(a) runs on the final M1+M2 SHA, after the accepted complete Common full and legacy gate and a separate exclusive window. Common's full round 1 failed in storage (470 PASS, 18 FAIL of 488), and the Lead granted no T7 window ([M3 QA-E2E §14](../M3/qa-e2e.md#14-round-11--candidate-c3-c4c6d04-2026-10-22)).
+- Prepared only (host): `R/plan/runbook-c4c6d04.md` section C (`32f390b5…`) and `R/plan/window-commands-c4c6d04.md` (`4435163d…`), lane `qa-e2e-m3-r3`, port 8543, subnet `172.31.0.0/16`. The command is `node tests/e2e/host/run-t7.mjs --sha c4c6d045b3a132f72bf059d77367d278de9222fa --checkout <new DEST> --runs 3 --demo --check-confirm --keep`. The external ownership wrapper must be READY before the runner and tears down only after the runner exits. `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-c4c6d04-qA52QXut`.
+- All 15 T7 criteria, the three default runs, the demo pass and the four confirmation checks stay NOT RUN at this SHA. The PASS at `aff4882` is history only and gives no credit to this candidate.
+
+
+## M3 regression — candidate C6 `4008afb9` / tests C8 `5561e8f7` (2026-10-23): PENDING (External Preflight Only; Unused Grant Closed Before Launch)
+
+**PENDING (externally blocked by the `04:33 UTC` launch cutoff and `04:45 UTC` host return embargo; explicitly NOT a T7 test failure or PASS).** Independent QA-E2E (`Antigravity Gemini 4 Argon (High)`, model `gemini-4-argon-high`, effort `high`, no subworkers; terminal `term_3fd51366-4ec9-4a5c-994d-be6f04a4bcf1`, task `task_3ca468cb75c8`, dispatch `ctx_8449a3df3e54`) recorded this status.
+
+- **Candidate Identity**: Product **`C6 = 4008afb92fe983d52db33442e060210b929966c8`**, tests **`C8 = 5561e8f72a83de36a68877c6b26ffc8288ade735`** (`tests` tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`, equivalent at `C9 = 9eb504f5bff4be7e291570fde12fdf9919a07fa1` per `§12.6`). Frozen script `notes/scripts/run-t7-window-v2.sh` (`20,605` B, mode `0700`, SHA-256 `1c884fdfec60a849c6f57410f7b62b28bdd37fc0d29c89510c40e4910e73d48f`) in `MANIFEST-lane-watch-r4-v2.sha256` (`1b6be474b5a972b5b028e064985486ea6a2f5e43767ce48f2ac63a676af27fef`, `6/6` OK) and `MANIFEST-host-ready.sha256` (`d7bbdb75d084bfa20324806b473b49e7273e43c02f44ffd0ebb9ae54f806dc60`, `84/84` OK).
+- **Qualified External Preflight (`/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep/t7-external-preflight`)**:
+  - Executed per `msg_affa86d19d73` / `msg_d04d641ae347` while keeping `$R/t7`, `$R/t7/window`, `$R/t7-clone`, `$R/notes/baseline-volumes-32-for-t7.json`, and all T7 script/runtime paths 100% absent:
+    - `w1-wake.json`: `26d677e260aa2bda2c5bbd206c30e91fe5817f2dd1a20ce40c0e75f29282ff78` (`ok: true`, `problems: []`)
+    - `w2-liveness.json`: `88bb50d092016d9ba11e0535c2373cb33814867b78f1e56042f6843d4a306b03` (`ok: true`, `problems: []`)
+    - `w3-start.json`: `8cbb2e04c9fea2bdd0be4d2ba68a3bb6cf3bafe234b89872154cfbfee04964d0` (`ok: true`, `problems: []`, `0` containers on host)
+    - `w3-32vol.json`: `f3e16bcaa3b8e522008394ff5ba91a61428d36ce1211017fa5ab077a32291d2a` (`all32VolumeRecordsByteEqual: true`, `volDiffs: []`, `32/32` volume records byte-equal to accepted M2 Attempt 4 `w4-end.json` `544142a119dedc4c77279e5c0078ceac7c53dd7c520558aeb156a768c13638fd`)
+    - `w3-anon.json`: `903cf0af02beebeec398ceed792987716cec3a2a1db8221f61be4805da7be529` (`ok: true`)
+    - `compare-vs-m2-w4-v2.json`: `9ad49c7f273a8bd667751159a29dabb06b1491e8f0e2988ad539aa1f2a512a80` (v1 helper output preserved at `compare-vs-m2-w4.json` `66bcaa95c35d4c803c2bbb15d9805c9545b43f8ed0fa54a4ed677903d69a1f4b`)
+- **Hold & Unused Grant Closure**:
+  - Per `msg_d04d641ae347` and `msg_1713b21b2f5b`, QA held before launching `run-t7-window-v2.sh` and closed the unused T7 grant (`m2/attempt4/pre-w3-bridge-reconciliation-addendum-la.json` `b26a482853e4912183867fc2352892aa2b1c376ae5935e62722cca4e04cf485d`) because (1) `delivery_b3dbcb6b45db` arrived at `04:33:55 UTC`, after the `04:33 UTC` latest runner-start cutoff required to fit T7 inside the hard `04:45 UTC` host return, and (2) `W1` wake at `04:35:11Z` replaced the default `bridge` network ID (`7dac5c9677405373504aca30604af6f2c59eb20eb5771b1e4cd4592d94ec3df4` created `04:25:27.452400125Z` $\rightarrow$ `b9a014a3d171ef081c15d51347d067d05aafc7e726a9755569fd9da4b9db10d2` created `04:35:11.382384709Z`, with identical options, IPAM, labels, `host`, and `none` networks).
+  - All `15` T7 criteria (`AC-T7-01`..`15`), the three default runs, the demo pass, and the four confirmation checks remain **PENDING** for the next granted host window after the `04:45`–`07:45 UTC` host embargo.
+
+- **Final Host Return & LA Acknowledgment (`04:38:30 UTC`)**: Final host return to LA was fixed at `04:38:30 UTC` (`msg_c60a642ef29f`) based on the `04:35:26.915Z` boundary capture (`t7-external-preflight/w3-start.json` `8cbb2e04...`). LA acknowledged the `04:38:30 UTC` return in `msg_b7f76ead5610` confirming no LA mutation through that time, with precision correction `msg_3eafe1d524b8` that its seven `04:35:12Z` watcher events were the qualified wake-container lifecycle, not bridge events. `07:45 UTC` is the earliest permitted time to request a new LTI host window after the embargo, not a guaranteed reservation or completion time.
+
+### 2026-10-23 (`07:45–07:59 UTC` Slot): PENDING / NOT RUN (Host-Only Readiness Verified; External LA Handoff Unavailable; Zero Docker Calls)
+
+**PENDING / NOT RUN (externally blocked because the planned `07:45–08:05 UTC` window had no actual LA stack-down handoff and no runtime or preflight grant was issued; explicitly NOT a T7 test failure).** Independent QA-E2E (`Antigravity Gemini 4 Argon (High)`, model `gemini-4-argon-high`, effort `high`, no subworkers; retained terminal `term_3fd51366-4ec9-4a5c-994d-be6f04a4bcf1`, task `task_0f19008c5331`, dispatch `ctx_992d5721e156`; after `ctx_e685b12752a8` failed at `agent_readiness` pre-injection and after `task_3ca468cb75c8` / `ctx_8449a3df3e54` settled at `msg_c3e76256fd81` / commit `5def6e4bce0a4a4ab6b3f470df994fd66b1a34cd` with M1 and M2 accepted `PASS`) recorded this appendix.
+
+- **Host-Only `84+6` Binding & Manifest Verification (`2026-10-23T07:46:15Z`, reported in `msg_fd0120ef3415`, accepted in `msg_7ddf9c0d59c9`, `0` Docker calls)**:
+  - `R = /Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep`
+  - Candidate product **`C6 = 4008afb92fe983d52db33442e060210b929966c8`**, tests **`C8 = 5561e8f72a83de36a68877c6b26ffc8288ade735`** (`tests` tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`, equivalent at `C9 = 9eb504f5bff4be7e291570fde12fdf9919a07fa1`).
+  - `notes/MANIFEST-lane-watch-r4-v2.sha256`: `1,071` B, SHA-256 `1b6be474b5a972b5b028e064985486ea6a2f5e43767ce48f2ac63a676af27fef` (`6/6` entries OK).
+  - `notes/MANIFEST-host-ready.sha256`: SHA-256 `d7bbdb75d084bfa20324806b473b49e7273e43c02f44ffd0ebb9ae54f806dc60` (`84/84` entries OK via `verify-manifest.mjs`, `0` mismatches).
+  - `notes/scripts/run-t7-window-v2.sh`: `20,605` B, mode `0700`, SHA-256 `1c884fdfec60a849c6f57410f7b62b28bdd37fc0d29c89510c40e4910e73d48f`.
+  - `notes/scripts/detached-launch.py`: `2,161` B, mode `0700`, SHA-256 `4a1f1ed356c13e3f5d57ffee1d61bb45a07071c462b4e461e1f025701fabe6d3`.
+- **Fresh-Path Absence & Artifact Preservation (`0` Docker Commands)**:
+  - Verified `19/19` fresh T7 runtime/wrapper paths (`$R/t7`, `$R/t7-clone`, `$R/notes/baseline-volumes-32-for-t7.json` (`BASE32`), `$R/qa-e2e-m3-r3-observation.jsonl`, `$R/stop-qa-e2e-m3-r3`, `$R/stop-t7-watch`, `$R/private/t7-captured-union.jsonl`, `$R/private/t7-*.stderr*`, `$R/private/t7-meta.json`, `$R/private/t7-stdout.log`, `$R/private/t7-stderr.log`, `$R/private/t7-exit.txt`, `$R/scan/t7-scan.json`) plus `$R/t7-external-preflight-0745` are **ABSENT**.
+  - Preserved all prior M1, M2, and `04:35Z` `$R/t7-external-preflight` artifacts untouched. Executed **zero (`0`) Docker commands** during `task_0f19008c5331` / `ctx_992d5721e156`.
+- **External Handoff Blocker & Attempt Closure (`msg_c785cb571983` at `07:59:23Z` / `07:58 UTC` Lead decision)**:
+  - Lead handoff requests to LA (`msg_fc2e67f8da83`, `msg_4b7fbafa4e58`, `msg_ed58480e255f`, `msg_07fc2897c764`) remained unread (`delivered_at: null`) in the authoritative inbox across the planned `07:45–08:05 UTC` window, leaving insufficient time for external preflight + `630–695` s T7 runtime + cleanup before `08:05 UTC`.
+  - No preflight or runtime grant was issued. All `15` T7 criteria (`AC-T7-01`..`15`), the `3` default runs, the `--demo` pass, and the `4` `--check-confirm` subchecks remain **PENDING / NOT RUN** awaiting an actual LA stack-down handoff and a fresh Lead grant in retained terminal `term_3fd51366-4ec9-4a5c-994d-be6f04a4bcf1`.
+- **Precision Correction (`task_1943471c8497` / `ctx_00abe98b28d2`, preserving the `54,700`-byte prefix `b2fa06c45c66f8d17de6f5bf9920a7d00415c1271fcf20a0dfe6880cd260f9d0`)**:
+  1. **Observation Cutoff (`~07:58 UTC` / `07:59:23Z`, Not Through `08:05 UTC`)**: The unread status (`delivered_at: null`) of LA handoff requests `msg_fc2e67f8da83`, `msg_4b7fbafa4e58`, `msg_ed58480e255f`, and `msg_07fc2897c764` was observed at the Lead's `07:58 UTC` decision (`msg_c785cb571983` sent at `07:59:23Z`); QA does not have evidence covering the remaining future minutes through `08:05 UTC`.
+  2. **`C8` vs. `C9` Test-Tree Scope**: `C8` (`5561e8f72a83de36a68877c6b26ffc8288ade735`, `tests` tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`) and `C9` (`9eb504f5bff4be7e291570fde12fdf9919a07fa1`) do not have identical full `tests` trees; equivalence applies only to the previously verified T7/M2 dependency scope (`docs/reviews/M3/qa-e2e.md §12.6`), and the actual planned T7 source checkout remains `C8`.
+  3. **Commit Attribution (`c92eb57` vs. `5def6e4b`)**: `5def6e4bce0a4a4ab6b3f470df994fd66b1a34cd` was the workspace checkout `HEAD` during this `07:45 UTC` preparation, whereas the earlier `task_3ca468cb75c8` / `ctx_8449a3df3e54` QA report was committed in `c92eb57`. T7 remains **PENDING / NOT RUN**.
+
+### 2026-10-23 (`12:02–12:20 UTC` Host-Only Checkpoint): PENDING / NOT RUN (Zero Docker Calls; Unused LA Hold Returned; User Scheduling Route Choice Pending)
+
+**PENDING / NOT RUN (externally blocked by active Savoy `run_d822495bc64d` host activity and pending user scheduling choice between a `25`-minute coordinated Savoy pause or `docs/reviews/M3/t6-09-failure-plan.md §15` copied QA tools + focused review; explicitly NOT a T7 test failure).** At `2026-10-23T12:02:51Z`, retained independent QA-E2E (`Antigravity Gemini 4 Argon (High)`, model `gemini-4-argon-high`, effort `high`, no subworkers; terminal `term_3fd51366-4ec9-4a5c-994d-be6f04a4bcf1`, task `task_d59003f88ba1`, dispatch `ctx_4df8a8c1c7d6`, after pre-injection `agent_readiness` timeout on `ctx_8f9a83d05cb6`; checkout `HEAD` `43669651079c094aa6d9f5bb0d3b77355f7f29bd`) verified host-only `84+6` readiness (`MANIFEST-host-ready.sha256` `d7bbdb75...` `84/84` OK, `MANIFEST-lane-watch-r4-v2.sha256` `1b6be474...` `6/6` OK, `run-t7-window-v2.sh` `20,605` B `0700` `1c884fdf...`, `detached-launch.py` `2,161` B `0700` `4a1f1ed3...`, planned source `C8 = 5561e8f72a83de36a68877c6b26ffc8288ade735` / product `C6 = 4008afb92fe983d52db33442e060210b929966c8`, and all fresh T7/preflight paths including `$R/t7`, `$R/t7-clone`, `BASE32`, `$R/t7-external-preflight-0745`, and `$R/t7-external-preflight-1200` absent) and reported `READY FOR PREFLIGHT` in `msg_dc754e02d52e` (accepted in `msg_5f5caf07dee5`). Savoy `msg_987ebb0a6be7` and `msg_293cd9f61de2` confirmed that the foreign `sto-*` containers and their anonymous volumes belong to `run_d822495bc64d` and that its owner will not pause Docker; accordingly, no Stage A or Stage B grant was issued, QA executed **zero (`0`) Docker commands**, the unused LA reservation (`msg_b032782139a5`) was returned at `12:07 UTC` in `msg_53948031e836` and acknowledged by LA in `msg_1f1c33111d07`, and the Lead closed this bounded attempt at a host-only checkpoint in `msg_ee44720aabd9` (`12:20:14Z`) while the user's explicit route choice (and any `E-R8` / tool-implementation or runtime grant) remains pending.
+
+
+---
+
+## 2026-10-23T15:54:00Z Append-Only Record — E-R8 Shared-Host T7 Verification Attempt (`t7-attempt-r8-20261023T1510Z`, Overall FAIL on Run 2 `A4` Sticky-Footer Viewport Cascade) & Bounded Two-File `viewportShot` Repair (`task_5bccef8e6029` / `ctx_73b31b9cc18d`)
+
+### 1. Verdict & Scope Summary
+
+- **Runtime Attempt Verdict (`t7-attempt-r8-20261023T1510Z`)**: **FAIL (`EXIT_CODE=1`, `RUNNER_RC=1`; NOT ACCEPTED)**.
+  - Run 1 (`04-test-e2e-run1.log`, `223 s`, `e2e:reset` `66 s`) passed `17/17` active tests (`0` fail, `1` permitted `DEMO` skip).
+  - Run 2 (`05-test-e2e-run2.log`, `271 s`, `e2e:reset` `63 s`) exited `1` (`9 PASS, 8 FAIL, 1 SKIP`): a single causal failure in `A4` (`saveAndReturn` clicking `#id_submitbutton2` `"Save and return to course"` immediately after `shot(page, 'A4-scorm-activity-form')` with `fullPage: true`, where trace DOM snapshots prove `body.hasstickyfooter` was present before capture and absent after capture and through the `15 s` click timeout so the button stayed outside the `1440×900` viewport, while the exact Moodle sticky-footer script trigger remains inferred) cascaded into `7` dependent failures (`A5`, `A6`, `AC-T7-04`, `AC-T7-05`, `AC-T7-06`, `B5`, `B6`), while `T7-START`, `A1-A2`, `A3`, `B1-B2`, `B3`, `B4`, `C1`, `C2`, and `T7-END` passed in Run 2.
+  - Run 3 (`06-test-e2e-run3.log`, `226 s`, `e2e:reset` `52 s`) passed `17/17` active tests (`0` fail, `1` permitted `DEMO` skip).
+  - All `4` confirmation/refusal checks (`B-T7-01` and `A-T7-04` in `07`..`10`) and the `AC-T7-15` demo pass (`11`..`13`, `e2e:reset` `58.3 s`, `demo:prepare` `12.41 s <= 180 s`, `demo-check` `12.2 s`) passed.
+  - All `T11–T13` observer stops, `lane-watch` teardown (`LANE_RC=0`), `W4` end capture (`W4_CAPTURE_RC=0`), `W3->W4` comparison (`W4_COMPARE_RC=0`), `W4` anonymous-volume check (`W4_ANON_RC=0`), and `W4` 32-volume reconciliation (`W4_RECONCILE_RC=0`) passed (`0` remaining `qa-e2e-m3-r3` containers/networks/volumes, `all32VolumeRecordsByteEqual: true`).
+  - Per `run-t7-window-v3.sh` line 448, `RUNNER_RC=1` halted the wrapper with exit `1` before `T14`; `T14` artifacts inside `$T7_ROOT` remain omitted as designed.
+
+### 2. Stage A External Preflight Disclosure & Reconciliation (`1510Z` Failed Private-HOME Attempt & `1521Z` Accepted Attempt)
+
+1. **Failed Stage A Attempt 1 (`$R/notes/t7-external-preflight-r8-20261023T1510Z`, Grant `msg_c210c4fab62b`, LA Handoff `msg_f6fa96e2f3e6`)**:
+   - **Cause**: The ad-hoc Stage A shell exported `HOME=$R/private/home` and `TMPDIR=$R/private/tmp/` at the top level before invoking `live-boundary.mjs`, instead of using `E-A` `RUNENV` (`HOME=/Users/quangnguyen`) for `live-boundary.mjs` and scoping private `HOME`/`TMPDIR` only to `anon-check.mjs` / `reconcile-32vol-v2.mjs`.
+   - **Concrete Evidence (Preserved Intact as FAIL)**:
+     - `w1-wake.json` (`599` B, mode `0600`, SHA-256 `ab1fb113276432d766d62135e33afad691006c078bd0678f121de0e593dd74fa`, exit `2`), `w2-liveness.json` (`2,377` B, mode `0600`, SHA-256 `ebe3660b5ab09812e3f3a1bfc85595317b1c31682edb3f6f9d17850f453b2804`, exit `2`), `w3-start.json` (`17,685` B, mode `0600`, SHA-256 `f338d34f9d4f659ee09c4e263211e4ac66a5e3055594149d47771cf23933a5e3`, exit `2`), `w3-anon.json` (`385` B, SHA-256 `ae2534cbfd05a714327e12de9af16c1f6c84857e587319088a53f8c15c6e96ba`, exit `1`), `w3-32vol.json` (`9,072` B, SHA-256 `7f26988cdb8b04b13456e9244b398161871e0b7ff65d92dc2b17a28bb5f0332b`, exit `1`), `pre-w3-bridge-reconciliation.json` (`20,821` B, SHA-256 `83f3430a016ac32fd6dc5df61770155e9cd27915a62dc80b84637840aedf8c3a`).
+     - In `w3-start.json`, `settings.path` resolved to `$R/private/home/Library/Group Containers/group.com.docker/settings-store.json` (`ENOENT`), and `/Users/quangnguyen/.docker/bin/docker` (realpath `/Applications/Docker.app/Contents/Resources/bin/docker`, `QA_OBSERVER_DOCKER_BIN` unset) fell back to `unix:///var/run/docker.sock` (`private/stderr-efb789404f98bb7a69f6.bin`, `194` B, SHA-256 `7f82543b38da1e2daad7c74045136e02753ca9315fce32ce59da86bdda722d11`: `failed to connect to the docker API at unix:///var/run/docker.sock... no such file or directory`). Zero connections to the Docker Desktop daemon occurred.
+2. **Accepted Stage A Attempt 2 (`$R/notes/t7-external-preflight-r8-20261023T1521Z`, Replacement Grant `msg_6ead93e7a896`, Accepted in `PREFLIGHT_DECISION_MSG=msg_37daa6076f89`, LA Hold `msg_c1c6a9d55c38` through `15:50:00Z`)**:
+   - **Execution & Exit Codes**: Executed once under `E-A` `RUNENV` (`HOME=/Users/quangnguyen`) with strict fail-fast; all 5 steps exited `0` (`wake=0`, `liveness=0`, `w3Capture=0`, `anonCheck=0`, `reconcile32=0`).
+   - **Artifact Bindings**:
+     - `baseline-volumes-32.json`: `12,936` B | mode `0600` | SHA-256 `31284639a3a07baa23f5e48ffcd8132f7ebabad8a36183d9a4384e655dc459cd`
+     - `w1-wake.json`: `1,667` B | mode `0600` | SHA-256 `e89d4e4c72168f6ddcbee3cf8a04544dd51418cd225fbf289aa9c2a97ad8e38c`
+     - `w2-liveness.json`: `720` B | mode `0600` | SHA-256 `c414a7310e5052fdd1c2fd7dd8eeceaa20c6c331ce3c924a4b62fba6c74adcf0`
+     - `w3-start.json`: `31,715` B | mode `0600` | `at: 2026-10-23T15:23:41.297Z` | SHA-256 `c10f393829436a3d25dd3bef38c82f8489e7d0bd46339adf5cae0d7e21f07baf`
+     - `w3-anon.json`: `380` B | mode `0600` | SHA-256 `7d9e9b68e61eb61d079529ed847f72a11fa0999af449555e3dff8d0fcb2c2b4f` (`ok: true`)
+     - `w3-32vol.json`: `1,550` B | mode `0600` | SHA-256 `9752b3b88608dfec3f7aca5149d969dcd72c65f6664e3fd20afa261a0f6119f1` (`ok: true`, `all32VolumeRecordsByteEqual: true`, `expectedCount32: true`, `protectedOriginalIdentical: true`, `problems: []`)
+     - `pre-w3-bridge-reconciliation.json`: `7,476` B | mode `0600` | SHA-256 `0faee1bb60374e52d674e8b6f6a98486fec34d112b4c8b4e36762a26577f814a` (preserved raw helper `full32EqualToPrevW4: false`, which checked a non-existent `equalToPrevious32` property / 34-total-vs-32 count rather than `all32VolumeRecordsByteEqual: true`; both `reconcile-32vol-v2.mjs` and independent by-name comparison confirmed all 32 baseline volume records 100% byte-equal to `PREV_W4` `544142a1...`).
+   - **Predecessor Reconciliation (`msg_37daa6076f89`, Architect `msg_c8673725f23c`)**:
+     - `identity.match=true`, `dockerInfo.ID="2c7a7bff-8aa7-4949-a866-3661a5c5c9e2"`, `settings.normalizedSha256="8d959def6c680d1d8c1ea872c13789ddc88d2ccc729a582f71a243208628ebc1"` (all identical to `PREV_W4`).
+     - Built-in `bridge` network reconciled for idle-VM `Id`/`Created` replacement only (`7dac5c9677405373504aca30604af6f2c59eb20eb5771b1e4cd4592d94ec3df4` at `2026-10-23T04:25:27.452400125Z` -> `50ad445271ac62da1bced9f4b56ea4287acdbfc00e196abacdf725448444c57b` at `2026-10-23T12:31:20.897275167Z`, all other `bridge` fields identical); built-in `host` and `none` networks identical on all fields except `ipam: []` (old collector nullish default) vs `ipam: null` (qualified F-01 collector preserving `null`).
+     - Foreign coexistence at preflight: `2` Savoy containers (`034f3fcd8bd1...` `/sto-it-pg-838ac55c7ff4`, `3d868ff7bfb3...` `/sto-it-mq-2d7444972e64`, rule `SC`, `via: "full"`) and `2` Savoy anonymous volumes (`142e27f87a91...`, `b557c1c1cc59...`, rule `SV`, `via: "full"`).
+
+### 3. Stage B Runtime Execution, Boundary/Cleanup Proof & FailureCloseout Manifest (`t7-attempt-r8-20261023T1510Z`)
+
+- **Grant & Launcher Bindings**:
+  - `GRANT_MSG="msg_0de90d08153d"` | `GRANT_DELIVERY="delivery_16d648ba703c"` | `PREFLIGHT_DECISION_MSG="msg_37daa6076f89"` | `PREFLIGHT_W3_SHA256="c10f393829436a3d25dd3bef38c82f8489e7d0bd46339adf5cae0d7e21f07baf"` | `LA_HOLD_MSG="msg_c1c6a9d55c38"` | `LA_HOLD_UNTIL="2026-10-23T15:50:00Z"` | `GRANT_END_UTC="2026-10-23T15:48:00Z"`.
+  - `detached-launch.receipt.json` (`1,564` B, `0600`, SHA-256 `f581bcce5043abd70a0fe3090bea0bd6767ea524a98bf7f68a230e335f1208b9`, `supervisorPid: 59664`, `launchedAtUtc: 2026-10-23T15:28:20Z`), `detached-launch.stdout.log` (`14,220` B, `0600`, SHA-256 `f69ded645f004ea77d7c43bb38409e7f67c4340696afcad45b4004d69f9d51c1`), `detached-launch.stderr.log` (`148` B, `0600`, SHA-256 `6a9dd5a4f7abf75a6543343a585e56e55448d42e66d8872e6fcbb372b4c1d3c2`), `detached-launch.exit` (`2` B, `0600`, SHA-256 `4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865`, value `1`).
+- **Window, Lane & Observer Artifacts (Prelaunch `T0–T8` all `0`, Runner `T9–T10` FAIL `RUNNER_RC=1`, Operational Cleanup `T11–T13` all `0`, `T14` omitted on `RUNNER_RC=1`)**:
+  - `t0-grant.txt` (`901` B, `71ff9c32878c68300d6f05addf5fe0de88db110fe5299e5c43e1a62aac2f2944`), `w1-wake.json` (`1,667` B, `9ad2ba174eb9f324da177d07dd01515e84cbb77c7d9416945950f4ff7ad6bc6c`), `w2-liveness.json` (`719` B, `e0f5044fcfc86991e6ce9373a1f7acc1c4b8c08332f090fb5c11c0c2c37d55ff`), `w3-start.json` (`33,853` B, `8d6f47ac49b791673b3180251b5022289128c87fe860e3a17491b7fecb76a216`), `w3-anon.json` (`380` B, `a60de5175e14b1aae39814ec26f19a21281c7aedd3a0276ce1394b830907f0eb`), `w3-32vol.json` (`1,872` B, `73e163d98a86f4fdd93e2e76b634905d619054d4279bec58e657d871fa439203`), `prelaunch-guard.json` (`7,295` B, `73c58215ee909d1bec1e6223948f31a902dcc96ea41469f97571fb9a97cfa950`, `ok: true`), `h-images.txt` (`1,218` B, `1e3164f10833357f37a801141bc1c04c407b62d632186bc16b42c93b6d05d09c`).
+  - `host-checkout.json` (`837` B, `0fcecc96f13b133c0e35f8d67fad9b4c5ec154c6462fdcc5c1dd5bc4c9745e8e`), `checkout.json` (`907` B, `02883d10383ed3faad2fb5d2475c0716058775a03607ef262b96d013b7ad6acf`), `checkout-preready.json` (`1,772` B, `88288d1991cd8671f661a7266a696b107e37e5d6ad9f727d46e97d70333530a8`), `lane/boundary-start.json` (`35,202` B, `63c23762cadbccbcae52f5223d63863cd5bff606c75b7496b4c6e33f8c7f2649`), `lane/boundary-end.json` (`30,597` B, `eaf80f77d93532ca5c4be646a97217e68283dc62c23692a56424c2a4379d099c`), `lane/summary.json` (`3,603` B, `52a81db2a0442aef5a6dae1ad8fc2764122026fb37157377e830a0bbcd680ef2`, `isolationPass: true`, `keepVerified: true`), `t7-run.stdout.log` (`10,799` B, `6072639ce79f64d7fa66e250a8e44901811a1da289df311cdc055f0af8d2f0f8`), `summary.json` (`43,856` B, `ef37bee6dd69b657873a58f91b68b72570db6c0f9095cbb3bac634764c5a7a2b`).
+  - `w4-end.json` (`29,582` B, `b59aba22f1d7509fe4a21bb454e93d824428945e02b46d7ac1c0d75c834f80ec`, `at: 2026-10-23T15:43:18.565Z`, `problems: []`), `w4-compare.json` (`6,441` B, `e3f9e3c589a4a46b23e0a766d6c663d98cefd4dc669acb2339c3173e57d459c4`, `problems: []`, `protectedIdenticalAtEnd: true`), `w4-anon.json` (`371` B, `1829cfd47a9f60c74e0f459eaa85f3ce51f3fdb5f41526db85d2a8484a23b308`, `ok: true`), `w4-32vol.json` (`1,216` B, `726cafee1431b4c8b8f28d87ff6abd02d45304e9c0483081b2c4cad50dc77559`, `ok: true`, `all32VolumeRecordsByteEqual: true`), `sampler/lane-containers.json` (`20,467` B, `e1ec82f3d712e82fd63c910b1dab7614053316e18df5435a1655263bd32411f6`, `54` samples, `0` skew violations), `private/t13-status.json` (`79` B, `5ed5dd3e511b44a31d94592c9b7669389b845634eca6994ad8504ac787f0aa66`).
+- **Private Failure-Closeout Scan & Manifest (`$R/notes/t7-failure-closeout-r8-20261023T1510Z`)**:
+  - `t7-failure-scan.json`: `34,697` B | mode `0600` | SHA-256 `7160f9d0ab2d97c4dd230cbe595e53f4ffc54e886d581972844fa29acab8de4e` | `verdict: "FAIL"`, `values: 136`, `privateHitCount: 1028`, `sharedHitCount: 1` (`{"where":"shared","file":"03-compose-config-name.log","kind":"env:DB_PASS"}`).
+    - **Independent QA Finding on `03-compose-config-name.log`**: `tests/e2e/host/run-t7.mjs` line 181 executes `docker compose -f infra/compose.yaml --env-file .env config --format json` and writes full stdout to `cmd/03-compose-config-name.log` (which embeds `POSTGRES_PASSWORD` and `MOODLE_DATABASE_PASSWORD` resolved from `DB_PASS` in `.env`). However, `addSecretsFromClone()` in `tests/e2e/host/run-t7.mjs` line 111 filters `.env` keys by `/PASSWORD|SECRET|KEY|TOKEN/i.test(k)` (missing `DB_PASS`), whereas `secret-scan.mjs` line 28 calls `lib.isSecretCandidate(k, v)` (`tests/host/lib.mjs:317`: `/(pass|secret|token|api_?key|master|private|salt|credential)|_KEY$/i`), which includes `DB_PASS`. All 203 other shared text files and 473 shared binary files had `0` hits.
+  - `map-triggers.json`: `19,020` B | mode `0600` | SHA-256 `340e4ed5abe658e1a735cb06d339db9c92272d51e667446b2ef2172dd1deddc0`.
+  - `failure-artifact-manifest.json`: `331,255` B | mode `0600` | SHA-256 `1403016e680898857633de8be128a537975240a3436d3493784b071f7a95277b`.
+
+### 4. Bounded Four-File C10 Repair (`msg_b8ba462766d0`, `msg_df199ac75a9d`, `t7-cycle2-diagnosis-and-repair.md`, `c10-run-t7-redaction-decision-v2.md`)
+
+- **Diagnoses**:
+  1. **Run 2 `A4` Sticky-Footer Viewport Cascade (`t7-cycle2-diagnosis-and-repair.md`)**: In Run 2 `A4` (`1-scenario-a.spec.ts:211`), `addCogniateActivity` (`tests/e2e/lib/flows.ts:21-22`) called `shot(page, 'A4-scorm-activity-form')` (`fullPage: true`) immediately before `saveAndReturn(page)` (`moodle.ts:434`). Trace DOM snapshots prove `body.hasstickyfooter` was present before the full-page screenshot and absent after the screenshot and through the `15 s` click timeout, leaving `#id_submitbutton2` (`"Save and return to course"`) outside the `1440×900` viewport for `15 s` (`28 × element is outside of the viewport`); the exact Moodle sticky-footer script trigger across the full-page capture viewport resize remains inferred (Moodle's script source was not read). The same capture-before-sticky-footer-click sequence existed in `2-scenario-b.spec.ts:199-200` (`shot(page, 'B5-picker-thanh', testInfo)` immediately before `cancelActivityForm(page)`).
+  2. **`03-compose-config-name.log` `env:DB_PASS` Redaction Mismatch (`c10-run-t7-redaction-decision-v2.md`)**: `addSecretsFromClone()` in `tests/e2e/host/run-t7.mjs` filtered `.env` keys with `/PASSWORD|SECRET|KEY|TOKEN/i.test(k)` (`v.length >= 6`), missing `DB_PASS`, whereas `secret-scan.mjs` uses `isSecretCandidate(k, v)` from `tests/host/lib.mjs`. Extracting `isCloneEnvSecret(key, value)` as the union of both predicates in `tests/e2e/host/t7-env-secrets.mjs` and wiring `addSecretsFromClone()` to it ensures non-regression on existing `>= 6`-char keys while adding all `isSecretCandidate` keys (`DB_PASS`, `*_SALT`, `*_CREDENTIAL`, `*_MASTER*`, `*_PRIVATE*`).
+- **Exact Four-File C10 Repair Applied (No Commit by QA)**:
+  1. `tests/e2e/lib/flows.ts` (`5,475` B, mode `0644`, SHA-256 `e8577c878240146d070d7b13a7901f2b56ee189a0d12cfc61861d60084c476a2`): exported `viewportShot(page, name, testInfo)` (`page.screenshot({ path: file, fullPage: false })` writing and attaching the same sanitized `<EVIDENCE>/<name>.png` path), scrolled `#id_activitycompletionheader` into view before capturing `${pickerKey}-activity-form`, and replaced only `shot(page, \`${pickerKey}-activity-form\`, testInfo)` with `viewportShot(...)`.
+  2. `tests/e2e/2-scenario-b.spec.ts` (`13,719` B, mode `0644`, SHA-256 `ff7cd8c34bbc6f5785bad3dad8c89a4a984b30a711dfaf824e3868d40e50c00a`): imported `viewportShot` from `./lib/flows` and replaced only `shot(page, 'B5-picker-thanh', testInfo)` with `viewportShot(page, 'B5-picker-thanh', testInfo)`.
+  3. `tests/e2e/host/t7-env-secrets.mjs` (`353` B, mode `0644`, SHA-256 `f9b538de16a59da79928dd5ccffea20b8234103acd045aeb5a19730b13bebba4`): pure helper exporting `isCloneEnvSecret(key, value)` as the union of `/PASSWORD|SECRET|KEY|TOKEN/i.test(k) && v.length >= 6` and `isSecretCandidate(k, v)` from `../../host/lib.mjs`.
+  4. `tests/e2e/host/run-t7.mjs` (`21,769` B, mode `0644`, SHA-256 `a23659dfb8f02e7d3a5dcf8020bff05a877217ea39703fa6043773ac84ab2c03`): imported `isCloneEnvSecret` from `./t7-env-secrets.mjs` and replaced the inline filter in `addSecretsFromClone()` with `if (isCloneEnvSecret(k, v)) r.add(v);`.
+- **Static & Self-Test Verification**:
+  - `npm --prefix tests run typecheck` (`tsc --noEmit -p tsconfig.json`): **PASS (`exit 0`)**.
+  - T7 title inventory: **`18` titles unchanged**.
+  - Sticky-footer screenshot hazard check: **`0` full-page `shot()` calls precede `saveAndReturn` or `cancelActivityForm`**.
+  - M1 / M2 / legacy `T1–T6` dependency closure: **`0` overlap with the 4 C10 T7 files** (`tests/e2e/host/t7-env-secrets.mjs` imports `isSecretCandidate` read-only from `tests/host/lib.mjs`; `tests/host/lib.mjs` is untouched).
+  - Host-only redaction regression selfcheck (`$R/notes/t7-failure-closeout-r8-20261023T1510Z/redaction-selftest-v2.mjs` `9,997` B, mode `0700`, SHA-256 `6a9dafe78ae0696092a558bf40d765a30f4a3c9ede87bcee5c0e5e3f999e0773`; results `redaction-selftest-results-v2.json` `3,052` B, mode `0600`, SHA-256 `5f20a4a41382786634d28f058bb09b540df4cb592842cb3bf6664c11b10b3ebd`): **PASS (`exit 0`)** across all 4 controls (Control A baseline repro: `sharedHits=1` on `env:DB_PASS`; Control B repaired `isCloneEnvSecret` + `Redactor`: `sharedHits=0`, `privateHits=1`, `[REDACTED]` count `2`, `secret-scan.mjs` `verdict: "PASS"`; Control C scanner sensitivity on unredacted leak: `sharedHits=2` for `env:DB_PASS` and `env:SESSION_SALT`; Control D union non-regression + `run-t7.mjs` wiring check: `true`).
+
+
+---
+
+## 2026-10-23T16:45:00Z Append-Only Record — E-R8 Shared-Host C10 T7 Runtime Verification & Acceptance (`t7-attempt-c10-20261023T1615Z`: PASS, Accepted in `msg_c84789ebb2b4`)
+
+- **Worker & Lifecycle Identity**: Independent QA-E2E (`Antigravity Gemini 4 Argon (High)`, model `gemini-4-argon-high`, effort `high`, no subworkers), retained terminal `term_3fd51366-4ec9-4a5c-994d-be6f04a4bcf1`, task `task_580493b156ed`, dispatch `ctx_27d8caf0ba9f`.
+- **Candidate, Wrapper & Review Bindings**:
+  - **Source & Tests Identity (`C10`)**: `97b68af439b6565f891042b20497b18aadca6a24` (`tests` tree `ec2d86f590902ee99997d6ed2b78599dc3006072`), differing from `C9` (`9eb504f5bff4be7e291570fde12fdf9919a07fa1`) in exactly four T7-only files (`tests/e2e/lib/flows.ts` `e8577c87...`, `tests/e2e/2-scenario-b.spec.ts` `ff7cd8c3...`, `tests/e2e/host/t7-env-secrets.mjs` `f9b538de...`, `tests/e2e/host/run-t7.mjs` `a23659df...`); product tree outside `docs/**` and `tests/**` is byte-identical to `C6` (`4008afb92fe983d52db33442e060210b929966c8`). Accepted M2 remains at its true execution SHA `C8` (`5561e8f72a83de36a68877c6b26ffc8288ade735`).
+  - **Qualified Wrapper & Manifests**: `$R/notes/scripts/run-t7-window-v3-c10.sh` (`27,486` B, mode `0700`, SHA-256 `a9ac8f5632ad67cdd9d0e25da07f61c143589944826e8e6bab68cc5ac1fb8f96`), `$R/notes/t7-c10-finalization/r1/MANIFEST-finalization.sha256` (SHA-256 `42a81af79df2e57f8298bb7c2ce8ccc371a1b83083df8f540b27e6fee1df2327`, `12/12` entries verified), `$R/notes/t7-shared-host-implementation/r2/MANIFEST-candidate-r2.sha256` (SHA-256 `e4f6030009ff02c2f15cd9a79b7eca1e76ff7088b8b9a81fdae12a3706ecb05c`, `42/42` entries verified), and `$R/notes/scripts/detached-launch.py` (`2,161` B, mode `0700`, SHA-256 `4a1f1ed356c13e3f5d57ffee1d61bb45a07071c462b4e461e1f025701fabe6d3`).
+  - **Independent Source/Wrapper Reviews**: Reviewer A (`msg_ddc375614df4`: `APPROVE`, with `A-T7C10-01` residual picker-key `fullPage: true` shots accepted as `MINOR` deferred subject to mandatory trace/PNG verification across all 3 runs) and Reviewer B (`msg_18bf2b69720e`: `APPROVE`).
+
+### 1. Stage A External Preflight (`$R/notes/t7-external-preflight-c10-20261023T1615Z` — PASS, Accepted in `msg_903b04fa87ab`)
+
+- **Grant & LA Handoff**: Stage A grant `msg_554a615fa08f` (`delivery_59676b515a29`), LA handoff `msg_7b06bc025fc0` (`16:07:25Z`) and extensions `msg_b8af3308c8c3` / `msg_0459f8a6f66d` (holding through `16:50:00Z`), accepted by Lead in `PREFLIGHT_DECISION_MSG=msg_903b04fa87ab`.
+- **All 5 Preflight Exit Codes & Artifacts (Executed Under `E-A` `RUNENV` with Real `HOME=/Users/quangnguyen`, All Exited `0`)**:
+  - `baseline-volumes-32.json`: `12,936` B | mode `0600` | SHA-256 `31284639a3a07baa23f5e48ffcd8132f7ebabad8a36183d9a4384e655dc459cd`
+  - `w1-wake.json`: `1,667` B | mode `0600` | SHA-256 `8097a4b78e5d93a19c76254de4facbb8bc3d35bb848728888254b821cb7ab2c4` (`W1_RC=0`, `ok: true`, `problems: []`)
+  - `w2-liveness.json`: `718` B | mode `0600` | SHA-256 `a6f45da5713b94e5dc5aba38f8f14385fd255e8a9b4376edcd5aaf3a8de6e872` (`W2_RC=0`, `ok: true`, `problems: []`)
+  - `w3-start.json`: `31,717` B | mode `0600` | `at: 2026-10-23T16:19:46.469Z` | SHA-256 `474e50d9e39b9b7b9dd35f42a72a228390a22df8f49309bb52c91a9a4ba48694` (`W3_RC=0`, `stage: "formal-start"`, `liveness.ok: true`, `problems: []`)
+  - `w3-anon.json`: `380` B | mode `0600` | SHA-256 `c6e2c45a3d1c18ed7730eca76533a75f803e9f972b6292ff815dca9bf2646578` (`ANON_RC=0`, `ok: true`, `protectedOriginalIdentical: true`, `protectedRows: 7`)
+  - `w3-32vol.json`: `1,551` B | mode `0600` | SHA-256 `e99cec650e36e7797e7dd58695f772b3a2718cfa1a7b0b53c2ae7d93fc581c2f` (`VOL32_RC=0`, `ok: true`, `all32VolumeRecordsByteEqual: true`, `expectedCount32: true`, `protectedOriginalIdentical: true`, `problems: []`)
+  - `pre-w3-bridge-reconciliation.json`: `4,880` B | mode `0600` | SHA-256 `8240ff76b4cdb7d031f74d132ed4dcd4e04ee0d781161dece3b4e7c622092244` (`identityMatch: true`, `dockerInfoId: "2c7a7bff-8aa7-4949-a866-3661a5c5c9e2"`, `settingsNormalizedSha256: "8d959def6c680d1d8c1ea872c13789ddc88d2ccc729a582f71a243208628ebc1"`, `all32VolumeRecordsByteEqualToPrevW4: true` vs `PREV_W4` `544142a1...`; built-in `bridge` reconciled for idle-VM `Id`/`Created` replacement `7dac5c96...` -> `50ad4452...` with all other fields identical; `host`/`none` identical except old-collector `ipam: []` -> `null`; `2` Savoy containers `sto-it-mq-c0ca5577222c`, `sto-it-pg-d9cc1cdb1600` [`SC`] and `2` Savoy volumes `1a6d0a17...`, `b8f92ffd...` [`SV`] positively attributed and excluded from the 32-volume baseline).
+
+### 2. Stage B Runtime Execution, 15 Criteria Table & Operational/Boundary Proof (`$R/t7-attempt-c10-20261023T1615Z` — PASS, Accepted in `msg_c84789ebb2b4`)
+
+- **Grant, Detached Launch & Completion**:
+  - `GRANT_MSG="msg_28bc7b21d064"` | `GRANT_DELIVERY="delivery_df0be9bf28fa"` | `PREFLIGHT_DECISION_MSG="msg_903b04fa87ab"` | `PREFLIGHT_W3_SHA256="474e50d9e39b9b7b9dd35f42a72a228390a22df8f49309bb52c91a9a4ba48694"` | `LA_HOLD_MSG="msg_0459f8a6f66d"` | `LA_HOLD_UNTIL="2026-10-23T16:50:00Z"` | `GRANT_END_UTC="2026-10-23T16:48:00Z"`.
+  - Detached outputs in `$R/notes/t7-runtime-c10-20261023T1615Z`: `detached-launch.receipt.json` (`1,581` B, `0600`, SHA-256 `e90218969c42346221264f160a0ae5c4563f5e1099d53805067b5ea08f481670`, `supervisorPid: 30198`, `launchedAtUtc: 2026-10-23T16:26:20Z`), `detached-launch.stdout.log` (`11,408` B, `0600`, SHA-256 `ea29dc778233dcf6bbe3b18f8e2d227cb7c3745e4b4f0c17c9e25b67e8e9aed6`), `detached-launch.stderr.log` (`0` B, `0600`, SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`), `detached-launch.exit` (`2` B, `0600`, SHA-256 `9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa`, value `0` at `2026-10-23T16:39:03Z`).
+  - Host returned to LA by Lead in `msg_d50a68ebaa8b` at `16:40Z` (`0` owned containers/networks/volumes/processes remaining).
+- **Three Default-Profile Cycles, Four Confirmation/Refusal Checks & Demo Pass (`summary.json` `39,317` B, `f98813044f0e03ad2b171a4424f06fdd93cf6360c69689afcbdc8969bd8887ab`)**:
+  - **Run 1**: `exit 0` in `208.8 s` (`e2e:reset` `52 s`) — **`17 PASS, 0 FAIL, 1 SKIP`** (only `DEMO AC-T7-15` skipped in default mode).
+  - **Run 2**: `exit 0` in `195.0 s` (`e2e:reset` `47 s`) — **`17 PASS, 0 FAIL, 1 SKIP`**.
+  - **Run 3**: `exit 0` in `199.8 s` (`e2e:reset` `46 s`) — **`17 PASS, 0 FAIL, 1 SKIP`**.
+  - **Four Destructive Confirmation/Refusal Checks (`B-T7-01` / `A-T7-04`)**:
+    1. `07-confirm-no-e2e-reset.log` (`exit 1` in `11.0 s`): interactive `"no"` on `npm run e2e:reset` $\rightarrow$ question shown, `"Stopped. Nothing was deleted."`, `5` containers, `5` volumes, seed `5347199c8afc7792` unchanged (**PASS**).
+    2. `08-confirm-no-test-e2e.log` (`exit 1` in `11.0 s`): interactive `"no"` on `npm run test:e2e` $\rightarrow$ question shown, `"Stopped. Nothing was deleted."`, `5` containers, `5` volumes, seed `5347199c8afc7792` unchanged (**PASS**).
+    3. `09-no-terminal-e2e-reset.log` (`exit 1` in `0.6 s`): non-TTY `npm run e2e:reset` without `--yes` $\rightarrow$ `"No terminal to ask … Nothing was deleted."`, stack unchanged (**PASS**).
+    4. `10-no-terminal-test-e2e.log` (`exit 1` in `0.1 s`): non-TTY `npm run test:e2e` without `--yes` $\rightarrow$ `"No terminal to ask … Nothing was deleted."`, stack unchanged (**PASS**).
+  - **Demo Pass (`AC-T7-15`)**: `11-demo-e2e-reset.log` (`exit 0` in `46.6 s`), `12-demo-prepare.log` (`exit 0` in `11.45 s <= 180 s`), `13-demo-check.log` (`exit 0` in `8.5 s`, `DEMO AC-T7-15` `PASS` in `2.9 s`).
+- **All 15 T7 Acceptance Criteria (`AC-T7-01` through `AC-T7-15`) Verdict**:
+  - `AC-T7-01` (`0-reset-and-seed.spec.ts` `R1`): **PASS** (`3/3` runs + `4/4` confirmation/refusal checks).
+  - `AC-T7-02` (`1-scenario-a.spec.ts` `A1–A2`): **PASS** (`3/3` runs; Dynamic Registration wizard, `"Registered"`, `A2-label-diffs.json` `[]`).
+  - `AC-T7-03` (`1-scenario-a.spec.ts` `A3`, `A4`): **PASS** (`3/3` runs; real SCORM + HTML zips uploaded/published, picker shows only `Published`, deep-link creates both activities in `COGNIATE-DEV-101`, connection `"Connected"`).
+  - `AC-T7-04` (`1-scenario-a.spec.ts` `A5`, `A6`, `AC-T7-04`): **PASS** (`3/3` runs; `cg_student` SCORM `100` & HTML `100`, `cg_student2` SCORM `100` in Grader report and DB oracle within `60 s`).
+  - `AC-T7-05` (`1-scenario-a.spec.ts` `AC-T7-05`): **PASS** (`3/3` runs; Moodle activity completion `"Done"` for `cg_student` on both activities and `cg_student2` on SCORM only).
+  - `AC-T7-06` (`1-scenario-a.spec.ts` `AC-T7-06`): **PASS** (`3/3` runs; Portal Results + Refresh shows `2` learners on SCORM and `1` learner on HTML with `100%` / `Completed` and `0` `[object Object]`).
+  - `AC-T7-07` (`1-scenario-a.spec.ts` `A5`, `A6`): **PASS** (`3/3` runs; learner name/email/LMS user ID match Moodle in Portal Results).
+  - `AC-T7-08` (`2-scenario-b.spec.ts` `B1–B2`, `B3`, `B4`, `B5`): **PASS** (`3/3` runs; Manual 6-value flow, `B2-manual-diffs.json` `[]`, tenant isolation verified in `B4` and `B5`).
+  - `AC-T7-09` (`2-scenario-b.spec.ts` `B6`): **PASS** (`3/3` runs; `COGNIATE-DEV-102` grade `100` + completion `"Done"`, strict tenant isolation on Results views).
+  - `AC-T7-10` (`3-negative.spec.ts` `C1`): **PASS** (`3/3` runs; replayed `id_token` rejected with `HTTP 400` `replay_detected`).
+  - `AC-T7-11` (`3-negative.spec.ts` `C2`): **PASS** (`3/3` runs + `scan/t7-scan.json` `c477f68c...` with `0` shared hits across `207` text and `550` binary files).
+  - `AC-T7-12` (`0-reset-and-seed.spec.ts` `R2` + `A2-label-diffs.json` + `B2-manual-diffs.json`): **PASS** (`3/3` runs; all `[]`).
+  - `AC-T7-13` (3 consecutive full default-profile runs): **PASS** (`17/17` non-demo tests `PASS` in Runs 1, 2, and 3).
+  - `AC-T7-14` (`3-negative.spec.ts` `C3`): **PASS** (`3/3` runs; `health-start.json` and `health-end.json` all `5` services healthy, `0` unexpected restarts, `0` `5xx`/unhandled errors).
+  - `AC-T7-15` (`demo-check.spec.ts` `DEMO AC-T7-15`): **PASS** (`demo:prepare` `11.45 s <= 180 s`, both activities open in player).
+- **Per-Run Mandatory `A4` / `B4` / `B5` Trace & PNG Judgments (`A-T7C10-01` Verification)**:
+  - **Zero Outside-Viewport Click Retries**: Across all `51` passing tests in `run1`, `run2`, and `run3`, `'element is outside of the viewport'` count is **`0`**. Every sticky-footer click in `A4`, `B4`, and `B5` (`12` clicks total across 3 runs) succeeded on the first attempt with `0` retries (`149.2 ms`–`322.6 ms`):
+    - **Run 1**: `A4` SCORM `viewportShot` (`call@1807`, `fullPage=false`, `A4-scorm-activity-form.png` `87,819` B `3aa2307799e4bf15e147afaade7445b0766c6a398de0b7bb91ed3ee1d1ac627e`) $\rightarrow$ `Save and return` (`call@1812`, `322.6 ms`); `A4` HTML `viewportShot` (`call@2412`, `fullPage=false`, `A4-html-activity-form.png` `90,942` B `23a680c8da4869c3bd5b347421ab29526a8b64be76656d59471b58bcaf6e6f77`) $\rightarrow$ `Save and return` (`call@2417`, `293.6 ms`); `B4` `viewportShot` (`call@6440`, `fullPage=false`, `B4-activity-form.png` `87,817` B `fb5130a23e47e4bc4b21ee245eb80da25c7abe6760930b5085b526fcd7affbb0`) $\rightarrow$ `Save and return` (`call@6445`, `163.6 ms`); `B5` `viewportShot` (`call@7134`, `fullPage=false`, `B5-picker-thanh.png` `63,335` B `7e7a6d964a7e4802e6265e20190e6b961faf1a6f2fa420f01076ee24d0691f50`) $\rightarrow$ `Cancel` (`call@7147`, `149.2 ms`).
+    - **Run 2**: `A4` SCORM `viewportShot` (`call@1789`, `fullPage=false`, `A4-scorm-activity-form.png` `87,819` B `3aa23077...`) $\rightarrow$ `Save and return` (`call@1794`, `196.2 ms`); `A4` HTML `viewportShot` (`call@2377`, `fullPage=false`, `A4-html-activity-form.png` `90,939` B `c26b1294b0d5ee9341d7db4a9ce9a91b398e876246989571865005f5de52a278`) $\rightarrow$ `Save and return` (`call@2382`, `184.5 ms`); `B4` `viewportShot` (`call@6413`, `fullPage=false`, `B4-activity-form.png` `87,819` B `3aa23077...`) $\rightarrow$ `Save and return` (`call@6418`, `255.8 ms`); `B5` `viewportShot` (`call@7096`, `fullPage=false`, `B5-picker-thanh.png` `63,335` B `7e7a6d96...`) $\rightarrow$ `Cancel` (`call@7109`, `156.7 ms`).
+    - **Run 3**: `A4` SCORM `viewportShot` (`call@1799`, `fullPage=false`, `A4-scorm-activity-form.png` `87,819` B `3aa23077...`) $\rightarrow$ `Save and return` (`call@1804`, `206.8 ms`); `A4` HTML `viewportShot` (`call@2387`, `fullPage=false`, `A4-html-activity-form.png` `90,939` B `c26b1294...`) $\rightarrow$ `Save and return` (`call@2392`, `222.8 ms`); `B4` `viewportShot` (`call@6437`, `fullPage=false`, `B4-activity-form.png` `87,817` B `fb5130a2...`) $\rightarrow$ `Save and return` (`call@6442`, `189.6 ms`); `B5` `viewportShot` (`call@7118`, `fullPage=false`, `B5-picker-thanh.png` `63,335` B `7e7a6d96...`) $\rightarrow$ `Cancel` (`call@7131`, `152.0 ms`).
+  - **Visual Inspection of All 12 Form/Picker PNGs**: Every `A4-scorm-activity-form.png`, `A4-html-activity-form.png`, and `B4-activity-form.png` across `run1`, `run2`, and `run3` shows `"Completion conditions"` expanded with `"Add requirements"` $\rightarrow$ `"Receive a grade"` $\rightarrow$ `"Any grade"` selected and the sticky footer (`"Save and return to course"`, `"Save and display"`, `"Cancel"`) visible at the bottom of the `1440×900` viewport; every `B5-picker-thanh.png` shows the complete `"Select content"` / `"Select a Cogniate course"` modal picker. Residual `A-T7C10-01` picker-key `fullPage: true` shots (`A4-scorm-picker.png`, `A4-html-picker.png`, `B4-picker.png`) remain documented as `MINOR` deferred with trace proof that modal close + `#id_activitycompletionheader` scroll + `viewportShot` preserved immediate sticky-footer clickability in all 9 instances.
+- **Operational Cleanup, Coexistence Pools (`§§16–17`), Secret Scan & `B-TW-02` / `B-TW-03` Artifact Hashes**:
+  - `t0-grant.txt` (`903` B, `1dd8bf00fc01fe02e1579062af0f30d3a17116d88590c684424d626d6b9ad0d2`), `w1-wake.json` (`1,667` B, `a0c0cbb7002ff83b7a1caf5cb5b82b169ecffb4ab303da4bb15fa0df7db46866`), `w2-liveness.json` (`720` B, `c382bd7f79b991cb09312b1dabd8c9c9e21990941c40adff597c1eb983a1f4a1`), `w3-start.json` (`29,589` B, `896bdbec896df03c8f73039dd94e87987ba9d9ea451c0bd22d76500016162c7f`), `w3-anon.json` (`380` B, `0c98ef9378f546bd81da0a558c8c43fb474318405a24c493617c71f884e5e21b`), `w3-32vol.json` (`1,215` B, `0dacda10a5815d62ab1445b9afcd4fc73728ff285cefcd7274e4c822288c2de5`), `prelaunch-guard.json` (`5,014` B, `ca4640aaa21e17d52abff2e44ab49b9eb72f3dd33438623e01ab2f1f6cfedfca`, `ok: true`), `h-images.txt` (`1,218` B, `1e3164f10833357f37a801141bc1c04c407b62d632186bc16b42c93b6d05d09c`).
+  - `host-checkout.json` (`858` B, `ed9b70f62e4ac8fccb6a4a4f0a1d99e2d0f48beac6d4ad45a255213fcdb60dc5`), `checkout.json` (`909` B, `e2790dbcaa68c2f87dcbee5f57876172c1e589c8f92b556106a15d2626255891`), `checkout-preready.json` (`1,776` B, `f4ad9b0d32fb5461d4d183104a2959cd20f3b8daed5d3d348377df28f3873d1c`).
+  - **LANE Pool (`§§16–17`)**: `lane/boundary-start.json` (`28,626` B, `e2f8335951d9a23b9442af6fa068769178916859460f14cdb30d962a69c0c0a4`), `lane/boundary-end.json` (`26,244` B, `621e7129095cb6ba9de727ecc92a4617f0b1173ad57a3b844db70d3fe49c2345`), `lane/summary.json` (`1,397` B, `dc64ac3b3003cb92e3aaa1268afe99c79678cb0b3701f720717c77bbf1769ac5`, `isolationPass: true`, `keepVerified: true`, `teardownOk: true`, `laneEmptyEnd: true`, `everNotMadeByRun: 0`, `ownershipErrors: 0`, `boundaryVanished: 0`, `1` raw difference `/sto-proj-e289e7e84d8f` positively attributed in-pool to `SC` via `full`).
+  - **OUTER Pool (`§§16–17`)**: `w4-end.json` (`27,474` B, `3c6355d7defb765100724da696e70fb4a75791317c871075055bb91fe707cd92`, `problems: []`), `w4-compare.json` (`2,939` B, `ed635c9b5fd55926933feb6a33384da678e887592ff681588ea433c412f38b10`, `problems: []`, `protectedIdenticalAtEnd: true`, built-in `bridge`/`host`/`none` network IDs identical start-to-end, `2` raw differences `/sto-proj-bef1221f7fb3` [`SC`] and `f146d301...` [`SV`] positively attributed in-pool via `full`), `w4-anon.json` (`371` B, `1191a3f0f327cba03bbfcf6b109dfd38883cbd1a41f738324ffffda8e46832c2`, `ok: true`), `w4-32vol.json` (`896` B, `5325a642ffe542f3bd1feff19d51a2505edbfa52c2e6a9c889c0f7e7c3b3dbc4`, `ok: true`, `all32VolumeRecordsByteEqual: true`, `problems: []`), `sampler/lane-containers.json` (`18,434` B, `f5f5386a7cf81b94ad068be31249b18aee383c886918ce1849c2d13ca5a91209`, `48` samples, `0` skew violations), `private/t13-status.json` (`79` B, `5ed5dd3e511b44a31d94592c9b7669389b845634eca6994ad8504ac787f0aa66`).
+  - **Secret Scan, Gate & `B-TW-02` Binder**: `scan/t7-scan.json` (`38,847` B, `c477f68c343bed971f7f423c432d7f5db11e9d7d3333e4d1f6b207078e6bd844`, `verdict: "PASS"`, `values: 162`, `sharedFiles: {text: 207, binary: 550}`, `sharedZips: 0`, `sharedHits: 0` including `cmd/03-compose-config-name.log`, `privateHits: 1196`), `t7/gate.json` (`55` B, `8d6d2a8b69d4cbd48c7c622884be9990dc63d0b2f5a1d9bab107aeef8b302b2b`, `gate: "PASS"`), `t7/map-triggers.json` (`19,367` B, `65dd4991c56e71867813f68c34c6bde633bb4885ec5e099316aa7488d047d9a3`), `t7/run-evidence.json` (`382,147` B, `5a06fda52944b2a0ea13b776ab3e0debcae818cc5f0fc4498060bde3cd69118b`, `897` binder entries), and `$R/notes/t7-runtime-c10-20261023T1615Z/c10-artifact-manifest.json` (`366,538` B, mode `0600`, SHA-256 `b0e65ca62251b42798aeb019ab74910dcc9e1dd3f0fd18d88c90e96be471d01b`, `902` entries).
+  - **Preserved Prior Failures & Scope Limits**: Prior `t7-attempt-r8-20261023T1510Z` (`FAILED`) and `t7-external-preflight-r8-20261023T1510Z` (`FAIL`) remain preserved unchanged; the inherited `allContainers` residual false-`FAIL` on foreign coexistence remains `FAIL` and is never waived; all **32** real-LMS rows stay **`UNVERIFIED`** and Local Canvas stays **`DEFERRED`**.

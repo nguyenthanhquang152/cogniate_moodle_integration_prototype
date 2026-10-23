@@ -5,7 +5,9 @@ import { escapeHtml, randomToken } from '@cogniate/shared';
 import type { PublicUrls } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 import type { LaunchRecord } from '../store/launches.ts';
+import { profileDefinition } from '../profiles/index.ts';
 import type { Platform } from '../store/platforms.ts';
+import { findDeployment, siteOriginOf } from '../store/platforms.ts';
 import { CLAIM } from './checks.ts';
 import { isHttpsUrl } from './platform-rules.ts';
 import { isOwnLaunchTarget, launchUri } from './target.ts';
@@ -80,9 +82,11 @@ export function deepLinkingResponse(
   if (launch.messageType !== 'LtiDeepLinkingRequest' || !isObj(settings) || typeof settings.deep_link_return_url !== 'string') {
     throw new ApiError('SERVICE_NOT_AVAILABLE', 'This launch is not a Deep Linking request.');
   }
-  // Check before signing: every alias returns this target, and /form uses it as the form action.
+  // Check before signing: every alias returns this target, and /form uses it as the form action. M1 (§9.10): on the
+  // SITE origin of the launch (for standard the same value as the issuer origin). The target stays exactly as received.
   const target = settings.deep_link_return_url;
-  if (!isHttpsUrl(target) || new URL(target).origin !== new URL(platform.issuer).origin) {
+  const siteOrigin = launch.siteOrigin ?? siteOriginOf(platform, findDeployment(platform, launch.deploymentId));
+  if (!isHttpsUrl(target) || new URL(target).origin !== siteOrigin) {
     throw new ApiError('INVALID_DEEP_LINK_RETURN_URL');
   }
   const items = checkContentItems(body.contentItems, settings, urls, launch.toolAccountId);
@@ -97,6 +101,8 @@ export function deepLinkingResponse(
     [CLAIM.version]: '1.3.0',
     [DL_CLAIM.contentItems]: items,
   };
+  // Profiles with deepLinkingResponseSub (Blackboard, F-BB-8): sub = client id.
+  if (profileDefinition(platform.profile)?.flags.deepLinkingResponseSub) claims.sub = platform.clientId;
   if (settings.data !== undefined) claims[DL_CLAIM.data] = settings.data;
   const extras: Array<[string, unknown]> = [[DL_CLAIM.msg, options.message], [DL_CLAIM.log, options.log], [DL_CLAIM.errormsg, options.errMessage], [DL_CLAIM.errorlog, options.errLog]];
   for (const [claim, value] of extras) {

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { WriteStream } from 'node:fs';
-import { createWriteStream, mkdirSync } from 'node:fs';
+import { appendFileSync, createWriteStream, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -82,6 +82,25 @@ function redactValue(value: unknown, depth: number): unknown {
     out[k] = isSecretKey(k) ? REDACTED : redactValue(v, depth + 1);
   }
   return out;
+}
+
+/**
+ * Logger for a short CLI run (the operator commands): the same lines and the same <dir>/<service>.jsonl as the
+ * service, but with a synchronous append. A CLI exits right after its last line, and the async file stream of
+ * createLogger can lose that line. Stdout keeps only the command output; with no folder the lines go to stderr.
+ */
+export function createCliLogger(options: Omit<LoggerOptions, 'write'>): Logger {
+  const dir = options.dir ?? process.env.LOG_DIR;
+  const file = dir ? join(dir, `${options.service}.jsonl`) : null;
+  if (dir) mkdirSync(dir, { recursive: true });
+  return createLogger({
+    ...options,
+    dir: '', // no async stream: the write below is the only sink
+    write: (line) => {
+      if (file) appendFileSync(file, line);
+      else process.stderr.write(line);
+    },
+  });
 }
 
 /** Redact secret keys (any depth, camelCase or snake_case) and secret-looking string values. */

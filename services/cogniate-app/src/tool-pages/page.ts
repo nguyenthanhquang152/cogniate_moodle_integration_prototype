@@ -5,6 +5,9 @@ import { escapeHtml } from '@cogniate/shared';
 
 export { escapeHtml };
 
+/** Fill `{LMS}` in a text template (one text table per page group, with the LMS name as a parameter). */
+export const withLms = (text: string, lms: string): string => text.replaceAll('{LMS}', lms);
+
 /** A fresh nonce for one response (script-src 'nonce-…'). */
 export const newNonce = (): string => randomBytes(18).toString('base64');
 
@@ -13,7 +16,7 @@ export type ToolPageKind = 'register-form' | 'register-result' | 'error' | 'pick
 export interface ToolPageOptions {
   /** Origin of the connection siteUrl (register pages). */
   site?: string;
-  /** Origin of the launch platform issuer (picker and embedded pages). */
+  /** M1: origin of the connection site URL (picker and embedded pages; for Moodle the issuer origin). */
   issuer?: string;
   /** Origin of deep_link_return_url (picker auto-submit). */
   returnOrigin?: string;
@@ -59,7 +62,8 @@ export function contentSecurityPolicy(kind: ToolPageKind, opts: ToolPageOptions 
       return `${base}; ${script()}; connect-src 'self'; frame-src ${opts.content}; frame-ancestors 'none'; form-action 'none'`;
     case 'embedded':
       need(opts, 'issuer');
-      return `${base}; frame-ancestors ${opts.issuer}; form-action 'none'`;
+      // M1 (§6.1): the Canvas page adds its top-level continuation script with a nonce.
+      return opts.nonce ? `${base}; ${script()}; frame-ancestors ${opts.issuer}; form-action 'none'` : `${base}; frame-ancestors ${opts.issuer}; form-action 'none'`;
   }
 }
 

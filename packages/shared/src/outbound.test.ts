@@ -183,4 +183,12 @@ describe('createOutboundClient', () => {
     await expect(post.c.request('https://moodle.test/x', { method: 'POST', body: 'a=1' })).rejects.toMatchObject({ reason: 'network_error' });
     expect(post.events()).toHaveLength(1);
   });
+
+  it('A-M1-04: one request can disable network retries without changing the next ordinary GET', async () => {
+    const { c, events } = client(9, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'] });
+    await expect(c.request('https://moodle.test/binding', { retryNetworkError: false })).rejects.toMatchObject({ reason: 'network_error' });
+    expect(events()).toHaveLength(1);
+    await expect(c.request('https://moodle.test/ordinary')).rejects.toMatchObject({ reason: 'network_error' });
+    expect(events()).toHaveLength(3);
+  });
 });

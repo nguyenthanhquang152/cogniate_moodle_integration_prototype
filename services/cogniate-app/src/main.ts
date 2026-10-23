@@ -30,7 +30,8 @@ await startService(APP_SERVICE_NAME, [
     build: async (deps) => {
       // All calls to the LTI service go through the guarded client (security §9; allowlist: the LTI service host).
       const outbound = createOutboundClient({ logger: deps.logger, allowlist: deps.outboundAllowlist });
-      const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile });
+      // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).
+      const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
       worker = createScoreSyncWorker({ db, lti, logger: deps.logger, masterKey: config.masterKey, now: Date.now });
       const app = await buildAppApi({
         db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,

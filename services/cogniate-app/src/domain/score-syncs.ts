@@ -21,6 +21,13 @@ export interface DueSync {
   serviceKeyEncrypted: Uint8Array | null;
 }
 
+/**
+ * A disabled Canvas or Blackboard connection (app contract §4.7.2). Moodle connections are unchanged. The worker reads
+ * it at each decision (failDisabledSync, beginSend), never from a due-row snapshot: a suspend can commit while an
+ * earlier row of the batch, or this row's line item lookup, waits for the LTI service (B-M1-01).
+ */
+const DISABLED_PROVIDER = "con.lms IN ('canvas', 'blackboard') AND con.status = 'disabled'";
+
 /** Pending rows whose next try is due, oldest first. */
 export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
   return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, s.confirmation_after, rl.resource_link_id AS platform_rl, rl.line_item_id,
@@ -31,6 +38,23 @@ export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
     confirmationAfter: r.confirmation_after === null ? null : Number(r.confirmation_after),
     lineItemId: r.line_item_id === null ? null : String(r.line_item_id), serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array),
   }));
+}
+
+/**
+ * App contract §4.7.2: a pending row whose connection is NOW a disabled Canvas or Blackboard connection becomes
+ * `failed` with lastError CONNECTION_DISABLED, tries unchanged, and no POST. One statement: the connection state is
+ * read when the row changes. Returns true when the row changed (false: not disabled, or the row is not pending).
+ */
+export function failDisabledSync(db: Db, id: string, now: number): boolean {
+  return db.prepare(`UPDATE score_sync SET status = 'failed', next_try_at = NULL, last_error = 'CONNECTION_DISABLED', updated_at = ?
+    WHERE id = ? AND status = 'pending' AND EXISTS (SELECT 1 FROM resource_link rl JOIN connection con ON con.id = rl.connection_id
+      WHERE rl.id = score_sync.resource_link_id AND ${DISABLED_PROVIDER})`).run(now, id).changes > 0;
+}
+
+/** True when the connection of a score sync row (or of a publication) is a disabled Canvas or Blackboard connection. */
+export function syncConnectionDisabled(db: Db, syncId: string): boolean {
+  return db.prepare(`SELECT 1 FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
+    WHERE s.id = ? AND ${DISABLED_PROVIDER}`).get(syncId) !== undefined;
 }
 
 /** Recheck after every await: a due-row snapshot may already be superseded. */
@@ -50,12 +74,22 @@ function needsConfirmation(db: Db, id: string): boolean {
     WHERE s.id = ? AND old.delivery_uncertain = 1 AND old.score_given / old.score_maximum < s.score_given / s.score_maximum LIMIT 1`).get(id) !== undefined;
 }
 
-/** Durable before the POST: an unresolved marker on startup means delivery is uncertain. */
-export function beginSend(db: Db, id: string, now: number): boolean {
-  if (!isCurrentSync(db, id)) return false;
-  return db.prepare(`UPDATE score_sync SET send_started_at = ?, tries = tries + 1, updated_at = ?
-    WHERE id = ? AND status = 'pending' AND send_started_at IS NULL AND next_try_at <= ?
-      AND COALESCE(resent_at, created_at) + 86400000 >= ?`).run(now, now, id, now, now).changes > 0;
+/** `started`: send the POST now. `skipped`: send nothing (superseded, changed or not due). `connection_disabled`: failed now. */
+export type BeginSend = 'started' | 'skipped' | 'connection_disabled';
+
+/**
+ * Durable before the POST: an unresolved marker on startup means delivery is uncertain. One BEGIN IMMEDIATE
+ * transaction decides the send with the current connection state (§4.7.2, B-M1-01): a suspend that commits before it
+ * gets no POST (the row fails with CONNECTION_DISABLED, tries unchanged); a suspend after it meets a POST already sent.
+ */
+export function beginSend(db: Db, id: string, now: number): BeginSend {
+  return transaction(db, (): BeginSend => {
+    if (!isCurrentSync(db, id)) return 'skipped';
+    if (failDisabledSync(db, id, now)) return 'connection_disabled';
+    return db.prepare(`UPDATE score_sync SET send_started_at = ?, tries = tries + 1, updated_at = ?
+      WHERE id = ? AND status = 'pending' AND send_started_at IS NULL AND next_try_at <= ?
+        AND COALESCE(resent_at, created_at) + 86400000 >= ?`).run(now, now, id, now, now).changes > 0 ? 'started' : 'skipped';
+  });
 }
 
 /** Startup only. An interrupted confirmation keeps its phase and its original retry window. */
@@ -141,6 +175,12 @@ export function resendSync(db: Db, libraryId: string, syncId: string, now: numbe
   db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ?,
     confirmation_after = NULL WHERE id = ?`).run(now, now, now, syncId);
   return { ok: true };
+}
+
+/** True when the score sync row belongs to a connection of this library. */
+export function syncRowInLibrary(db: Db, libraryId: string, syncId: string): boolean {
+  return db.prepare(`SELECT 1 FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
+    WHERE s.id = ? AND con.library_id = ?`).get(syncId, libraryId) !== undefined;
 }
 
 /** A score sync row as the results API shows it. */

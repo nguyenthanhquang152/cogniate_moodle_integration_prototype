@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { loadPublicUrls } from '@cogniate/shared';
 
-interface PlatformView { id: string; active: boolean; deploymentIds: string[] }
+interface PlatformView { id: string; active: boolean; deploymentIds: string[]; profile?: string }
 
 const input = JSON.parse(readFileSync(0, 'utf8')) as { apiKey: string; platform: { url: string; clientId: string; deploymentIds: string[] } & Record<string, unknown> };
 const base = `${loadPublicUrls().lti}/api/platforms`;
@@ -32,6 +32,11 @@ const list = await call('GET', `${base}?${q}`);
 const existing = (list.json as { platforms: PlatformView[] }).platforms[0];
 if (!existing) {
   console.error('409 from POST, but the platform was not found');
+  process.exit(1);
+}
+// Contract §9.12: this seed CLI works only on standard platforms.
+if (existing.profile !== undefined && existing.profile !== 'standard') {
+  console.error(`The platform ${existing.id} has profile ${existing.profile}; this seed works only on standard platforms.`);
   process.exit(1);
 }
 const wanted = [...new Set([...existing.deploymentIds, ...input.platform.deploymentIds])];

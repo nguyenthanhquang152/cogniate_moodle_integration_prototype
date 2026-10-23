@@ -5,6 +5,7 @@
 // answered. Rule (tasks README §2): never use window.CogniateSCORM.markLessonComplete.
 import type { BrowserContext, Frame, Page } from '@playwright/test';
 import type { MoodleUser } from '../../acceptance/lib/seed';
+import { diagnosticUrl } from '../../acceptance/M1/canvas/browser-diagnostics.mjs';
 import { type Capture, captureLti } from './capture';
 import { recordSecret, urls } from './e2e';
 import { login, moodlePage } from './moodle';
@@ -59,7 +60,7 @@ export async function waitForFrame(page: Page, test: (url: string) => boolean, t
   for (;;) {
     const f = page.frames().find((fr) => test(fr.url()));
     if (f) return f;
-    if (Date.now() > deadline) throw new Error(`no frame matched within ${timeoutMs} ms (frames: ${page.frames().map((fr) => fr.url().split('?')[0]).join(' | ')})`);
+    if (Date.now() > deadline) throw new Error(`no frame matched within ${timeoutMs} ms (frames: ${page.frames().map((fr) => diagnosticUrl(fr.url())).join(' | ')})`);
     await page.waitForTimeout(200);
   }
 }

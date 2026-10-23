@@ -3,8 +3,10 @@
 // in-container suite runs, label-scoped teardown, redaction and the summary. run-t1.mjs keeps its own copy for now.
 //
 // Charter §3a: QA clones the SHA into a new folder outside the repo and runs its own stack next to the Author's.
-// COMPOSE_PROJECT_NAME (must start with "qa-"), PUBLIC_PORT and STACK_SUBNET come from env. The stack is removed
-// (containers, volumes, networks with the QA project label) at the end of every run.
+// COMPOSE_PROJECT_NAME (must start with "qa-"), PUBLIC_PORT and STACK_SUBNET come from env.
+// ADR-012 revision 3.3 §15 (AC-M3-06): the run boundary needs a fresh lane (neither exact lane volume name and no
+// resource with the project label); QA records every lane resource as it appears (ownership record), and the
+// teardown removes only recorded resources whose fresh inspect still matches; it keeps and reports any other.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +29,9 @@ import {
   secretsInFile,
   walkFiles,
 } from './lib.mjs';
+import {
+  BOUND_IDENTITY, OwnershipLedger, afterCleanupOk, compareIdentity, dockerClock, listLane, readClientIdentity, removePlanned,
+} from './storage-docker.mjs';
 
 const T1_SERVICES = ['proxy', 'postgres', 'moodle', 'lti-service', 'cogniate-app'];
 
@@ -84,7 +89,8 @@ ${extraHelp}`;
   const redact = new Redactor();
   const results = [];
   const timings = {};
-  const state = { h1Verified: false, abort: null, env: null, urls: null, ca: null, seed: null, rawSeed: null, otherBefore: [] };
+  const state = { h1Verified: false, abort: null, env: null, urls: null, ca: null, seed: null, rawSeed: null, otherBefore: [],
+    ledger: null, ledgerErrors: [] };
   let cmdSeq = 0;
   // Inherited npm_* variables (for example npm_config_prefix) would change nested npm commands.
   const BASE_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('npm_')));
@@ -107,12 +113,19 @@ ${extraHelp}`;
     return path.relative(QA_TESTS_DIR, file);
   }
 
+  /** Ownership record (§15): one lane listing after each command; a failed listing keeps everything at teardown. */
+  async function observe(label) {
+    if (!state.ledger) return;
+    try { state.ledger.observe(await listLane(dockerRunner, PROJECT), label); }
+    catch (e) { state.ledgerErrors.push(`${label}: ${e.message}`); }
+  }
   async function exec(name, cmd, args, { cwd = CLONE, env = STACK_ENV, timeoutMs = 600_000 } = {}) {
     const r = await run(cmd, args, { cwd, env, timeoutMs });
     const rel = saveText(
       path.join('cmd', `${String(++cmdSeq).padStart(2, '0')}-${name.replace(/[^\w.-]+/g, '_')}.log`),
       `$ ${cmd} ${args.join(' ')}\ncwd: ${cwd}\nexit: ${r.code}${r.timedOut ? ' (TIMEOUT)' : ''}\nduration_ms: ${r.durationMs}\n\n--- stdout\n${r.stdout}\n--- stderr\n${r.stderr}\n`,
     );
+    await observe(name);
     return { ...r, log: rel };
   }
   const npm = (name, args, o) => exec(name, 'npm', args, o);
@@ -137,11 +150,16 @@ ${extraHelp}`;
     }
   }
 
-  async function removeProjectResources() {
-    const res = await projectResources(PROJECT);
-    if (res.containers.length) await run('docker', ['rm', '-f', '-v', ...res.containers], { timeoutMs: 180_000 });
-    if (res.volumes.length) await run('docker', ['volume', 'rm', '-f', ...res.volumes], { timeoutMs: 180_000 });
-    if (res.networks.length) await run('docker', ['network', 'rm', ...res.networks], { timeoutMs: 60_000 });
+  const dockerRunner = (args, o = {}) => run('docker', args, { timeoutMs: 120_000, ...o });
+  /** A-S-14: the G-1 pass holds only for the bound OS, Docker CLI and Compose plugin identities. */
+  async function identityBoundary() {
+    let observed = null, result;
+    try { observed = await readClientIdentity(); result = compareIdentity(observed); }
+    catch (e) { result = { match: false, differences: ['identity read failed: ' + e.message] }; }
+    saveText('g1-client-identity.json', JSON.stringify({ bound: BOUND_IDENTITY, observed, ...result }, null, 2));
+    record('G1-IDENTITY', 'Host OS, Docker CLI and Compose plugin equal the G-1 bound identities (ADR-012 §17)',
+      result.match ? 'PASS' : 'FAIL', result.match ? ['bound identities match'] : ['BLOCKED: ' + result.differences.join('; ')]);
+    if (!result.match) state.abort = 'BLOCKED: the G-1 bound identities differ; lock-dependent results are not counted (ADR-012 §17)';
   }
 
   async function preflight() {
@@ -151,11 +169,24 @@ ${extraHelp}`;
     const compose = await run('docker', ['compose', 'version', '--short']);
     notes.push(`node ${process.versions.node}, docker ${docker.stdout.trim() || 'n/a'}, compose ${compose.stdout.trim() || 'n/a'}`, `project ${PROJECT}, PUBLIC_PORT ${PUBLIC_PORT}, STACK_SUBNET ${STACK_SUBNET}`);
     let ok = node >= 22 && docker.code === 0 && compose.code === 0;
-    if (opt['clean-project']) await removeProjectResources();
-    const left = await projectResources(PROJECT);
-    if (left.containers.length + left.volumes.length + left.networks.length > 0) {
+    if (opt['clean-project']) {
       ok = false;
-      notes.push(`project ${PROJECT} already has ${left.containers.length} containers, ${left.volumes.length} volumes, ${left.networks.length} networks`);
+      notes.push('--clean-project is refused: at the run boundary QA removes nothing (ADR-012 §15); clean up a reported lane by hand');
+    }
+    // Fresh lane (§15): neither exact lane volume name, with any labels or none, and no resource with the label.
+    try {
+      const clock = await dockerClock(dockerRunner);
+      state.ledger = new OwnershipLedger({ project: PROJECT, runStartSecond: clock.second });
+      const boundary = state.ledger.start(await listLane(dockerRunner, PROJECT));
+      saveText('lane-boundary.json', JSON.stringify({ project: PROJECT, clock, ...boundary }, null, 2));
+      if (!boundary.fresh) {
+        ok = false;
+        notes.push(`BLOCKED: lane ${PROJECT} is not fresh; QA removes nothing: ${boundary.present.map((p) => `${p.kind} ${p.name}`).join(', ')}`);
+        state.ledger = null; // nothing is recorded, so the teardown removes nothing
+      }
+    } catch (e) {
+      ok = false; state.ledger = null;
+      notes.push('BLOCKED: lane boundary check failed: ' + e.message);
     }
     if (!(await portFree(PUBLIC_PORT))) {
       ok = false;
@@ -169,9 +200,26 @@ ${extraHelp}`;
     state.otherBefore = (await allContainers())
       .filter((c) => c.Config?.Labels?.['com.docker.compose.project'] !== PROJECT)
       .map((c) => ({ id: c.Id, name: c.Name, startedAt: c.State?.StartedAt, project: c.Config?.Labels?.['com.docker.compose.project'] ?? '' }));
+    if (task === 'M1' || process.env.QA_M1_LEGACY_GUARD === '1') {
+      state.otherVolumesBefore = await protectedVolumes();
+      saveText('protected-volumes-before.json', JSON.stringify(state.otherVolumesBefore, null, 2));
+      await identityBoundary();
+    }
     notes.push(`other containers on this Docker host: ${state.otherBefore.length} (not touched by QA)`);
     record('PRE', 'Preflight: tools, free port, free subnet, no leftover QA project', pass(ok), notes);
     if (!ok) state.abort = 'preflight failed';
+  }
+
+  async function protectedVolumes() {
+    const listed = await run('docker', ['volume', 'ls', '-q']);
+    if (listed.code !== 0) throw new Error('Cannot inventory protected Docker volumes');
+    const names = listed.stdout.trim().split('\n').filter(Boolean);
+    if (!names.length) return [];
+    const inspected = await run('docker', ['volume', 'inspect', ...names]);
+    if (inspected.code !== 0) throw new Error('Cannot inspect protected Docker volumes');
+    return JSON.parse(inspected.stdout)
+      .filter((v) => v.Labels?.['com.docker.compose.project'] !== PROJECT)
+      .sort((a, b) => a.Name.localeCompare(b.Name));
   }
 
   async function cloneSha() {
@@ -292,7 +340,18 @@ ${extraHelp}`;
     if (fresh) fs.rmSync(artifacts, { recursive: true, force: true });
     const r = await npm(`test-acceptance-${label}`, ['run', 'test:acceptance'], { env: { ...STACK_ENV, ...env }, timeoutMs: 2_400_000 });
     const dest = path.join(ART, `container-${label}`);
-    if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });
+    if (process.env.QA_M1_LEGACY_GUARD === '1') {
+      // Preserve legacy assertions. Only the evidence transport changes: raw
+      // tokens and browser traces stay in the private clone, never shared.
+      for (const f of walkFiles(artifacts).filter((f) => /captured-secrets\.jsonl$/.test(f))) {
+        for (const line of fs.readFileSync(f, 'utf8').split('\n').filter(Boolean)) redact.add(JSON.parse(line).value);
+      }
+      for (const f of walkFiles(artifacts)) {
+        const rel = path.relative(artifacts, f);
+        if (/^(control|state-)|captured-secrets|\.raw\./.test(rel) || !/\.(json|jsonl|log|txt)$/.test(f)) continue;
+        saveText(path.join(`container-${label}`, rel), fs.readFileSync(f, 'utf8'));
+      }
+    } else if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });
     for (const f of walkFiles(path.join(CLONE, 'infra', '.logs'))) saveText(path.join(`container-${label}`, 'service-logs', path.basename(f)), fs.readFileSync(f, 'utf8'));
     const tests = fs.existsSync(dest) ? readTestReports(dest) : [];
     const ran = new Set(tests.filter((t) => t.status !== 'SKIP').map((t) => t.id));
@@ -319,17 +378,40 @@ ${extraHelp}`;
   async function teardown() {
     const notes = [];
     if (state.h1Verified) notes.push(`npm run stack:down exit ${(await npm('stack-down', ['run', 'stack:down'], { timeoutMs: 300_000 })).code}`);
-    await removeProjectResources();
-    const left = await projectResources(PROJECT);
+    let keepCount = 0, failedCount = 0;
+    if (state.ledger) {
+      const fresh = await listLane(dockerRunner, PROJECT);
+      state.ledger.observe(fresh, 'teardown-listing');
+      const plan = state.ledgerErrors.length ? { remove: [], keep: [...fresh.containers, ...fresh.networks, ...fresh.volumes]
+        .map((x) => ({ kind: x.kind, name: x.name, Id: x.Id ?? null, labels: x.labels, created: x.created, reason: 'ownership record incomplete' })) }
+        : state.ledger.plan(fresh);
+      const failed = await removePlanned(dockerRunner, plan);
+      keepCount = plan.keep.length; failedCount = failed.length;
+      saveText('lane-ownership.json', JSON.stringify({ records: state.ledger.records, ledgerErrors: state.ledgerErrors,
+        removed: plan.remove.map(({ kind, name, Id }) => ({ kind, name, Id: Id ?? null })), kept: plan.keep, failed }, null, 2));
+      for (const k of plan.keep) notes.push(`KEPT for review: ${k.kind} ${k.name}${k.Id ? ' ' + k.Id.slice(0, 12) : ''} (${k.reason}); labels ${JSON.stringify(k.labels)}; created ${k.created}`);
+      for (const f of failed) notes.push(`removal failed: ${f.kind} ${f.name}: ${f.error}`);
+    } else notes.push('no ownership record (boundary not fresh or not checked): QA removed nothing');
+    const left = await listLane(dockerRunner, PROJECT);
     const leftCount = left.containers.length + left.volumes.length + left.networks.length;
-    notes.push(`left after cleanup: ${left.containers.length} containers, ${left.volumes.length} volumes, ${left.networks.length} networks`);
+    notes.push(`left after cleanup: ${left.containers.length} containers, ${left.volumes.length} volumes (exact lane names included), ${left.networks.length} networks`);
     const after = await allContainers();
     const changed = state.otherBefore.filter((b) => {
       const now = after.find((c) => c.Id === b.id);
       return !now || now.State?.StartedAt !== b.startedAt;
     });
+    if (state.otherVolumesBefore) {
+      const afterVolumes = await protectedVolumes();
+      const changedVolumes = state.otherVolumesBefore.filter((before) =>
+        JSON.stringify(afterVolumes.find((v) => v.Name === before.Name)) !== JSON.stringify(before));
+      saveText('protected-volumes-after.json', JSON.stringify(afterVolumes, null, 2));
+      record('M3-ISOLATION', 'Existing non-QA-run containers and volumes remain unchanged',
+        pass(changed.length === 0 && changedVolumes.length === 0),
+        [`containers changed: ${changed.length}; volumes changed: ${changedVolumes.map((v) => v.Name).join(', ') || 'none'}`]);
+    }
     notes.push(`other projects' containers that stopped or restarted: ${changed.length ? changed.map((c) => c.name).join(', ') : 'none'} (information)`);
-    record('TEARDOWN', `QA stack ${PROJECT} removed with its volumes and networks`, pass(leftCount === 0), notes);
+    record('TEARDOWN', `QA stack ${PROJECT} removed: only recorded resources whose inspect matched; nothing left by exact name or label`,
+      pass(leftCount === 0 && keepCount === 0 && failedCount === 0 && afterCleanupOk(left)), notes);
   }
 
   function summarize() {
@@ -365,6 +447,13 @@ ${extraHelp}`;
     if (!state.abort) {
       try {
         await steps();
+        if (process.env.QA_M1_LEGACY_GUARD === '1') {
+          const health = await Promise.all([state.urls.lti, state.urls.app].map(healthz));
+          const ok = health.every((h) => h?.profile === 'default' && Array.isArray(h.knobs) && h.knobs.length === 0)
+            && Array.isArray(health[0]?.simulation_profiles) && health[0].simulation_profiles.length === 0;
+          record('M3-LEGACY-DEFAULT', 'Legacy runner returns both services to default with no knobs or simulation profiles',
+            pass(ok), health.map((h) => JSON.stringify(h)));
+        }
       } catch (e) {
         record('ERROR', 'Runner error', 'FAIL', [e.stack ?? String(e)]);
       } finally {
@@ -380,5 +469,6 @@ ${extraHelp}`;
   return {
     opt, PROJECT, PUBLIC_PORT, STACK_SUBNET, CLONE, ART, SOURCE, QA_TESTS_DIR, STACK_ENV, state, timings, redact,
     log, record, pass, tail, saveText, exec, npm, loadStackFiles, composeNameGuard, checkProject, healthz, waitHealth, containerSuite, main,
+    observe, docker: dockerRunner,
   };
 }

@@ -41,14 +41,28 @@ export function capturingLogger(): { logger: Logger; lines: Array<Record<string,
   return { lines, logger: createLogger({ service: 'lti-service', level: 'debug', write: (l) => lines.push(JSON.parse(l) as Record<string, unknown>) }) };
 }
 
-/** Fake outbound client: serves { keys } for any URL and counts the calls. */
-export function fakeOutbound(getKeys: () => JWK[]): OutboundClient & { calls: string[] } {
+/**
+ * Fake outbound client: serves { keys } for any URL and counts the calls. `answer` (optional) can answer a call
+ * first (for example a token or score request); undefined falls back to the keys.
+ */
+export function fakeOutbound(
+  getKeys: () => JWK[],
+  answer?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined,
+): OutboundClient & { calls: string[]; requests: Array<{ url: string; method: string; body?: string; headers: Record<string, string> }> } {
   const calls: string[] = [];
+  const requests: Array<{ url: string; method: string; body?: string; headers: Record<string, string> }> = [];
   return {
     calls,
+    requests,
     allowlist: [],
-    async request(url) {
+    async request(url, init = {}) {
       calls.push(url);
+      requests.push({ url, method: init.method ?? 'GET', ...(init.body !== undefined ? { body: init.body } : {}), headers: init.headers ?? {} });
+      const custom = answer?.(url, init);
+      if (custom) {
+        const b = Buffer.from(typeof custom.body === 'string' ? custom.body : JSON.stringify(custom.body ?? null));
+        return { status: custom.status, headers: custom.headers ?? {}, body: b, text: () => b.toString(), json: () => JSON.parse(b.toString()) as unknown };
+      }
       const body = Buffer.from(JSON.stringify({ keys: getKeys() }));
       return { status: 200, headers: {}, body, text: () => body.toString(), json: () => JSON.parse(body.toString()) as unknown };
     },
@@ -86,7 +100,7 @@ export interface Harness {
 }
 
 /** Accounts cogniate + qa-second, one platform of cogniate, and the app. */
-export async function harness(opts: { ltikTtlSeconds?: number } = {}): Promise<Harness> {
+export async function harness(opts: { ltikTtlSeconds?: number; simulationProfiles?: boolean; outbound?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined } = {}): Promise<Harness> {
   const db = openDb(':memory:');
   const a = ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
@@ -97,14 +111,15 @@ export async function harness(opts: { ltikTtlSeconds?: number } = {}): Promise<H
     jwksUrl: `${ISSUER}/mod/lti/certs.php`, deploymentIds: ['1'], active: true,
   });
   const key = await makeKey('moodle-kid-1');
-  const outbound = fakeOutbound(() => [key.publicJwk]);
+  const outbound = fakeOutbound(() => [key.publicJwk], opts.outbound);
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.now() };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens }), outbound, profile: 'default', knobs: [], now: () => clock.now,
+    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens }), outbound, profile: opts.simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
+    simulationProfiles: opts.simulationProfiles ?? false,
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }

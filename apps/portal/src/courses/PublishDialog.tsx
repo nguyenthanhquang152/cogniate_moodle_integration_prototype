@@ -8,6 +8,7 @@ import { api } from "../api.ts";
 import { useApi } from "../hooks.ts";
 import type { Connection, Course, Publication } from "../types.ts";
 import { ErrorNotice, Loading, Modal, formatName } from "../ui.tsx";
+import { lmsNames } from "../lms.ts";
 
 export function PublishDialog({
   course,
@@ -32,6 +33,7 @@ export function PublishDialog({
         connection.status === "registered" || connection.status === "connected",
     ) ?? [];
   const connection = ready.find((item) => item.id === connectionId);
+  const canCreateCourse = connection?.lms === "moodle" && connection.capabilities.courseShell && !!connection.webServices;
   const versions = course.versions ?? [];
   const [versionId, setVersionId] = useState(versions.at(-1)?.id ?? "");
   const selectedVersion = versions.find((version) => version.id === versionId);
@@ -47,12 +49,12 @@ export function PublishDialog({
           courseId: course.id,
           connectionId: form.get("connectionId"),
           versionId: form.get("versionId"),
-          ...(connection?.webServices && createCourse
+          ...(canCreateCourse && createCourse
             ? { createMoodleCourse: {} }
             : {}),
         },
       });
-      if (connection?.webServices && createCourse) setResult(publication);
+      if (canCreateCourse && createCourse) setResult(publication);
       else onPublished();
     } catch (reason) {
       setError(reason);
@@ -71,27 +73,27 @@ export function PublishDialog({
       </Modal>
     );
   return (
-    <Modal title="Publish to Moodle" onClose={onClose}>
+    <Modal title="Publish to an LMS" onClose={onClose}>
       <p className="text-muted-foreground">
-        Make this course available in the Moodle content picker.
+        Make this course available in the LMS content picker.
       </p>
       <p className="font-semibold wrap-anywhere">{course.title}</p>
       <ErrorNotice error={loadError} />
       {!data && !loadError && <Loading />}
       {data && ready.length === 0 ? (
         <div className="flex flex-col gap-5">
-          <p>No Moodle connection is ready. Connect a site first.</p>
+          <p>No LMS connection is ready. Connect an LMS first.</p>
           <Link
-            to="/integrations/moodle/connect"
+            to="/integrations"
             className={buttonVariants({ variant: "primary", size: "default" })}
           >
-            Connect Moodle
+            Connect an LMS
           </Link>
         </div>
       ) : (
         <form className="flex flex-col gap-5" onSubmit={submit}>
           <label>
-            <span id="publish-connection-label">Moodle connection</span>
+            <span id="publish-connection-label">LMS connection</span>
             <Select
               name="connectionId"
               value={connectionId}
@@ -107,7 +109,7 @@ export function PublishDialog({
               <option value="">Choose a connection</option>
               {ready.map((connection) => (
                 <option key={connection.id} value={connection.id}>
-                  {connection.name} · {connection.siteUrl}
+                  {connection.name} ({lmsNames[connection.lms]}, {new URL(connection.siteUrl).host})
                 </option>
               ))}
             </Select>
@@ -129,7 +131,7 @@ export function PublishDialog({
               ))}
             </Select>
           </label>
-          {connection?.webServices && (
+          {canCreateCourse && (
             <label className="flex flex-row items-center gap-3">
               <input
                 type="checkbox"

@@ -1,0 +1,261 @@
+Verdict: APPROVE
+Round: 3
+
+# M0 design review: Reviewer-A (correctness and security)
+
+The text from here to "Round 2" is the unchanged round 1 report (target `51e69d1`).
+
+| Item | Value |
+| --- | --- |
+| Reviewer | Reviewer-A, Claude Code Opus 5.5, xhigh, dedicated instance (same instance as preflight `ctx_8546daf0903f`) |
+| Task, dispatch | `task_8539cca49e29`, `ctx_1d8b93c872ae` |
+| Target | Frozen design commit `51e69d1` (ADR-011 revision 4). Diff base `e280173`. Commit `d8b5f5c` changes only `docs/team/**`. |
+| Independence | I did not open `docs/reviews/M0/reviewer-b.md` or `docs/reviews/M0/qa.md` before this submission. |
+| Kind | Design review. No product code, tests, stacks or live tenants. |
+| Sources | Official Instructure `canvas-lms` repository (docs and code, `master`, read 2026-10-20), `docs.blackboard.com` LTI 1.3 pages, 1EdTech LTI 1.3 Core, Deep Linking 2.0, Security Framework 1.0, WebKit Safari 26.2 notes. "FACT" = primary text or code. "INFERENCE" = my conclusion. |
+
+Canvas code paths below are under `https://github.com/instructure/canvas-lms/blob/master/`. Blackboard pages are under `https://docs.blackboard.com/docs/blackboard/lti/1.3/`. Line numbers refer to `51e69d1`.
+
+## Summary
+
+| Severity | Count | Ids |
+| --- | --- | --- |
+| BLOCKER | 1 | A-M0-01 |
+| MAJOR | 1 | A-M0-02 |
+| MINOR | 3 | A-M0-03, A-M0-04, A-M0-05 |
+| NIT | 3 | A-M0-06, A-M0-07, A-M0-08 |
+
+The design is strong. Profiles, origins, check 13, the grant, binding generations, the claim allowlist and the evidence labels match the primary sources that I checked. All six preflight items (A-PRE-01 to A-PRE-06) are closed in revision 4. Two gaps stop approval: a self-hosted Canvas can still be bound without a grant (A-M0-01), and a wrong redeemed binding has no recovery step (A-M0-02).
+
+## Findings
+
+### A-M0-01 BLOCKER: a self-hosted Canvas binds through the Moodle path without a grant
+
+- **Where:** ADR-011 §4 rule 5 (L79: "Typed ids without a grant bind nothing"), §6 `standard` row (L161); LTI contract §9.1 reserved issuer origins (L450); security §12 "Reserved issuers" (L247) and "Binding approval" (L252); app contract §4 Moodle `PUT …/platform` (L162), §6.1 (L471–L472).
+- **Problem:** The grant applies only to connections with `lms: canvas` or `blackboard`. A library can make a Moodle (`standard`) manual connection whose issuer is a self-hosted Canvas origin. It types that school's client id and deployment id. No grant is needed. Self-hosted Canvas issuers cannot be in the reserved list.
+- **Evidence:**
+  - FACT (design): reserved origins are only the hosted Canvas, Blackboard and simulation issuers (LTI §9.1 L450). The Moodle manual connect needs only https values with endpoints on the issuer origin (app §4 L162).
+  - FACT (design): a self-hosted Canvas serves all three endpoints on its issuer origin. They are the `canvas-self-hosted` paths (ADR-011 §6 L165): `/api/lti/authorize_redirect`, `/api/lti/security/jwks`, `/login/oauth2/token`.
+  - FACT (design): for `standard`, check 13, the claim allowlist and the grant do not run (LTI §9.7, §9.8; ADR-011 D2, D5).
+  - FACT (code): Canvas signs `tool_platform.product_family_code = "canvas"` in every launch, also when self-hosted (`lib/lti/messages/jwt_message.rb`, `add_tool_platform_claims!`). Moodle sends `moodle` (LTI contract §3.1 example). Blackboard sends `BlackboardLearn` (`dl/deep-linking` sample). No rule compares this signed value with the connection `lms`.
+- **Impact:** First-claim squatting of a self-hosted Canvas install. The phase plan says this protection is in scope and is not a deferral. The squatting library gets that school's launches: its own publications in the teachers' picker, the learners' launches and AGS score writes in that school's gradebook. Names and emails also pass, because `standard` has no allowlist. Later the rightful library gets `409 PLATFORM_IN_USE` even with a valid grant: the grant-authorized recovery binds only a platform with the grant's profile and no owner (app §4.4 L278).
+- **Fix (suggested):**
+  1. App §6.1: add an LMS check after the site check. The signed `platform.productFamilyCode` must match the connection `lms`: `moodle` → `moodle`, `canvas` → `canvas`, `blackboard` → `BlackboardLearn` (exact, case-insensitive; Blackboard value is a live-check row). On a mismatch or a missing value for Canvas and Blackboard, show page `UNKNOWN_PLATFORM` with log reason `lms_mismatch`. Make no attempt and no picker, and use no service key. Moodle always sends `moodle`, so Moodle behaviour does not change.
+  2. Optional, to stop storage of personal claims for such launches: the LTI service also refuses, for `standard` platforms, a launch whose `product_family_code` is `canvas` or `BlackboardLearn`. Decide this against LTIAAS compatibility for other tools.
+  3. Recovery for the blocked rightful library: an operator step that removes the squatting `standard` platform, or the transfer of A-M0-02.
+  4. New AC (`SIM`): a `standard` connection with issuer `https://canvas-self.sim.test` and the self-hosted paths can register, but its Canvas-signed launch gives `UNKNOWN_PLATFORM` with `lms_mismatch`. It makes no attempt, no picker, no score sync and no AGS call. AC-M3-02 shows no Moodle change.
+- **Note:** The same manual-connect weakness for a Moodle install existed before this phase (security §2.6). It is out of this phase's scope.
+
+### A-M0-02 MAJOR: no containment or recovery after a wrong redeemed binding
+
+- **Where:** ADR-011 §4a L131 (residual risk), §12 "New binding" (L289), D-7 (L359); app contract §4.8 "Revoke" and "Issue output" (L398–L399), §4.7 `DELETE` (L372); data model §4.2 "Reservation" and "Disconnect" (L432, L434); LTI contract §9.4 `PATCH` (L538); M2 "Out" (L42); M4 `operator.md` (L23: "recovery (revoke and issue again)").
+- **Problem:** The design accepts operator error and operator social engineering as residual risks. But after a redemption, the operator has no defined step to stop or undo the binding. A wrong Canvas site URL or service URL also has no correction path.
+- **Evidence:**
+  - `revoke` works only on an unredeemed grant: "disconnect the connection instead" (L399). Disconnect is a portal action in the bound library's session (§4.7). A squatting library will not disconnect.
+  - The LTI API key holder can switch off a platform or a deployment. The app then still shows the connection `registered`, keeps the reservation or `lti_platform_id`, and no document describes this step.
+  - After a disconnect, the Blackboard reservation stays with the disabled connection; only the same library can take it (data model L432–L434, D-7). A Canvas platform stays with the old connection (`lti_platform_id UNIQUE`); a new connection needs a new developer key (ADR-011 L289).
+  - Site and service URLs cannot change (M2 L42; LTI §9.4 `PATCH` has no `siteUrl` or `serviceUrl` for platforms).
+  - The Canvas service URL rests on an inference (ADR-011 §5 L153, F-CV-18). The portal help suggests `https://school.instructure.com` (M2 L62). If Canvas uses another host in its service URLs, every graded launch fails `SERVICE_ORIGIN_MISMATCH`.
+- **Impact:**
+  1. A wrongly approved library keeps another institution's launches until it chooses to disconnect.
+  2. The rightful library stays blocked (`DEPLOYMENT_IN_USE`, `PLATFORM_IN_USE`). The school must delete and register the tool again in Learn, which breaks all its course links for good (F-BB-15), or make a new Canvas developer key and add the assignments again.
+  3. A typing error in a site or service URL has the same cost.
+  The Lead asked for recovery steps. "Revoke and issue again" does not cover a redeemed grant.
+- **Fix (suggested):**
+  - Operator command `app:grant suspend --connection <id> --note "<evidence>"` (or `app:binding disable`). It works without a library session. It sets the connection `disabled`, switches off the Canvas platform or the Blackboard deployment (the same calls as disconnect), revokes open grants and logs `binding_suspended`.
+  - Grant purpose `transfer`. It moves a Blackboard reservation, or a Canvas platform, from a `disabled` connection of **any** library to the grant's pending connection, with the same exact-value checks. The redemption gives a new binding generation (extend generation above 0 to Canvas on transfer, or revoke the old service keys), so the old library's keys and ltiks fail.
+  - The same purpose corrects a site or service URL: a new pending connection of the same library with the right values, and the platform `siteUrl` and `serviceUrl` updated through an LTI API addition.
+  - Prevention: `app:grant issue` prints the library name, the connection name, the site and the service URL, and needs `--library <id>` (or a confirmation), so a wrong `--connection` shows before a code exists.
+  - New ACs: suspend without the library session stops launches and score syncs at once; a transfer to another library works only with a grant; after a transfer the old library's keys and ltiks give `401`; a wrong Canvas service URL can be corrected without a new developer key.
+
+### A-M0-03 MINOR: Canvas Deep Linking `data` is in the return URL query; the simulator does not model it
+
+- **Where:** research §4 (no fact); M3 §3.2 Canvas host row (L51); AC-M1-08 (M1 L72); LTI contract §3.2 (`target` = return URL).
+- **Evidence (FACT, code):** `lib/lti/messages/deep_linking_request.rb` builds `deep_link_return_url` with `data: Lti::DeepLinkingData.jwt_from(…)` as a query parameter and sets no `deep_linking_settings.data` claim. `app/controllers/lti/ims/concerns/deep_linking_services.rb` reads `params[:data]` from that URL and answers `400` when it is not valid (`validate_return_url_data`).
+- **Impact:** The simulator checks an echoed `data` claim that real Canvas does not send. An implementation that rebuilds, normalizes or trims the return URL (for example during the origin check) passes every `SIM` test, but every real Canvas Deep Linking response fails.
+- **Fix:** Add a research fact. The Canvas simulator puts `data` only in the return URL query and checks it on the POST. AC-M1-08 asserts that the auto-submit form action equals the `deep_link_return_url` claim byte for byte, query included, and that the response JWT has no `data` claim when the request had none. Blackboard keeps the `data` claim (F-BB-8).
+
+### A-M0-04 MINOR: check 13 failures do not show the host
+
+- **Where:** LTI contract §5 `launch_check_failed` detail rule (L378), §9.7 check 13 details; app §6.1 `site_mismatch` (L472); M4 `troubleshooting.md`.
+- **Problem:** The detail is only `claim=ags_lineitems` (and similar). The Canvas service host comes from an inference (F-CV-18). A Learn site can also have more than one host name. After a failure, nobody can see which host the LMS used.
+- **Impact:** Setup errors become guesswork. With A-M0-02, each wrong guess can cost a new LMS registration.
+- **Fix:** Add `host=<origin of the failing claim>` to the check 13 detail and to the app `site_mismatch` log. An origin is not a secret and not personal data. The troubleshooting guide uses it. AC-M1-12 and AC-M1-32 assert it.
+
+### A-M0-05 MINOR: the bound Learn host receives the application-wide gateway token
+
+- **Where:** ADR-011 §5 L147, R-M-02 (L370); security §12 "Check 13" (L251); LTI contract §4 "Access token" (L362), §9.10 (L600).
+- **Problem:** Check 13 stops the token from going to a wrong host. But every bound Learn host receives it. The design says that one gateway token works for every Learn site of the Application ID (F-BB-5; INFERENCE from the Blackboard sample token, which names no site). A self-hosted or compromised Learn of one customer can capture the token and use it on other customers' Learn sites (AGS and NRPS; Blackboard course ids are sequential, for example `_4_1`) until it expires (sample: 3600 s).
+- **Fix:** Record this as a residual risk next to R-M-02. For shared profiles, request the smallest scope per call (score only for score sync, line item scopes only for line item calls, NRPS only for `/api/memberships`), with the existing (platform, scope set) cache. Consider D-8 (drop NRPS) for Blackboard in this phase. Live row L-B12 records whether a token from site A works at site B.
+
+### A-M0-06 NIT: Canvas attempt limits can refuse a later best score
+
+FACT (code): `app/controllers/lti/ims/scores_controller.rb` makes a new submission attempt for each score POST by default (`new_submission?` is true when the flag is absent), and answers `422` when the assignment's attempt limit is reached (`verify_attempts_for_online_upload`). With ADR-010 (best result, resend), a later better score can end `failed`. Add a teacher-guide line ("keep Allowed attempts unlimited") or a live row.
+
+### A-M0-07 NIT: a stored profile that is unknown at run time
+
+A `blackboard-sim` or `canvas-sim-cloud` platform row can exist when the service later runs with simulations off. The API answers `UNKNOWN_PROFILE`, but login and launch behaviour for such a row is not stated. State fail-closed (for example `PLATFORM_NOT_ACTIVE`) and add a unit test.
+
+### A-M0-08 NIT: `DELETE` of a pending Blackboard connection with a reservation
+
+A pending connection holds a reservation after a redemption failed at the LTI step (data model L432). Its `DELETE` sends `PATCH …/deployments/{id} {active: false}`, which answers `404 UNKNOWN_DEPLOYMENT` because the deployment was never made. An earlier draft said that this answer is fine; app §4.7 (L372) no longer says it. State `204` and no error.
+
+## Verified (no finding)
+
+| Area | Result and source |
+| --- | --- |
+| Endpoint trust profiles | Canvas production, beta and test issuers, `sso…canvaslms.com` auth and JWKS URLs; self-hosted issuer from `config/security.yml` (`doc/api/lti_launch_overview.md`, `doc/api/lti_dev_key_config.md`, `lib/lti/oidc.rb`). Canvas token on the service origin with assertion `aud` = that URL as a string: Canvas expects the request-host token URL (`lib/canvas/oauth/asymmetric_client_credentials_provider.rb`), and AGS accepts a token whose `aud` is the AGS request host token URL (`lib/lti/ims/advantage_access_token_request_helper.rb`). Blackboard issuer, `oidcauth`, `oauth2/jwttoken`, per-application JWKS, assertion `sub` = Application ID, `aud` = `[token URL]` (`tutorials/pylti13`, `lti-subsystems/lti-sub-authentication`). Reserved issuers close the hosted-issuer bypass, also for dynamic registration. |
+| Isolation (shared issuer, client, deployments) | Tenancy key includes the deployment; service keys, resource links and score timestamps are scoped by deployment or line item URL; app routing uses the reservation first; site and service checks; the DTO shows only the own deployment; binding generations stop old keys and ltiks (AC-M1-27). |
+| Login and launch | State, nonce, `aud` and `azp` checks unchanged. Check 9 compares the login deployment: Canvas code sends `lti_deployment_id` (`app/models/lti/lti_advantage_adapter.rb`), Learn always sends it (`core/oidc-auth`). No exception for unbound or inactive deployments. |
+| Grants | 256-bit code, hash only, exact binding values, one `BEGIN IMMEDIATE` transaction, 60 s redeeming mark, purpose checks, no LTI change on failure. ACs cover squatting, cross-library use, replay, mismatch, expiry, revoke, concurrency, disconnect and old keys (AC-M1-17, -18, -27, -28, -29). |
+| SSRF, service URLs, pagination | Site rules 1–6; guarded client; no fetch at connect time. The §3.4 line item rule now runs against the service origin; `next` links and looked-up line item ids return through `url` or `:lineItemId` and pass §3.4. Canvas and Blackboard line item ids start with the `lineitems` path (Canvas code; `lti-sub-authentication` sample). |
+| Framing and return targets | Picker, submit page and embedded page use `frame-ancestors {site}`; both services require the return URL on the site origin. Canvas "new tab" launches submit the login form with target `_blank` (`ui/features/external_tools_show/jquery/tool_inline.js`), so the top-level continuation runs; the embedded page gets a nonce CSP. Canvas always sends `document_target = iframe` (`jwt_message.rb`). |
+| Canvas JSON | `assignment_selection` with `LtiDeepLinkingRequest` accepts one `ltiResourceLink` and the targets `iframe` and `window` (`deep_linking_request.rb`); the `window` hint selects "new tab" (`ui/features/assignment_edit/backbone/views/EditView.jsx`); `privacy_level: anonymous` keeps `sub` (`lti_dev_key_config.md`); the allowlist removes `custom`, which is needed because name and email substitutions have no privacy guard (`lib/lti/variable_expander.rb`). The Deep Linking response passes Canvas checks: `aud` = issuer, `nonce` required, `sub` not needed, `iat` at most 5 min old (`deep_linking_services.rb`, `lib/canvas/security/jwt_validator.rb`). |
+| Blackboard flow | Register once, one Application ID, one deployment per Learn instance, one application per FQDN, Deep Linking response `sub` = Application ID allowed (`register-an-application`, `dl/dl-return-token`). The placement Target Link URI passes login rule 4 and check 12. |
+| Capabilities and errors | Guards run before outbound calls; platform `422` → `PLATFORM_REJECTED_REQUEST` → `failed` (Canvas `422` cases confirmed in `scores_controller.rb`); Canvas stale timestamp `400` stays `failed`; disabled-connection score rules. |
+| Migration and rollback | Additive columns; the `connection` table (`services/cogniate-app/src/domain/migrations/002_connections.sql`) has no CHECK that blocks `lti_platform_id = NULL` with `registered`; `UNIQUE` allows many `NULL` values. Generation 0 keeps today's key values (AC-M1-23). Rollback by verified backup and restore with the lost-write warning (AC-M1-30). |
+| Privacy | Claim allowlist before storage, names only in logs, NRPS rule, SCORM student name empty (AC-M1-14). |
+| Roles | Canvas role map (`lib/lti/substitutions_helper.rb`) fits the new sets; Student View graded on purpose; undocumented Blackboard roles are live rows L-B14 to L-B17. |
+| Safari | F-WK-1 matches the WebKit Safari 26.2 notes (partitioned cookies are opt-in and need `Partitioned; SameSite=None; Secure`). |
+
+## Evidence boundary
+
+The live-versus-simulated boundary is acceptable. `SIM`, `MOODLE-LIVE`, `CANVAS-HOSTED`, `CANVAS-LOCAL`, `BLACKBOARD-LIVE` and `DOC` are separate labels. A local Canvas never fills a hosted row. Every live row stays `UNVERIFIED` without written authorization. The simulator uses only `.sim.test` names and never spoofs vendor hosts. Product claims stay at "implemented and tested against signed simulations". A-M0-03 is the one place where the simulator, as specified, does not follow real Canvas behaviour.
+
+## What closes this review
+
+- A-M0-01 and A-M0-02 are fixed in the design, with acceptance criteria.
+- The MINOR items are fixed or listed as accepted deferrals by the Lead.
+- I check the corrected design in round 2.
+
+## Round 2 (2026-10-20)
+
+| Item | Value |
+| --- | --- |
+| Verdict | CHANGES_REQUESTED |
+| Reviewed | `bd9fe36` (ADR-011 revision 5). Changes read against `51e69d1`. Disposition map: `docs/architecture/review-response-M0.md`. |
+| Task, dispatch | `task_2e2307b7f7fe`, `ctx_e0abb11702aa`; same dedicated Reviewer-A instance |
+| Scope | Design only. I checked my round 1 findings and the contracts and criteria that the fixes change. I read the other round 1 reports only for context. No product verification is claimed. |
+
+Line numbers in this round refer to `bd9fe36`.
+
+### Disposition of round 1 findings
+
+| Id | Sev. | Round 2 status | Evidence |
+| --- | --- | --- | --- |
+| A-M0-01 | BLOCKER | **Resolved.** | Launch check 14 runs for every profile, after check 13 and before the allowlist and storage (LTI §9.7; security §2.2 check 14; ADR-011 §4 rule 4, L83). The app adds `lms_mismatch` after the site check and before any attempt, picker or service key use (app §6.1). Dynamic registration refuses a Canvas or Blackboard family. Moodle (`moodle`) and a missing claim pass, so Moodle does not change. AC-M1-39 tests the bypass, the refusal before storage and the recovery. Residual: A-M0-10. |
+| A-M0-02 | MAJOR | **Partly resolved.** | `app:binding suspend` and `release`, `--library` with printed names and values, the Blackboard paths and the correction of a **registered** Canvas connection are sound and tested (ADR-011 §4b; app §4.8, §4.9; AC-M1-38). The binding-ref fence closes stale compensation and stale suspend for records that the app can name. Remaining gap: A-M0-09. |
+| A-M0-03 | MINOR | Resolved. | F-CV-21; LTI §9.10 (`target` exactly as received; `data` claim only if sent); ADR-011 §8; AC-M1-08; simulator in M3 §3.2. |
+| A-M0-04 | MINOR | Resolved. | `claim=<name> host=<origin>` (LTI §9.7; `host=invalid` for a bad URL); app `site_mismatch` fields; AC-M1-12, -32, -40. |
+| A-M0-05 | MINOR | Resolved. | R-M-14; one scope per call (LTI §9.10); live row L-B12. |
+| A-M0-06 | NIT | Resolved. | F-CV-23; ADR-011 §9; teacher text; L-C15. |
+| A-M0-07 | NIT | Resolved. | Unknown stored profile = `PLATFORM_NOT_ACTIVE` (ADR-011 §6; data model §4.1); AC-M1-35. |
+| A-M0-08 | NIT | Resolved. | App §4.7.2 `DELETE` (remote `404` = already off, `204`); AC-M1-37 (k). |
+
+### Checks of the areas that the Lead named
+
+| Area | Result |
+| --- | --- |
+| Remote conditional binding refs | Sound. The LTI service compares and changes in one transaction (LTI §9.15); refs exist on platforms and deployments; `null` means "no value"; a request without `ifBindingRef` behaves as before, and Moodle calls send none. |
+| Held and late writes | Sound for safety. A late create meets the LTI uniqueness rules ((issuer, client id); (platform, deployment)). A late conditional change meets a newer ref. A shared reactivation gives generation + 1. So a late write cannot switch off or take over a newer binding. At worst it leaves an active record with an old ref, and no connection routes launches to it. Recovery from that state has a gap for Canvas (A-M0-09). |
+| Stale compensation | Sound. Compensation uses only its own ref; only the owning attempt clears the attempt fields; phase 2 needs the same attempt, no revoke and the start state (app §4.7.1; AC-M1-37 (i), (n)). |
+| Suspend and release | Sound for records that the app reaches through `lti_platform_id` or the Blackboard reservation: no library session needed, idempotent, conditional, release only after switch-off and after every lease, nothing moves between libraries. Gaps: A-M0-09, A-M0-10. |
+| Corrected binding recovery | Sound for a registered Canvas connection with a wrong service URL (suspend, release, new connection and grant for the same client id; AC-M1-38 (d)) and for Blackboard (generation + 1; AC-M1-38 (c), (f)). |
+| Check 14 regressions | None found. The refusal stores nothing and issues no ltik; the existing Moodle fixtures pass; AC-M3-02 lists the approved test changes. |
+
+### New findings
+
+#### A-M0-09 MAJOR: a Canvas platform that an attempt created but the app did not record is invisible to `DELETE`, `suspend` and `release`
+
+- **Where:** app contract §4.7.2 `DELETE` (L402: "a pending Canvas connection has no platform"); §4.9 `suspend`, `release`, "After a release" (L444–L446); §4.4 Canvas take-over rule (L278); §4.7.1 outcome rows "LTI writes, the answer is lost" and "App stops after the LTI write" (L388–L389); ADR-011 §4b (L153–L157); data model `binding_attempt` (L408: attempt id, connection, grant and time only); M1 AC-M1-37 (c), (k), (o) (L131, L139, L143) and AC-M1-38 (f) (L150).
+- **Problem:** For Canvas `initial` the LTI service makes the platform id. The app does not learn it when the create answer is lost, when the app stops before phase 2, or when a held create arrives late. That platform is active and carries an attempt id of the connection as its binding ref. Then:
+  1. `DELETE` of the pending connection sends no call (L402).
+  2. `suspend` repeats the `DELETE` calls, so it sends none. `release` finds no platform ("absent") and succeeds.
+  3. Every new connection, also one of the same library, gets `409 PLATFORM_IN_USE`: the take-over rule (L278) accepts an active record only when its ref is an attempt of **this** connection.
+  4. The documented repair, "the operator runs `suspend` on the old connection again" (L446), has no stored id and no lookup rule, so it cannot find the record.
+  Blackboard does not have this gap: the reservation names the shared platform and the deployment, `DELETE` reads that deployment for a pending connection, and AC-M1-37 (k) tests it.
+- **Impact:** A user who gets `502` during Canvas connect, then cancels and starts again, stays blocked. The rightful library stays blocked after an operator suspends and releases a wrong pending Canvas connection. Only a raw LTI API delete, outside the documented procedure, frees the client id. The orphan platform stays active in the LTI service: it accepts launches and stores allowlisted claims, and the app refuses them. The Lead requires recovery steps; the closure of A-M0-02 depends on this case.
+- **Necessary correction:**
+  1. Record each attempt's target: add to `binding_attempt` the grant's profile, issuer, client id and deployment id, and the LTI record id when it is known.
+  2. `DELETE`, `suspend` and `release` find records through **every attempt** of the connection, not only through `lti_platform_id`: Canvas `initial` → `GET /api/platforms?profile=<profile>`, then match issuer and client id; Canvas `add_deployment` and Blackboard → (platform, deployment id). They act conditionally (`ifBindingRef`) on each record whose ref is one of the connection's attempt ids. `release` refuses while such a record is active.
+  3. Optional: the take-over also accepts an active record whose ref is an attempt of a `disabled` connection of the **same library** (like the Blackboard reservation move), so that cancel and retry needs no operator.
+  4. New acceptance subcases (`SIM`, transport gate): after AC-M1-37 (c) and after (d), `DELETE` of the pending Canvas connection leaves no active platform, and a new connection of the same library with a grant → `200`; AC-M1-37 (o) and AC-M1-38 (f) also for a Canvas create; `release` refuses while such a record is active.
+
+#### A-M0-10 MINOR: after a release, the Moodle path can block the freed self-hosted Canvas id again
+
+- **Where:** ADR-011 §4b release row and "Uses" (L154, L157); app §4.9 "After a release" (L446: "can be bound again only through a normal grant redemption"); app §4 Moodle manual connect (L162); AC-M1-39 (L151).
+- **Problem:** Release deletes the blocking `standard` platform. A Moodle manual connect needs no grant, so the same hostile library can make the `standard` platform with the same issuer and client id again before the rightful Canvas redemption. Check 14 still refuses its launches, but the (issuer, client id) uniqueness again gives the rightful connection `409 PLATFORM_IN_USE`. The statement at L446 is not true for the Moodle path.
+- **Impact:** Repeatable denial of service by a library. No data exposure (check 14 refuses before storage).
+- **Necessary correction:** Correct L446. Document the operator order (issue the rightful grant first, then release, then redeem at once). Then either keep a hold after a release (the LTI service refuses a `standard` create for the released issuer and client id until a grant-backed create or the operator clears it), or let a grant-backed Canvas create replace a suspended `standard` platform with the same issuer and client id. Add the race to AC-M1-39, or the Lead records it as an accepted deferral.
+
+### Regression checks (no new finding)
+
+- LTI §9.4–§9.6: the new `bindingRef` and `ifBindingRef` fields are additive; `standard` behaviour is unchanged.
+- Two-phase redemption: no database transaction spans the LTI call; expiry is checked in phase 1 only; the 60 s lease is far above the 5 s LTI timeout; revoke and replacement cancel a running attempt.
+- Blackboard: one reservation per connection (unique index) with a fixed deployment id; disconnect and suspend are conditional; release deletes only the reservation; reactivation gives generation + 1.
+- Canonical origins apply to grant values and to every comparison.
+- Transport gate (M3 §3.3): `acceptance` only, `/__gate/*` is never forwarded, no production code path, no URL check changes.
+- Upgrade and rollback use the new revision's commands while both services are stopped, and validate the whole backup first.
+- The third-host table (ADR-011 §5) claims only what trusted inputs show; a foreign return URL is dropped, not used.
+
+### What closes round 2
+
+- A-M0-09 is fixed in the design, with the acceptance subcases above.
+- A-M0-10 is fixed, or the Lead records it as an accepted deferral.
+
+## Round 3 (2026-10-20)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** (M0 design, correctness and security lens). No BLOCKER or MAJOR stays open. This is not a product approval and not implementation evidence. |
+| Reviewed | `158a4d8` (ADR-011 revision 6). Changes read against `bd9fe36`. Round 2 reports frozen at `706a278`. Disposition map: `docs/architecture/review-response-M0.md`, "Round 2". |
+| Task, dispatch | `task_ed981aeb1a31`, `ctx_61b8795c3642`; same dedicated Reviewer-A instance |
+| Read | Charter, phase plan, the round 2 sections of `reviewer-b.md` and `qa.md`, the Architect response, ADR-011, both contracts, security, data model, flows, M1 to M4 changes. |
+
+Line numbers in this round refer to `158a4d8`. App = `docs/architecture/contracts/cogniate-app-api.md`; LTI = `docs/architecture/contracts/lti-service-api.md`.
+
+### Correction of my round 2 statement
+
+In round 2 I called the fence and the late-write handling "sound". That was too broad. Reviewer-B's B-M0-03 schedules 1 and 2 and B-M0-07 were valid against revision 5: a newly read ref of the same connection gave adoption permission, a ref-only take-over could finalize an inactive record, and an active added deployment had launch authority through `lti_platform_id`. Revision 6 closes all three (traces below).
+
+### Disposition of open findings
+
+| Id | Sev. | Round 3 status | Evidence |
+| --- | --- | --- | --- |
+| A-M0-02 | MAJOR | **Resolved.** | The remaining gap was A-M0-09. Suspend and release now find every record through saved targets and the ref history (App L463–L465, L509–L510; ADR-011 §4b). |
+| A-M0-09 | MAJOR | **Resolved.** | Each attempt saves its target at phase 1 (data model L411–L426); the Canvas `initial` target is found with exact `url` + `clientId` + `profile` filters (App L366; LTI §9.4). `DELETE` and `suspend` fence out every owned record, also for a pending Canvas connection without `lti_platform_id` (App L459–L465). `release` deletes an owned inactive platform with `?ifBindingRef=<read ref>` (App L510). A same-library new connection adopts the fenced platform (A3, App L404). ACs: AC-M1-37 (c), (c2), (t), (u); AC-M1-38 (f) with the held old delete, (g). |
+| A-M0-10 | MINOR | **Accepted deferral, accurately bounded.** | ADR-011 §4b L167, D-12 (L422), R-M-16 (L443); App §4.9 "After a release" (L512, the false claim is corrected); security §12; Q21; AC-M1-39 records the race without claiming that the operator order prevents it; AC-M4-08 puts it in `docs/human_review/deferred.md`. The stated impact is right: setup can be blocked, and check 14 refuses the Canvas-signed launch before any claim is stored, so it gives no Canvas access. See NIT A-M0-11 for one precision. |
+
+### Traces of the named schedules
+
+| Schedule | Revision 5 failure | Revision 6 result | Rules and AC |
+| --- | --- | --- | --- |
+| B-M0-03 schedule 1: replacement redeemed before the old create is delivered | The old attempt read the newer ref of its own connection and took it over; its compensation then switched off the newer binding. | Closed. The replacement gets `409 GRANT_IN_USE` while the old attempt is live (I1, connection lease). The old call times out at 5 s; the handler ends and never resumes (S0, App L393, L412). The late create meets the existing record: `409 …_ALREADY_EXISTS`, no change (I5; LTI "Staging" L660). A newer ref is never "older" for the old attempt (App L370, L406). | App L382, L393, L406, L418, L422, L436; AC-M1-37 (q) |
+| B-M0-03 schedule 2: compensation between the replacement's read and take-over | A ref-only take-over still matched and finalized an inactive record. | Closed. No ref-only adoption: adoption is always S3 (`active: true` plus a new ref). Every conditional `PATCH` must write a new ref (LTI "Rotation" L658), so the compensation changes the ref; S3 gets `409`, S2 reads the inactive record again (A2: the compensation ref was written before the replacement's phase 1), and the second S3 activates it. I traced the timing: each held step fits in the replacement's own 5 s calls and its 60 s lease. | App L396, L403–L406, L421, L440; AC-M1-37 (r) |
+| B-M0-07: Canvas added deployment written late after timeout and revoke | An active remote row routed to the registered connection through `lti_platform_id`; the "already active → 200" rule had no approval check. | Closed. Creates are staged inactive; only the live attempt's S3 activates. Authority needs an `approved_deployment` row that only phase 2 writes (I2; routing App L582 gives `deployment_not_approved`). The no-grant `200` is only for an approved deployment (App L458). `app:grant revoke` fences only records whose current ref came from that grant and that have no approval, never the platform or an approved deployment (App L494). `dA` and its keys keep working. | App L371, L419, L458, L494, L582; AC-M1-20, AC-M1-37 (p), (s) |
+| A-M0-09 / B-M0-08 / Q-M0-R2-02: unfinalized Canvas platform | Nothing could find or delete the record. | Closed (see A-M0-09 above). A held old release `DELETE` meets the new ref and gets `409` (AC-M1-38 (f) variant). | App L463–L465, L510–L511 |
+| B-M0-09 / Q-M0-R2-01: reachable schedules | A timed-out handler was expected to reach phase 2. | Closed. Live races release within the caller's 5 s; late writes wait for `caller_gone`; dead handlers use `stack:restart` and the 60 s lease. The gate has request ids and phases, forwards a held request after the caller left, discards its answer, and has a 600 s hold limit (M3 §3.3). A schedule that does not fit in 5 s is reported `BLOCKED` with measured times; no production timeout changes. | App L389, L425–L441; M3 §3.3; AC-M1-37 preamble (L128), (d), (i), (o) |
+| Q-M0-R2-03: added-deployment authority (QA's four cases) | As B-M0-07. | Closed: launch before phase 2, lost answer and retry (one `grant_redeemed`), lost answer and revoke, and replacement against an old compensation are AC-M1-37 (s) and (p). | as above |
+
+### Checks of the areas that the Lead named
+
+| Area | Result |
+| --- | --- |
+| Incomplete Canvas record recovery | Sound: saved targets, exact lookup, fence-out of owned records, conditional delete on release, A3 adoption for same values. |
+| Committed per-deployment authority | Sound: `approved_deployment` (primary key platform + deployment) is the only Canvas and Blackboard authority; the same-library Blackboard move deletes the old disabled row in the same transaction (data model L513); release deletes only its own rows; Moodle routing is unchanged. |
+| Same-connection attempt ordering | Sound: one live attempt per connection for all grants (I1); S0 before every call with at least 6 s of lease left; at most five 5 s calls before phase 2; phase 2 needs the same lease holder. A stalled process that loses its lease only causes a retry: a late S3 meets a newer ref, or leaves an active record without approval that the next attempt adopts. |
+| Late writes | Sound: a create never replaces a record and is always inactive; a late activation succeeds only if nobody changed the ref, and it never creates an approval; a cleanup that found nothing finds a late record on the next run. The Blackboard absent-row case gives an inactive generation-0 row that the next reservation holder adopts (A3, generation 1) (App L511). |
+| Active-state changes | Sound: adoption = activation with a new ref; compensation, fence-out and revoke cleanup = switch-off with a new ref; there is no ref-only change by the app. Generation rule for shared deployments: staged create 0, every activation and every adoption of an active row + 1, switch-off unchanged (LTI §9.5, §9.6, §9.14). |
+| Current-ref CAS limits | Stated honestly: the LTI service compares with the current value only and keeps no history (LTI "Limit" L661). The no-stale-write property is an app property: refs are random, unique (`binding_ref_history.ref UNIQUE`), recorded before the call and never reused; raw operator API calls are outside it (I3). |
+| Timeout-consistent tests | Sound (see B-M0-09). |
+| Due-time score oracles | Sound in App §4.7.2 (L469), ADR-011 §12 and AC-M1-38 (a). See NIT A-M0-12. |
+| Regressions | None found. Moodle: unconditional disconnect, no approvals, `POST …/deployments` default stays active, check 14 passes `moodle`. Gate: `acceptance` only, no production code path, no URL check change. |
+
+### New findings (NIT only)
+
+- **A-M0-11 NIT: A-M0-10 scope precision.** ADR-011 L167, R-M-16 (L443) and App L512 say "Canvas issuer and client id". The race exists only for `canvas-self-hosted`: hosted Canvas issuers and the Blackboard issuer are reserved, so a `standard` connect gets `ISSUER_RESERVED` (LTI §9.1). Say so in the deferral text and in `deferred.md`. This narrows the stated risk; it does not change the decision.
+- **A-M0-12 NIT: AC-M1-18 timing.** AC-M1-18 (M1 L105) expects the disabled connection's pending score row to become `failed`, without the due-time bound that AC-M1-38 (a) uses. Add the same rule (poll until the row's due time + 2 × 2 s + 5 s), so the two criteria cannot be read differently.
+
+### Result
+
+APPROVE for the M0 design from the correctness and security lens. Open items: A-M0-10 (accepted deferral, D-12), A-M0-11 and A-M0-12 (NIT, safe to defer). Every claim of real Canvas or Blackboard interoperability stays limited to the live matrix in M3; nothing in this round is product verification.

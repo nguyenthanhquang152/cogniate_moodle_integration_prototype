@@ -2,8 +2,8 @@
 // sign-in "Email", "Password", "Sign in"; sidebar "Integrations", "Libraries"; Moodle card link "Connect"; wizard
 // "Connection name", "Moodle site URL", "Automatic (recommended)" / "Manual", "Continue"; registration URL "Copy";
 // manual rows `[data-key]` with "Copy", inputs named by the contract keys, button "Connect Moodle"; Courses "New course",
-// "Course title", "Create course", file input + "Upload package"; "Publish to Moodle" dialog with the select
-// "Moodle connection" and "Publish".
+// "Course title", "Create course", file input + "Upload package"; "Publish to an LMS" dialog with the select
+// "LMS connection" and "Publish" (M2 label changes, Lead-approved for AC-M3-02a; the Moodle workflow is unchanged).
 import type { Locator, Page } from '@playwright/test';
 import { appApi, portalUser, signIn as apiSignIn, type Session } from '../../acceptance/lib/app';
 import { urls } from './e2e';
@@ -105,14 +105,19 @@ export async function createCourseWithZip(page: Page, title: string, zip: string
   return courseId;
 }
 
-/** Course page → "Publish to Moodle" → choose the connection → "Publish" → "Available in Moodle". */
+/** Course page → "Publish to an LMS" → choose the Moodle connection → "Publish" → "Available in Moodle". */
 export async function publishCourse(page: Page, connectionName: string): Promise<void> {
-  await page.getByRole('link', { name: 'Publish to Moodle' }).or(page.getByRole('button', { name: 'Publish to Moodle' })).first().click();
+  await page.getByRole('link', { name: 'Publish to an LMS' }).or(page.getByRole('button', { name: 'Publish to an LMS' })).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
-  const select = dialog.getByLabel('Moodle connection');
-  const label = await select.evaluate((s, n) => Array.from((s as HTMLSelectElement).options).find((o) => o.text.startsWith(`${n} ·`))?.text ?? '', connectionName);
-  if (!label) throw new Error(`the Publish dialog has no connection "${connectionName}"`);
+  const select = dialog.getByLabel('LMS connection');
+  // M2 option text "<name> (<LMS>, <site host>)": the selected option must be this Moodle connection on the Moodle site.
+  const wanted = `${connectionName} (Moodle, ${new URL(urls.moodle).host})`;
+  // Retrying readiness: the dialog loads the connection list after it opens. Options in a closed select are not visible.
+  const exact = new RegExp(`^\\s*${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+  await select.locator('option').filter({ hasText: exact }).waitFor({ state: 'attached', timeout: 15_000 });
+  const label = await select.evaluate((s, w) => Array.from((s as HTMLSelectElement).options).find((o) => o.text.trim() === w)?.text ?? '', wanted);
+  if (!label) throw new Error(`the Publish dialog has no connection option "${wanted}"`);
   await select.selectOption({ label });
   await dialog.getByRole('button', { name: 'Publish', exact: true }).click();
   await dialog.waitFor({ state: 'detached', timeout: 15_000 }).catch(() => undefined);
@@ -127,10 +132,10 @@ export async function publicationOf(email: string, courseId: string): Promise<{ 
   return pub;
 }
 
-/** The "Moodle publications" block text for one connection on the course page. */
+/** The "LMS publications" block text for one connection on the course page (M2 label change). */
 export async function publicationBlockText(page: Page, courseId: string, connectionName: string): Promise<string> {
   await page.goto(`${urls.app}/libraries/courses/${courseId}`);
-  await page.getByText('Moodle publications').first().waitFor();
+  await page.getByText('LMS publications').first().waitFor();
   const block = page.locator('li, article, section, div').filter({ hasText: connectionName }).filter({ hasText: 'Available in Moodle' }).filter({ hasText: 'Selected in Moodle' }).last();
   await block.waitFor({ timeout: 15_000 });
   return (await block.innerText()).replace(/\s+/g, ' ');

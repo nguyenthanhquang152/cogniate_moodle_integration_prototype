@@ -8,8 +8,11 @@
 # test:acceptance (local-stack §3): (1) STACK_PROFILE=acceptance stack:up, (2) the suite, (3) stack:up with the default
 # profile, also when the suite fails or is stopped with Ctrl+C. A run that is killed (SIGKILL) leaves the profile on;
 # /healthz then shows "profile": "acceptance", and npm run stack:up restores the default.
+# ADR-012 §7: no lock of its own; each internal stack-up.sh and stack-reset.sh run takes and releases the lock. The
+# candidate guard (§12) refuses while the storage-compatibility override is enabled.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+storage_compat_guard
 suite="${1:?usage: qa-suite.sh acceptance|e2e [args]}"; shift
 case "$suite" in acceptance|e2e) ;; *) echo "Unknown suite '$suite' (acceptance|e2e)" >&2; exit 2 ;; esac
 # --yes confirms the data delete of test:e2e (B-T7-01); every other argument goes to the suite.

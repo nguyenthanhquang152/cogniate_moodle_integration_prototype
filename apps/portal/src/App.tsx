@@ -4,6 +4,7 @@ import { Button, buttonVariants } from "./ui/button.tsx";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  BrowserRouter,
   Link,
   NavLink,
   Navigate,
@@ -34,9 +35,15 @@ import { Connect } from "./connect/Connect.tsx";
 import { Courses } from "./courses/Courses.tsx";
 import { CourseDetail } from "./courses/CourseDetail.tsx";
 import { Results } from "./results/Results.tsx";
+import { NotFound } from "./NotFound.tsx";
 
 const SessionContext = createContext<Session | null>(null);
 export const useSession = (): Session => useContext(SessionContext)!;
+
+export function Portal() {
+  // Connection settings must leave the DOM with the URL, not in a deferred transition.
+  return <BrowserRouter useTransitions={false}><App /></BrowserRouter>;
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -90,7 +97,7 @@ export function App() {
       </main>
     );
   return (
-    <SessionContext.Provider value={session}>
+    <SessionContext.Provider key={session?.library.id ?? "signed-out"} value={session}>
       <Routes>
         <Route
           path="/signin"
@@ -118,6 +125,10 @@ export function App() {
             path="integrations/moodle/:connectionId"
             element={<Connect />}
           />
+          <Route path="integrations/canvas/connect" element={<Connect lms="canvas" />} />
+          <Route path="integrations/canvas/:connectionId" element={<Connect lms="canvas" />} />
+          <Route path="integrations/blackboard/connect" element={<Connect lms="blackboard" />} />
+          <Route path="integrations/blackboard/:connectionId" element={<Connect lms="blackboard" />} />
           <Route path="libraries/courses" element={<Courses />} />
           <Route
             path="libraries/courses/:courseId"
@@ -134,12 +145,7 @@ export function App() {
           <Route path="prototype/:page" element={<Placeholder />} />
           <Route
             path="*"
-            element={
-              <main>
-                <h1>Page not found</h1>
-                <Link to="/integrations">Go to Integrations</Link>
-              </main>
-            }
+            element={<NotFound />}
           />
         </Route>
       </Routes>
@@ -181,7 +187,7 @@ function SignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
           </p>
           <h1>Welcome back</h1>
           <p className="text-muted-foreground">
-            Sign in to connect your library to Moodle.
+            Sign in to connect your library to an LMS.
           </p>
         </div>
         <form onSubmit={submit} className="flex flex-col gap-5">
@@ -246,8 +252,8 @@ function Frame({ onLogout }: { onLogout: () => void }) {
         (focusId
           ? document.getElementById(focusId)
           : document.querySelector<HTMLElement>("main h1")) ??
-        (focusId?.startsWith("moodle-")
-          ? document.getElementById("moodle-manage")
+        (focusId?.match(/^(moodle|canvas|blackboard)-/)
+          ? document.getElementById(`${focusId.split("-")[0]}-manage`)
           : null);
       if (target) {
         target.focus();
@@ -374,7 +380,7 @@ function Frame({ onLogout }: { onLogout: () => void }) {
         </main>
         <footer>
           <CircleHelp size={14} aria-hidden="true" />
-          Cogniate × Moodle · Integration prototype
+          Cogniate · LMS integration prototype
         </footer>
       </div>
     </div>
@@ -385,7 +391,7 @@ function Placeholder() {
     <>
       <h1 tabIndex={-1}>Not part of this prototype</h1>
       <p className="text-muted-foreground">
-        Use Integrations to connect Moodle, or Libraries to manage courses.
+        Use Integrations to connect an LMS, or Libraries to manage courses.
       </p>
       <Link
         to="/integrations"

@@ -12,7 +12,7 @@ import { openDb } from './domain/db.ts';
 import { ensureLibrary, upsertUser } from './domain/libraries.ts';
 import { randomBytes } from 'node:crypto';
 import type { MoodleWsClient } from './clients/moodle-ws.ts';
-import type { ContentItem, LtiClient, LtiIdToken, LtiPlatform, LtiRegistration } from './clients/lti-client.ts';
+import type { ContentItem, LtiClient, LtiIdToken, LtiPlatform, LtiProviderProfile, LtiRegistration } from './clients/lti-client.ts';
 import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
 import { prepareStore } from './domain/package-store.ts';
@@ -29,7 +29,21 @@ export const QA_B = { email: 'qa-b@cogniate.test', password: 'Pw-qab-test-2', na
 
 export const TEST_MASTER_KEY = Buffer.alloc(32, 5);
 
-/** In-memory stand-in of the LTI service API (registrations and platforms) for the app tests. */
+/** A fault rule of the fake LTI service (unit-test model of the M3 §3.3 transport gate). */
+export interface FakeFault {
+  /** Operation name: `POST platform`, `PATCH platform`, `DELETE platform`, `POST deployment`, `PATCH deployment`, `GET platform`. */
+  op: string;
+  /**
+   * fail_before: 503 without applying. drop_after: apply, then no answer (status 0). late: no answer now (as a timeout)
+   * and the call is applied only when the test runs `lateWrites.shift()()` (a late write). before / after: run `run`
+   * before / after applying, then answer (a live schedule inside the 5 s).
+   */
+  action: 'fail_before' | 'drop_after' | 'late' | 'before' | 'after';
+  run?: () => unknown;
+  times?: number;
+}
+
+/** In-memory stand-in of the LTI service API (registrations, platforms, deployments, refs) for the app tests. */
 export interface FakeLti {
   client: LtiClient;
   registrations: Map<string, LtiRegistration & { completed?: boolean }>;
@@ -50,6 +64,41 @@ export interface FakeLti {
   lineItems: Map<string, string[]>;
   /** Moodle gradebook values per "<lineItemId> <userId>" (GET /api/lineitems/:id/scores, AGS results). */
   gradebook: Map<string, { resultScore: number | null; resultMaximum: number }>;
+  /** GET /api/providers answer (M1). Tests change it. */
+  providers: LtiProviderProfile[];
+  /** Fault rules (first match by op). */
+  faults: FakeFault[];
+  /** Late writes of `late` faults, in order. Each applies the held call and returns its upstream status. */
+  lateWrites: Array<() => number>;
+  /** Make the shared platform of a shared profile (as `lti:shared-platform`). */
+  addSharedPlatform(profile: string, clientId: string): LtiPlatform;
+}
+
+/** A full platform answer from a partial one (M1 fields default to the `standard` values). */
+export function ltiPlatform(p: Partial<LtiPlatform> & Pick<LtiPlatform, 'id' | 'url' | 'clientId'>): LtiPlatform {
+  const deploymentIds = p.deploymentIds ?? [];
+  return {
+    name: 'Platform', active: true, productFamilyCode: null, profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null,
+    deployments: p.deployments ?? deploymentIds.map((d) => ({ deploymentId: d, siteUrl: new URL(p.url).origin, active: true, bindingGeneration: 0, bindingRef: null })),
+    ...p, deploymentIds,
+  };
+}
+
+/** Provider profiles of the fake (contract §9.3 shape): standard, blackboard (no shared platform) and blackboard-sim. */
+export function fakeProviders(): LtiProviderProfile[] {
+  const bb = (id: string, host: string, simulation: boolean): LtiProviderProfile => ({
+    id, lms: 'blackboard', label: id, sharing: 'shared', issuer: `https://${host}`,
+    authenticationEndpoint: `https://developer.${host}/api/v1/gateway/oidcauth`, accesstokenEndpoint: `https://developer.${host}/api/v1/gateway/oauth2/jwttoken`,
+    jwksUrl: `https://developer.${host}/api/v1/management/applications/{clientId}/jwks.json`, siteUrlOn: 'deployment', serviceUrl: false, simulation, sharedPlatform: null,
+  });
+  return [
+    { id: 'standard', lms: null, label: 'Standard LTI 1.3 platform', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
+      accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null },
+    bb('blackboard', 'blackboard.com', false), bb('blackboard-sim', 'blackboard.sim.test', true),
+    { id: 'canvas-sim-cloud', lms: 'canvas', label: 'Canvas cloud (simulation)', sharing: 'exclusive', issuer: 'https://canvas.sim.test',
+      authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
+      jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks', siteUrlOn: 'platform', serviceUrl: true, simulation: true, sharedPlatform: null },
+  ];
 }
 
 export const LEARNER = 'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner';
@@ -79,6 +128,9 @@ export function launchToken(o: {
 export function fakeLti(): FakeLti {
   const registrations = new Map<string, LtiRegistration & { completed?: boolean }>();
   const platforms = new Map<string, LtiPlatform>();
+  const providers = fakeProviders();
+  const faults: FakeFault[] = [];
+  const lateWrites: Array<() => number> = [];
   const calls: string[] = [];
   const launches = new Map<string, LtiIdToken>();
   const deepLinks: Array<{ ltik: string; items: ContentItem[] }> = [];
@@ -89,6 +141,27 @@ export function fakeLti(): FakeLti {
   const state: { failNext: FakeLti['failNext'] } = { failNext: null };
   const failIfAsked = () => {
     if (state.failNext) { const f = state.failNext; state.failNext = null; throw new LtiServiceError(f.status, f.code, '', f.reason ?? null); }
+  };
+  const clone = (p: LtiPlatform): LtiPlatform => JSON.parse(JSON.stringify(p)) as LtiPlatform;
+  /** Apply a fault rule of `op` (first match), then the operation. */
+  const guarded = async <T>(op: string, apply: () => T): Promise<T> => {
+    failIfAsked();
+    const i = faults.findIndex((f) => f.op === op);
+    const rule = i >= 0 ? faults[i]! : null;
+    if (rule) {
+      rule.times = (rule.times ?? 1) - 1;
+      if (rule.times <= 0) faults.splice(i, 1);
+    }
+    switch (rule?.action) {
+      case 'fail_before': throw new LtiServiceError(503, 'HTTP_503', '');
+      case 'late':
+        lateWrites.push(() => { try { apply(); return 200; } catch (err) { return err instanceof LtiServiceError ? err.status : 500; } });
+        throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'The LTI service did not answer.');
+      case 'drop_after': apply(); throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'The LTI service did not answer.');
+      case 'before': await rule.run?.(); return apply();
+      case 'after': { const out = apply(); await rule.run?.(); return out; }
+      default: return apply();
+    }
   };
   const client: LtiClient = {
     async getRegistration(id) {
@@ -106,7 +179,7 @@ export function fakeLti(): FakeLti {
       if (r.operation === 'update') throw new LtiServiceError(409, 'REGISTRATION_UPDATE_NOT_ALLOWED', '');
       r.completed = true;
       const id2 = `plt_${++seq}`;
-      platforms.set(id2, { id: id2, url: r.url, clientId: `client-${seq}`, name: body.platformName, active: true, deploymentIds: [String(seq)], productFamilyCode: 'moodle' });
+      platforms.set(id2, ltiPlatform({ id: id2, url: r.url, clientId: `client-${seq}`, name: body.platformName, active: true, deploymentIds: [String(seq)], productFamilyCode: 'moodle' }));
       return { platformId: id2, html: '<script>close</script>' };
     },
     async createPlatform(body) {
@@ -114,12 +187,105 @@ export function fakeLti(): FakeLti {
       const exists = [...platforms.values()].find((p) => p.url === body.url && p.clientId === body.clientId);
       if (exists) throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', '');
       const id = `plt_${++seq}`;
-      const p: LtiPlatform = { id, url: String(body.url), clientId: String(body.clientId), name: String(body.name), active: true, deploymentIds: body.deploymentIds as string[], productFamilyCode: null };
+      const p = ltiPlatform({ id, url: String(body.url), clientId: String(body.clientId), name: String(body.name), active: true, deploymentIds: body.deploymentIds as string[] });
       platforms.set(id, p);
-      return p;
+      return clone(p);
     },
-    async getPlatform(id) { calls.push(`GET platform ${id}`); const p = platforms.get(id); if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', ''); return p; },
-    async patchPlatform(id, body) { calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`); const p = platforms.get(id)!; Object.assign(p, body); return p; },
+    async getPlatform(id) {
+      calls.push(`GET platform ${id}`);
+      return guarded('GET platform', () => {
+        const p = platforms.get(id);
+        if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        return clone(p);
+      });
+    },
+    async patchPlatform(id, body) {
+      calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`);
+      return guarded('PATCH platform', () => {
+        const p = platforms.get(id);
+        if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        // ADR-011 §4 rule 5: the app never changes a shared platform (a test fails loudly if it tries).
+        if (p.profile.startsWith('blackboard')) throw new Error('the app must never PATCH a shared platform');
+        if (body.ifBindingRef !== undefined && p.bindingRef !== body.ifBindingRef) throw new LtiServiceError(409, 'BINDING_REF_MISMATCH', '');
+        if (body.active !== undefined) p.active = body.active;
+        if (body.name !== undefined) p.name = body.name;
+        if (body.bindingRef !== undefined) p.bindingRef = body.bindingRef;
+        return clone(p);
+      });
+    },
+    async createProviderPlatform(body) {
+      calls.push(`POST platform ${JSON.stringify(body)}`);
+      return guarded('POST platform', () => {
+        const prof = providers.find((x) => x.id === body.profile);
+        if (!prof) throw new LtiServiceError(400, 'UNKNOWN_PROFILE', '');
+        const url = (prof.issuer ?? '').replace('{siteUrl}', body.siteUrl);
+        if (body.url !== undefined && body.url !== url) throw new LtiServiceError(400, 'PLATFORM_URL_NOT_IN_PROFILE', '');
+        if ([...platforms.values()].some((p) => p.url === url && p.clientId === body.clientId)) throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', '');
+        const id = `plt_${++seq}`;
+        const p = ltiPlatform({
+          id, url, clientId: body.clientId, name: body.name, active: body.active, profile: body.profile, siteUrl: body.siteUrl, serviceUrl: body.serviceUrl ?? body.siteUrl,
+          bindingRef: body.bindingRef, deploymentIds: body.deploymentIds,
+          deployments: body.deploymentIds.map((d) => ({ deploymentId: d, siteUrl: body.siteUrl, active: true, bindingGeneration: 0, bindingRef: null })),
+        });
+        platforms.set(id, p);
+        return clone(p);
+      });
+    },
+    async findPlatforms(q) {
+      calls.push(`GET platforms ${q.url} ${q.clientId}`);
+      return [...platforms.values()].filter((p) => p.url === q.url && p.clientId === q.clientId && (q.profile === undefined || p.profile === q.profile)).map(clone);
+    },
+    async deletePlatform(id, ifBindingRef) {
+      calls.push(`DELETE platform ${id}${ifBindingRef !== null ? ` if ${ifBindingRef}` : ''}`);
+      return guarded('DELETE platform', () => {
+        const p = platforms.get(id);
+        if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        if (ifBindingRef !== null && p.bindingRef !== ifBindingRef) throw new LtiServiceError(409, 'BINDING_REF_MISMATCH', '');
+        if (p.profile.startsWith('blackboard')) throw new Error('the app must never delete a shared platform');
+        platforms.delete(id);
+        return undefined;
+      });
+    },
+    async addDeployment(platformId, body) {
+      calls.push(`POST deployment ${platformId} ${JSON.stringify(body)}`);
+      return guarded('POST deployment', () => {
+        const p = platforms.get(platformId);
+        if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        if (p.deployments.some((d) => d.deploymentId === body.deploymentId)) throw new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', '');
+        const shared = p.profile.startsWith('blackboard');
+        const d = { deploymentId: body.deploymentId, siteUrl: body.siteUrl ?? p.siteUrl ?? new URL(p.url).origin, active: body.active,
+          bindingGeneration: shared && body.active ? 1 : 0, bindingRef: body.bindingRef };
+        p.deployments.push(d);
+        p.deploymentIds = p.deployments.filter((x) => x.active).map((x) => x.deploymentId);
+        return { ...d };
+      });
+    },
+    async patchDeployment(platformId, deploymentId, body) {
+      calls.push(`PATCH deployment ${platformId} ${deploymentId} ${JSON.stringify(body)}`);
+      return guarded('PATCH deployment', () => {
+        const p = platforms.get(platformId);
+        if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        const d = p.deployments.find((x) => x.deploymentId === deploymentId);
+        if (!d) throw new LtiServiceError(404, 'UNKNOWN_DEPLOYMENT', '');
+        if (body.ifBindingRef !== undefined && d.bindingRef !== body.ifBindingRef) throw new LtiServiceError(409, 'BINDING_REF_MISMATCH', '');
+        const shared = p.profile.startsWith('blackboard');
+        const newBinding = shared && body.active && (!d.active || body.bindingRef !== d.bindingRef);
+        if (body.active === false) d.active = false;
+        else if (newBinding) { d.active = true; d.bindingGeneration += 1; if (body.siteUrl) d.siteUrl = body.siteUrl; }
+        else if (body.active) d.active = true;
+        d.bindingRef = body.bindingRef;
+        p.deploymentIds = p.deployments.filter((x) => x.active).map((x) => x.deploymentId);
+        return { ...d };
+      });
+    },
+    async getProviders() {
+      calls.push('GET providers');
+      return guarded('GET providers', () => providers.map((p) => {
+        const shared = p.sharing === 'shared' ? [...platforms.values()].find((x) => x.profile === p.id) : undefined;
+        return { ...p, sharedPlatform: shared ? { id: shared.id, clientId: shared.clientId, active: shared.active } : null };
+      }));
+    },
+    async getToolKeys() { calls.push('GET tool keys'); return [{ kty: 'RSA', kid: 'kid-1', alg: 'RS256', use: 'sig', n: 'n-value', e: 'AQAB' }]; },
     async getIdToken(ltik) {
       calls.push('GET idtoken'); failIfAsked();
       const token = launches.get(ltik);
@@ -150,7 +316,14 @@ export function fakeLti(): FakeLti {
     },
   };
   return {
-    client, registrations, platforms, calls, launches, deepLinks, scores, lineItems, gradebook,
+    client, registrations, platforms, calls, launches, deepLinks, scores, lineItems, gradebook, providers, faults, lateWrites,
+    addSharedPlatform(profile, clientId) {
+      const prof = providers.find((p) => p.id === profile)!;
+      const id = `plt_${++seq}`;
+      const p = ltiPlatform({ id, url: prof.issuer!, clientId, name: 'Cogniate', profile, deploymentIds: [], deployments: [] });
+      platforms.set(id, p);
+      return p;
+    },
     addLaunch(token) {
       const ltik = randomBytes(32).toString('base64url');
       launches.set(ltik, token);

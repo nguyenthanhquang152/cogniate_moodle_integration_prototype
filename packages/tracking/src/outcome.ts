@@ -99,7 +99,7 @@ export function bestAttempt<T extends { outcome: Outcome; scoreGiven: number | n
 export type SendAnswer = { http: number } | { local: 'no_gradebook_column' | 'internal_error' };
 
 /**
- * ADR-010 rules 8 and 9, app contract §10: 2xx -> sent; 409 -> conflict (no retry); 400, 403, 404, no gradebook
+ * ADR-010 rules 8 and 9, app contract §10: 2xx -> sent; 409 -> conflict (no retry); 400, 403, 404, 422 (M1), no gradebook
  * column or a local error -> failed at once (a human can Resend); 401, 5xx, no answer -> retry at 5 s, 30 s,
  * 2 min, 10 min, 30 min, then hourly, until 24 h after `retryFrom` (created or resent), then failed.
  */
@@ -108,7 +108,8 @@ export function syncResult(answer: SendAnswer, tries: number, retryFrom: number,
   const h = answer.http;
   if (h >= 200 && h < 300) return { status: 'sent', nextTryAt: null };
   if (h === 409) return { status: 'conflict', nextTryAt: null };
-  if (h === 400 || h === 403 || h === 404) return { status: 'failed', nextTryAt: null };
+  // M1 (ADR-011 §9, AC-M1-33): a platform 422 is a permanent refusal too, like 400 and 404.
+  if (h === 400 || h === 403 || h === 404 || h === 422) return { status: 'failed', nextTryAt: null };
   const next = nextRetryAt(retryFrom, tries, now);
   return next === null ? { status: 'failed', nextTryAt: null } : { status: 'pending', nextTryAt: next };
 }

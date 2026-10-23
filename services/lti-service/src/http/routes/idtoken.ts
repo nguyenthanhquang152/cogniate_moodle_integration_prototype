@@ -1,18 +1,17 @@
 // GET /api/idtoken (contract §3.1, LTIK-AUTH-V2). T3a: services.serviceKey when AGS or NRPS is available (§3.3).
+// M1: the binding checks of §9.14 run first (no service key is issued for an old generation or an inactive deployment).
 import type { FastifyInstance } from 'fastify';
-import { ApiError } from '../../api-errors.ts';
 import { toIdToken } from '../../lti/idtoken.ts';
-import { getPlatform } from '../../store/platforms.ts';
-import type { RouteContext } from '../context.ts';
 import { serviceKeyForLaunch } from '../../lti/service-keys.ts';
+import type { RouteContext } from '../context.ts';
+import { platformOf } from '../service-context.ts';
 
 export function registerIdTokenRoutes(app: FastifyInstance, ctx: RouteContext): void {
   app.get<{ Querystring: { raw?: string } }>('/api/idtoken', async (req) => {
-    const { account, launch } = ctx.auth(req, ['ltik']);
-    const platform = getPlatform(ctx.db, account.id, launch!.platformId);
-    if (!platform) throw new ApiError('INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid or expired ltik.');
-    if (!platform.active) throw new ApiError('PLATFORM_NOT_ACTIVE', 'The platform is not active.');
-    if (req.query.raw === 'true') return launch!.claims;
-    return toIdToken(launch!, platform, serviceKeyForLaunch(ctx.db, ctx.masterKey, launch!, ctx.now()));
+    const caller = ctx.auth(req, ['ltik']);
+    const platform = platformOf(ctx, caller);
+    const launch = caller.launch!;
+    if (req.query.raw === 'true') return launch.claims;
+    return toIdToken(launch, platform, serviceKeyForLaunch(ctx.db, ctx.masterKey, launch, ctx.now()));
   });
 }

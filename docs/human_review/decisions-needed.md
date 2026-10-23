@@ -70,3 +70,247 @@ A reviewer found each risk, and the Lead accepted it for the prototype. A human 
 | R3 | A learner can change the score with browser developer tools. | Acceptable for completion-type courses only. | Same as Q8. |
 | R4 | Teacher "Select content" can fail in Safari. | Moodle 5.2 has no LTI client-side storage. QA tested Chromium only. Other browsers are not proven. | Same as Q16. |
 | R5 | All libraries share one content site, so course code of two libraries shares browser storage. | Prototype only. The content site has no cookies, and the proxy drops `Cookie`. | Same as Q10: one content subdomain per customer. |
+
+## E. Canvas and Blackboard decisions
+
+Added by the Lead on 2026-10-20 for AC-M4-07.
+Sources: [Q19 to Q22](../architecture/open-questions.md) and [ADR-011 revision 6](../architecture/adr/ADR-011-multi-lms.md).
+These are open decisions. They do not claim that implementation or verification is complete.
+The earlier Moodle explainer does not yet include these rows. Send answers to the Lead with the row ids.
+
+| Id | Decision needed | Recommendation or current boundary | It blocks | Who decides |
+| --- | --- | --- | --- | --- |
+| Q19 | Which Canvas and Blackboard environments may the team use for live checks? | Give written permission for each tenant and each allowed change. Canvas needs a developer key, test course and enrolled learner. Blackboard also needs Developer Portal access, Learn admin access and a public JWKS URL. | Live interoperability checks and claims | Product owner |
+| Q20 | Who owns the Blackboard application, and which host runs the production LTI service? | Use a company account and a stable LTI host. Keep one application per host. A second tool account needs another host. | Blackboard production setup | Product owner and Legal |
+| Q21 | Which enterprise follow-ups come first? | Prioritize D-3 before many customers and D-12 before enterprise recovery depends on release. Then assess D-2, D-4, D-1, D-5 and D-11 by customer need. | Next phase scope | Product |
+| Q22 | What evidence permits an approval grant, and who may operate the commands? | Check a request from the institution's LMS administrator through an institutional channel. Match the library, site, Canvas service URL, client id and deployment id. Record the evidence reference in the note. Name the support staff who may issue grants, suspend bindings and release them. | Operator policy and first customer setup | Product and Legal |
+
+Q19 does not authorize an account, a public tunnel, a deployment or a real tenant change.
+Without permission and matching evidence, live rows stay **UNVERIFIED**.
+An inline public key can avoid public exposure for an authorized Canvas test.
+Blackboard needs a JWKS URL that its services can reach.
+
+## F. Enterprise follow-ups
+
+These defaults come from [ADR-011 §15](../architecture/adr/ADR-011-multi-lms.md#15-out-of-scope-and-follow-ups).
+They define this phase's scope. They are not human approval of a production service.
+
+| Id | Decision needed | Default until decided |
+| --- | --- | --- |
+| D-1 | Add Canvas Dynamic Registration with profile checks? | Manual Canvas setup. |
+| D-2 | Accept more than one Canvas page origin? | One page origin and one service origin. The third-host rules in ADR-011 §5 apply. |
+| D-3 | Replace operator approval with self-service ownership proof? | One operator approval grant for each new binding. |
+| D-4 | Add LTI platform storage for frames without cookies? | A partitioned cookie, with the browser limit in R4. |
+| D-5 | Support inherited Canvas keys across institutions? | Refuse shared key ownership with `409 PLATFORM_IN_USE`. |
+| D-6 | Add one Blackboard host for each tool account? | Blackboard uses only the `cogniate` tool account. |
+| D-7 | Reconnect a disabled connection and keep its publications? | Create a new connection. Old activities stay unavailable. Another library needs an operator release first. |
+| D-8 | Remove the NRPS scope? | Keep the Moodle scope policy. Each service call asks for one scope. |
+| D-9 | Apply the claim allowlist to standard Moodle profiles? | Keep Moodle behavior unchanged. |
+| D-10 | Request a new learner window in Blackboard and Moodle? | Keep Moodle unchanged. Blackboard follows the Learn setting. Canvas already honors the window hint. |
+| D-11 | Offer ungraded Canvas module items? | Do not offer `link_selection` before a decision on completion without a grade column. |
+| D-12 | Reserve released self-hosted Canvas identifiers, or add a quarantine period? | Use the operator order in ADR-011 §4b and document the remaining race. This needs a design before enterprise recovery relies on release. |
+
+D-12 applies only to self-hosted Canvas. Hosted Canvas and Blackboard issuers are already reserved.
+After release, a grant-free Moodle registration can take the self-hosted Canvas issuer and client id first.
+That can block setup. Check 14 refuses Canvas launches before storage, so it gives no Canvas access.
+Issue the rightful grant, suspend the old binding, release it, then redeem the rightful grant promptly.
+This order shortens the window but does not prevent the race.
+
+## G. Review escalations
+
+Added by Docs on 2026-10-21, under the Round 3 rule in [charter §2](../team/charter.md#2-workflow-graph).
+That rule sends each BLOCKER or MAJOR that is open after review round 3 to this list.
+This section asks for no decision.
+The charter does not require human permission before the authorized corrections.
+
+### G1. Storage design: blocking design findings closed
+
+Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
+
+**Current status — 2026-10-23:** G1's blocking design findings are closed. The source implementation passed review.
+M1, M2, legacy and final T7 checks are accepted.
+The Lead accepts storage for this prototype only, with the limits below.
+The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE.
+The [E-R8 decision](../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc) records the accepted T7 evidence and storage scope.
+
+M1 has two matching fresh runs of 394 tests, plus 94 separately carried C4 results.
+The carried results include all 72 storage criteria rows. They are not fresh C6 runs.
+The [Architect's evidence assessment](../reviews/M4/architect-conformance.md#r68-review-of-the-qa-carried-evidence-mapping-for-adr-012-about-0417-utc) closes the four precision findings within their stated limits.
+
+G-1 applies only to the measured host and tool identities. Docker volumes have no generation id.
+The negative host test proves fault detection. It does not prove bind-mount locking.
+The `content_check_failed` result has unit evidence. The lost-lock exit has host fault-injection evidence.
+Neither has a corresponding runtime fault result.
+For `operation_lock_invalid`, stop and escalate. No manual recovery is validated.
+
+The [completion audit](../team/prototype-completion-audit-2026-10-23.md) lists the remaining final checks.
+This checkpoint grants no human approval, production or enterprise acceptance, push or main merge.
+
+All G1 records below are historical snapshots. Their queued, UNRESOLVED and "open" statements were true at that time.
+They do not give the current status.
+
+#### G1 current status: design accepted for implementation
+
+Historical checkpoint, 2026-10-21. The heading remains for existing links; the current status is above.
+
+Updated by Docs on 2026-10-21 from the Lead decision at commit `5f3337a`.
+The Architect's bounded revision 3.2 of ADR-012 is frozen at commit `d0bdda0` ([response](../architecture/review-response-storage.md#g1-bounded-correction-r3b-01-a-s-13-b-s-22-adr-012-revision-32)).
+On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked that exact commit.
+This was a second bounded check, not a fourth review round.
+
+| Check | Verdict | Closed by this check | New nonblocking finding | Report |
+| --- | --- | --- | --- | --- |
+| Reviewer-A | APPROVE, design only | A-S-13, as a design build gate (scoped gate G-1) | A-S-14, MINOR | [Addendum](../reviews/M0/storage-reviewer-a.md#g1-bounded-disposition-addendum-a-s-13-2026-10-21) |
+| Reviewer-B | APPROVE, design only | B-S-22 | B-S-23, NIT | [Addendum](../reviews/M0/storage-reviewer-b.md#g1-bounded-disposition-addendum--revision-32) |
+| Common QA | PASS, bounded design testability | R3B-01, the last open MAJOR. R3-01 to R3-07 stay closed. | G1-QA-01 and G1-QA-02, MINOR | [Addendum](../reviews/M0/storage-qa.md#g1-bounded-disposition-addendum-revision-32) |
+
+No BLOCKER or MAJOR remains from these three checks.
+The three addenda and the Lead decision are at commit `5f3337a`.
+
+**Lead decision:** G1's blocking design findings are independently closed at revision 3.2. The storage design is accepted for implementation.
+This decision is design closure only. It is not:
+
+- human approval;
+- a waiver of a finding;
+- implementation acceptance;
+- runtime acceptance;
+- enterprise readiness.
+
+The Lead's record is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+**Four nonblocking items stay open.** Architect task `task_1131dea487ca` states them as precision corrections.
+That task changes no product mechanism, protocol, original assertion or row count.
+
+| Id | Severity | Required precision |
+| --- | --- | --- |
+| A-S-14 | MINOR | A G-1 pass is valid only for the recorded OS version, Docker CLI version and binary hash, and Compose plugin version and binary hash. QA compares these identities at its run boundaries. If one is different, G-1 must run again. Until then, the lock-dependent rows are BLOCKED. |
+| B-S-23 | NIT | The product-made `FIRST_START` setup needs empty legacy file sets only where `stack:up` runs after it, for example in `a-first-start-resume`. If legacy files are present there, the setup is BLOCKED. |
+| G1-QA-01 | MINOR | QA keeps an ownership record for each resource kind that it lists by label: containers, volumes and networks. |
+| G1-QA-02 | MINOR | Docker shows a volume `CreatedAt` in whole seconds. QA compares in whole seconds. It reads the command start from the Docker engine clock and rounds it down to the second. |
+
+The Architect's text addresses these items. It does not close them.
+Each item closes only after implementation evidence and an independent check of that evidence.
+Do not mark these items closed before that.
+
+**Gate G-1: Docker client process groups (diagnostic evidence only).**
+[ADR-012 §17](../architecture/adr/ADR-012-sqlite-volume-storage.md#17-measured-feasibility-facts-and-assumptions-for-the-build-step) defines gate G-1.
+Every Docker client process of a run must stay in the process group of the guarded command.
+A kill of the whole group before the container exists must leave no client and no container for 30 seconds.
+The original Author measured this in two bounded diagnostics. Reviewer-A checked both reports independently.
+
+| Step | Result | Use |
+| --- | --- | --- |
+| First diagnostic, `task_0b882dfdab3f` | The Docker front process and the Compose plugin stayed in the command's group in four trials. A real `SIGKILL` to the parent only left Docker clients alive in the group. These clients created the target container later. A whole-group kill left no client and no late target, but the watch lasted only about 2.7 seconds. | Not sufficient. G-1 needs 30 seconds. |
+| Follow-up `task_e33f7d22129d`, first trial | The watch lasted 30 seconds, but the command did not have the exact container name and run label. | Supplemental only. |
+| Follow-up, corrected trial | The command had the exact name and run label. A whole-group `SIGKILL` left no client and no target for more than 30 seconds after the test's dependency gate opened. A positive control showed that the same name and label filters find a real target. | Meets G-1 for the measured scope. |
+
+Reviewer-A accepts scoped G-1 from both reports. A-S-13 closes as a design build gate.
+The measured scope is only:
+
+- macOS 27.0.1 on arm64;
+- Docker CLI and engine 29.9.1, and Compose 5.6.0;
+- `/bin/bash` 3.2.57;
+- a storage-style `docker compose run`.
+
+There is no claim for other signals, a race in the container create API, `up`, `exec`, other hosts or other versions.
+The diagnostics give no acceptance credit.
+The report hashes and evidence folders are in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+**QA independence disclosure.** QA finished its own R3B-01 trace first.
+After that, its inbox output showed the summary of Reviewer-A's completion message.
+QA read no other addendum file. QA used no G-1 conclusion from that summary. QA does not decide G-1.
+The Reviewer-B and QA addenda give the G-1 state from their earlier handoff, which had only the 2.7-second watch.
+Reviewer-A separately accepted the complete follow-up evidence.
+
+**Gates that stay required:**
+
+- Source implementation and test preparation stay queued until the Architect freezes the final precision contract and the Lead gives the exact handoff. The backend Author task is `task_3b908985fd0b`. The independent QA preparation task is `task_58a1e33ac60f`.
+- The implementation needs a green Author self-check, the lock self-check, and source reviews by Reviewer-A and Reviewer-B.
+- Each full M1 round keeps 488 rows: the 416 existing rows plus 72 storage rows. Two complete rounds must give matching results.
+- Both qualified old-build routes and the legacy regression must pass again.
+- A fresh M2 run of all 64 cases and fresh T7 runs are required.
+- The full QA tasks `task_ed3b08aa45ea` and `task_e28388df4dcc` stay failed and incomplete. Each needs a proper retry after implementation, test preparation and both source reviews pass. The Lead gives one frozen candidate for each retry.
+- All 32 live LMS rows stay **UNVERIFIED**. Local live Canvas stays deferred.
+- No merge to `main` and no push is authorized.
+- The final M4 guides are a separate task. They stay pending.
+
+#### G1 history: Round 3
+
+History: this was the status at commit `9124cfd`. For the current status, see [the G1 checkpoint above](#g1-storage-design-blocking-design-findings-closed).
+
+Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at commit `7f2c2c5`.
+
+| Check | Round 3 verdict | Report |
+| --- | --- | --- |
+| Reviewer-A | APPROVE, design only | [Round 3](../reviews/M0/storage-reviewer-a.md#round-3-2026-10-21) |
+| Reviewer-B | APPROVE, design only | [Round 3](../reviews/M0/storage-reviewer-b.md#round-3--recheck-of-revision-3) |
+| Common QA | FAIL, design testability: 2 MAJOR | [Round 3](../reviews/M0/storage-qa.md#round-3) |
+
+Open MAJOR findings after Round 3 (the bounded check below closed both):
+
+| Id | Problem |
+| --- | --- |
+| QA R3-01 | The old-schema import test copies the old app database, but not the package folders that it references. The content check refuses the import, so the test cannot pass. |
+| QA R3-02 | The existing T5b test P5 stops only the app, then writes the app database while the LTI service runs. The fixture write rule requires both services stopped. |
+
+Status after Round 3 (recorded at commit `9124cfd`):
+
+- QA rates each fix as a bounded text correction, not a design change.
+- The Architect corrects both in task `task_e7ed35da6e6b`. The same task corrects the non-blocking findings A-S-12, B-S-20, B-S-21 and QA R3-03 to R3-07.
+- There is no waiver and no human approval. The implementation gate is closed. No runtime acceptance exists.
+- Each full round keeps 488 rows: the 416 existing rows plus 72 storage rows.
+- Product and test files are unchanged from commit `8138097`. All runtime gates stay required. All 32 live LMS rows stay **UNVERIFIED**.
+- The Lead's direction is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+G1 stays UNRESOLVED until the same reviewers and QA check the frozen correction and record closure.
+Do not mark G1 closed without that independent evidence.
+Add any new BLOCKER or MAJOR from that check to G1.
+
+#### G1 history: first bounded check (revision 3.1)
+
+History: this was the status at commit `0810b84`, before revision 3.2. For the current status, see [the G1 checkpoint above](#g1-storage-design-blocking-design-findings-closed).
+
+The Architect's bounded revision 3.1 is frozen at commit `a65a4ee` ([response](../architecture/review-response-storage.md#round-3-bounded-corrections-to-the-round-3-rechecks-adr-012-revision-31)).
+On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked their findings against that exact commit.
+This was a bounded check, not a fourth review round.
+All three checks are complete. The report text is at commit `0928c88`.
+
+| Check | Bounded-check verdict | Report |
+| --- | --- | --- |
+| Reviewer-A | APPROVE, design only. New MINOR A-S-13. | [Addendum](../reviews/M0/storage-reviewer-a.md#round-3-bounded-disposition-addendum-2026-10-21) |
+| Reviewer-B | APPROVE, design only. New NIT B-S-22. | [Addendum](../reviews/M0/storage-reviewer-b.md#round-3-bounded-disposition-addendum--revision-31) |
+| Common QA | FAIL, bounded design testability: 1 new MAJOR | [Addendum](../reviews/M0/storage-qa.md#round-3-bounded-disposition-addendum-revision-31) |
+
+Closed: QA R3-01 to R3-07, which include both Round 3 MAJOR findings. Also closed: A-S-12, B-S-20 and B-S-21.
+
+Open MAJOR finding (it blocks implementation):
+
+| Id | Problem |
+| --- | --- |
+| QA R3B-01 | After quarantine, a lane has no volumes. Two QA fixture rows, `h-target-state` (2) and `a-first-start-resume`, mount the absent volume names. Docker then makes new volumes with no Compose labels and a root-owned root folder. QA fixtures run as the host user, so QA cannot write the fixture files. The fresh-lane and cleanup checks find volumes by label only. They do not find these volumes, so a cleanup check can falsely report "none". |
+
+Other open findings:
+
+| Id | Severity | Problem |
+| --- | --- | --- |
+| A-S-13 | MINOR | The A-S-12 lock rule assumes that the Docker client stays in the process group of the guarded command. Nobody has measured this with a real Docker client. A measurement is necessary before implementation acceptance. |
+| B-S-22 | NIT | The process-group read uses a `ps` form that is not portable. Use `LC_ALL=C ps -A -o pid= -o pgid=`. |
+
+Next steps:
+
+- The Architect corrects R3B-01 in task `task_aa24785b66a8`. QA must not mount an absent volume. The product preflight makes the fresh-lane fixtures under the operation lock. Fresh-lane and cleanup checks also find volumes by exact name. The Architect checks every fixture setup path that this rule affects.
+- The same task adds the A-S-13 build measurement gate and corrects B-S-22.
+- The original Author measures the real Docker client groups in diagnostic task `task_0b882dfdab3f`. This diagnostic gives no implementation or acceptance credit. A false or unmeasured result blocks implementation acceptance. No unreviewed fallback is authorized.
+- The Lead's direction is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+Unchanged gates:
+
+- There is no waiver, no accepted deferral and no human approval. This update adds no human approval step.
+- The implementation gate is closed. No runtime acceptance exists.
+- Each full round keeps 488 rows: the 416 existing rows plus 72 storage rows. R3B-01 adds no row.
+- Product and test files are unchanged from commit `8138097`. All runtime gates stay required. All 32 live LMS rows stay **UNVERIFIED**.
+- The final M4 guides are a separate task. They stay pending.
+
+G1 stays UNRESOLVED. R3B-01 stays open until an independent check of the frozen correction records its closure.
+Do not mark R3B-01 or G1 closed without that independent evidence.
+Add any new BLOCKER or MAJOR from that check to G1.

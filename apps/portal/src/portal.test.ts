@@ -37,6 +37,13 @@ const connection: Connection = {
   id: "con_test",
   name: "Test Moodle",
   siteUrl: "https://moodle.test",
+  serviceUrl: "https://moodle.test",
+  lms: "moodle",
+  profile: "standard",
+  capabilities: {
+    dynamicRegistration: true, operatorApproval: false, webServices: true,
+    courseShell: true, addDeployment: false, canvasConfiguration: false,
+  },
   method: "manual",
   status: "pending",
   registrationUrl: null,
@@ -354,9 +361,9 @@ describe("portal forms and contract states", () => {
       ),
     ).toBeTruthy();
   });
-  it("shows nine cards, filters them, and shows the newest connection error", async () => {
-    fetchMock.mockResolvedValue(
-      json({
+  it("shows eleven cards, filters them, and shows the newest connection error", async () => {
+    fetchMock.mockImplementation(async (path: string) =>
+      path.endsWith("/lms-providers") ? json({ lms: [] }) : json({
         connections: [
           {
             ...connection,
@@ -375,7 +382,7 @@ describe("portal forms and contract states", () => {
     );
     inRouter(h(Integrations));
     await screen.findByRole("link", { name: /Manage/ });
-    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(screen.getAllByRole("article")).toHaveLength(11);
     expect(
       screen.getByText(
         "Go back in Moodle and choose Register as a new external tool.",
@@ -385,7 +392,7 @@ describe("portal forms and contract states", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("tab", { name: "LMS Publishing" }));
-    expect(screen.getAllByRole("article")).toHaveLength(2);
+    expect(screen.getAllByRole("article")).toHaveLength(4);
     expect(
       screen.getByRole("link", { name: /Connect another site/ }),
     ).toBeTruthy();
@@ -467,7 +474,7 @@ describe("portal forms and contract states", () => {
     expect(container.querySelector("img")).toBeNull();
     const user = userEvent.setup();
     await user.selectOptions(
-      screen.getByLabelText("Moodle connection"),
+      screen.getByLabelText("LMS connection"),
       "con_registered",
     );
     await user.click(screen.getByRole("button", { name: "Publish" }));
@@ -491,7 +498,7 @@ describe("portal forms and contract states", () => {
             },
             404,
           )
-        : json({ courseId: "crs_test", versionId: "ver_test" }),
+        : json({ courseId: "crs_test", versionId: "ver_test", lms: "moodle", connectionName: "Test Moodle" }),
     );
     inRouter(h(Results));
     expect(
@@ -638,6 +645,8 @@ describe("T5 results integration", () => {
             return json({ report: { scorm: null } });
           return json({
             id: "pub_live",
+            lms: "moodle",
+            connectionName: "Test Moodle",
             courseId: "crs_live",
             versionId: "ver_live",
             courseTitle: "SCORM course",
@@ -701,7 +710,7 @@ describe("T5 results integration", () => {
       async (path: string, options?: RequestInit) => {
         if (options?.method === "POST") return json(sent);
         if (path.endsWith("/results")) return json({ rows: [row] });
-        return json({ courseId: "crs_live", versionId: "ver_live" });
+        return json({ courseId: "crs_live", versionId: "ver_live", lms: "moodle", connectionName: "Test Moodle" });
       },
     );
     inRouter(h(Results));
@@ -734,7 +743,7 @@ describe("T5 results integration", () => {
           return json({
             rows: [{ ...sent, gradebook: null, gradebookDiffers: false }],
           });
-        return json({ courseId: "crs_live", versionId: "ver_live" });
+        return json({ courseId: "crs_live", versionId: "ver_live", lms: "moodle", connectionName: "Test Moodle" });
       },
     );
     try {
@@ -846,10 +855,10 @@ describe("route focus", () => {
     );
     const user = userEvent.setup();
     await user.click(
-      await screen.findByRole("link", { name: "Publish to Moodle" }),
+      await screen.findByRole("link", { name: "Publish to an LMS" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Publish to Moodle",
+      name: "Publish to an LMS",
     });
     fireEvent(
       dialog,
