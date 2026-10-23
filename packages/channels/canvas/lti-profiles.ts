@@ -11,8 +11,9 @@ const canvas = {
   simulation: false, productFamily: 'canvas', // F-CV-22.
   accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', // F-CV-5, F-CV-18.
   platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' }, // LA-ADR-05 D1 rule 1a.
-  // LA-ADR-02 D2: fixed endpoints; Canvas DR is A2's LA-ADR-05 D6 and comes later.
-  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false, dynamicRegistration: null,
+  // LA-ADR-02 D2: fixed endpoints. dynamicRegistration is omitted: the LTI registry gives null (no DR); Canvas DR is
+  // A2's LA-ADR-05 D6 and comes later.
+  endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false,
   flags,
 } as const;
 

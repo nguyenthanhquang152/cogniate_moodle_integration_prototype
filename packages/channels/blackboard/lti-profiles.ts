@@ -8,10 +8,10 @@ const BLACKBOARD_FLAGS = {
   serviceOriginCheck: true, // ADR-011 §5
 };
 
-// LA-ADR-02 D2: one vendor issuer, fixed endpoints, aud = [token endpoint] (F-BB-5), no Dynamic Registration.
+// LA-ADR-02 D2: one vendor issuer, fixed endpoints, aud = [token endpoint] (F-BB-5). dynamicRegistration is omitted:
+// the LTI registry gives null (no Dynamic Registration).
 const BLACKBOARD_TRAITS = {
   issuerKind: 'fixed', endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' }, assertionDeploymentId: false,
-  dynamicRegistration: null,
 } as const;
 
 const profiles = [
