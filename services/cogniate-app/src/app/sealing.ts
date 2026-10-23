@@ -19,7 +19,10 @@ type Env = Record<string, string | undefined>;
 /** BD-A2-91: not in infra/.secrets/app, which the e2e container can read. */
 export const DEFAULT_APP_KEYRING_FILE = '/run/secrets/app-keys/keyring.json';
 
-/** One sealed column of the app: how to list its stored blobs, and the compare-and-set update of one blob. */
+/**
+ * One sealed column of the app: how to list its stored blobs, and the compare-and-set update of one blob. An empty
+ * blob is a cleared value (a used picker keeps X''), not a sealed one.
+ */
 export interface AppSealedColumn {
   readonly table: 'connection' | 'resource_link' | 'picker_session';
   readonly column: string;
@@ -34,20 +37,20 @@ export interface AppSealedColumn {
 const viaConnection = (table: 'resource_link' | 'picker_session', column: string, rewrap: boolean): AppSealedColumn => ({
   table, column, rewrap,
   rows: `SELECT t.id AS row_key, c.library_id AS library_id, t.${column} AS blob FROM ${table} t JOIN connection c ON c.id = t.connection_id
-    WHERE t.${column} IS NOT NULL`,
+    WHERE t.${column} IS NOT NULL AND length(t.${column}) > 0`,
   update: `UPDATE ${table} SET ${column} = ? WHERE id = ? AND ${column} = ?`,
 });
 
 /** The Moodle web-services token (row key: the connection id). */
 export const WS_TOKEN_COLUMN: AppSealedColumn = {
   table: 'connection', column: 'ws_token_encrypted', rewrap: true,
-  rows: 'SELECT id AS row_key, library_id, ws_token_encrypted AS blob FROM connection WHERE ws_token_encrypted IS NOT NULL',
+  rows: 'SELECT id AS row_key, library_id, ws_token_encrypted AS blob FROM connection WHERE ws_token_encrypted IS NOT NULL AND length(ws_token_encrypted) > 0',
   update: 'UPDATE connection SET ws_token_encrypted = ? WHERE id = ? AND ws_token_encrypted = ?',
 };
 /** The copy of the registration ref. Row key: the ref hash (newRef seals the ref before the connection has an id). */
 export const REF_COPY_COLUMN: AppSealedColumn = {
   table: 'connection', column: 'ref_token_encrypted', rewrap: true,
-  rows: 'SELECT ref_token_hash AS row_key, library_id, ref_token_encrypted AS blob FROM connection WHERE ref_token_encrypted IS NOT NULL AND ref_token_hash IS NOT NULL',
+  rows: 'SELECT ref_token_hash AS row_key, library_id, ref_token_encrypted AS blob FROM connection WHERE ref_token_encrypted IS NOT NULL AND length(ref_token_encrypted) > 0 AND ref_token_hash IS NOT NULL',
   update: 'UPDATE connection SET ref_token_encrypted = ? WHERE ref_token_hash = ? AND ref_token_encrypted = ?',
 };
 /** The LTI service key of a resource link (the score dispatch uses it). */

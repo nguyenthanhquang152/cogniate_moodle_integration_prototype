@@ -14,6 +14,7 @@ import {
   APP_SEALED_COLUMNS, DEFAULT_APP_KEYRING_FILE, REF_COPY_COLUMN, WS_TOKEN_COLUMN, appAad, appSealedVersionCounts, missingAppKeyVersions, openText,
   readAppStartupKeys, runtimeTokenMac, sealText,
 } from './sealing.ts';
+import { runtimeTokenFor } from '../tool-pages/launch-rules.ts';
 
 const KEY = 'ab'.repeat(32);
 const K2 = 'cd'.repeat(32);
@@ -67,10 +68,12 @@ describe('the app sealing wrapper (LA-ADR-06 D6, app part)', () => {
     expect(() => openText(TEST_MASTER_KEY, blobOf(db, a.id), appAad(REF_COPY_COLUMN, a.libraryId, a.id))).toThrow(/did not open/);
   });
 
-  it('AC-LA-E5-22-04 (MAC part): the runtime-token MAC is HMAC-SHA-256 with the master key, byte for byte (golden)', () => {
-    const input = 'runtime-token:ply_golden0000000000000000';
-    expect(runtimeTokenMac(TEST_MASTER_KEY, input)).toBe('8EuoxYc7NuEdg5c8LoOwSIMR0KrMD_5FIPW4Jv73PtI');
-    expect(runtimeTokenMac(TEST_MASTER_KEY, input)).toBe(createHmac('sha256', TEST_MASTER_KEY).update(input).digest('base64url'));
+  it('AC-LA-E5-22-04: runtimeTokenFor gives the same value as before the change for a fixture playId (golden)', () => {
+    const playId = 'ply_golden0000000000000000';
+    // The golden value of the old code: HMAC-SHA-256(APP_MASTER_KEY, "runtime-token:" + playId), base64url.
+    expect(runtimeTokenFor(TEST_MASTER_KEY, playId)).toBe('8EuoxYc7NuEdg5c8LoOwSIMR0KrMD_5FIPW4Jv73PtI');
+    expect(runtimeTokenFor(TEST_MASTER_KEY, playId)).toBe(createHmac('sha256', TEST_MASTER_KEY).update(`runtime-token:${playId}`).digest('base64url'));
+    expect(runtimeTokenMac(TEST_MASTER_KEY, `runtime-token:${playId}`)).toBe(runtimeTokenFor(TEST_MASTER_KEY, playId));
   });
 
   it('lists the four sealed columns; readiness names the versions that the key ring does not have', async () => {

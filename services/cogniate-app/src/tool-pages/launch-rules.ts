@@ -1,5 +1,5 @@
 // Pure launch rules (app contract §6, security §4). No I/O: unit-tested on their own.
-import { createHmac } from 'node:crypto';
+import { runtimeTokenMac } from '../app/sealing.ts';
 
 /** A ltik is an opaque 43-character base64url string (lti-service contract §1.2). */
 export const LTIK = /^[A-Za-z0-9_-]{43}$/;
@@ -56,8 +56,9 @@ export function httpsOrigin(value: string): string | null {
 /**
  * The runtime token of a play session (the content origin path /rt/{token}). Derived from the play id with
  * APP_MASTER_KEY, so the shell can show it again on reload while the table keeps only its SHA-256 hash, and the
- * content origin URL does not show the play id.
+ * content origin URL does not show the play id. LA-E5-22: the key provider's `mac` with the version `legacy` keeps the
+ * value byte for byte (HMAC-SHA-256 with the master key), also after a key rotation.
  */
 export function runtimeTokenFor(masterKey: Buffer, playId: string): string {
-  return createHmac('sha256', masterKey).update(`runtime-token:${playId}`).digest('base64url');
+  return runtimeTokenMac(masterKey, `runtime-token:${playId}`);
 }

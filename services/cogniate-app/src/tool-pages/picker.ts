@@ -7,7 +7,6 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // POST /tool/picker/{pickerId}/cancel sends an empty answer (D3a); a placement that takes no graded items gets the
 // page PLACEMENT_NOT_GRADED and no Deep Linking call (D3c).
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { decrypt } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { TOOL_ACCOUNT } from '../kernel/setup/common.ts';
 import type { ContentItem, LtiClient } from '../clients/lti-client.ts';
@@ -19,6 +18,7 @@ import { claimPicker, clearPickerLtik, getPicker, pickablePublications, releaseP
 import { httpsOrigin } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders, withLms } from './page.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
+import { PICKER_LTIK_COLUMN, appAad, openText } from '../app/sealing.ts';
 import type { ChannelText } from '../kernel/ports.ts';
 
 export interface PickerPageDeps {
@@ -105,10 +105,13 @@ export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps):
     return picker;
   };
   const isPicker = (v: PickerSession | FastifyReply): v is PickerSession => 'ltikEncrypted' in v;
+  /** LA-E5-22: the ltik of the picker, bound to its row (the stored key and the library of its connection). */
+  const ltikOf = (picker: PickerSession): string =>
+    openText(masterKey, picker.ltikEncrypted, appAad(PICKER_LTIK_COLUMN, getConnectionAnyLibrary(db, picker.connectionId)?.libraryId ?? '?', picker.key));
 
   /** The picker rules from the Deep Linking settings of the picker's launch (LA-ADR-05 D3b, D3c; M1 §6.1 window). */
   const rulesOf = async (picker: PickerSession, channel: string | null, traceId: string) => {
-    const ltik = decrypt(masterKey, picker.ltikEncrypted);
+    const ltik = ltikOf(picker);
     const settings = (await lti.getIdToken(ltik, traceId)).launch.deepLinkingSettings;
     const capabilities = channel !== null ? deps.channels.capabilities(channel) : null;
     return {
@@ -255,7 +258,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     const refused = originRefused(req, reply, lmsName);
     if (refused) return refused;
     // No pick row and no publication: the claim only marks the picker used.
-    return sendToLms(req, reply, picker, lmsName, decrypt(masterKey, picker.ltikEncrypted), { ids: [], items: [], options: { message: CANCEL_MESSAGE } },
+    return sendToLms(req, reply, picker, lmsName, ltikOf(picker), { ids: [], items: [], options: { message: CANCEL_MESSAGE } },
       { title: `Returning to ${lmsName}`, html: `<p>${CANCEL_MESSAGE}</p>` });
   });
 }

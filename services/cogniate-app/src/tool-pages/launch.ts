@@ -6,7 +6,8 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // M1 (§6.1): routing by approval (Canvas, Blackboard) or lti_platform_id (Moodle), the site check, the LMS check, the
 // role sets of ADR-011 §10, the site origin for frames and return links, and the LMS name in every text.
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { canSelectContent, encrypt, isGradedLaunch, randomId, sha256Hex } from '@cogniate/shared';
+import { canSelectContent, isGradedLaunch, randomId, sha256Hex } from '@cogniate/shared';
+import { PICKER_LTIK_COLUMN, SERVICE_KEY_COLUMN, appAad, sealText } from '../app/sealing.ts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { LtiClient, LtiIdToken } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
@@ -147,7 +148,9 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       const link = upsertResourceLink(db, {
         connectionId: connection.id, publicationId: publication.id, deploymentId: token.platform.deploymentId, contextId,
         resourceLinkId: resourceLink.id, contextTitle: context?.title ?? context?.label ?? '', title: resourceLink.title ?? '',
-        lineItemId: token.services?.assignmentAndGrades?.lineItemId ?? null, serviceKeyEncrypted: serviceKey ? encrypt(masterKey, serviceKey) : null,
+        lineItemId: token.services?.assignmentAndGrades?.lineItemId ?? null,
+        // LA-E5-22: the service key is sealed for its resource link row.
+        sealServiceKey: serviceKey ? (id) => sealText(masterKey, serviceKey, appAad(SERVICE_KEY_COLUMN, connection.libraryId, id)) : null,
       }, t);
       if (link.created || link.rebound) {
         linkPickToResourceLink(db, { connectionId: connection.id, deploymentId: token.platform.deploymentId, contextId, publicationId: publication.id, resourceLinkId: link.id });
@@ -193,7 +196,8 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     const context = token.launch.context;
     const pickerId = transaction(db, () => {
       const id = createPicker(db, {
-        connectionId: connection.id, ltikEncrypted: encrypt(masterKey, ltik), issuerOrigin, siteOrigin: site, deploymentId: token.platform.deploymentId,
+        connectionId: connection.id, sealLtik: (rowKey) => sealText(masterKey, ltik, appAad(PICKER_LTIK_COLUMN, connection.libraryId, rowKey)),
+        issuerOrigin, siteOrigin: site, deploymentId: token.platform.deploymentId,
         contextId: context?.id ?? '', contextTitle: context?.title ?? context?.label ?? '', expiresAt: t + deps.pickerTtlSeconds * 1000,
       }, t);
       markLaunched(db, connection.id, t);

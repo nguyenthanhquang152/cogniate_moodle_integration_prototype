@@ -279,10 +279,13 @@ export interface PortContext {
   sql: ChannelSql;
   /** The shared SSRF-guarded outbound client. */
   outbound: GuardedClient;
-  /** Asynchronously encrypt an extension secret through the kernel key owner. */
-  seal(value: string): Promise<Uint8Array>;
-  /** Asynchronously decrypt a sealed extension secret. */
-  unseal(blob: Uint8Array): Promise<string>;
+  /**
+   * Asynchronously seal an extension secret of the bound connection through the kernel key provider. LA-E5-22: the
+   * value is bound to its `connection` column, the library and the connection (another row cannot open it).
+   */
+  seal(value: string, column: string): Promise<Uint8Array>;
+  /** Asynchronously open a sealed extension secret of the bound connection (also a legacy blob). */
+  unseal(blob: Uint8Array, column: string): Promise<string>;
   /** The call logger; never include secret values. */
   logger: Logger;
   /** Correlation id for this call. */

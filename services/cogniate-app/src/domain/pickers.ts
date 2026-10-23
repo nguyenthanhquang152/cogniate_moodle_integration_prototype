@@ -32,12 +32,18 @@ const toPicker = (r: Record<string, unknown>): PickerSession => ({
 
 export function createPicker(
   db: Db,
-  input: { connectionId: string; ltikEncrypted: Uint8Array; issuerOrigin: string; siteOrigin?: string; deploymentId: string; contextId: string; contextTitle: string; expiresAt: number },
+  input: {
+    connectionId: string;
+    /** LA-E5-22: seals the ltik for the stored row key (the hash of the picker id). */
+    sealLtik: (rowKey: string) => Uint8Array;
+    issuerOrigin: string; siteOrigin?: string; deploymentId: string; contextId: string; contextTitle: string; expiresAt: number;
+  },
   now: number,
 ): string {
   const id = randomId('pck_');
+  const key = sha256Hex(id);
   db.prepare(`INSERT INTO picker_session (id, connection_id, ltik_encrypted, issuer_origin, site_origin, deployment_id, context_id, context_title, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(sha256Hex(id), input.connectionId, input.ltikEncrypted, input.issuerOrigin, input.siteOrigin ?? input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(key, input.connectionId, input.sealLtik(key), input.issuerOrigin, input.siteOrigin ?? input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
   return id;
 }
 

@@ -24,7 +24,7 @@ const APP_SERVICE_NAME = 'cogniate-app';
 async function startAppService(operator: OperatorListenerConfig, config: AppConfig) {
   const db = openDb(join(config.dataDir, 'cogniate.db'));
   // LA-E5-22: bind the app key ring to the master-key handle before any request can seal or open a value.
-  await loadAppKeyProvider({ db, masterKey: config.masterKey, ring: config.keyRing, logger: createLogger({ service: APP_SERVICE_NAME, dir: process.env.LOG_DIR }) });
+  const keys = await loadAppKeyProvider({ db, masterKey: config.masterKey, ring: config.keyRing, logger: createLogger({ service: APP_SERVICE_NAME, dir: process.env.LOG_DIR }) });
   const store = await prepareStore(config.dataDir);
   // LA-E4-07: one metrics registry for the database; the app listener's logger feeds its log-event series.
   const metrics = appMetricsFor(db);
@@ -79,7 +79,8 @@ async function startAppService(operator: OperatorListenerConfig, config: AppConf
       },
     },
   ], { handleSignals: false });
-  const operatorApp = buildOperatorListener({ db, metrics });
+  // BD-A2-88 D3: /readyz also checks that the app key ring has every key version in use (LA-E5-22).
+  const operatorApp = buildOperatorListener({ db, metrics, keys });
   await operatorApp.listen({ host: operator.host, port: operator.port });
   const bound = operatorApp.server.address() as AddressInfo;
   loggers[0]?.info('operator_listener_started', { operator_bind: bound.family === 'IPv6' ? `[${bound.address}]:${bound.port}` : `${bound.address}:${bound.port}` });
