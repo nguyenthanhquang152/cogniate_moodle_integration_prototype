@@ -1,14 +1,14 @@
 # LTIAAS Wave-End Gate Run Plan (Host-Only Prepared Runbook)
 
-- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_89732ab04e97` / `ctx_199692428d8b`)
+- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614` / `ctx_ac9a28f796e7`)
 - **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation)
-- **Wave-End Candidate SHA:** `43d5073cd57c879c33aa97151848bf8d6890844b` (`43d5073c`, product code `5260eac5`; Lead check green: `3302` unit, `255` infra, `145` K0, F1 `0`, F5 `6` rules; `LD-9` round 8 approved by both Reviewer-A and Reviewer-B in `fd146062`)
+- **Wave-End Candidate SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (`80133d6b`, product code `02f5d420`; includes `BD-A2-103` `LA-E3-02` storage-check CSP `form-action` fix; Lead check green: `3306` unit, `255` infra, `145` K0, F1 `0`, F5 `6` rules; `LD-9` round 8 approved by both Reviewer-A and Reviewer-B in `fd146062`)
 - **Intake / `G-BASE` SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`1b17261b`, product code `9f8ac62`)
 - **Pre-Staged Host-Only Gate Assets (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE`, mode `0700`):**
   - **Wave-End Test Source Repo (Slots 3B & 8):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`
-    - Product commit: `43d5073cd57c879c33aa97151848bf8d6890844b`
-    - Committed test SHA (`--test-sha`): `625e923d458c0b59c13c3f6061624b7a512f7ab4`
-    - Contains: `la-qa/tests` at `e664adb3` (including the 8 `LD-1` open-world files from `f0a7b306`), the 3 approved `LA-IC-04` frozen-test updates (`31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118`), the 3 approved `LA-IC-14` frozen-test updates (`11-canvas-platforms.test.ts:218-265`), the `LA-IC-09` (`LD-6`) P5 fixture update (`storage-fixture-script.mjs:389-396` supporting `record_dispatch`), the open-world migration-ledger check in `m1-migration.mjs:331-338`, and the `qalead-la-<n>` project-prefix regex guard in `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` and `tests/e2e/host/run-t7.mjs`.
+    - Product commit: `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5`
+    - Committed test SHA (`--test-sha`): `8ad1292687431b05bad6b5c070ab722e67714526`
+    - Contains: `80133d6b`'s `tests/` tree plus the 8 `LD-1` open-world files from `f0a7b306`, the 3 approved `LA-IC-04` frozen-test updates (`31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118`), the 3 approved `LA-IC-14` frozen-test updates (`11-canvas-platforms.test.ts:218-265`), the `LA-IC-09` (`LD-6`) P5 fixture update (`storage-fixture-script.mjs:389-396` supporting `record_dispatch`), the open-world migration-ledger check in `m1-migration.mjs:331-338`, and the `qalead-la-<n>` project-prefix regex guard in `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` and `tests/e2e/host/run-t7.mjs`.
     - Verified host-only: `run-m2.mjs --harness-only` PASS (`64` M2 cases, typecheck exit `0`), `M1` Vitest discovery PASS (`392` API cases + `2` browser cases = `394` `sim` rows), `m1-migration.selftest.mjs` + `storage-fixture-script.selftest.mjs` PASS (`25/25`), `golden.k0.test.mjs` PASS (`12/12`).
   - **Slot 7 Test Source Repo (`LA-E0-02` + `LA-E0-04` `LD-1` parity on `1b17261`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261`
     - Product commit: `1b17261be97c4701b928fa9dc2fa74c6d23028f6`
@@ -29,14 +29,14 @@
 | **Slot 3A** | Lead QA | Candidate golden capture `G1–G4` & `LD-9` records (`LA-IC-01..21` approved in Round 8) | `qalead-la-3` | `9643` / `172.22.0.0/16` | — | **DONE** (`fd146062`) |
 | **Slots 4, 4b** | QA-3 | `E1/E2/E3/E4/E6` SIM tasks (`31/31` PASS) | `qa3-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`cd347224`) |
 | **Slot 5** | QA-4 | `E1/E2/E3/E5/E7` LTI & sim tasks (`15` suites PASS) | `qa4-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`a11268c5`) |
-| **Slot 6 R1** | QA-E2E | `LA-E7-09` (`R2-SIM` PASS) + `LA-E7-07` (`K2` R1; `BD-A1-111/112` fixed in `5260eac5`) | `qa-e2e-la-*` | `9643` / `172.22.0.0/16` | — | **R2 IN PROGRESS** |
+| **Slot 6 R1/R2** | QA-E2E | `LA-E7-09` (`R2-SIM` PASS), `LA-E3-16` (`PASS`), `LA-E7-07` (`K2` R3 next on `80133d6b`) | `qa-e2e-la-*` | `9643` / `172.22.0.0/16` | **`25 min`** | **R3 NEXT** |
 | **LA-E5-13 SIM** | Lead QA | `LA-E5-13` `AC-01, -02, -03, -05` `K1-SIM` + `AC-06` `K0` on `fd146062` | `qalead-la-8..9` | `9443` / `172.20.0.0/16` | — | **DONE** (`43d5073c`) |
-| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `43d5073c` (code `5260eac5`): Golden `G1–G4` capture & compare (all 13 `LD-9` records), `M1 migration` + `snapshot-upgrade`, `U1` SIM continuity from `1b17261`, `M1 sim --provider all` (`394` rows), `M2` (`64` cases) | `qalead-la-10..15` | `9643` / `172.22.0.0/16` (or `9443` / `172.20.0.0/16`) | **`52 min`** | **READY** |
+| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (all 13 `LD-9` records), `M1 migration` + `snapshot-upgrade`, `U1` SIM continuity from `1b17261`, `M1 sim --provider all` (`394` rows), `M2` (`64` cases) | `qalead-la-10..15` | `9643` / `172.22.0.0/16` (or `9443` / `172.20.0.0/16`) | **`52 min`** | **READY** |
 | **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `f0a7b306` `--test-sha` (`M1 sim/migration/snapshot-upgrade`, `M2`, `T7×3`, optional legacy `T1–T8`, `rate-peaks.mjs`, `docker stats` peak) | `qalead-la-16..20` (`qalead-la-21..27` optional legacy) | `9643` / `172.22.0.0/16` (SIM) & `9543` / `172.21.0.0/16` (Moodle) | **`80 min` core** (`42m` SIM + `38m` `T7×3`; `+55m` if legacy `T1–T8` run) | **READY** |
-| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `43d5073c` (code `5260eac5`): `T7×1` + `R2-lite` (`T2a..T8`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + QA-E2E `K2` `U1`/`U2` | `qalead-la-30..39` | `9543` / `172.21.0.0/16` | **`55 min` Lead QA** (`+20 min` QA-E2E = **`75 min`**) | **READY** |
+| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `80133d6b` (code `02f5d420`): `T7×1` + `R2-lite` (`T2a..T8`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + QA-E2E `K2` `U1`/`U2` | `qalead-la-30..35` | `9543` / `172.21.0.0/16` | **`55 min` Lead QA** (`+20 min` QA-E2E = **`75 min`**) | **READY** |
 
 > [!IMPORTANT]
-> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A) and `qalead-la-8..9` (`LA-E5-13` SIM) have already been used. Slots 3B, 7, and 8 exclusively use **`qalead-la-10..39`**.
+> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A) and `qalead-la-8..9` (`LA-E5-13` SIM) have already been used. Slots 3B, 7, and 8 exclusively use **`qalead-la-10..35`**.
 
 ---
 
@@ -48,14 +48,14 @@ All **13 approved `LD-9` records** (`fd146062`, Round 8 APPROVE by both Reviewer
 LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21
 ```
 
-| Record ID | Golden Path Deltas (`G1–G4` vs `G-BASE` `1b17261`) | Frozen Test Deltas (`1b17261..625e923d`) | Notes on Wave-End SHA (`43d5073c` / code `5260eac5`) |
+| Record ID | Golden Path Deltas (`G1–G4` vs `G-BASE` `1b17261`) | Frozen Test Deltas (`1b17261..8ad12926`) | Notes on Wave-End SHA (`80133d6b` / code `02f5d420`) |
 | --- | --- | --- | --- |
 | **`LA-IC-01`** | **`259` exact-value paths** (`G1`, `G3`; `0` wildcards) | **`0` after `LD-1`** (`LA-E0-04` 8 files in `f0a7b306`) | Includes `lti-generic` `channelName: "LMS"` (`BD-A1-111`), `canvas` & `lti-generic` `setup.connectionCheck: true` (`LA-E6-04`), and `brightspace` `methods: ["dynamic", "manual"]` (`LA-E2-06`). |
 | **`LA-IC-03`** | `0` | `0` | Moodle DR path-prefix & `LtiDeepLinkingRequest` (`LA-E2-02`). |
-| **`LA-IC-04`** | **`3` paths in `G1`** (`canvasConfiguration["jwk=inline"].scopes[4]` removed, `canvasConfiguration["jwk=url"].scopes[4]` removed, `toolConfiguration.moodle[12].value` = `"Do not use this service"`) | **`3` files**: `31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118` | **Now active on `43d5073c`** (`LA-E3-07`, 4 AGS scopes, no NRPS scope). |
+| **`LA-IC-04`** | **`3` paths in `G1`** (`canvasConfiguration["jwk=inline"].scopes[4]` removed, `canvasConfiguration["jwk=url"].scopes[4]` removed, `toolConfiguration.moodle[12].value` = `"Do not use this service"`) | **`3` files**: `31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118` | **Now active on `80133d6b`** (`LA-E3-07`, 4 AGS scopes, no NRPS scope). |
 | **`LA-IC-12`** | **`2` paths in `G4`** (`blackboard.pages.picker.text`, `canvas.pages.picker.text` + `" Cancel"`) | `0` | Deep Linking Cancel button & empty `contentItems` (`LA-E3-04`, `LA-E3-05`). |
 | **`LA-IC-13`** | `0` | `0` | Could gaps (`scoreGiven: null`, NRPS `service_versions`, `trustedAudiences`) (`LA-E3-12`). |
-| **`LA-IC-14`** | **`13` paths across `G1` (`12`) and `G3` (`1`)** (`capabilities.dynamicRegistration: true` and `methods[1]: "dynamic"` on Canvas) | **`1` file (`3` cases)**: `11-canvas-platforms.test.ts:218-265` (`M1-15.canvas.dto`, `M1-15.canvas.dynamic-refused`, `M1-15.canvas.lms-providers`) | **Now active on `43d5073c`** (`LA-E3-09`, `LA-E3-15`). |
+| **`LA-IC-14`** | **`13` paths across `G1` (`12`) and `G3` (`1`)** (`capabilities.dynamicRegistration: true` and `methods[1]: "dynamic"` on Canvas) | **`1` file (`3` cases)**: `11-canvas-platforms.test.ts:218-265` (`M1-15.canvas.dto`, `M1-15.canvas.dynamic-refused`, `M1-15.canvas.lms-providers`) | **Now active on `80133d6b`** (`LA-E3-09`, `LA-E3-15`). |
 | **`LA-IC-15`** | **`2` paths in `G3`** (`{blackboard,canvas}.publications.B-conflict.results[0].scoreSyncs[0].lastError`) | `0` | Channel-named 409 conflict text (`LA-E4-03`). |
 | **`LA-IC-16`** | **`1` path in `G1`** (`acceptance.ltiHealth.outbound_allowlist` via `sim-hosts-allowlist` rule) | `0` | `.sim.test` hosts equal `tests/sim/hosts.json` union (`15` hosts); non-sim entries equal `G-BASE` (`BD-A1-36`). |
 | **`LA-IC-17`** | `0` | `0` | Strict 6-key Moodle `PUT /app-api/connections/:id/platform` (`BD-A1-41`). |
@@ -67,16 +67,16 @@ LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17
 
 ---
 
-## 3. Slot 3B: Wave-End SIM-Lane Gate (`LA-E7-08`) on `43d5073c` (Code `5260eac5`)
+## 3. Slot 3B: Wave-End SIM-Lane Gate (`LA-E7-08`) on `80133d6b` (Code `02f5d420`)
 
-- **Target SHA:** `43d5073cd57c879c33aa97151848bf8d6890844b` (product code `5260eac5`)
-- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 625e923d458c0b59c13c3f6061624b7a512f7ab4`)
-- **Compose Projects:** `qalead-la-10`, `qalead-la-11`, `qalead-la-12`, `qalead-la-13`, `qalead-la-14`, `qalead-la-15`
+- **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
+- **Compose Projects:** `qalead-la-10`, `qalead-la-11`, `qalead-la-12`, `qalead-la-13`, `qalead-la-13b`, `qalead-la-14`, `qalead-la-15`
 - **Port / Subnet:** `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16` (or `9443` / `172.20.0.0/16` per `DOCKER-YES`)
 - **Estimated Duration:** **`52 minutes` total**
   - Step 3B.1 (`qalead-la-10`): Candidate golden capture `G1–G4` + host compare with all 13 `LD-9` records — **`4 min`**
   - Step 3B.2 (`qalead-la-11` & `qalead-la-12`): `M1 --phase migration` (`35` rows) + `M1 --phase snapshot-upgrade` (`7` rows) — **`12 min`**
-  - Step 3B.3 (`qalead-la-13` & `qalead-la-13b`): `U1` SIM upgrade continuity from `1b17261` to `43d5073c` (`LA-E5-08` LTI + `LA-E5-22` app) — **`6 min`**
+  - Step 3B.3 (`qalead-la-13` & `qalead-la-13b`): `U1` SIM upgrade continuity from `1b17261` to `80133d6b` (`LA-E5-08` LTI + `LA-E5-22` app) — **`6 min`**
   - Step 3B.4 (`qalead-la-14`): `M1 --phase sim --provider all` (`394` rows) — **`15 min`**
   - Step 3B.5 (`qalead-la-15`): `M2` browser suite (`64` cases) — **`15 min`**
 
@@ -87,8 +87,8 @@ umask 077
 export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
 export SRC_WAVE="$GATE_DIR/src-wave-end"
 export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
-export WAVE_SHA="43d5073cd57c879c33aa97151848bf8d6890844b"
-export WAVE_TEST_SHA="625e923d458c0b59c13c3f6061624b7a512f7ab4"
+export WAVE_SHA="80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5"
+export WAVE_TEST_SHA="8ad1292687431b05bad6b5c070ab722e67714526"
 export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
 export PUBLIC_PORT=9643
 export STACK_SUBNET="172.22.0.0/16"
@@ -143,7 +143,7 @@ COMPOSE_PROJECT_NAME=qalead-la-12 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot3b-2b-m1-snapshot-upgrade.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 3B.3 (qalead-la-13 & qalead-la-13b, est. 6 min): U1 SIM Upgrade Continuity 1b17261 -> 43d5073c (AC-LA-E7-08-04)
+# Step 3B.3 (qalead-la-13 & qalead-la-13b, est. 6 min): U1 SIM Upgrade Continuity 1b17261 -> 80133d6b (AC-LA-E7-08-04)
 # ----------------------------------------------------------------------
 # 3B.3a: LTI service U1 continuity (connections, deployments, resource links, pending DR session, tool keys, service keys)
 COMPOSE_PROJECT_NAME=qalead-la-13 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
@@ -197,7 +197,7 @@ docker network ls --filter "name=qalead-la-"
 ### Host-Only `K0` Verification Already Proven for `LA-E7-08` (`AC-LA-E7-08-05` & `AC-LA-E7-08-06`)
 
 - **`AC-LA-E7-08-05` (`PASS`, `K0`):**
-  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..625e923d458c0b59c13c3f6061624b7a512f7ab4 -- tests/acceptance tests/e2e tests/host tests/sim tests/fixtures` shows `47` files:
+  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..8ad1292687431b05bad6b5c070ab722e67714526 -- tests/acceptance tests/e2e tests/host tests/sim tests/fixtures` shows `47` files:
     1. **8 `LD-1` open-world files** (`LA-E0-04`, `f0a7b306`): `tests/acceptance/lib/open-world.{mjs,d.mts}`, `00-profiles.test.ts:1-29`, `90-simulation-gates.test.ts:19`, `11-canvas-platforms.test.ts:255`, `tests/host/run-m1.mjs:297,302`, `tests/e2e/host/run-m2.mjs:124`, `tests/e2e/M2/01-cards.m2.ts:11-21`.
     2. **3 `LA-IC-04` frozen test files** (`LA-E3-07`, approved in `fd146062`): `tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120`, `tests/acceptance/M1/common/00-profiles.test.ts:104`, `tests/acceptance/T4b1/1-connect.spec.ts:118`.
     3. **1 `LA-IC-14` frozen test file** (`LA-E3-09`/`LA-E3-15`, approved in `fd146062`): `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265`.
@@ -206,7 +206,7 @@ docker network ls --filter "name=qalead-la-"
     6. **13 additive `K2` browser suite files:** `tests/e2e/ltiaas/**` (`LA-E7-07`, `LA-E7-09`).
     7. **13 additive simulator files:** `tests/sim/**` (`LA-E7-01`, `LA-E7-02`, `LA-E7-05`).
 - **`AC-LA-E7-08-06` (`PASS`, `K0`):**
-  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..43d5073cd57c879c33aa97151848bf8d6890844b -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` produces **empty output (`0` files changed, exit `0`)**.
+  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` produces **empty output (`0` files changed, exit `0`)**.
 
 ---
 
@@ -387,21 +387,21 @@ node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/l
 
 ---
 
-## 5. Slot 8: Wave-End `MOODLE-LIVE` Gate on `43d5073c` (Code `5260eac5`) with QA-E2E
+## 5. Slot 8: Wave-End `MOODLE-LIVE` Gate on `80133d6b` (Code `02f5d420`) with QA-E2E
 
-- **Target SHA:** `43d5073cd57c879c33aa97151848bf8d6890844b` (product code `5260eac5`)
-- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 625e923d458c0b59c13c3f6061624b7a512f7ab4`)
-- **Compose Projects:** `qalead-la-30..36` (Lead QA) + QA-E2E project (`qa-e2e-la-*`)
+- **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
+- **Compose Projects:** `qalead-la-30..35` (Lead QA) + QA-E2E project (`qa-e2e-la-*`)
 - **Port / Subnet:** `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`
 - **Scope Covered:**
   1. **`T7 × 1` (`qalead-la-30`, `12 min`):** `run-t7.mjs --runs 1 --no-demo` (`17` browser cases, including frozen isolation ACs **`AC-T7-08`** and **`AC-T7-09`**).
-  2. **`R2-lite` Moodle Suites (`qalead-la-31..35`, `40 min`):**
+  2. **`R2-lite` Moodle Suites (`qalead-la-31..35`, `43 min`):**
      - `qalead-la-31` (`8 min`): `run-t2.mjs --tasks T2a,T2b,T3a,T3b` (covers frozen isolation AC **`AC-T2-18`** in `T2a/jwt-validation.test.ts`).
      - `qalead-la-32` (`5 min`): `run-t3c.mjs` (`T3c` compatibility & endpoints).
      - `qalead-la-33` (`10 min`): `run-t4b.mjs --tasks T4b1,T4b2` (covers frozen isolation ACs **`AC-T4-16`**, **`AC-T4-29`**, **`AC-T4-34`** in `T4b1/2-isolation.spec.ts`, `T4b1/3-security.spec.ts`, `T4b1/4-adoption.spec.ts`, plus `LA-IC-04` Moodle row 13 in `T4b1/1-connect.spec.ts:118`).
      - `qalead-la-34` (`12 min`): `run-t5.mjs --tasks T5a,T5b,T6` (covers `LA-IC-09` / `LD-6` `record_dispatch` P5 fixture in `T5b/4-conflict-resend.spec.ts` and `T6` portal Moodle flows).
      - `qalead-la-35` (`5 min`): `run-t8.mjs` (`T8` course shell export/publish).
-  3. **`LA-E5-13` `AC-LA-E5-13-06` (`qalead-la-36`, `3 min`):** Confirms all 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) passed in steps 1–2 and runs `two-tenant-isolation.k1sim.test.ts` (`AC-LA-E5-13-01..06`).
+  3. **`LA-E5-13` `AC-LA-E5-13-06` (`<1 min` log verification):** Confirms all 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) passed in steps 1–2 (`AC-LA-E5-13-01..05` `K1-SIM` already passed on `qalead-la-8..9`).
   4. **QA-E2E's Part (`20 min`):** `K2` Moodle `U1`/`U2` + `LA-E3-05` `AC-04, 11`.
 - **Estimated Duration:** **`55 minutes` (Lead QA)** + **`20 minutes` (QA-E2E)** = **`75 minutes` total**.
 
@@ -412,7 +412,7 @@ umask 077
 export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
 export SRC_WAVE="$GATE_DIR/src-wave-end"
 export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
-export WAVE_SHA="43d5073cd57c879c33aa97151848bf8d6890844b"
+export WAVE_SHA="80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5"
 export PUBLIC_PORT=9543
 export STACK_SUBNET="172.21.0.0/16"
 
