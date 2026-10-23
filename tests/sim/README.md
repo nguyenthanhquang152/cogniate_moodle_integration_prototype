@@ -41,7 +41,7 @@ You do not edit `tests/sim/server.mjs` or `infra/scripts/lib.sh` to add a simula
 | `dlWindowHint` | no | Whether Deep Linking items require `window: { targetName: '_blank' }` (default `true`). | `true` (`false` on `moodle-sim`) |
 | `documentTarget` | no | Default `launch_presentation.document_target` (`'window'` or `'iframe'`, default `'window'`). | `'window'` |
 
-## Fail-Closed Startup Rules (`README.md` §4b, `BD-A1-01` v1.1)
+## Fail-Closed Startup Rules (`README.md` §4b, `BD-A1-01` v1.1, `BD-A1-53`)
 
 At startup, `loadProviders(runtime)` and `loadHostManifest(manifestPath)` in `tests/sim/server.mjs` validate `tests/sim/hosts.json` and all `tests/sim/<folder>/index.mjs` modules:
 
@@ -49,7 +49,7 @@ At startup, `loadProviders(runtime)` and `loadHostManifest(manifestPath)` in `te
 - `version` must equal `1`, `providers` must be an array (`providers: []` is valid in `loadHostManifest`), and only `version` and `providers` top-level keys are valid.
 - Every host in `aliases` and `allowlist` must be a lower-case DNS name (at most 253 characters, each label `[a-z0-9]` with inner `-` only and at most 63 characters) ending in `.sim.test`.
 - The control host `lms-sim.test` is reserved and must never appear in `hosts.json`.
-- Repeated hosts inside one provider entry's `aliases` or `allowlist` are merged to one host.
+- Each host appears at most once in all `aliases` (inside one entry and across providers), and each `allowlist` entry appears at most once; any repeated host is refused (`BD-A1-53`).
 - Every `allowlist` entry must be a subset of that provider's `aliases`.
 - No host can belong to two different providers.
 - Every loaded provider `config.id` must exist in `hosts.json`, and every `hosts.json` entry must have a loaded provider when the server starts (`loadProviders(runtime)` with no selection).
@@ -57,7 +57,7 @@ At startup, `loadProviders(runtime)` and `loadHostManifest(manifestPath)` in `te
 
 ## Scenario Options (`POST /__sim/scenarios`)
 
-`runtime.scenario(input)` validates every key against `SCENARIO_OPTIONS` and `DR_OPTIONS` (`tests/sim/core/runtime.mjs`). Unknown or misspelt keys fail closed with `400` (`Unknown scenario option "<key>" (did you mean "<closest>"?)`). Every option defaults to the baseline M1/M2 behaviour (and baseline `/__sim/records` keys) when omitted. Re-posting an existing `id` moves that scenario to the newest position and marks it as the active scenario for its provider.
+`runtime.scenario(input)` validates every key against `SCENARIO_OPTIONS` and `DR_OPTIONS` (`tests/sim/core/runtime.mjs`). Unknown or misspelt keys fail closed with `400` (`Unknown scenario option "<key>" (did you mean "<closest>"?)`). Every option defaults to the baseline M1/M2 behaviour (and baseline `/__sim/records` keys) when omitted. Re-posting an existing `id` moves that scenario to the newest position and marks it as the active scenario for its provider. The active scenario of a provider is the scenario of its latest POST or latest auth request; `?scenario=<id>` overrides it.
 
 ### `scenario()` Return Shape
 

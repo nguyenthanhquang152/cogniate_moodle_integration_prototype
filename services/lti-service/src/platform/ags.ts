@@ -33,6 +33,8 @@ export interface AgsContext {
   platform: Platform;
   agsClaim: Record<string, unknown> | null;
   traceId: string;
+  /** The deployment of the launch or service key, for the client assertion (LA-ADR-02 D2 assertionDeploymentId). */
+  deploymentId?: string;
 }
 
 export interface LineItem {
@@ -229,7 +231,7 @@ export interface AgsClientDeps {
 export function createAgsClient(deps: AgsClientDeps) {
   const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   async function call(ctx: AgsContext, scope: string, url: string, init: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; accept: string; contentType?: string; body?: string }): Promise<OutboundResponse> {
-    const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId);
+    const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId, { deploymentId: ctx.deploymentId });
     let res: OutboundResponse;
     try {
       res = await deps.outbound.request(url, {

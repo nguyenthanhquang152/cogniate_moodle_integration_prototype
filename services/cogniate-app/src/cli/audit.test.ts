@@ -93,16 +93,15 @@ describe('app:audit list (AC-LA-E5-11-07)', () => {
     expect(existsSync(join(dir, 'cogniate.db'))).toBe(false);
   });
 
-  // B-LA-E5-11-01, BD-A2-59: one row per code with its exact text. The message never repeats an input value.
+  // B-LA-E5-11-01, BD-A2-62: one row per code with the exact LA-ADR-07 D4 text. The message never repeats an input value.
   it.each([
     ['arguments_invalid', ['list', '--conection', 'con-typo'],
-      'Use: app:audit list [--connection <id>] [--action <name>] [--since <ISO date-time>] [--limit <1-500>]. Run app:audit --help for the options.'],
+      'Usage: app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]. Run app:audit --help for the options.'],
     ['connection_invalid', ['list', '--connection', '  '], 'Give --connection a connection id that is not empty.'],
-    ['action_invalid', ['list', '--action', ''], 'Give --action an action name that is not empty, for example grant.issue.'],
-    ['limit_invalid', ['list', '--limit', '501'], 'Give --limit a whole number from 1 to 500.'],
-    ['since_invalid', ['list', '--since', '2026-10-22'], 'Give --since an ISO 8601 date-time with an offset, for example 2026-10-22T00:00:00Z.'],
-    ['audit_read_failed', ['list'], 'Cannot read the audit table in cogniate.db in DATA_DIR (default /data/cogniate.db): the file is missing, '
-      + 'cannot be read, or is not migrated. Run the command in the cogniate-app container, or set DATA_DIR to the folder of the app database.'],
+    ['action_invalid', ['list', '--action', ''], 'Give --action an audit action name that is not empty, for example grant.issue.'],
+    ['limit_invalid', ['list', '--limit', '501'], 'Give --limit a whole number from 1 to 500 (default 100).'],
+    ['since_invalid', ['list', '--since', '2026-10-22'], 'Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z.'],
+    ['audit_read_failed', ['list'], 'The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR).'],
   ])('gives %s with its fixed message', (reason, args, message) => {
     const dir = temp();
     const line = runAuditCli(args, { DATA_DIR: dir }).lines[0]!;

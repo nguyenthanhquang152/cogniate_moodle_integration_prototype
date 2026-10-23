@@ -14,7 +14,7 @@ import { createNrpsClient } from '../platform/nrps.ts';
 import { createScoreClock } from '../platform/score-clock.ts';
 import { createTokenClient } from '../platform/token-client.ts';
 import { ensureAccount } from '../store/accounts.ts';
-import { listAuditEvents, withAudit } from '../store/audit.ts';
+import { insertAuditEvent, listAuditEvents, withAudit } from '../store/audit.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { issueOperatorKey } from '../store/operator-keys.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
@@ -192,6 +192,22 @@ describe('metrics collection', () => {
     expect(text).toContain('lti_audit_events_total{action="settings.rate_limits",result="ok"} 1\n');
     expect(text).not.toContain('lti_audit_events_total{action="account.update",result="ok"}');
     expect(text).not.toContain('action="api_key.issue"');
+  });
+
+  it('BD-A2-74: an audit insert inside a transaction opened with raw SQL throws before the insert and counts nothing', async () => {
+    const h = await setup();
+    const input = { actor: { type: 'system' as const, id: 'unit' }, toolAccountId: 'cogniate', traceId: null, clientIp: null,
+      action: 'account.update', target: { type: 'account', id: 'cogniate' }, result: 'ok' as const };
+    for (const end of ['ROLLBACK', 'COMMIT']) {
+      h.db.exec('BEGIN IMMEDIATE');
+      expect(() => insertAuditEvent(h.db, input, h.clock.now)).toThrow(new TypeError('transaction opened outside transaction()'));
+      h.db.exec(end);
+    }
+    expect(listAuditEvents(h.db, { limit: 10 }).events).toEqual([]);
+    expect(await scrape(h)).not.toContain('lti_audit_events_total{action="account.update"');
+    // Autocommit still counts at once.
+    insertAuditEvent(h.db, input, h.clock.now);
+    expect(await scrape(h)).toContain('lti_audit_events_total{action="account.update",result="ok"} 1\n');
   });
 
   it('counts the committed key-rewrap completion event once (BD-A2-60)', async () => {

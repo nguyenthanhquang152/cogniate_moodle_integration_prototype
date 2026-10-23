@@ -37,7 +37,9 @@ it('AC-LA-E5-19-05: adds the runner tables to an upgraded M1 fixture without cha
     const keys = db.prepare('SELECT * FROM api_key').all();
     db.close();
     db = openDb(file);
-    expect(db.prepare('SELECT * FROM tool_account').all()).toEqual(before);
+    // Later migrations may add columns (019: auto_rotate); the existing columns keep their values.
+    expect(db.prepare('SELECT * FROM tool_account').all().map((row) => Object.fromEntries(Object.keys(before[0]!).map((key) => [key, row[key]]))))
+      .toEqual(before);
     expect(db.prepare('SELECT * FROM api_key').all()).toEqual(keys);
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
     expect(db.prepare('SELECT * FROM job_lease').all()).toEqual([]);
@@ -59,6 +61,16 @@ it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before 
     expect(() => createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
     expect(() => createLtiJobRunner({ db, logger, keys, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
+    // LA-E5-20: the list that GET /operator/v1/jobs shows.
+    expect(createLtiJobRunner({ db, logger, keys, env: {} }).jobs).toEqual([
+      { name: 'retention', everyMs: 600_000 }, { name: 'audit-retention', everyMs: 86_400_000 },
+      { name: 'signing-key-cleanup', everyMs: 86_400_000 }, { name: 'key-rewrap', everyMs: null },
+      { name: 'api-key-expiry', everyMs: 3_600_000 }, { name: 'idempotency-cleanup', everyMs: 3_600_000 },
+      { name: 'signing-key-rotation', everyMs: 86_400_000 }, { name: 'account-purge', everyMs: 86_400_000 },
+    ]);
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { CLOSED_ACCOUNT_RETENTION_DAYS: '0' } })).toThrow('CLOSED_ACCOUNT_RETENTION_DAYS');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { SIGNING_KEY_ROTATE_DAYS: '7' } })).toThrow('SIGNING_KEY_ROTATE_DAYS');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { SIGNING_KEY_PUBLISH_LEAD_S: '60' } })).toThrow('SIGNING_KEY_PUBLISH_LEAD_S');
   } finally { db.close(); }
 });
 

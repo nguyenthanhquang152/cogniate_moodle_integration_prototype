@@ -4,6 +4,7 @@ import { sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../api-errors.ts';
 import { CLAIM } from '../lti/checks.ts';
+import { preflightCreateLineItem } from '../platform/ags.ts';
 import { insertAuditEvent } from '../store/audit.ts';
 import type { AuditTarget } from '../store/audit.ts';
 import { abandonIdempotency, claimIdempotency, completeIdempotency, isFinalStatus } from '../store/idempotency.ts';
@@ -26,11 +27,13 @@ interface RouteRule { schemes: Scheme[]; target: TargetOf; action?: string; targ
 const lineItemTarget: TargetOf = (ctx, req, caller) => {
   // agsContext runs the binding checks of platformOf (account, platform active, deployment active, generation).
   const ags = agsContext(ctx, caller, req.traceId);
+  // BD-A2-71: the read-only create preflight of the route (line items URL, URL rule, lineitem scope), before the claim.
+  const { url } = preflightCreateLineItem(ags);
+  // LA-E3-03: no context is context id "", for a launch and for its service key alike.
   const contextId = caller.launch ? claimObject(caller.launch.claims[CLAIM.context])?.id : caller.serviceKey?.contextId;
   return {
     platformId: ags.platform.id, deploymentId: caller.launch?.deploymentId ?? caller.serviceKey?.deploymentId ?? null,
-    contextId: typeof contextId === 'string' ? contextId : null,
-    lineItemsUrl: typeof ags.agsClaim?.lineitems === 'string' ? ags.agsClaim.lineitems : null,
+    contextId: typeof contextId === 'string' ? contextId : '', lineItemsUrl: url,
   };
 };
 
@@ -73,9 +76,14 @@ export function installIdempotency(app: FastifyInstance, ctx: Ctx): void {
       action: rule.action, target: target ?? { type: rule.targetType, id: null }, result, code, details,
     }, ctx.now());
   };
-  // The plugin selects routes by template. A renamed route must stop the start, not switch the plugin off.
+  // The plugin selects routes by their exact template. A renamed route, also a renamed path parameter, must stop the
+  // start, not switch the plugin off. Install the plugin before the routes, so that onRoute sees them.
+  const templates = new Set<string>();
+  app.addHook('onRoute', (route) => {
+    if ([route.method].flat().includes('POST')) templates.add(route.url);
+  });
   app.addHook('onReady', async () => {
-    const missing = Object.keys(ROUTES).filter((url) => !app.hasRoute({ method: 'POST', url }));
+    const missing = Object.keys(ROUTES).filter((url) => !templates.has(url));
     if (missing.length > 0) {
       throw new Error(`Idempotency-Key: no POST route ${missing.join(', ')}. Update ROUTES in http/idempotency.ts to the new route template.`);
     }

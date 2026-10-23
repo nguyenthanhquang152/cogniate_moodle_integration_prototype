@@ -122,7 +122,12 @@ describe('LA-E4-03 lti-ags record reporter, throttling, and read-back guard (K0 
     expect(scoreSyncHits.length, 'M1 score_sync value present in lti-ags/records').toBeGreaterThan(0);
     expect(syncPrefixHits.length, 'M1 sync_ prefix present in lti-ags/records').toBeGreaterThan(0);
 
-    // 3. Round 2 unit test suites (`drivers/lti-ags/**`, `kernel/records/**`, `app/results.test.ts`, `packages/tracking/src/tracking.test.ts`) pass.
+    // 3. Round 3 (9e4bc18 / A-LA-E4-03-03): app migration 017_record_dispatch_pause.sql exists and defines the partial index.
+    const mig017Rel = 'services/cogniate-app/src/domain/migrations/017_record_dispatch_pause.sql';
+    expect(fs.existsSync(path.join(ROOT, mig017Rel)), `${mig017Rel} exists`).toBe(true);
+    expect(fs.readFileSync(path.join(ROOT, mig017Rel), 'utf8')).toContain('record_dispatch_pause');
+
+    // 4. Round 2/3 unit test suites (`drivers/lti-ags/**`, `kernel/records/**`, `app/results.test.ts`, `packages/tracking/src/tracking.test.ts`) pass.
     const r2Res = await run(
       'npx',
       [
@@ -142,6 +147,13 @@ describe('LA-E4-03 lti-ags record reporter, throttling, and read-back guard (K0 
       { timeoutMs: 5 * 60_000 },
     );
     artifact('e4-03-r2-unit-suites.log', r2Res.output);
-    expect(r2Res.code, `LA-E4-03 Round 2 unit suites exit 0:\n${r2Res.output}`).toBe(0);
+    expect(r2Res.code, `LA-E4-03 Round 2/3 unit suites exit 0:\n${r2Res.output}`).toBe(0);
+    for (const marker of [
+      'A-LA-E4-03-03: a carrier that failed at its window end still pauses a new learner until exactly retryAt',
+      'A-LA-E4-03-03: a carrier that failed at its window end still pauses a better result of the same learner until exactly retryAt',
+      'A-LA-E4-03-01, A-LA-E4-03-03: the pause check reads every row status through the record_dispatch_pause index',
+    ]) {
+      expect(r2Res.output, `Round 3 unit output cites ${marker}`).toContain(marker);
+    }
   });
 });

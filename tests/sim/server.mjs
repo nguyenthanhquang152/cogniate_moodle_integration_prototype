@@ -70,6 +70,9 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
       if (!isSimHost(host)) {
         throw new Error(`Invalid simulator alias host ${String(host)} in ${entry.id}`);
       }
+      if (aliasSet.has(host)) {
+        throw new Error(`Duplicate simulator alias host ${host} in ${entry.id}`);
+      }
       if (hostOwner.has(host) && hostOwner.get(host) !== entry.id) {
         throw new Error(`Duplicate simulator host ${host} across providers ${hostOwner.get(host)} and ${entry.id}`);
       }
@@ -84,10 +87,11 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
       if (!aliasSet.has(host)) {
         throw new Error(`Simulator allowlist host ${host} in ${entry.id} is not in aliases`);
       }
+      if (allowSet.has(host)) {
+        throw new Error(`Duplicate simulator allowlist host ${host} in ${entry.id}`);
+      }
       allowSet.add(host);
     }
-    entry.aliases = [...aliasSet];
-    entry.allowlist = [...allowSet];
   }
   return manifest;
 }
