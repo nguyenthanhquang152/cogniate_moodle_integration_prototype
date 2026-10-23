@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -44,3 +44,23 @@ Reviewer-B: Can a human team own it? Reviewed `c4efc406`, merged as `b207706d`, 
 - The author diff changes only the permitted new guide. No core paths, LMS-specific code, base operator guide or architecture file changed. Ownership is respected. This review changes only this Reviewer-B file; no other reviewer's file was opened.
 
 Open findings: **0 BLOCKER, 1 MAJOR, 2 MINOR**. Approval waits for B-LA-E8-04-01.
+
+## Round 2
+
+Verdict: **APPROVE**. Reviewed `ce9b0b22`, merged as `c2326c9b`. **No open Reviewer-B findings.**
+
+| Finding | Status | Evidence in `docs/guides/ltiaas/operator-runbook.md` |
+| --- | --- | --- |
+| B-LA-E8-04-01 (MAJOR) | Closed | Lines 567–599 and 833–855: `409` starts no run and returns to the POST after a wait. Only a `202` supplies the trace used for completion. Both procedures now cover a skipped lease, failure to start and missing completion output, with a retry path. Re-wrap completion still requires the system event and zero old sealed counts; removing a key also requires zero derived counts. The new log commands match the logger's JSON-lines output and the Compose log mount. |
+| B-LA-E8-04-02 (MINOR) | Closed | Lines 323–343 split giving another operator a key from replacing one's own key. The first path retains the original key; the second checks the new key before revoking the old one and explains the self-revocation refusal. |
+| B-LA-E8-04-03 (MINOR) | Closed | Lines 466–467 separate revocation from expiry and label expiry as UNIT with a controlled clock. The guide conservatively leaves other revocation schemes pending reconciliation of the QA report; the SIM log evidence noted in Round 1 remains available. |
+
+Verification:
+
+- Fresh private `git clone --no-hardlinks` at `/tmp/la-e8-04-r2-review-b-_d4hq8qo/repo`, pinned to `c2326c9b3c6412d2d07754df7ed5e4eb97b711c7`. Used only the host shell, Node built-ins and an owned loopback fake server. No dependencies were installed, and no Docker or stack ran.
+- **144/144 helper cases passed** in bash and zsh using the exact revised helper bodies and a local `dc` shim. Coverage includes 13 damaged-key forms, missing files and directories used as files; valid keys with surrounding whitespace; HTTP success/error responses; retained error codes, fields, reasons and retry delay; non-JSON errors and echoed request keys; connection loss, interrupted bodies and thrown request errors; tenant URL fallback; and the intentional once-only output of a newly issued key. Bad key files send no request. Tested failures print fixed diagnostics without request-key values or fragments.
+- The same embedded-newline checks against the pre-fix helpers fail in **all four cases** (two authenticated helpers × two shells), showing that the checks detect the old behavior. Evidence: `helper-review.py`, `helper-review.log`, `helper-summary.json` and `helper-results.json` in the private clone's parent folder.
+- Both new log commands pass with isolated JSON-lines fixtures in both shells (**4/4**). All relative file links and local heading links resolve. Reviewed the changed labels against task/QA evidence and the BD-A2-105 notes against Compose, bootstrap/reset behavior and operability.
+- The change remains confined to the permitted new guide. No product code, architecture, base guide or core LMS paths changed. There are no UNIT ACs for this documentation task. The task's command-by-command SIM verification remains QA work, explicitly pending in the guide; these local checks do not replace it.
+
+Round 1 is preserved above. This round changes only this Reviewer-B report; no other reviewer's file was opened. Open findings: **0 BLOCKER, 0 MAJOR, 0 MINOR**.
