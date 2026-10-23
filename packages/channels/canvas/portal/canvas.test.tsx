@@ -330,29 +330,58 @@ it("AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits wit
   expect(JSON.parse(init.body as string)).toEqual({ clientId: "10000000000042", deploymentId: "43:def", grantCode: "one-use-code" });
 });
 
-it("BD-A2-101: a registered or connected connection has a closed Key JSON section that loads only when opened", async () => {
+it("BD-A2-101/102: a registered or connected connection has a closed Key JSON section; only Copy or Download fetch the JSON", async () => {
   const panels = (current: Connection) => render(h(MemoryRouter, null, ...canvasModule.connectionPanels!.map((Panel, index) =>
     h(Panel, { key: index, connection: current, sdk: createPortalSdk(() => undefined) }))));
-  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith("/tool-configuration")
-    ? json([]) : new Response('{\n  "title": "Cogniate"\n}\n', { headers: { "x-cogniate-key-id": "key-1" } })));
+  const exports = () => fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/canvas-configuration"));
+  const text = '{\n  "title": "Cogniate"\n}\n';
+  fetchMock.mockImplementation(() => Promise.resolve(new Response(text, { headers: { "x-cogniate-key-id": "key-9" } })));
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+  vi.stubGlobal("URL", class extends URL { static override createObjectURL = vi.fn().mockReturnValue("blob:key"); static override revokeObjectURL = vi.fn(); });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   for (const status of ["registered", "connected"] as const) {
     const view = panels({ ...connection, status });
     const summary = screen.getByText("Key JSON");
     expect(summary.closest("details")!.open).toBe(false);
-    // A closed section makes no export request, so a page view never changes the recorded artifact key (LA-E6-05).
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
     fireEvent.click(summary);
     expect(summary.closest("details")!.open).toBe(true);
-    await waitFor(() => expect((screen.getByRole("button", { name: "Download JSON" }) as HTMLButtonElement).disabled).toBe(false));
-    expect(fetchMock.mock.calls.map(([url]) => url)).toContain("/app-api/connections/con_canvas/canvas-configuration");
-    expect(screen.getByLabelText("Put a copy of the current public key in the JSON")).toBeTruthy();
+    // Opening, switching the key form and closing again fetch and record nothing (BD-A2-102).
+    const form = screen.getByLabelText("Put a copy of the current public key in the JSON");
+    fireEvent.click(form);
+    fireEvent.click(form);
+    fireEvent.click(summary);
+    fireEvent.click(summary);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Download JSON" }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(exports()).toEqual(["/app-api/connections/con_canvas/canvas-configuration"]);
+    fireEvent.click(screen.getByLabelText("Put a copy of the current public key in the JSON"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy JSON" }));
+    expect(await screen.findByText("Copied")).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith(text);
+    expect(exports()).toEqual(["/app-api/connections/con_canvas/canvas-configuration", "/app-api/connections/con_canvas/canvas-configuration?jwk=inline"]);
+    expect(screen.getByText("Key id in this JSON: key-9")).toBeTruthy();
     view.unmount();
     fetchMock.mockClear();
+    click.mockClear();
+    writeText.mockClear();
   }
   for (const status of ["pending", "disabled"] as const) {
     const view = panels({ ...connection, status });
     expect(screen.queryByText("Key JSON")).toBeNull();
     view.unmount();
   }
+});
+
+it("BD-A2-102: a failed copy shows the fetched JSON in a text box", async () => {
+  const text = '{\n  "title": "Cogniate"\n}\n';
+  fetchMock.mockImplementation(() => Promise.resolve(new Response(text)));
+  Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
+  render(h(MemoryRouter, null, h(canvasModule.connectionPanels![1]!, { connection: { ...connection, status: "connected" }, sdk: createPortalSdk(() => undefined) })));
+  fireEvent.click(screen.getByText("Key JSON"));
+  fireEvent.click(screen.getByRole("button", { name: "Copy JSON" }));
+  expect(await screen.findByText("Copy failed. Select the JSON and copy it.")).toBeTruthy();
+  expect((screen.getByRole("textbox", { name: "Copy JSON manually" }) as HTMLTextAreaElement).value).toBe(text);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
 });
