@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import type { Connection, ConnectionHealth as Health } from "../types.ts";
-import { ConnectionHealth, healthWarnings } from "./ConnectionHealth.tsx";
+import { ConnectionHealth, healthWarnings, isHealth } from "./ConnectionHealth.tsx";
 
 const fetchMock = vi.fn();
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
@@ -19,10 +19,10 @@ function health(over: { keys?: Partial<Health["keys"]>; dispatch?: Partial<Healt
     lastCheck: null, events: [], ...rest,
   };
 }
-const connection = (channel = "canvas"): Connection => ({
+const connection = (channel = "canvas", status: Connection["status"] = "connected"): Connection => ({
   id: `con_${channel}`, channel, lms: channel, name: "School", siteUrl: "https://school.test", serviceUrl: "https://school.test", profile: "p",
   capabilities: { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false },
-  method: "manual", status: "connected", registrationUrl: null, registrationUrlExpiresAt: null, createdAt: "2026-10-23T00:00:00Z", lastLaunchAt: null,
+  method: "manual", status, registrationUrl: null, registrationUrlExpiresAt: null, createdAt: "2026-10-23T00:00:00Z", lastLaunchAt: null,
   webServices: null, platform: null, lastError: null,
 });
 
@@ -88,4 +88,51 @@ describe("connection health warnings (LA-ADR-08 D5; AC-LA-E6-02-08)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(document.querySelectorAll("[data-health-warning]")).toHaveLength(0);
   });
+
+  // A-LA-E6-02-01, B-LA-E6-02-02: a malformed value inside the answer never reaches the render.
+  const valid = health({ lastLaunchRefusal: { reason: "site_mismatch", at: iso(NOW) }, lastCheck: { at: iso(NOW), jwks: true, token: true },
+    dispatch: { lastError: { code: "PLATFORM_ERROR", at: iso(NOW) } }, events: [{ kind: "check", code: "ok", at: iso(NOW) }] });
+  it.each<[string, unknown]>([
+    ["a null event", { ...valid, events: [null] }],
+    ["an event without kind", { ...valid, events: [{ code: "ok", at: iso(NOW) }] }],
+    ["an object as event code", { ...valid, events: [{ kind: "check", code: {}, at: iso(NOW) }] }],
+    ["an event without time", { ...valid, events: [{ kind: "check", code: "ok" }] }],
+    ["an object as grade error code", { ...valid, dispatch: { ...valid.dispatch, lastError: { code: {}, at: iso(NOW) } } }],
+    ["a text as pending count", { ...valid, dispatch: { ...valid.dispatch, pending: "2" } }],
+    ["an object as active key id", { ...valid, keys: { ...valid.keys, activeKid: {} } }],
+    ["a text as key state", { ...valid, keys: { ...valid.keys, artifactKeyCurrent: "no" } }],
+    ["a refusal without time", { ...valid, lastLaunchRefusal: { reason: "site_mismatch" } }],
+    ["a text as check result", { ...valid, lastCheck: { at: iso(NOW), jwks: "yes", token: true } }],
+    ["an array as dispatch", { ...valid, dispatch: [] }],
+  ])("shows the not-available state for %s", async (_name, answer) => {
+    expect(isHealth(answer)).toBe(false);
+    fetchMock.mockResolvedValue(json(answer));
+    render(<ConnectionHealth connection={connection()} />);
+    expect(await screen.findByText(/The connection health is not available/)).toBeTruthy();
+    expect(document.querySelectorAll("[data-health-warning]")).toHaveLength(0);
+  });
+  it("accepts a complete answer", () => {
+    expect(isHealth(valid)).toBe(true);
+  });
+
+  // B-LA-E6-02-01: the backlog help names only what the page has and shows.
+  const backlog = (lastError: Health["dispatch"]["lastError"] = { code: "PLATFORM_ERROR", at: iso(NOW) }) =>
+    health({ dispatch: { pending: 2, oldestPendingAt: iso(Date.now() - 2 * 3_600_000), lastError } });
+  const helpLines = async () => [...(await screen.findByText(/Some grades wait more than 1 hour/)).parentElement!.querySelectorAll("p")].slice(1).map((p) => p.textContent);
+  it("names Check connection when that panel is on the page, and the values to give the operator", async () => {
+    fetchMock.mockResolvedValue(json(backlog()));
+    render(<ConnectionHealth connection={connection("canvas", "connected")} />);
+    expect(await helpLines()).toEqual([
+      "Select Check connection to test the connection to Canvas.",
+      `If the grades still wait, give your Cogniate operator the connection name "School" and the last grade error PLATFORM_ERROR at ${new Date(NOW).toLocaleString()}.`,
+    ]);
+  });
+  it.each([["moodle", "connected"], ["blackboard", "registered"], ["canvas", "disabled"], ["canvas", "pending"]] as const)(
+    "does not name Check connection for %s (%s), where that panel is not on the page", async (channel, status) => {
+      fetchMock.mockResolvedValue(json(backlog(null)));
+      render(<ConnectionHealth connection={connection(channel, status)} />);
+      expect(await helpLines()).toEqual(['Give your Cogniate operator the connection name "School".']);
+      expect(screen.queryByText(/Check connection/)).toBeNull();
+      expect(screen.queryByText(/trace id/)).toBeNull();
+    });
 });
