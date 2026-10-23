@@ -11,7 +11,8 @@ import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 
 const id = z.string().min(1).max(2048);
-const RevokeBody = z.object({ platformId: id, deploymentId: id.optional(), contextId: id.optional(), resourceLinkId: id.optional() }).strict();
+// BD-A2-76: an empty context selects launches without a context; omission selects every context.
+const RevokeBody = z.object({ platformId: id, deploymentId: id.optional(), contextId: z.string().max(2048).optional(), resourceLinkId: id.optional() }).strict();
 
 /** Untrusted body values never become audit details before validation. */
 export function serviceKeyRevokeTarget(body: unknown): { type: string; id: string | null } {
