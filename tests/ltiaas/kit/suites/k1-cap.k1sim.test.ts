@@ -1,92 +1,115 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CONNECTION_GUARDED_CAPABILITIES,
   isConnectionGuardedOff,
+  LEGACY_FLAG_KEYS,
+  loadChannelManifestCapabilities,
   loadSelectedChannelFixtures,
   verifyBilateralCapabilities,
 } from '../lib/fixtures.js';
 import {
-  appApi,
-  APP_URL,
+  app,
+  ChannelBinding,
+  denied,
+  endConnection,
   ensureKitRunInitialized,
-  httpRequest,
-  isK1SimEnabled,
-  performSimulatorLaunch,
-  recordRedactedEvidence,
-  RegisteredChannelContext,
+  expectStatus,
+  launchOnChannel,
+  NEGATIVE_GUARD_SPECS,
+  publication,
+  PublicationRef,
+  runCapabilityGuardProbe,
   runKitCase,
-  setupActiveChannelConnection,
+  setupChannelBinding,
+  uniqueId,
 } from '../lib/runtime.js';
 
-const runSuite = isK1SimEnabled() ? describe : describe.skip;
 const fixtures = loadSelectedChannelFixtures();
 
-runSuite('K1-CAP: Bilateral Capability Equality, Negative Guards & Disconnect Suite', () => {
+describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Disconnect across selected channels', () => {
   beforeAll(() => {
     ensureKitRunInitialized({ channels: fixtures.map((f) => f.id) });
   });
 
   for (const fixture of fixtures) {
     describe(`channel: ${fixture.id}`, () => {
-      let ctx: RegisteredChannelContext;
+      let binding: ChannelBinding;
+      let pub: PublicationRef;
 
       beforeAll(async () => {
-        ctx = await setupActiveChannelConnection(fixture, 'cap');
+        binding = await setupChannelBinding(fixture);
+        pub = await publication(binding, 'scorm12');
       });
 
-      it(`[${fixture.id}:K1-CAP:C1] bilateral capability equality across manifest, fixture, /app-api/lms-providers, /app-api/connections/:id, legacyFlags, and toolConfigurationKeys`, async () => {
-        await runKitCase(fixture.id, 'K1-CAP', 'C1', async () => {
-          const session = { cookie: ctx.cookie, csrf: ctx.csrf };
+      afterAll(async () => {
+        if (binding) {
+          await endConnection(binding.session, binding.connection.id);
+        }
+      });
 
-          const provRes = await appApi('/app-api/lms-providers', session);
-          expect(provRes.status).toBe(200);
-          const providers = (
-            provRes.json as {
-              providers?: Array<{
-                id: string;
-                channelCapabilities?: Record<string, unknown>;
-                capabilities?: Record<string, unknown>;
-              }>;
-            }
-          ).providers;
-          const providerEntry = providers?.find((p) => p.id === fixture.id);
+      it(`${fixture.id}:K1-CAP:C1 — Bilateral capability equality across manifest, fixture, GET /app-api/lms-providers, GET /app-api/connections/:id, legacyFlags, and toolConfigurationKeys`, async () => {
+        await runKitCase(fixture.id, 'K1-CAP', 'C1', async () => {
+          const s = binding.session;
+
+          // 1. GET /app-api/lms-providers -> { lms: [...] } with entry.lms, entry.channel, and legacy flags (cogniate-app-api.md §4.3; cogniate-app-api-delta.md §2)
+          const providersRes = await app(s, 'GET', '/app-api/lms-providers');
+          expectStatus(providersRes, 200);
+          const providerEntry = (
+            providersRes.json.lms as Array<Record<string, unknown>>
+          ).find((p) => p.lms === fixture.id);
           expect(providerEntry).toBeDefined();
 
-          const connRes = await appApi(`/app-api/connections/${ctx.connectionId}`, session);
-          expect(connRes.status).toBe(200);
-          const connBody = connRes.json as {
-            channelCapabilities?: Record<string, unknown>;
-            capabilities?: Record<string, unknown>;
-          };
+          const providerLegacyFlags: Record<string, unknown> = {};
+          for (const flag of LEGACY_FLAG_KEYS) {
+            providerLegacyFlags[flag] = (
+              providerEntry!.capabilities as Record<string, unknown>
+            )[flag];
+          }
 
-          const tcRes = await appApi(
-            `/app-api/connections/${ctx.connectionId}/tool-configuration`,
-            session,
+          // 2. GET /app-api/connections/:id -> connection.channel + connection.capabilities (cogniate-app-api.md §4.5; cogniate-app-api-delta.md §2)
+          const connRes = await app(
+            s,
+            'GET',
+            `/app-api/connections/${binding.connection.id}`,
           );
-          expect(tcRes.status).toBe(200);
-          const tcBody = tcRes.json as { rows?: Array<{ key: string }> };
-          const toolConfigurationKeys = (tcBody.rows ?? []).map((r) => r.key);
+          expectStatus(connRes, 200);
+          const connObj = connRes.json.connection as Record<string, unknown>;
+          const connLegacyFlags: Record<string, unknown> = {};
+          for (const flag of LEGACY_FLAG_KEYS) {
+            connLegacyFlags[flag] = (
+              connObj.capabilities as Record<string, unknown>
+            )[flag];
+          }
 
-          const check = verifyBilateralCapabilities({
+          // 3. GET /app-api/connections/:id/tool-configuration -> fields[].key (cogniate-app-api-delta.md §3.6)
+          const toolCfgRes = await app(
+            s,
+            'GET',
+            `/app-api/connections/${binding.connection.id}/tool-configuration`,
+          );
+          expectStatus(toolCfgRes, 200);
+          const toolKeys = (
+            toolCfgRes.json.fields as Array<{ key: string }>
+          ).map((f) => f.key);
+
+          // 4. Channel manifest capabilities from packages/lms-channels/channels/<id>/manifest.json (LA-ADR-01 §D6)
+          const manifestCapabilities = loadChannelManifestCapabilities(fixture);
+
+          const bilateral = verifyBilateralCapabilities({
             fixture,
-            manifestCapabilities: fixture.capabilities as unknown as Record<string, unknown>,
+            manifestCapabilities,
             providerChannelCapabilities:
-              providerEntry!.channelCapabilities as Record<string, unknown>,
-            providerLegacyFlags: providerEntry!.capabilities as Record<string, unknown>,
+              ((providerEntry!.channel as Record<string, unknown> | undefined)
+                ?.capabilities as Record<string, unknown>) ?? {},
+            providerLegacyFlags,
             connectionChannelCapabilities:
-              connBody.channelCapabilities as Record<string, unknown>,
-            connectionLegacyFlags: connBody.capabilities as Record<string, unknown>,
-            toolConfigurationKeys,
+              ((connObj.channel as Record<string, unknown> | undefined)
+                ?.capabilities as Record<string, unknown>) ?? {},
+            connectionLegacyFlags: connLegacyFlags,
+            toolConfigurationKeys: toolKeys,
           });
-          expect(check.errors).toEqual([]);
-          expect(check.ok).toBe(true);
-
-          recordRedactedEvidence(`cap-c1-${fixture.id}`, {
-            channelId: fixture.id,
-            bilateralOk: check.ok,
-            toolConfigurationKeyCount: toolConfigurationKeys.length,
-            redacted: true,
-          });
+          expect(bilateral.errors).toEqual([]);
+          expect(bilateral.ok).toBe(true);
         });
       });
 
@@ -94,122 +117,59 @@ runSuite('K1-CAP: Bilateral Capability Equality, Negative Guards & Disconnect Su
         if (fixture.notBuilt?.[cap]) {
           continue;
         }
-        if (!isConnectionGuardedOff(cap, fixture.capabilities[cap])) {
-          continue;
-        }
-
-        it(`[${fixture.id}:K1-CAP:C2:${cap}] negative capability guard for ${cap}`, async () => {
-          await runKitCase(fixture.id, 'K1-CAP', `C2:${cap}`, async () => {
-            const session = { cookie: ctx.cookie, csrf: ctx.csrf };
-
-            if (cap === 'registration.dynamic') {
-              const drPageRes = await httpRequest(
-                `${APP_URL}/tool/register?connectionId=${ctx.connectionId}&openid_configuration=${encodeURIComponent(
-                  `${fixture.sim.siteUrl}/.well-known/openid-configuration`,
-                )}`,
-                { method: 'GET' },
-              );
-              expect(drPageRes.status).toBeGreaterThanOrEqual(400);
-            } else if (cap === 'deployments.multiple') {
-              const depRes = await appApi(
-                `/app-api/connections/${ctx.connectionId}/deployments`,
-                session,
-                {
-                  method: 'POST',
-                  body: { deploymentId: ctx.secondaryDeploymentId },
-                },
-              );
-              expect(depRes.status).toBe(409);
-              expect(depRes.rawBody).toContain('CAPABILITY_NOT_SUPPORTED');
-            } else if (cap === 'setup.artifacts') {
-              const tcRes = await appApi(
-                `/app-api/connections/${ctx.connectionId}/tool-configuration`,
-                session,
-              );
-              expect(tcRes.status).toBe(200);
-              const tcJson = tcRes.json as {
-                rows?: Array<{ key: string }>;
-                developerKeyJson?: unknown;
-              };
-              expect(tcJson.developerKeyJson).toBeUndefined();
-              const rowKeys = (tcJson.rows ?? []).map((r) => r.key);
-              expect(rowKeys).not.toContain('lti_json');
-            } else if (cap === 'siteApi.token') {
-              const wsRes = await appApi(
-                `/app-api/connections/${ctx.connectionId}/web-service-token`,
-                session,
-                {
-                  method: 'PUT',
-                  body: { token: 'probe-ws-token-12345' },
-                },
-              );
-              expect(wsRes.status).toBe(409);
-              expect(wsRes.rawBody).toContain('CAPABILITY_NOT_SUPPORTED');
-            } else if (cap === 'publish.createCourse') {
-              const shellRes = await appApi(
-                `/app-api/courses/${ctx.courseId}/create-shell`,
-                session,
-                {
-                  method: 'POST',
-                  body: { connectionId: ctx.connectionId },
-                },
-              );
-              expect(shellRes.status).toBe(409);
-              expect(shellRes.rawBody).toContain('CAPABILITY_NOT_SUPPORTED');
-            } else if (cap === 'setup.connectionCheck') {
-              const checkRes = await appApi(
-                `/app-api/connections/${ctx.connectionId}/check`,
-                session,
-                {
-                  method: 'POST',
-                  body: {},
-                },
-              );
-              expect(checkRes.status).toBe(409);
-              expect(checkRes.rawBody).toContain('CAPABILITY_NOT_SUPPORTED');
-            } else if (cap === 'content.ungraded') {
-              const dlNoGrade = await performSimulatorLaunch(ctx, {
-                messageType: 'LtiDeepLinkingRequest',
-                roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-                acceptLineitem: false,
+        if (isConnectionGuardedOff(cap, fixture.capabilities[cap])) {
+          const spec = NEGATIVE_GUARD_SPECS[cap];
+          if (spec) {
+            it(`${fixture.id}:K1-CAP:C2:${cap} — Negative capability guard for ${cap}: route/UI refuses action when capability is false/empty`, async () => {
+              await runKitCase(fixture.id, 'K1-CAP', `C2:${cap}`, async () => {
+                await runCapabilityGuardProbe(binding, spec);
               });
-              expect(dlNoGrade.playOrPickerRes?.status).toBe(403);
-              expect(dlNoGrade.playOrPickerRes?.rawBody).toContain('PLACEMENT_NOT_GRADED');
-            }
-          });
-        });
+            });
+          }
+        }
       }
 
-      it(`[${fixture.id}:K1-CAP:C3] disconnect disables target connection while other connections on the channel remain active`, async () => {
+      it(`${fixture.id}:K1-CAP:C3 — Disconnect disables connection or deployment (PLATFORM_NOT_ACTIVE / DEPLOYMENT_NOT_ACTIVE) while leaving other connections on the channel working`, async () => {
         await runKitCase(fixture.id, 'K1-CAP', 'C3', async () => {
-          const disconnectCtx = await setupActiveChannelConnection(
-            {
-              ...fixture,
-              sim: {
-                ...fixture.sim,
-                deployments: [ctx.secondaryDeploymentId, ctx.deploymentId],
-              },
-            },
-            'cap-disconnect',
-          );
+          const isShared = fixture.capabilities['platform.sharing'] === 'shared';
+          const b1 = await setupChannelBinding(fixture, {
+            library: uniqueId(`lib-c3-1-${fixture.id}`),
+            clientId: isShared ? binding.clientId : uniqueId(`c3-1-${fixture.id}`),
+            deploymentId: uniqueId(`dep-c3-1-${fixture.id}`),
+          });
+          const b2 = await setupChannelBinding(fixture, {
+            library: uniqueId(`lib-c3-2-${fixture.id}`),
+            clientId: isShared ? binding.clientId : uniqueId(`c3-2-${fixture.id}`),
+            deploymentId: uniqueId(`dep-c3-2-${fixture.id}`),
+          });
 
-          const delRes = await appApi(
-            `/app-api/connections/${disconnectCtx.connectionId}`,
-            { cookie: disconnectCtx.cookie, csrf: disconnectCtx.csrf },
-            { method: 'DELETE' },
-          );
-          expect([200, 204]).toContain(delRes.status);
+          try {
+            const pub1 = await publication(b1, 'scorm12');
+            const pub2 = await publication(b2, 'scorm12');
 
-          const deadLaunch = await performSimulatorLaunch(disconnectCtx, {});
-          expect(deadLaunch.launchRes.status).toBeGreaterThanOrEqual(400);
-          expect(deadLaunch.launchRes.rawBody).toMatch(
-            /PLATFORM_NOT_ACTIVE|DEPLOYMENT_NOT_ACTIVE/i,
-          );
+            // DELETE /app-api/connections/:id disconnects b1 (cogniate-app-api.md §4.9)
+            const delRes = await app(
+              b1.session,
+              'DELETE',
+              `/app-api/connections/${b1.connection.id}`,
+            );
+            expectStatus(delRes, 200);
+            expect(delRes.json.connection.status).toBe('disconnected');
 
-          // Primary connection on the same channel still launches cleanly
-          const siblingLaunch = await performSimulatorLaunch(ctx, {});
-          expect([302, 303]).toContain(siblingLaunch.launchRes.status);
-          expect(siblingLaunch.ltik.length).toBeGreaterThan(10);
+            // Launch on disconnected b1 is refused with 403 PLATFORM_NOT_ACTIVE (exclusive) or DEPLOYMENT_NOT_ACTIVE (shared)
+            const launch1 = await launchOnChannel(b1, { resource: pub1.id });
+            const expectedCode = isShared
+              ? 'DEPLOYMENT_NOT_ACTIVE'
+              : 'PLATFORM_NOT_ACTIVE';
+            denied(launch1.response, expectedCode, 403);
+
+            // Launch on b2 on the same channel still succeeds
+            const launch2 = await launchOnChannel(b2, { resource: pub2.id });
+            expect(launch2.response.status).toBe(303);
+          } finally {
+            await endConnection(b1.session, b1.connection.id);
+            await endConnection(b2.session, b2.connection.id);
+          }
         });
       });
     });

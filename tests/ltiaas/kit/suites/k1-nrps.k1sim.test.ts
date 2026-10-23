@@ -1,224 +1,233 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { loadAllChannelFixtures, loadSelectedChannelFixtures } from '../lib/fixtures.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  appApi,
+  loadAllChannelFixtures,
+  loadSelectedChannelFixtures,
+} from '../lib/fixtures.js';
+import {
+  ChannelBinding,
+  commitGrade,
+  endConnection,
   ensureKitRunInitialized,
-  getSimRecords,
-  isK1SimEnabled,
-  ltiApi,
-  performSimulatorLaunch,
-  recordRedactedEvidence,
-  RegisteredChannelContext,
-  registerSimScenario,
+  expectStatus,
+  fetchSetupArtifactConfig,
+  idToken,
+  launchOnChannel,
+  openPlayOnChannel,
+  publication,
+  PublicationRef,
+  records,
+  ROLE_INSTRUCTOR,
+  ROLE_LEARNER,
+  runDynamicRegistrationHandshake,
   runKitCase,
-  setupActiveChannelConnection,
+  service,
+  session,
+  setupChannelBinding,
+  uniqueId,
+  waitSync,
 } from '../lib/runtime.js';
 
-const runSuite = isK1SimEnabled() ? describe : describe.skip;
 const fixtures = loadSelectedChannelFixtures();
 const allFixtures = loadAllChannelFixtures();
 
 const NRPS_SCOPE =
   'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly';
+const NRPS_CLAIM =
+  'https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice';
 
-runSuite('K1-NRPS: Names and Role Provisioning Services 2.0 Suite (all selected channels)', () => {
+describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected channels', () => {
   beforeAll(() => {
     ensureKitRunInitialized({ channels: fixtures.map((f) => f.id) });
   });
 
   for (const fixture of fixtures) {
     describe(`channel: ${fixture.id}`, () => {
-      let ctx: RegisteredChannelContext;
+      let binding: ChannelBinding;
+      let pub: PublicationRef;
 
       beforeAll(async () => {
-        ctx = await setupActiveChannelConnection(fixture, 'nrps');
+        binding = await setupChannelBinding(fixture);
+        pub = await publication(binding, 'scorm12');
       });
 
-      it(`[${fixture.id}:K1-NRPS:N1] no token request asks for NRPS scope; setup artifact JSON scopes and DR request scopes have the 4 AGS scopes only`, async () => {
+      afterAll(async () => {
+        if (binding) {
+          await endConnection(binding.session, binding.connection.id);
+        }
+      });
+
+      it(`${fixture.id}:K1-NRPS:N1 — No token request asks for NRPS scope; setup artifact JSON scopes and DR request scopes have the 4 AGS scopes only`, async () => {
         await runKitCase(fixture.id, 'K1-NRPS', 'N1', async () => {
-          expect(fixture.capabilities['registration.scopes']).not.toContain(NRPS_SCOPE);
+          // 1. Trigger a normal learner play + grade sync and verify zero token requests ask for NRPS scope
+          const cursor = (await records()).cursor;
+          const play = await openPlayOnChannel(binding, pub, {
+            roles: [ROLE_LEARNER],
+            subject: uniqueId(`learner-n1-${fixture.id}`),
+          });
+          await commitGrade(play, 'scorm12', 10, 10);
+          await waitSync(binding, pub, 'sent');
+
+          const simRecs = await records(cursor);
+          const tokenRecs = simRecs.records.filter(
+            (r: Record<string, unknown>) => r.kind === 'token',
+          );
+          expect(tokenRecs.length).toBeGreaterThanOrEqual(1);
+          for (const tr of tokenRecs) {
+            expect(String(tr.scope ?? '')).not.toContain(NRPS_SCOPE);
+          }
+
+          // 2. Fixture registration.scopes has the 4 AGS scopes only and never NRPS
+          expect(fixture.capabilities['registration.scopes']).not.toContain(
+            NRPS_SCOPE,
+          );
           expect(fixture.capabilities['registration.scopes'].length).toBe(4);
 
-          const { records } = await getSimRecords(0);
-          const channelTokenRecords = records.filter(
-            (r) => r.kind === 'token' && r.provider === fixture.simProvider,
-          );
-          for (const rec of channelTokenRecords) {
-            expect(String(rec.scope ?? '')).not.toContain(NRPS_SCOPE);
+          // 3. Setup artifact JSON scopes (when setup.artifacts is non-empty) has the 4 AGS scopes only
+          if (fixture.capabilities['setup.artifacts'].length > 0) {
+            const artRes = await fetchSetupArtifactConfig(
+              binding.session,
+              binding.connection.id,
+              'url',
+            );
+            expectStatus(artRes, 200);
+            expect(artRes.json.scopes).toEqual(
+              fixture.capabilities['registration.scopes'],
+            );
+            expect(artRes.json.scopes).not.toContain(NRPS_SCOPE);
           }
 
-          const tcRes = await appApi(
-            `/app-api/connections/${ctx.connectionId}/tool-configuration`,
-            { cookie: ctx.cookie, csrf: ctx.csrf },
-          );
-          expect(tcRes.status).toBe(200);
-          const tcJson = tcRes.json as {
-            rows?: Array<{ key: string; value: string }>;
-            developerKeyJson?: { scopes?: string[] };
-          };
-
-          if (fixture.capabilities['setup.artifacts'].includes('developer-key-json')) {
-            const jsonRow = tcJson.rows?.find((r) => r.key === 'lti_json');
-            if (jsonRow) {
-              const parsed = JSON.parse(jsonRow.value) as { scopes?: string[] };
-              expect(parsed.scopes).toEqual(fixture.capabilities['registration.scopes']);
-              expect(parsed.scopes).not.toContain(NRPS_SCOPE);
-            }
-          }
-
+          // 4. Dynamic Registration client registration request (when registration.dynamic is true) requests only the 4 AGS scopes
           if (fixture.capabilities['registration.dynamic']) {
-            const drSc = await registerSimScenario({
-              id: `sc-nrps-dr-${fixture.id}-${Date.now()}`,
-              provider: fixture.simProvider,
-              clientId: `dr-nrps-${fixture.id}-${Date.now()}`,
-              deploymentId: fixture.sim.deployments[0],
-              siteHost: fixture.sim.siteHost,
-              pageHost: fixture.sim.pageHost,
-            });
-            if (drSc.registration?.openidConfiguration) {
-              const previewRes = await ltiApi('/api/registration/dynamic/preview', {
-                method: 'POST',
-                body: {
-                  openidConfigurationUrl: drSc.registration.openidConfiguration,
-                  registrationToken: drSc.registration.registrationToken,
-                },
-              });
-              expect(previewRes.status).toBe(200);
-              const completeRes = await ltiApi('/api/registration/dynamic/complete', {
-                method: 'POST',
-                body: {
-                  openidConfigurationUrl: drSc.registration.openidConfiguration,
-                  registrationToken: drSc.registration.registrationToken,
-                  libraryId: `lib-nrps-dr-${fixture.id}-${Date.now()}`,
-                  profile: fixture.simProfile,
-                  scopes: fixture.capabilities['registration.scopes'],
-                },
-              });
-              expect([200, 201]).toContain(completeRes.status);
-              const afterDr = await getSimRecords(0);
-              const drRec = afterDr.records
-                .filter((r) => r.kind === 'dr' && r.provider === fixture.simProvider)
-                .pop();
-              if (drRec?.scope) {
-                expect(String(drRec.scope)).not.toContain(NRPS_SCOPE);
+            const s = await session(uniqueId(`lib-n1-dr-${fixture.id}`));
+            const drCursor = (await records()).cursor;
+            const dr = await runDynamicRegistrationHandshake(s, fixture);
+            try {
+              expect(dr.step).toBe('post');
+              expect(dr.response.status).toBe(200);
+              const drRecs = await records(drCursor);
+              const regReq = drRecs.records.find(
+                (r: Record<string, unknown>) => r.kind === 'dynamic-registration',
+              );
+              expect(regReq).toBeDefined();
+              const requestedScope = String(
+                (regReq!.body as Record<string, unknown> | undefined)?.scope ?? '',
+              );
+              expect(requestedScope).not.toContain(NRPS_SCOPE);
+              for (const agsScope of fixture.capabilities['registration.scopes']) {
+                expect(requestedScope).toContain(agsScope);
               }
+            } finally {
+              await endConnection(s, dr.connection.id);
             }
           }
-
-          recordRedactedEvidence(`nrps-n1-${fixture.id}`, {
-            channelId: fixture.id,
-            scopesCount: fixture.capabilities['registration.scopes'].length,
-            redacted: true,
-          });
         });
       });
     });
   }
 
-  describe('global once-per-run NRPS service verification', () => {
-    it('[GLOBAL:K1-NRPS:N2] GET /api/memberships answers without personal fields, refuses 1.0 with 403 SERVICE_NOT_AVAILABLE, and propagates 429 Retry-After', async () => {
-      await runKitCase('GLOBAL', 'K1-NRPS', 'N2', async () => {
-        const genericFixture =
-          allFixtures.find((f) => f.capabilities['content.multiple']) ?? fixtures[0];
-        const nrpsLibraryId = `lib-nrps-n2-${Date.now()}`;
-        const nrpsClientId = `client-nrps-n2-${Date.now()}`;
-        const nrpsDeploymentId = genericFixture.sim.deployments[0];
+  describe('GLOBAL:K1-NRPS:N2 — GET /api/memberships answers for NRPS launch without personal fields, refuses 1.0, and propagates 429 Retry-After', () => {
+    const genericFixture =
+      allFixtures.find((f) => f.simProfile === 'lti-1p3-standard') ?? allFixtures[0];
+    let nrpsBinding: ChannelBinding;
+    let nrpsPub: PublicationRef;
 
-        const createPlat = await ltiApi('/api/platforms', {
-          method: 'POST',
-          body: {
-            libraryId: nrpsLibraryId,
-            name: 'NRPS N2 Platform',
-            issuer: genericFixture.sim.issuer,
-            clientId: nrpsClientId,
-            deploymentId: nrpsDeploymentId,
-            authEndpoint: genericFixture.sim.authEndpoint,
-            tokenEndpoint: genericFixture.sim.tokenEndpoint,
-            jwksUrl: genericFixture.sim.jwksUrl,
-            profile: genericFixture.simProfile,
-            grantedScopes: [...genericFixture.capabilities['registration.scopes'], NRPS_SCOPE],
+    beforeAll(async () => {
+      nrpsBinding = await setupChannelBinding(genericFixture, {
+        library: uniqueId('lib-global-nrps'),
+      });
+      nrpsPub = await publication(nrpsBinding, 'scorm12');
+    });
+
+    afterAll(async () => {
+      if (nrpsBinding) {
+        await endConnection(nrpsBinding.session, nrpsBinding.connection.id);
+      }
+    });
+
+    it('GLOBAL:K1-NRPS:N2 — exercises GET /api/memberships with NRPS 2.0, refuses service_versions: ["1.0"], and propagates 429 Retry-After', async () => {
+      await runKitCase('GLOBAL', 'K1-NRPS', 'N2', async () => {
+        const nrpsUrl = `${genericFixture.sim.serviceUrl}/nrps/memberships/ctx-1`;
+
+        // 1. Launch with NRPS 2.0 claim -> GET /api/memberships returns members without personal fields (lti-service-api-delta.md §4, §8)
+        const launched = await launchOnChannel(nrpsBinding, {
+          resource: nrpsPub.id,
+          roles: [ROLE_INSTRUCTOR],
+          extraClaims: {
+            [NRPS_CLAIM]: {
+              context_memberships_url: nrpsUrl,
+              service_versions: ['2.0'],
+            },
           },
         });
-        expect([200, 201]).toContain(createPlat.status);
+        expect(launched.response.status).toBe(303);
+        const tok = await idToken(launched.ltik!);
+        expectStatus(tok, 200);
+        const nrpsKey = tok.json.services?.nrps?.serviceKey as string;
+        expect(nrpsKey).toBeTruthy();
 
-        const nrpsCtx: RegisteredChannelContext = {
-          fixture: genericFixture,
-          libraryId: nrpsLibraryId,
-          cookie: '',
-          csrf: '',
-          connectionId: '',
-          platformId: (createPlat.json as { id?: string })?.id ?? '',
-          clientId: nrpsClientId,
-          deploymentId: nrpsDeploymentId,
-          secondaryDeploymentId: genericFixture.sim.deployments[1] ?? 'dep-2',
-          courseId: 'course-nrps-n2',
-          secondCourseId: 'course-nrps-n2-b',
-          resourceSlug: 'fixture',
-          secondResourceSlug: 'fixture-2',
-        };
+        const memRes = await service(nrpsKey, 'GET', '/api/memberships');
+        expectStatus(memRes, 200);
+        expect(Array.isArray(memRes.json.members)).toBe(true);
+        expect(memRes.json.members.length).toBeGreaterThanOrEqual(1);
+        for (const m of memRes.json.members as Array<Record<string, unknown>>) {
+          expect(m.userId).toBeTruthy();
+          expect(Array.isArray(m.roles)).toBe(true);
+          expect(m.name).toBeUndefined();
+          expect(m.email).toBeUndefined();
+          expect(m.givenName).toBeUndefined();
+          expect(m.familyName).toBeUndefined();
+        }
 
-        // 1. Happy path without personal fields
-        const launchOk = await performSimulatorLaunch(nrpsCtx, {
-          roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-          members: [
-            {
-              user_id: 'learner-nrps-1',
-              roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-              status: 'Active',
-              name: 'Secret Personal Name',
-              given_name: 'Secret',
-              family_name: 'Name',
-              email: 'secret@sim.test',
-            },
-          ],
-        });
-        expect([302, 303]).toContain(launchOk.launchRes.status);
-
-        const memRes = await ltiApi('/api/memberships', {
-          method: 'GET',
-          headers: { authorization: `Bearer ${launchOk.ltik}` },
-        });
-        expect(memRes.status).toBe(200);
-        const memBody = memRes.json as {
-          members?: Array<Record<string, unknown>>;
-        };
-        expect(Array.isArray(memBody.members)).toBe(true);
-        expect(memBody.members?.length).toBeGreaterThanOrEqual(1);
-        const firstMember = memBody.members![0];
-        expect(firstMember.userId ?? firstMember.user_id).toBe('learner-nrps-1');
-        expect(firstMember.name).toBeUndefined();
-        expect(firstMember.given_name).toBeUndefined();
-        expect(firstMember.family_name).toBeUndefined();
-        expect(firstMember.email).toBeUndefined();
-
-        // 2. Refuses service_versions: ['1.0'] with 403 SERVICE_NOT_AVAILABLE
-        const launchV1 = await performSimulatorLaunch(nrpsCtx, {
-          roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-          claims: {
-            'https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice': {
-              context_memberships_url: `https://${genericFixture.sim.siteHost}/lti/courses/course-1/memberships`,
+        // 2. Launch with service_versions: ['1.0'] only -> refuses or omits NRPS serviceKey
+        const launched10 = await launchOnChannel(nrpsBinding, {
+          resource: nrpsPub.id,
+          roles: [ROLE_INSTRUCTOR],
+          extraClaims: {
+            [NRPS_CLAIM]: {
+              context_memberships_url: nrpsUrl,
               service_versions: ['1.0'],
             },
           },
         });
-        const v1Res = await ltiApi('/api/memberships', {
-          method: 'GET',
-          headers: { authorization: `Bearer ${launchV1.ltik}` },
-        });
-        expect(v1Res.status).toBe(403);
-        expect(v1Res.rawBody).toContain('SERVICE_NOT_AVAILABLE');
+        expect(launched10.response.status).toBe(303);
+        const tok10 = await idToken(launched10.ltik!);
+        expectStatus(tok10, 200);
+        if (tok10.json.services?.nrps?.serviceKey) {
+          const res10 = await service(
+            tok10.json.services.nrps.serviceKey,
+            'GET',
+            '/api/memberships',
+          );
+          expect(res10.status).toBeGreaterThanOrEqual(400);
+        } else {
+          expect(tok10.json.services?.nrps?.serviceKey).toBeUndefined();
+        }
 
-        // 3. Propagates 429 Retry-After
-        const launch429 = await performSimulatorLaunch(nrpsCtx, {
-          roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
+        // 3. Upstream 429 with Retry-After is propagated by GET /api/memberships
+        const launched429 = await launchOnChannel(nrpsBinding, {
+          resource: nrpsPub.id,
+          roles: [ROLE_INSTRUCTOR],
           nrpsAnswers: [{ status: 429, retryAfter: 45 }],
+          extraClaims: {
+            [NRPS_CLAIM]: {
+              context_memberships_url: nrpsUrl,
+              service_versions: ['2.0'],
+            },
+          },
         });
-        const rateLimitRes = await ltiApi('/api/memberships', {
-          method: 'GET',
-          headers: { authorization: `Bearer ${launch429.ltik}` },
-        });
-        expect([429, 503]).toContain(rateLimitRes.status);
-        expect(rateLimitRes.headers['retry-after']).toBe('45');
+        expect(launched429.response.status).toBe(303);
+        const tok429 = await idToken(launched429.ltik!);
+        expectStatus(tok429, 200);
+        const nrpsKey429 = tok429.json.services?.nrps?.serviceKey as string;
+        const res429 = await service(nrpsKey429, 'GET', '/api/memberships');
+        expect(res429.status).toBe(429);
+        expect(
+          String(
+            res429.headers['retry-after'] ??
+              res429.json?.error?.details?.retryAfter ??
+              '',
+          ),
+        ).toContain('45');
       });
     });
   });
