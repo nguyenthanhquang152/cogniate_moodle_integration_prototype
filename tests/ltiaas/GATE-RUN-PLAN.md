@@ -1,8 +1,8 @@
 # LTIAAS Wave-End Gate Run Plan (Host-Only Prepared Runbook)
 
-- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614`, `task_67cd3791548e`, and `task_6aae0ea0cac1` / `ctx_d1f5887e528a`)
-- **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation; Slot 3B executed in authorized `DOCKER-YES` window `16:55Z–17:48Z`)
-- **Wave-End Candidate SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (`80133d6b`, product code `02f5d420`; includes `BD-A2-103` `LA-E3-02` storage-check CSP `form-action` fix; Lead check green: `3306` unit, `255` infra, `145` K0, F1 `0`, F5 `6` rules; `LD-9` round 8 approved by both Reviewer-A and Reviewer-B in `fd146062`)
+- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614`, `task_67cd3791548e`, `task_6aae0ea0cac1`, and `task_f58735a7596f` / `ctx_27248ee34e63`)
+- **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation; Slot 3B executed `16:55Z–17:48Z`; Slot 7 executed `18:26Z–19:15Z`)
+- **Wave-End Candidate SHA (Slot 3B):** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (`80133d6b`, product code `02f5d420`). **Re-Gate Candidate SHA (Slot 3C & Slot 8):** `$WAVE_SHA_2` (to be named by the Lead after the `BD-A2-109` `WE-F4` stop-order fixes from lanes R and S1 merge and pass the full host check; also includes `BD-A2-108` `ecc19bbc` `admin` `1200/min`, burst `600` and `BD-A2-106` `60230165` hosted Canvas wizard help sentence).
 - **Intake / `G-BASE` SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`1b17261b`, product code `9f8ac62`)
 - **Pre-Staged Host-Only Gate Assets (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE`, mode `0700`):**
   - **Wave-End Test Source Repo (Slots 3B & 8):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`
@@ -31,12 +31,13 @@
 | **Slot 5** | QA-4 | `E1/E2/E3/E5/E7` LTI & sim tasks (`15` suites PASS) | `qa4-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`a11268c5`) |
 | **Slot 6 R1/R2** | QA-E2E | `LA-E7-09` (`R2-SIM` PASS), `LA-E3-16` (`PASS`), `LA-E7-07` (`K2` R3 next on `80133d6b`) | `qa-e2e-la-*` | `9643` / `172.22.0.0/16` | **`25 min`** | **R3 NEXT** |
 | **LA-E5-13 SIM** | Lead QA | `LA-E5-13` `AC-01, -02, -03, -05` `K1-SIM` + `AC-06` `K0` on `fd146062` | `qalead-la-8..9` | `9443` / `172.20.0.0/16` | — | **DONE** (`43d5073c`) |
-| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (`280/280` explained), `M1 migration` (`10 PASS` + `M3-ISOLATION` env note), `snapshot-upgrade` (`M1-38.h1..h5` `5/5 PASS`; `ERROR` `FAIL`, `M1-41.common.j-snapshot` not run), `U1` SIM (`37 PASS, 6 INFO`), `M1 sim` (`376/394 PASS, 18 FAIL, 1 ERROR`), `M2` (`64/64 PASS` + `M3-06-M2` env note) | `qalead-la-10..15` | `9473` / `172.23.0.0/16` | **`51 min`** (`16:57Z–17:48Z`) | **DONE (`FAIL` — `WE-F1..F5`, `docs/reviews/LA-E7-08/qa.md` §5)** |
-| **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `357d1799` `--test-sha` (one stack at a time: Run 7A `M1 sim`, `M2`, `M1 migration`, `M1 snapshot-upgrade`, `rate-peaks.mjs`, `docker stats` peak; then Run 7B `T7×3` after 7A is fully down; no legacy `T1–T8`) | `qalead-la-16..20` | `9643` / `172.22.0.0/16` (7A SIM) then `9543` / `172.21.0.0/16` (7B Moodle) | **`80 min` sequential** (`42m` Run 7A SIM + `38m` Run 7B `T7×3`, one stack at a time) | **READY** |
-| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `80133d6b` (code `02f5d420`): `T7×1` + `R2-lite` (`T2a..T8`, including `T4a`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + all 12 task `MOODLE-LIVE` rows + QA-E2E `K2` `U1`/`U2` & `LA-E3-05` `AC-04, 11` | `qalead-la-30..36` | `9543` / `172.21.0.0/16` | **`57 min` Lead QA** (`+20 min` QA-E2E = **`77 min`**) | **READY** |
+| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (`280/280` explained), `M1 migration` (`12/12 PASS` in `m1-case-results.json`), `snapshot-upgrade` (`M1-38.h1..h5` `5/5 PASS`; `ERROR` `FAIL`, `M1-41.common.j-snapshot` not run), `U1` SIM (`37 PASS, 6 INFO`), `M1 sim` (`376/394 PASS, 18 FAIL, 1 ERROR`), `M2` (`64/64 PASS` + `M3-06-M2` env note) | `qalead-la-10..15` | `9473` / `172.23.0.0/16` | **`51 min`** (`16:57Z–17:48Z`) | **DONE (`FAIL` — `WE-F1..F5`, `docs/reviews/LA-E7-08/qa.md` §5)** |
+| **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `357d1799` `--test-sha` (Run 7A `M1 sim` `394/394 PASS`, `M2` `64/64 PASS`, `M1 migration` `12/12 PASS`, `M1 snapshot-upgrade` `6/6 PASS`; Run 7B `T7×3` `3×17 PASS + 1 SKIP`; `WE-F4` baseline `7/7 PASS` with `8.2–8.4 s` restarts) | `qalead-la-16..20` | `9643` / `172.22.0.0/16` (7A SIM) then `9543` / `172.21.0.0/16` (7B Moodle) | **`48 min` actual** (`18:26Z–19:15Z`, one stack at a time) | **DONE (`PASS` — `56038618`, `docs/reviews/LA-E0-02/qa.md`)** |
+| **Slot 3C** | Lead QA | Wave-end SIM re-gate (`LA-E7-08`) on `$WAVE_SHA_2` in `src-wave-end-2` (`--test-sha $WAVE_TEST_SHA_2` = `8ad12926` overlay commit + approved `ld9-addendum-r1.md` Round 2 commit): `M1 sim` (`394` rows, all `18` `WE` rows must `PASS`), `M1 snapshot-upgrade` (`6` rows incl. `M1-41.common.j-snapshot`), `M2` (`64` cases), `G1–G4` golden capture & compare (`U1` and `M1 migration` not rerun — `0` migrations changed since `80133d6b`) | `qalead-la-40..43` | `9473` / `172.23.0.0/16` | **`35 min` sequential** (`24m` `M1 sim` + `3m` `snapshot-upgrade` + `4m` `M2` + `4m` `G1–G4`) | **READY (Pending Lead `$WAVE_SHA_2` & Addendum R2 Approval)** |
+| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `$WAVE_SHA_2` in `src-wave-end-2`: `T7×1` + `R2-lite` (`T2a..T8`, including `T4a`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + all 12 task `MOODLE-LIVE` rows + QA-E2E `K2` `U1`/`U2` & `LA-E3-05` `AC-04, 11` | `qalead-la-30..36` | `9543` / `172.21.0.0/16` | **`57 min` Lead QA** (`+20 min` QA-E2E = **`77 min`**) | **READY** |
 
 > [!IMPORTANT]
-> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A), `qalead-la-8..9` (`LA-E5-13` SIM), and `qalead-la-10..15` (Slot 3B) have already been used. Slots 7 and 8 exclusively use **`qalead-la-16..36`**.
+> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A), `qalead-la-8..9` (`LA-E5-13` SIM), `qalead-la-10..15` (Slot 3B), and `qalead-la-16..20` (Slot 7) have already been used. **Slot 8** reserves **`qalead-la-30..36`**, and **Slot 3C** exclusively uses **`qalead-la-40..43`**.
 
 ---
 
@@ -210,7 +211,152 @@ docker network ls --filter "name=qalead-la-"
 
 ---
 
-## 4. Slot 7: Intake `1b17261` (`G-BASE`) Baseline (`LA-E0-02`) + `LD-1` Parity (`LA-E0-04`)
+## 3C. Slot 3C: Wave-End SIM-Lane Re-Gate (`LA-E7-08`) on New Candidate SHA (`$WAVE_SHA_2`)
+
+- **Target Candidate SHA (`$WAVE_SHA_2`):** The integration commit after the `WE-F4` stop-order fixes from lanes **R** and **S1** (`BD-A2-109`) merge and pass the full host check (named by the Lead). Also includes `BD-A2-108` (`ecc19bbc`: `lti-service` `admin` default `1200/min`, burst `600`) and `BD-A2-106` (`60230165`: hosted Canvas wizard help sentence).
+- **New Gate Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2` (never editing `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`, which stays frozen at `8ad1292687431b05bad6b5c070ab722e67714526`).
+- **Compose Projects:** `qalead-la-40`, `qalead-la-41`, `qalead-la-42`, `qalead-la-43` (`qalead-la-30..36` stay reserved for Slot 8).
+- **Port / Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16` (one LA stack at a time).
+- **Estimated Duration:** **`35 minutes` total** (`24m` `qalead-la-40` `M1 sim` + `3m` `qalead-la-41` `M1 snapshot-upgrade` + `4m` `qalead-la-42` `M2` + `4m` `qalead-la-43` `G1–G4` golden capture & compare).
+
+### (a) How `src-wave-end-2` Is Built (Two Explicit Commits on Top of `$WAVE_SHA_2` — Never an Amend)
+
+Once the Lead names `$WAVE_SHA_2` and both reviewers approve Round 2 of `docs/reviews/LA-E7-08/ld9-addendum-r1.md`, QA builds `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2` on the host (`0` Docker) and records all three 40-character SHAs (`$WAVE_SHA_2`, `$BASE_OVERLAY_SHA`, `$WAVE_TEST_SHA_2`):
+
+```bash
+umask 077
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export INTEG_REPO="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
+export SRC_WAVE="$GATE_DIR/src-wave-end"
+export SRC_WAVE_2="$GATE_DIR/src-wave-end-2"
+export WAVE_SHA_2="<40-char integration SHA named by the Lead>"
+
+# 1. Fresh clone --no-hardlinks at $WAVE_SHA_2:
+git clone --quiet --no-hardlinks "$INTEG_REPO" "$SRC_WAVE_2"
+git -C "$SRC_WAVE_2" checkout --quiet --detach "$WAVE_SHA_2"
+git -C "$SRC_WAVE_2" tag la-wave-end-product-2 "$WAVE_SHA_2"
+
+# 2. Commit 1: Apply the exact 8ad12926 test overlay from src-wave-end as one commit:
+git -C "$SRC_WAVE" fetch --quiet "$SRC_WAVE" 8ad1292687431b05bad6b5c070ab722e67714526
+git -C "$SRC_WAVE_2" fetch --quiet "$SRC_WAVE" 8ad1292687431b05bad6b5c070ab722e67714526
+git -C "$SRC_WAVE_2" checkout 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
+git -C "$SRC_WAVE_2" diff --exit-code 8ad1292687431b05bad6b5c070ab722e67714526 -- tests
+git -C "$SRC_WAVE_2" commit -m "QA gate test overlay: 8ad12926 base on $WAVE_SHA_2"
+export BASE_OVERLAY_SHA=$(git -C "$SRC_WAVE_2" rev-parse HEAD)
+git -C "$SRC_WAVE_2" tag la-gate-test-base-c1 "$BASE_OVERLAY_SHA"
+
+# 3. Commit 2: Apply the approved 3-file LD-9 Addendum Round 2 patch as a second commit (NEVER git commit --amend):
+python3 - << 'EOF' > "$GATE_DIR/addendum-r2.patch"
+import re
+doc = open("/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/docs/reviews/LA-E7-08/ld9-addendum-r1.md").read()
+r2 = doc.split("## Round 2", 1)[1]
+blocks = re.findall(r"```diff\n(.*?\n)```", r2, flags=re.S)
+assert len(blocks) == 4
+print(blocks[3], end="")
+EOF
+git -C "$SRC_WAVE_2" apply --check "$GATE_DIR/addendum-r2.patch"
+git -C "$SRC_WAVE_2" apply --index "$GATE_DIR/addendum-r2.patch"
+git -C "$SRC_WAVE_2" commit -m "QA gate test addendum r2: LA-IC-14 ref regex, LA-IC-22 99-logs, m1-migration path"
+export WAVE_TEST_SHA_2=$(git -C "$SRC_WAVE_2" rev-parse HEAD)
+git -C "$SRC_WAVE_2" tag la-gate-test-addendum-r2 "$WAVE_TEST_SHA_2"
+
+# 4. Verify SHAs, clean status, and K0 diff stat (AC-LA-E7-08-05 & AC-LA-E7-08-06):
+echo "WAVE_SHA_2=$WAVE_SHA_2"
+echo "BASE_OVERLAY_SHA=$BASE_OVERLAY_SHA"
+echo "WAVE_TEST_SHA_2=$WAVE_TEST_SHA_2"
+git -C "$SRC_WAVE_2" status --short
+git -C "$SRC_WAVE_2" diff --stat "$BASE_OVERLAY_SHA".."$WAVE_TEST_SHA_2"
+git -C "$SRC_WAVE_2" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6.."$WAVE_SHA_2" -- \
+  infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/
+```
+
+### (b) Slot 3C Run Set & Reason for Each Suite (Including Why `U1` and `M1 migration` Are Not Rerun)
+
+| Compose Project | Suite | Est. Minutes | Reason & Required Outcome |
+| --- | --- | --- | --- |
+| **`qalead-la-40`** | `M1 --phase sim --provider all` (`394` manifest rows) | **`24 min`** | Closes `AC-LA-E7-08-01` and proves all **`18` Slot 3B non-PASS rows now `PASS`** (`394/394` manifest rows `PASS`, `0` missing, `0` `ERROR` rows):<br>• **9 `WE-F1` rows** (`M1-13.blackboard.inactive`, `M1-25.blackboard.site-metadata`, `M1-14.blackboard.claims`, `M1-36.blackboard.{origin,path,query,encoded-dot,encoded-slash}`, `M1-08.canvas.login-redirect`) after the S1 `admin` default rate-limit fix (`1200/min`, burst `600`, `BD-A2-108` / `ecc19bbc`);<br>• **7 `WE-F4` rows** (`M1-37.blackboard.{d,o,v5}`, `M1-37.canvas.{d,s-dead,v4,v6}`) after the lanes R + S1 stop-order fix (`BD-A2-109`: listeners stop at once, HTTP cut after `3 s`, runner drain only), with `m1-restart cogniate-app` wall times recorded from `host-actions/*.json`;<br>• **1 `WE-F3` row** (`M1-15.canvas.dynamic-refused`) with Addendum Hunk 1 (`LA-IC-14` required `?ref=` 43-char regex);<br>• **1 `WE-F2` row** (`M1-24.common.event-shapes`) with Addendum Hunk 3 (`LA-IC-22` `launch_claims_minimized` `tool_account_id`). |
+| **`qalead-la-41`** | `M1 --phase snapshot-upgrade --provider all` (`6` manifest rows) | **`3 min`** | Closes `AC-LA-E7-08-04` and **`WE-F5`** (Addendum Hunk 2: `services/lti-service/src/db/migrations` in `tests/host/m1-migration.mjs:332`), proving all **`6/6` manifest rows `PASS`** (`M1-38.common.h1..h5` plus host qualification row **`M1-41.common.j-snapshot`** in `m1-case-results.json`, `0` `ERROR` rows in `summary.json`, and exact 21-file candidate migration ledger equality). |
+| **`qalead-la-42`** | `M2` browser suite (`64` manifest cases) | **`4 min`** | Closes `AC-LA-E7-08-01` (`64/64` `M2` cases `PASS`) on `$WAVE_SHA_2` because `cogniate-app` and the portal UI changed after `80133d6b`: specifically `LA-E3-16` hosted Canvas wizard help sentence (`BD-A2-106`, merged in `60230165`, touching the Canvas wizard tested by `M2-02`) and the `BD-A2-109` stop-order changes in `cogniate-app` and `lti-service`. |
+| **`qalead-la-43`** | Candidate golden capture `G1–G4` & host compare (`280` expected entries across `LA-IC-01..21`) | **`4 min`** | Closes `AC-LA-E7-08-03` (`LA-E0-03` golden comparison) on `$WAVE_SHA_2` because product code changed after `80133d6b` in three places: (1) `lti-service` `admin` default rate limit `1200/min`, burst `600` (`BD-A2-108`, `ecc19bbc`), (2) hosted Canvas wizard help text (`BD-A2-106`, `60230165`), and (3) `cogniate-app` + `lti-service` stop order (`BD-A2-109`). Confirms `280/280` explained golden entries, `0` unexplained differences, and `0` missing expected changes on `$WAVE_SHA_2`. |
+| **Not Rerun in Slot 3C** | `M1 --phase migration` (`qalead-la-11`) and `U1` SIM (`LA-E5-08` `qalead-la-13`, `LA-E5-22` `qalead-la-13b`) | **`0 min` (carried from Slot 3B on `80133d6b`)** | **Why `M1 migration` and `U1` do not need to run again:**<br>1. **No new SQL migration or schema change after `80133d6b`:** `git diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..$WAVE_SHA_2 -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` is **empty (`0` files changed)**; the migration ledgers remain `001_init.sql`..`021_registration_token_kind.sql` (`21` files in `lti-service`) and `001_init.sql`..`016_binding_authority.sql` (`16` files in `cogniate-app`).<br>2. **No change to `stack-data`, backup/restore, or `U1` key-sealing/backfill code after `80133d6b`:** None of `BD-A2-108` (`ecc19bbc`), `BD-A2-106` (`60230165`), or `BD-A2-109` (`89f72196`) touches migration SQL, backfill logic, key-provider sealing (`ltik1` / `cgk1`), or backup/restore scripts (QA verifies `git diff --stat 80133d6b..$WAVE_SHA_2` on those paths before starting Slot 3C).<br>3. **Already proven 100% `PASS` in Slot 3B (`docs/reviews/LA-E7-08/qa.md` §5.1 items 2, 4a, 4b):** `qalead-la-11` passed `12/12` `migration` manifest rows in `m1-case-results.json`, `qalead-la-13` passed `19/19` LTI `U1` assertions, and `qalead-la-13b` passed `18/18` app `U1` assertions. |
+
+### (c) Exact Commands for Slot 3C (`qalead-la-40..43`, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`, Est. `35 min` Sequential)
+
+```bash
+umask 077
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SLOT3C_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3C"
+export SRC_WAVE_2="$GATE_DIR/src-wave-end-2"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+export WAVE_SHA_2="<40-char integration SHA named by the Lead>"
+export WAVE_TEST_SHA_2=$(git -C "$SRC_WAVE_2" rev-parse la-gate-test-addendum-r2)
+export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
+export PUBLIC_PORT=9473
+export STACK_SUBNET="172.23.0.0/16"
+
+mkdir -p "$SLOT3C_DIR/logs" "$SLOT3C_DIR/docker-records" "$SLOT3C_DIR/artifacts"
+
+# ----------------------------------------------------------------------
+# Step 3C.1 (qalead-la-40, est. 24 min): M1 --phase sim --provider all (394 rows; all 18 WE rows must PASS)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-40 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE_2/tests/host/run-m1.mjs" \
+  --phase sim \
+  --provider all \
+  --sha "$WAVE_SHA_2" \
+  --test-sha "$WAVE_TEST_SHA_2" \
+  --source "$SRC_WAVE_2" \
+  > "$SLOT3C_DIR/logs/qalead-la-40-m1-sim.log" 2>&1
+mv "$SRC_WAVE_2"/tests/host/artifacts/qalead-la-40-* "$SLOT3C_DIR/artifacts/"
+
+# ----------------------------------------------------------------------
+# Step 3C.2 (qalead-la-41, est. 3 min): M1 --phase snapshot-upgrade --provider all (6 rows incl. M1-41.common.j-snapshot)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-41 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE_2/tests/host/run-m1.mjs" \
+  --phase snapshot-upgrade \
+  --provider all \
+  --sha "$WAVE_SHA_2" \
+  --test-sha "$WAVE_TEST_SHA_2" \
+  --source "$SRC_WAVE_2" \
+  > "$SLOT3C_DIR/logs/qalead-la-41-m1-snapshot-upgrade.log" 2>&1
+mv "$SRC_WAVE_2"/tests/host/artifacts/qalead-la-41-* "$SLOT3C_DIR/artifacts/"
+
+# ----------------------------------------------------------------------
+# Step 3C.3 (qalead-la-42, est. 4 min): M2 Browser Suite (64 cases)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-42 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_2/tests/e2e/host/run-m2.mjs" \
+  --sha "$WAVE_SHA_2" \
+  --test-sha "$WAVE_TEST_SHA_2" \
+  --source "$SRC_WAVE_2" \
+  > "$SLOT3C_DIR/logs/qalead-la-42-m2.log" 2>&1
+mv "$SRC_WAVE_2"/tests/host/artifacts/qalead-la-42-* "$SLOT3C_DIR/artifacts/"
+
+# ----------------------------------------------------------------------
+# Step 3C.4 (qalead-la-43, est. 4 min): Candidate Golden Capture G1-G4 + Compare (280 entries, 0 unexplained)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-43 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE_2/tests/ltiaas/golden/run-golden.mjs" \
+  --sha "$WAVE_SHA_2" \
+  --source "$SRC_WAVE_2" \
+  --workdir "$SLOT3C_DIR/qalead-la-43-golden" \
+  --replace-tests --tests-from "$SRC_WAVE_2/tests" \
+  --out "$SLOT3C_DIR/golden-capture-$WAVE_SHA_2" \
+  > "$SLOT3C_DIR/logs/qalead-la-43-golden-capture.log" 2>&1
+
+node "$SRC_WAVE_2/tests/ltiaas/golden/compare-golden.mjs" \
+  --base "$SRC_WAVE_2/tests/ltiaas/golden/$INTAKE_SHA" \
+  --candidate "$SLOT3C_DIR/golden-capture-$WAVE_SHA_2" \
+  --expected "LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21" \
+  --expected-dir "$SRC_WAVE_2/tests/ltiaas/golden/expected" \
+  --json > "$SLOT3C_DIR/logs/qalead-la-43-golden-compare.json"
+```
+
+---
+
+## 4. Slot 7: Intake `1b17261` (`G-BASE`) Baseline (`LA-E0-02`) + `LD-1` Parity (`LA-E0-04`) — DONE (`56038618`)
 
 - **Target SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`G-BASE`)
 - **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` (`--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`)
