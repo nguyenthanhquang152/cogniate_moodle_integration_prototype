@@ -247,7 +247,8 @@ describe('lti-generic (LA-E2-03)', () => {
     const app = await loadChannelFolders([PRODUCT_ROOT], 'app');
     expect(generic(app).appAdapter).toBeUndefined();
     const registry = buildChannelRegistry(app, { simulations: false });
-    expect(registry.textName('lti-generic')).toBe('your LMS');
+    // A1 BD-A1-111: the text name is 'LMS'; the templates add "your" or "this".
+    expect(registry.textName('lti-generic')).toBe('LMS');
     expect(registry.legacyCapabilities('lti-generic')).toEqual({ dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false });
     expect(registry.capabilities('lti-generic')).toMatchObject({
       'registration.dynamic': true, 'binding.authority': { dynamic: 'self', manual: 'operatorGrant' }, 'deployments.multiple': true, 'content.multiple': true,

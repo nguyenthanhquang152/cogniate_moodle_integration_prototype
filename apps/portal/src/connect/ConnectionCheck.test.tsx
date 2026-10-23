@@ -60,7 +60,8 @@ describe("Check connection panel (LA-ADR-08 D4; AC-LA-E6-01-09)", () => {
 
   it("fills {LMS} with the channel's text name", async () => {
     const notice = await runCheck("lti-generic", json(answer()));
-    expect(notice.getByText("Cogniate can reach your LMS.")).toBeTruthy();
+    // A1 BD-A1-111: the lti-generic text name is "LMS" (the portal template is "Cogniate can reach {LMS}.").
+    expect(notice.getByText("Cogniate can reach LMS.")).toBeTruthy();
   });
 
   it("shows the server refusal, for example the one-per-minute limit", async () => {
