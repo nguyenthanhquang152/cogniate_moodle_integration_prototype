@@ -222,12 +222,14 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
-    const inUse = (description?: string): never => {
+    const inUse = (stagedGone = false): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
+        // BD-A1-97, BD-A1-102: the cause in the description and in details.reason (the portal then shows this text).
+        : stagedGone ? new ApiError('PLATFORM_IN_USE', STAGED_GONE, { details: { reason: 'staged_gone' } })
         // BD-A1-101: the channel's texts.registration.PLATFORM_IN_USE with {LMS} filled, else the core default.
-        : new ApiError('PLATFORM_IN_USE', description ?? fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
+        : new ApiError('PLATFORM_IN_USE', fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
     };
     const stagedChanged = (fields: string[]): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
@@ -321,7 +323,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
             if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
             if (guard === 'stop') { stop = true; break; }
             // A staged registration has no S1 create, so no record means that its staged platform is gone.
-            return inUse(staged ? STAGED_GONE : undefined);
+            return inUse(staged);
           }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;

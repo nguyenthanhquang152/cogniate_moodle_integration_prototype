@@ -209,7 +209,7 @@ describe('LA-E4-05 process entries', () => {
 });
 
 describe('LA-E4-07 operator listener of the web entry', () => {
-  it('BD-A2-88: production refuses a non-loopback OPERATOR_HOST with one config_refused line before any port opens', async () => {
+  it('AC-LA-E4-07-01: production refuses a non-loopback OPERATOR_HOST with one config_refused line before any port opens', async () => {
     const f = fixture();
     const web = f.start('web', { OPERATOR_HOST: '0.0.0.0' });
     await vi.waitFor(() => expect(web.child.exitCode, web.output()).toBe(1), { timeout: 10_000, interval: 25 });
@@ -220,7 +220,7 @@ describe('LA-E4-07 operator listener of the web entry', () => {
     expect(readFileSync(web.logFile, 'utf8')).toContain('"reason":"operator_bind_not_loopback"');
   });
 
-  it.each([['on', true], ['off', false]])('AC-LA-E4-07-01: the listener answers on 127.0.0.1; send series only with the runner in the process (%s)', async (runner, sends) => {
+  it.each([['on', true], ['off', false]])('AC-LA-E4-07-01, AC-LA-E4-07-07: the listener answers on 127.0.0.1; send and job series only with the runner in the process (%s)', async (runner, sends) => {
     const f = fixture();
     const web = f.start('web', { APP_JOB_RUNNER: runner, JOB_INSTANCE_ID: `test-metrics-${runner}` });
     await vi.waitFor(() => expect(web.lines().some((line) => line.event === 'operator_listener_started'), web.output()).toBe(true), { timeout: 10_000, interval: 25 });
@@ -231,5 +231,9 @@ describe('LA-E4-07 operator listener of the web entry', () => {
     const metrics = await (await fetch(`http://${bind}/metrics`)).text();
     expect(metrics).toContain('# TYPE app_dispatch_sends counter');
     expect(metrics.includes('app_dispatch_sends_total{reporter="lti-ags",outcome="accepted"} 0')).toBe(sends);
+    if (!sends) expect(metrics).not.toMatch(/^app_(dispatch_sends_total|job_runs_total|job_last_success_timestamp_seconds)/m);
+    // The store-based series stay in both topologies.
+    expect(metrics).toContain('app_grant_redemptions_total{result="committed"} 0');
+    expect(metrics).toContain('app_dispatch_oldest_pending_seconds{reporter="lti-ags"} 0');
   });
 });
