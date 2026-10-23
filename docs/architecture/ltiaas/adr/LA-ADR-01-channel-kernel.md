@@ -128,7 +128,8 @@ export interface ChannelManifest {
     connectionCheck?: boolean;                // the "Check connection" panel (A2 LA-ADR-08 D4, Could)
     toolRows?: readonly { key: string; label: string; value: string }[];  // BD-A1-78: rows of the kernel admin-value
                                               // adapter; value = literal text + {toolName} {loginUrl} {launchUrl} {keysUrl}
-                                              // {deepLinkingUrl} {ltiHost} {scopes}; absent = the generic set (app delta §3.3)
+                                              // {deepLinkingUrl} {ltiHost} {scopes}; absent = the generic set (app delta §3.3);
+                                              // an E2-K kernel field (BD-A1-94), so a named kind A LMS adds only data
   };
   storage?: {                                   // D5 "Tables": what the channel's app/ SQL may name (Q-LAD-25)
     tables: string[];                           // Moodle: ['mbz_build']
