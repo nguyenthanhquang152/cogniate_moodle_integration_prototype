@@ -352,6 +352,26 @@ describe("manifest portal shell", () => {
     await screen.findByRole("button", { name: "Refresh status" });
     expect(screen.queryByRole("button", { name: "Check connection" }) !== null).toBe(shown);
   });
+  it.each(["registered", "connected"] as const)("the %s Canvas connection page: opening Key JSON and switching its form export nothing, and the stale-key warning stays (BD-A2-101/102)", async (status) => {
+    const manifest = channelRegistry.channel("canvas")!;
+    current = connection(manifest, { status, bindingAuthority: "operatorGrant" });
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => url === `/app-api/connections/${current.id}/health` ? json({
+      status, lastLaunchAt: null, lastLaunchRefusal: null,
+      dispatch: { pending: 0, oldestPendingAt: null, lastSentAt: null, failedLast24h: 0, lastError: null },
+      keys: { activeKid: "kid-b", nextKid: null, artifactKeyKid: "kid-a", artifactKeyCurrent: false }, lastCheck: null, events: [],
+    }) : answer(url, options));
+    app(`/integrations/canvas/${current.id}`);
+    expect(await screen.findByText("Paste a new Canvas key JSON.")).toBeTruthy();
+    const summary = await screen.findByText("Key JSON");
+    expect(summary.closest("details")!.open).toBe(false);
+    fireEvent.click(summary);
+    const form = await screen.findByLabelText("Put a copy of the current public key in the JSON");
+    fireEvent.click(form);
+    fireEvent.click(form);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("canvas-configuration"))).toBe(false);
+    expect(screen.getByText("Paste a new Canvas key JSON.")).toBeTruthy();
+  });
   it("merges a renewed URL into the existing connection", async () => {
     const existing = connection(self);
     const onChanged = vi.fn();

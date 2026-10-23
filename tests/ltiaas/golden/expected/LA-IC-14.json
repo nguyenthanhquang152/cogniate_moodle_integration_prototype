@@ -39,7 +39,7 @@
       "tests/ltiaas/k0/contract.test.ts:596-605 (M1_BASELINE_LEGACY_FLAGS.canvas.dynamicRegistration updated from false to true per LA-IC-14)",
       "tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts:123-156 (QA-4 LA-E2-01 K0 suite updated so Canvas profiles accept the LA-E3-09 dynamicRegistration trait object { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: ... })",
       "tests/ltiaas/tasks-core/LA-E1-02/registry.k0.test.ts:80-87,181-203 (QA-3 LA-E1-02 K0 suite pinned M1_LEGACY_CAPABILITIES.canvas.dynamicRegistration: false and G-BASE G1.json capabilities before LA-IC-14)",
-      "tests/ltiaas/tasks-core/LA-E3-15/canvas-dr-app.k0.test.ts (QA-3 LA-E3-15 K0 + UNIT suite on the QA-3 branch verifying Canvas dynamic method, operatorGrant authority, and staged registration)",
+      "tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k0.test.ts:1-431 and tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k1sim.test.ts:1-173 (QA-3 LA-E3-15 K0 + UNIT and K1-SIM suites, landed in c19164fd / 603107a4, verifying Canvas dynamic method, operatorGrant authority, and staged registration)",
       "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k0.test.ts and tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k1sim.test.ts (QA-4 LA-E3-09 K0 + UNIT and K1-SIM suites, landed in a27a5607 / d12b7b94)"
     ],
     "testChanges": [
@@ -47,6 +47,8 @@
       "tests/ltiaas/golden/expected/LA-IC-14.json",
       "tests/ltiaas/golden/golden.k0.test.mjs",
       "tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts",
+      "tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k0.test.ts",
+      "tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k1sim.test.ts",
       "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k0.test.ts",
       "tests/ltiaas/tasks-lti/LA-E3-09/canvas-dr.k1sim.test.ts"
     ],
@@ -63,7 +65,7 @@
       "tests/acceptance/M1/canvas/31-canvas-grants.test.ts:170-315 (checks 409 CAPABILITY_NOT_SUPPORTED for webServices, courseShell, and non-Canvas canvasConfiguration; does not assert dynamicRegistration: false)",
       "tests/acceptance/M1/common/00-profiles.test.ts:82-145 (checks capabilities and dynamic-refused on moodle and blackboard only; Blackboard dynamicRegistration stays false)",
       "tests/acceptance/M1/common/03-snapshot-controls.test.ts:1-24 (validates snapshot control file structure; does not assert Canvas capabilities)",
-      "tests/e2e/M2/02-canvas-wizard.m2.ts:18-130 (runs on /integrations/canvas/connect; LA-E3-16 4c9809ff / 4d318919 adds a method radio selector to CanvasCreate in packages/channels/canvas/portal/canvas.tsx, and 02-canvas-wizard.m2.ts continues through the manual path unchanged because CanvasCreate defaults useState<'manual' | 'dynamic'>('manual') to 'manual')",
+      "tests/e2e/M2/02-canvas-wizard.m2.ts:18-130 (runs on /integrations/canvas/connect; LA-E3-16 4c9809ff / 4d318919 adds a method radio selector to CanvasCreate in packages/channels/canvas/portal/CanvasCreate.tsx:13-17, and 02-canvas-wizard.m2.ts continues through the manual path unchanged because CanvasCreate initializes method state conditionally with useState(methods.includes(\"manual\") ? \"manual\" : methods[0] ?? \"manual\"), which selects \"manual\" when methods is [\"manual\", \"dynamic\"])",
       "tests/ltiaas/k0/ld1/open-world.test.ts:1-261 (operates on static recorded fixtures in tests/ltiaas/k0/ld1/g-base/*.json)",
       "tests/ltiaas/k0/contract.test.ts:596-605 (M1_BASELINE_LEGACY_FLAGS.canvas.dynamicRegistration updated to true)"
     ],

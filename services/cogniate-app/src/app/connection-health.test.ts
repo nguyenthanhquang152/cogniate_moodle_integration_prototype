@@ -160,6 +160,21 @@ describe('GET /app-api/connections/:id/health', () => {
     expect(t.logs.some((line) => line.event === 'tool_keys_unavailable')).toBe(true);
   });
 
+  it('shows a stale key after a real inline export and a newer active key; a URL export clears the kid (LA-E6-05 writer)', async () => {
+    const c = registered();
+    let active = 'kid-a';
+    t.lti.client.getToolKeys = async () => [{ kty: 'RSA', kid: active, alg: 'RS256', use: 'sig', n: 'modulus', e: 'AQAB' }];
+    const exportJson = (form: 'inline' | 'url') => t.app.inject({ method: 'GET', url: `/app-api/connections/${c.id}/canvas-configuration?jwk=${form}`, headers: { cookie } });
+    expect((await exportJson('inline')).statusCode).toBe(200);
+    expect((await get(c.id)).json().keys).toEqual({ activeKid: 'kid-a', nextKid: null, artifactKeyKid: 'kid-a', artifactKeyCurrent: true });
+    // A signing key activation: after the 60 s cache the active key is kid-b, and the exported JSON still has kid-a.
+    active = 'kid-b';
+    t.clock.now += TOOL_KEYS_CACHE_MS;
+    expect((await get(c.id)).json().keys).toEqual({ activeKid: 'kid-b', nextKid: null, artifactKeyKid: 'kid-a', artifactKeyCurrent: false });
+    expect((await exportJson('url')).statusCode).toBe(200);
+    expect((await get(c.id)).json().keys).toEqual({ activeKid: 'kid-b', nextKid: null, artifactKeyKid: null, artifactKeyCurrent: null });
+  });
+
   it('shows the last connection check after POST /check (the LA-E6-01 writer call)', async () => {
     const c = registered();
     t.lti.client.checkPlatform = async () => ({ checkedAt: 'x', jwks: { ok: true, keys: 1 }, token: { ok: false, detail: 'invalid_client' }, platform: { active: true, deploymentActive: true }, limits: null });

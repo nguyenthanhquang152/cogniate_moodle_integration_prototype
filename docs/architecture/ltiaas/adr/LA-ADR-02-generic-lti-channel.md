@@ -75,7 +75,7 @@ Audience check at create (BD-A1-82): for every active (not staged) platform of a
 
 | Field | Value |
 | --- | --- |
-| `names.text` / `names.label` | `your LMS` / `Other LTI 1.3 platform` |
+| `names.text` / `names.label` | `LMS` / `Other LTI 1.3 platform` (BD-A1-111: was `your LMS`, which doubled in "your {LMS}" and broke "this {LMS} site") |
 | `card` | title "LTI 1.3", text "Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage." |
 | `registration` | `dynamic` → authority `self`, profile `lti-generic` (`self` only under I-SELF; else staged with `operatorGrant`, D5 item 10); `manual` → authority `operatorGrant`, profile `lti-generic` |
 | capabilities | `registration.dynamic`, `deployments.multiple`, `records.reporters: ['lti-ags']`, `records.readBack`, `launch.windowHint`; no `siteApi.token`, no `publish.createCourse`, no `setup.artifacts`, no `export.packages` |

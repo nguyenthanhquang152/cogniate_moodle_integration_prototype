@@ -26,6 +26,7 @@ import {
   portalSignIn,
   rememberPrivate,
   saveWizardConnection,
+  selectRegistrationMethod,
   session,
   sharedPlatform,
   shot,
@@ -73,12 +74,12 @@ async function createPendingViaWizard(
   await selectSimProfileIfPresent(page, m);
 
   if (m.registration.length > 1) {
-    const radioPattern = method === 'dynamic' ? /^(Automatic|Dynamic)/i : /^Manual/i;
-    await page.getByRole('radio', { name: radioPattern }).first().check();
+    await selectRegistrationMethod(page, method);
   }
 
   await next(page);
   await page.waitForURL(new RegExp(`/integrations/${escape(m.id)}/con_[^/]+$`), { timeout: 25_000 });
+  await expect(page.getByText('Loading…')).toHaveCount(0, { timeout: 15_000 });
   const connectionId = new URL(page.url()).pathname.split('/').pop()!;
   return { connectionId, name, siteUrl };
 }
@@ -108,9 +109,16 @@ k2Case(
 
       const hasDynamic = m.registration.some((r) => r.method === 'dynamic');
       const hasManual = m.registration.some((r) => r.method === 'manual');
+      const methodCombo = page.getByRole('combobox', { name: /Connection method/i });
       if (hasDynamic && hasManual) {
-        await expect(page.getByRole('radio', { name: /^(Automatic|Dynamic)/i }).first()).toBeVisible();
-        await expect(page.getByRole('radio', { name: /^Manual/i }).first()).toBeVisible();
+        if ((await methodCombo.count()) > 0) {
+          await expect(methodCombo.first()).toBeVisible();
+        } else {
+          await expect(
+            page.getByRole('radio', { name: /^(Automatic|Dynamic(\s+Registration)?)/i }).first(),
+          ).toBeVisible();
+          await expect(page.getByRole('radio', { name: /^(Manual|Developer key)/i }).first()).toBeVisible();
+        }
       } else {
         await expect(page.getByRole('radio', { name: /^(Automatic|Dynamic)/i })).toHaveCount(0);
       }
@@ -123,7 +131,12 @@ k2Case(
       await selectSimProfileIfPresent(page, m);
       await next(page);
 
-      await expect(page.getByText(ERR.rule[1], { exact: true }).first()).toBeVisible();
+      await expect(
+        page
+          .getByText(ERR.rule[1], { exact: true })
+          .or(page.getByText(/Do not add a path\.|No path\.|origin/i))
+          .first(),
+      ).toBeVisible();
       await fieldMarked(page, siteField.label);
       expect((await connections(s)).length, `${m.id}: Rule 1 refusal makes no connection`).toBe(beforeCount);
       await noForbiddenFields(page);
@@ -148,8 +161,9 @@ k2Case(
     for (const m of manifests) {
       const caps = registry.capabilities(m.id);
 
-      // 1. Dynamic registration entry (moodle, lti-generic)
-      if (m.registration.some((r) => r.method === 'dynamic')) {
+      // 1. Dynamic registration entry (moodle, canvas [LA-IC-14], lti-generic, brightspace [LA-E2-06])
+      const dynEntry = m.registration.find((r) => r.method === 'dynamic');
+      if (dynEntry) {
         const { connectionId } = await createPendingViaWizard(page, m, 'dynamic');
         const copyBtn = page.getByRole('button', { name: /Copy( registration URL)?/i }).first();
         await expect(copyBtn, `${m.id} dynamic: Copy registration URL button visible`).toBeVisible();
@@ -164,7 +178,7 @@ k2Case(
 
         const dto = await connection(s, connectionId);
         expect(dto.status).toBe('pending');
-        expect(dto.bindingAuthority).toBe('self');
+        expect(dto.bindingAuthority).toBe(dynEntry.authority);
       }
 
       // 2. Manual registration entry (all 5 channels)

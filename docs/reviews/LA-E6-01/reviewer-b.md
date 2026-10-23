@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -26,3 +26,15 @@ Reviewer-B: Codex GPT-6-Astra xhigh. Lens: can a human team own it? Reviewed `98
 - **122 focused tests passed in six files:** LTI check route, app check route, portal check panel, portal shell, app LTI client and platform token client. **All 145 K0 tests passed.** Lint, typecheck, F1 and F5 passed.
 - AC-09 is the only UNIT AC. Its tests cover capability/status visibility and every specified result-text class. Removing the panel mount in the private clone failed both supported-channel real-page tests, proving they detect the old behavior. The two support/navigation probes passed; the three malformed-JWKS probes exposed B-LA-E6-01-01. The temporary structural-validation control passed 23 route tests. All private edits were restored; the checkout is clean.
 - Logs and saved probes are beside the private checkout: `focused.log`, `k0.log`, `probes.log`, `jwks-shape-control.log`, `portal-old-behavior.log`, `trace-probe.txt`, and the saved test probes and lint/typecheck/fitness logs. AC-01–08 and AC-10 remain QA's K1-SIM evidence; no hosted LMS claim is made.
+
+## Round 2
+
+Reviewed `ccd3848c`, `70b05477` and `b3e14970` (merge `195930c1`) at integration snapshot `8844fdd6`, including the route's integration with S2's async store port `13c20ad0`. **APPROVE: 0 open BLOCKER, 0 MAJOR, 0 MINOR.** No new finding.
+
+**B-LA-E6-01-01 — CLOSED.** The route now calls the pure `isKeyList` helper. It requires a non-empty array whose every entry is a non-null, non-array object with a non-empty string `kty`; one bad entry rejects the whole set. Helper tests cover the original failures, missing/invalid `kty`, malformed lists and mixed entries. Four route-level tests prove the helper is wired into the HTTP check. The change stays in the check files, respects the forbidden paths, and adds no LMS-specific behavior.
+
+Verification used a fresh `git clone --no-hardlinks` with its own successful `npm ci` at `/tmp/la-e6-01-r2-review-b-i1bo4zf9/repo`. Deleted `node_modules/.vitest-cache` before every Vitest run. **80 focused tests in five files passed, and all 145 K0 tests passed.** Lint, typecheck, F1 and F5 passed. Focused coverage includes the helper, LTI route, app route, real LTI client and portal result panel.
+
+A private integration probe passed six checks through the actual app client and LTI route: null, string, array and empty-object entries, a valid-key/null mix, and a valid generated key. The five bad sets returned app `result: failed` with `invalid_jwks`; the good set returned `ok`. Both service logs and the async audit retained the corresponding result, common trace/platform ids and API-key actor, without token or assertion values. Connection status stayed unchanged. Restoring the old non-empty-array rule failed all four checked-in route regressions and this private probe. All temporary edits were restored; the checkout is clean.
+
+Logs and the saved probe are beside that checkout (`focused.log`, `k0.log`, `probe.log`, `old-rule-negative.log`, `connection-check-probe.txt`, `trace-probe-results.json`, and lint/typecheck/fitness logs). No Docker, stack runner, commit or other reviewer's file was used. This closes Reviewer-B's finding; simulator evidence remains with QA, and this SQLite-backed review does not claim PostgreSQL or hosted-LMS verification.

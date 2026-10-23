@@ -23,7 +23,7 @@
     ],
     "qaTaskTestChanges": [
       "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k0.test.ts (QA-3 LA-E3-07 K0 + UNIT suite verifying registration.scopes across all 5 channels, Canvas JSON jwk=url and jwk=inline scopes, and Moodle row 13 nrps = 'Do not use this service')",
-      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts (QA-3 LA-E3-07 K1-SIM placeholder gated by describe.skipIf(!process.env.LA_DOCKER_WINDOW) pending SIM Docker window; K1-SIM complete.scopes assertions are covered in tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts)"
+      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts:1-99 (QA-3 LA-E3-07 K1-SIM suite: at 7db4f2c5 lines 12-18 it was a plain describe placeholder asserting expect(process.env.LA_DOCKER_WINDOW).toBe('1') with no describe.skipIf or simulator calls; in ff6ad387 / 8143e669 at 195930c1 it implements AC-LA-E3-07-02 at lines 30-52 for Canvas JSON jwk=url and jwk=inline 4 AGS scopes, AC-LA-E3-07-03 at lines 54-78 for Moodle row 13 nrps = 'Do not use this service', and AC-LA-E3-07-06 at lines 80-98 verifying no token request asks for the NRPS scope across Blackboard and Canvas score runs; lti-service complete.scopes K1-SIM assertions are in tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:262-360)"
     ],
     "testChanges": [
       "tests/ltiaas/golden/expected/LA-IC-04.json",

@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E6-01 review: Reviewer-A
 
@@ -36,3 +36,22 @@ Fresh private clone `/tmp/la-reviewer-a-ctx-a3585ad0ddc5`, pinned to `b644f1db90
 - LTI, app and portal typechecks and targeted lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**.
 
 Probe sources are saved under `/tmp/la-reviewer-a-ctx-a3585ad0ddc5-probes`; logs use the same prefix, including `-probes-confirmed.log`. Product files were restored and temporary probes removed; the clone is clean. Only this report changed in integration. No Docker, stack, commit or other reviewer's file was used. The malformed-JWKS fix and its regression tests remain required; SIM acceptance and runtime regressions remain QA work.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, lens "Is it right and is it safe?" Date: 2026-10-23. **Verdict: APPROVE. Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `ccd3848c`, `70b05477` and `b3e14970` (merge `195930c1`) against the task spec and Round 1 finding. Checked the route composed with the S2 async-store port (`13c20ad0`, merge `81d3a8f4`); this is not a full review of that port or LA-E6-02.
+
+**A-LA-E6-01-01 — CLOSED.** The route now calls `isKeyList`: the array must be non-empty, and every entry must be a JSON object with a non-empty string `kty`. The three Round 1 inputs and the array-entry case return `invalid_jwks` even with a successful token response. Mixed lists fail regardless of where the bad entry occurs; two generated RSA/EC public keys return a count of two. This is a structural connection check, not signature verification.
+
+The composed route retains the helper call and awaits the account-scoped platform read and audit write. The fix changes no authorization, readiness, rate-limit, outbound, token, audit or response-shape rule. Its net changes stay in the check route and new helper/test files; the shared route tests retain S2's port. No forbidden task file, frozen assertion or LMS branch was added.
+
+Verification used a fresh `git clone --no-hardlinks` at `6069194f5e2fc79b9cc4a99b8a76eed6094435e1` in `/tmp/la-reviewer-a-ctx-0c34130b023d`, with its own `npm ci` and the Vitest cache deleted before every run:
+
+- **68/68** focused public tests pass: LTI route and helper, app connection check, and portal result/gating tests (UNIT AC-09).
+- **8/8** private route probes pass: mixed lists, invalid `kty`, invalid documents, and the generated-key success control.
+- Both negative controls are detected: the old route predicate fails **4** route tests; `every` changed to `some` fails **2** mixed-list tests. After restoration, **27/27** helper/route-probe tests pass.
+- LTI typecheck and targeted lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**.
+
+Probe sources are saved under `/tmp/la-reviewer-a-ctx-0c34130b023d-probes`; logs use the same prefix. All mutations were restored and temporary probes removed from the clone. Only this report changed in integration. No Docker, stack, commit or other reviewer's file was used. No Reviewer-A finding remains; SIM acceptance and runtime regressions remain QA work.
