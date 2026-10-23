@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -37,3 +37,16 @@ All execution was in `/tmp/la-review-b-254af149c220`, made with `git clone --no-
 - Removing the unmatched multi-pick retention exception caused its test to fail. A further private probe confirmed that a failed later insert rolls back both the claim and the earlier pick. Together with the two targeted retry probes above, **three private probes passed** on the submitted code. All product mutations were restored.
 
 K1-SIM and MOODLE-LIVE acceptance, including Moodle's visible response to Cancel and the LA-IC-12 frozen-assertion list, remain with independent QA. This review does not claim those runs.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-23. Verdict: **APPROVE**. Reviewed `7c0ba57`, merged and tested at `8c6542421bdbb1add7591d55f5214f1625f27586`. No new findings; no open Reviewer-B findings.
+
+**B-LA-E3-05-01: CLOSED.** The retry tests now reject `deepLinking` itself with a one-time spy. They record the used flag and the actual pick rows at the time of failure, then check release and a successful retry. The multi-pick case also compares both calls' items. Cancel is tested with a used picker and no pick rows. A separate token-lookup failure case proves that no claim or Deep Linking call occurs before that failure.
+
+Verification in a fresh `git clone --no-hardlinks` at `/tmp/la-review-b-a63b333aebeb`, with its own `npm ci` and its Vitest cache removed before each run:
+
+- **64 tests passed** in `tool-pages/picker.test.ts` and `tool-pages/launch.test.ts`; app typecheck and ESLint on both changed files passed.
+- Repeated the Round 1 mutant at `picker.ts:138`: release only when `picks.ids.length === 0`. It now causes **three failures out of 64 tests**: multi-pick cleanup, single-pick cleanup, and the single-pick retry that gets `410` instead of `200`. This directly closes the coverage gap. Restored the mutation and verified the private clone had no changes.
+
+This is a test-only change in the two files named by the dispatch. No product behavior, protected path, QA test, or core LMS name changed. The UNIT AC-09/10 evidence from Round 1 remains applicable. No Docker or stack was run; SIM/Moodle acceptance and the LA-IC-12 list remain with QA. The review stayed blind.
