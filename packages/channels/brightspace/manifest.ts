@@ -12,9 +12,11 @@ const manifest = {
     category: 'LMS Publishing', order: 5,
   },
   availability: 'ga',
-  // Manual only (Must). Dynamic Registration is LA-E2-06 (Should): always staged, because the D2L token host is off the
-  // issuer origin (LA-ADR-02 D2a, D4).
+  // Dynamic Registration (LA-E2-06, Should) starts with `self`, but I-SELF always fails: the D2L token host is off the
+  // issuer origin. So every D2L registration is staged, and the operator grant binds it (LA-ADR-02 D2a, D4, D5 item
+  // 10). Manual always needs an operator grant (D6).
   registration: [
+    { method: 'dynamic', authority: 'self', profiles: ['brightspace'], defaultProfile: 'brightspace' },
     { method: 'manual', authority: 'operatorGrant', profiles: ['brightspace'], defaultProfile: 'brightspace' },
   ],
   capabilities: {
@@ -50,6 +52,11 @@ const manifest = {
       { key: 'jwksUrl', label: 'Brightspace keyset URL', kind: 'url', required: true, method: 'manual', default: '{siteUrl}/d2l/.well-known/jwks' },
       { key: 'tokenAudience', label: 'OAuth2 audience', kind: 'url', required: false, method: 'manual', default: 'https://api.brightspace.com/auth/token' },
       { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'manual' },
+      // A staged Dynamic Registration (LA-ADR-02 D5 item 10): the admin values come from the staged platform, and the
+      // portal pre-fills both ids from it (app API delta §3.4).
+      { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'dynamic' },
     ],
     // The values for the D2L "Register Tool" form, in its order (app API delta §3.3; A1 BD-A1-78). The kernel fills the
     // placeholders; the labels are UNVERIFIED until a live check (R2-2).
@@ -68,8 +75,9 @@ const manifest = {
   texts: {
     adminSteps: [
       'You need a {LMS} administrator to complete the connection.',
-      'In {LMS}, open Manage Extensibility, then LTI Advantage. Select Register Tool and choose Standard. Enter the tool values below.',
-      'Save the tool. Copy the Client ID, the Brightspace keyset URL, the OpenID Connect authentication endpoint, the Brightspace OAuth2 access token URL and the OAuth2 audience from the registration page into Cogniate.',
+      'In {LMS}, open Manage Extensibility, then LTI Advantage, and select Register Tool.',
+      'For an automatic connection, choose Dynamic and paste the registration URL from Cogniate. For a manual connection, choose Standard and enter the tool values below.',
+      'For a manual connection, save the tool. Copy the Client ID, the Brightspace keyset URL, the OpenID Connect authentication endpoint, the Brightspace OAuth2 access token URL and the OAuth2 audience from the registration page into Cogniate.',
       'Make a deployment of the tool for your org units. Copy its Deployment ID.',
       'Ask your Cogniate operator for an approval code. The operator checks the values with your {LMS} administrator first. The code works once and expires.',
     ],
