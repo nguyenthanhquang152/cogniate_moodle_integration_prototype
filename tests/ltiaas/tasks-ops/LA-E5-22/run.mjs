@@ -112,6 +112,110 @@ async function candidateStart() {
   return up.code === 0 && health.ok && !r.state.abort;
 }
 
+async function rewrapWithKeyRing() {
+  const ringDir = path.join(r.CLONE, 'infra', '.secrets', 'app-keys');
+  const ringPath = path.join(ringDir, 'keyring.json');
+  const masterKey = (r.state.env?.APP_MASTER_KEY ?? '').trim();
+  if (!/^[0-9a-fA-F]{64}$/.test(masterKey)) {
+    r.record('AC-LA-E5-22-01-RING', 'key-ring start and app:keys rewrap', 'FAIL', ['APP_MASTER_KEY missing or invalid in .env'], []);
+    return false;
+  }
+  fs.mkdirSync(ringDir, { recursive: true, mode: 0o700 });
+  const ringJson = JSON.stringify({ active: 'k2', keys: { legacy: masterKey.toLowerCase(), k2: '22'.repeat(32) } });
+  fs.writeFileSync(ringPath, `${ringJson}\n`, { mode: 0o600 });
+  fs.chmodSync(ringPath, 0o600);
+  try {
+    const restart = await r.npm('stack-restart-app-ring', ['run', 'stack:restart', '--', 'cogniate-app'], { timeoutMs: 300_000 });
+    const health = await r.waitHealth(r.state.urls.app, (h) => h.status === 'ok', 120_000);
+    const statusBefore = await r.exec('app-keys-status-before', 'docker', [
+      ...COMPOSE,
+      'exec',
+      '-T',
+      'cogniate-app',
+      'npm',
+      'run',
+      'app:keys',
+      '--',
+      'status',
+    ]);
+    const stopM1Ring = m1HostControl(r);
+    try {
+      await r.containerSuite(`${TASK}-ring-before-rewrap`, { env: { QA_TASK: TASK, QA_LA_PHASE: 'ring-before-rewrap' } });
+    } finally {
+      await stopM1Ring();
+    }
+    recordRows(r, `${TASK}-ring-before-rewrap`, path.join(r.ART, `container-${TASK}-ring-before-rewrap`), [
+      'AC-LA-E5-22-01',
+    ]);
+
+    const rewrap = await r.exec('app-keys-rewrap', 'docker', [
+      ...COMPOSE,
+      'exec',
+      '-T',
+      'cogniate-app',
+      'npm',
+      'run',
+      'app:keys',
+      '--',
+      'rewrap',
+      '--operator',
+      'qa2-u1',
+    ]);
+    const statusAfter = await r.exec('app-keys-status-after', 'docker', [
+      ...COMPOSE,
+      'exec',
+      '-T',
+      'cogniate-app',
+      'npm',
+      'run',
+      'app:keys',
+      '--',
+      'status',
+    ]);
+
+    const stopM1After = m1HostControl(r);
+    try {
+      await r.containerSuite(`${TASK}-ring-after-rewrap`, { env: { QA_TASK: TASK, QA_LA_PHASE: 'ring-after-rewrap' } });
+    } finally {
+      await stopM1After();
+    }
+    recordRows(r, `${TASK}-ring-after-rewrap`, path.join(r.ART, `container-${TASK}-ring-after-rewrap`), [
+      'AC-LA-E5-22-01',
+    ]);
+
+    const statusBeforeOut = `${statusBefore.stdout ?? ''}\n${statusBefore.stderr ?? ''}`;
+    const rewrapOut = `${rewrap.stdout ?? ''}\n${rewrap.stderr ?? ''}`;
+    const statusAfterOut = `${statusAfter.stdout ?? ''}\n${statusAfter.stderr ?? ''}`;
+    const ok =
+      restart.code === 0 &&
+      health.ok &&
+      statusBefore.code === 0 &&
+      /Key provider:\s*local-keyring/.test(statusBeforeOut) &&
+      /Active version:\s*k2\b/.test(statusBeforeOut) &&
+      /Version legacy \(decrypt-only\):\s*[1-9]\d* sealed values/.test(statusBeforeOut) &&
+      rewrap.code === 0 &&
+      /Re-wrap:\s*complete\./.test(rewrapOut) &&
+      /unreadable 0\./.test(rewrapOut) &&
+      statusAfter.code === 0 &&
+      /Version k2 \(active\):\s*[1-9]\d* sealed values/.test(statusAfterOut) &&
+      /Version legacy \(decrypt-only\):\s*0 sealed values/.test(statusAfterOut);
+
+    r.record(
+      'AC-LA-E5-22-01-REWRAP',
+      'U1 key-ring start and app:keys rewrap moves legacy blobs to active version k2 (legacy: 0, unreadable: 0)',
+      r.pass(ok),
+      [
+        `restart exit ${restart.code}; health ${health.ok ? 'ok' : 'not ok'}`,
+        `statusBefore exit ${statusBefore.code}; rewrap exit ${rewrap.code}; statusAfter exit ${statusAfter.code}`,
+      ],
+      [restart.log, statusBefore.log, rewrap.log, statusAfter.log].filter(Boolean),
+    );
+    return ok;
+  } finally {
+    fs.rmSync(ringPath, { force: true });
+  }
+}
+
 await r.main(async () => {
   const started = Date.now();
   if (!(await oldBuild())) return;
@@ -137,5 +241,8 @@ await r.main(async () => {
   }
   r.timings.newPassMs = Date.now() - t;
   recordRows(r, `${TASK}-new`, path.join(r.ART, `container-${TASK}-new`), ['AC-LA-E5-22-01']);
+  t = Date.now();
+  await rewrapWithKeyRing();
+  r.timings.rewrapPassMs = Date.now() - t;
   r.timings.totalBeforeTeardownMs = Date.now() - started;
 });

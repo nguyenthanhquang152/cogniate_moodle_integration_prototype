@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 # LA-E6-02 — Reviewer-B
 
@@ -57,3 +57,30 @@ AC-06 tests now pin the design's literal 100-row limit and 30-day interval, incl
 Only the health component and its adjacent tests, plus the existing health-route/event tests, change. No forbidden file, frozen assertion, production LMS branch, API contract or retention implementation changes.
 
 Verification: fresh private `git clone --no-hardlinks` pinned to `f9e7961b`, own `npm ci`, Vitest cache removed before every run. **42/42 tests passed** (39 shipped tests and three original independent probes). Restoring the parent UI made the two original probes fail while the valid-answer control passed. Separate 31-day and 50-row mutants each failed the intended test. After restoration, **39/39 shipped tests passed**. Logs: `/tmp/reviewer-b-e602r2-{focused,old-ui,mutant-ttl,mutant-limit,restored}.log`. The clone was restored, checked clean and deleted. No Docker, stack, host stack runner or commit; only this review file changed in integration.
+
+## Round 3
+
+**Verdict: CHANGES_REQUESTED.** Reviewed `ea47dc56`, merged by `e40a6d41`, against the task spec, LA-ADR-08 D5, BD-A2-101/102 and plan §6.1. Per the Lead's follow-up, this round assesses the dispatched code against BD-A2-102; the next fix will be reviewed separately. **1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** B-LA-E6-02-01 and -02 remain closed. Blind review; no Reviewer-A file opened.
+
+### B-LA-E6-02-03 — BLOCKER — Inspecting Key JSON changes the recorded artifact and hides a real stale-key warning
+
+- **File:** `packages/channels/canvas/portal/CanvasKeyJson.tsx:14`; reused effect at `packages/channels/canvas/portal/CanvasConfiguration.tsx:17-25`.
+- **Problem:** Opening the section mounts `CanvasConfiguration`, which immediately fetches a URL-form export. Switching its checkbox fetches another export. The existing route records these as artifacts taken, although the admin has neither copied nor downloaded anything. A later health refresh loses the stale-key warning. This is a wrong support result and violates the explicit BD-A2-102 rule that opening and form switching must not fetch or record an export.
+- **Evidence:** Two private probes through the real portal route, one registered and one connected, start with a stale-key warning and no export. Opening sends `/canvas-configuration`; refreshing health then removes the warning; selecting inline sends `/canvas-configuration?jwk=inline`. All six corrective assertions fail. These probes use a stateful API stub with the export writer's rule; the separately passing real-route test in `connection-health.test.ts:163` verifies that URL export actually clears `artifactKeyKid` and changes `artifactKeyCurrent` from false to null. The shipped new panel test instead expects the request on open, so it protects the rejected behavior.
+- **Suggested fix:** In the registered/connected panel, fetch only from explicit Copy JSON or Download JSON actions. Opening, closing and changing the selected form must leave the artifact record alone. Preserve the pending wizard behavior. Replace the on-open expectation with regressions for no export on open/switch, the warning remaining after a health refresh, and an explicit successful Copy/Download recording the selected artifact. The accepted limit remains: the record shows the artifact taken, not proof that the LMS received it.
+
+The other choices pass review: both registered and connected connections have a closed Key JSON section; pending and disabled connections have neither that section nor the stale-key warning. The help text matches A2 and names available controls. The six changed files are P's portal/module files and adjacent tests; no task-prohibited backend file, API, frozen QA assertion or production LMS branch in core changes. F1 and F5 pass. The manual create/pending DOM hashes pass unchanged; the inspected M2/T6 selectors retain their targets because the new Copy/Download controls are absent until the section opens. This is static/unit evidence, not a browser acceptance run.
+
+Verification used a fresh private clone at **`e40a6d4153f611e7d9005e2e261234676b874d1f`**, its own `npm ci`, and a cleared `node_modules/.vitest-cache` before each run. **116/116 focused tests across seven files passed**, including the AC-06 retention, AC-07 migration and AC-08 warning coverage. Restoring the pre-change module registration and health component made **five shipped tests fail** for the new panel, status rule and help text. After restoration, the three UI suites plus audit compatibility passed **105/105**. Lint and typecheck pass. The two private BD-A2-102 probes fail as described above; there are no other findings.
+
+Evidence: `/tmp/la-e6-02-r3-review-b-2y3v3rct/{focused,old-behavior,restored-and-audit,ui-probe,lint,typecheck,fitness-names,fitness-rules}.log`, with probe source in `ui-probe.txt`. The private clone is restored and clean. No Docker, stack, host stack runner or commit; only this review file changed in integration. The BD-A2-102 fix and QA's SIM/browser acceptance remain.
+
+## Round 4
+
+**Verdict: APPROVE.** Reviewed `4d2a52f5`, merged by `dc2a1b5e`, against BD-A2-102, the task spec, LA-ADR-08 D5 and plan §6.1. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Blind review; no Reviewer-A file opened.
+
+**B-LA-E6-02-03 — closed.** `CanvasKeyJson.tsx:22-44` fetches only from an explicit Copy or Download action. Opening, closing and switching either way between URL and inline make no request. The round-3 probes now pass for registered and connected connections: the stale warning remains after inspection and a health refresh. Extended probes test both actions in both forms, checking exactly one request per action, the selected URL, exact clipboard/download bytes and the resulting health state after refresh. They use the same stateful API stub as round 3; the real export-to-health route test also passes. The accepted limit still applies: the record shows the artifact taken, not proof of a paste into Canvas.
+
+The shared download helper preserves the pending wizard's download behavior, filename and cleanup. Its existing byte/copy test and manual create/pending DOM hashes pass unchanged. The new panel disables its controls while busy and offers the fetched JSON in a selectable text box when copying fails; the added test covers that recovery. Only P's Canvas portal files and adjacent portal tests change. No prohibited backend file, API, frozen QA assertion or production LMS name in core changes; prior selector checks still apply.
+
+Verification: fresh private clone at **`dc2a1b5ef06d1446aaa8225bfcff100248ed070a`**, own `npm ci`, Vitest cache removed before each run. **115/115 focused tests across six files**, the **two extended private probes**, lint, typecheck, F1 and F5 pass. Replacing only the panel with its pre-fix version fails **four shipped tests and both probes**. Restoring it gives **69/69** in the two affected UI suites; the clone is clean. Evidence: `/tmp/la-e6-02-r4-review-b-wwy67zh3/{focused,ui-probe,old-panel,restored,lint,typecheck,fitness-names,fitness-rules}.log`, with probe source in `ui-probe.txt`. No Docker, stack, host stack runner or commit; only this review file changed in integration. QA's SIM/browser acceptance remains separate.

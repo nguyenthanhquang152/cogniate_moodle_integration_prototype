@@ -1,580 +1,501 @@
-# Lead QA Docker Gate Run Plan and Master Slot Schedule (`LA-E0-02`, `LA-E0-03`, `LA-E0-04`, `LA-E7-08`)
+# LTIAAS Wave-End Gate Run Plan (Host-Only Prepared Runbook)
 
-- **Owner:** Lead QA (`QA`, `tests/ltiaas/**`)
-- **Governance & Rules:** `docs/team/ltiaas/charter-LA.md` §0 (`ab1ca44`), `docs/team/ltiaas/plan.md` §6.1 (`LD-1`..`LD-19`), `tests/ltiaas/TEST-STRATEGY.md`, `docs/architecture/ltiaas/tasks/README.md` §2
-- **Docker Window Status:** **HOST-ONLY until explicit `DOCKER-YES` grant per slot** (one QA stack at a time; 32 protected baseline volumes untouched)
-- **Lead QA Compose Project Prefix:** `COMPOSE_PROJECT_NAME=qalead-la-<n>` (`qalead-la-1` .. `qalead-la-7`)
-- **Lead QA Port & Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`
-- **Intake Baseline SHA (`G-BASE`):** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`LA-E0-01`)
-- **Current Integration SHA:** `8c65424` / `144a566` (or latest green integration SHA at slot start; pre-window host gate recorded on `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` and re-verified on `144a566`)
-- **Full Expected-Delta Set for Slot 3A:** `LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20` (updated with `BD-A1-90`), `LA-IC-21` (`BD-A1-93`, commit `19da95e` / `4d08fc1`), including `LA-IC-01` E2-K trait fields `endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`.
-- **Private Run Root (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/`
-- **Host Course Fixture Zips (`COURSE_FIXTURES_DIR`):** `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses`
-
----
-
-## 1. Master Docker Slot Schedule (After QA-2 Slot 1)
-
-### 1.1 Slot Order, Owners, SHAs, and Estimated Minutes
-
-Only **one QA stack** runs at a time (`docs/team/ltiaas/charter-LA.md` §0). After **Slot 1 (`QA-2`, `qa2-la-sim-r1..r6`, ends ~`03:36Z`, ~`72 min`)**, the remaining Docker work runs in the following dependency order so that the verified two-capture `G-BASE` golden baseline (`1b17261`) exists before any candidate golden comparison or `U1` upgrade check needs it:
-
-| Slot | Owner | Compose Project(s) | Port / Subnet | Target SHA | Tasks & Suites Covered | Est. Minutes | Why This Slot Position |
-| --- | --- | --- | --- | --- | --- | :---: | --- |
-| **Slot 1** *(active)* | **QA-2** | `qa2-la-sim-r1` .. `r6` | `9443` / `172.20.0.0/16` | `f2e340e` (code `19d6dc4`) | Lanes `S1` & `S2` (`tests/ltiaas/tasks-ops/K1-SIM-RUN-PLAN.md`: 11 tasks, 64 `K1-SIM` ACs across 6 batches) | **~72 min** *(ends ~03:36Z)* | Already running under Lead grant #1 (`docs/team/ltiaas/briefs/p4/QA2-sim1.md`). |
-| **Slot 2** *(DONE)* | **Lead QA** | `qalead-la-1`, `qalead-la-2` | `9473` / `172.23.0.0/16` | **Intake SHA `1b17261`** (`G-BASE`) | **`LA-E0-03` (`AC-01..04, 09` — PASS):** Two independent fresh-stack `G-BASE` golden captures (`g-base-1` on `qalead-la-1` `48 s`, `g-base-2` on `qalead-la-2` `45 s`) + host-only determinism compare (`EQUAL: 0 differences` between `g-base-1`, `g-base-2`, and committed `tests/ltiaas/golden/1b17261...`) + saved private `u1-seed-1b17261.json` (`0600`) | **6 min actual** *(est. 28 min)* | Completed `05:31Z–05:37Z` (`0` diffs on 32 protected volumes). |
-| **Slot 3** *(3A DONE; 3B pending)* | **Lead QA** | `qalead-la-3`, `qalead-la-4` | `9473` / `172.23.0.0/16` | **Integration SHA `8f1ecea`** (`8f1eceadb8e4e116ec34deb6dbb85f142741f7fc`) | **Run 3A (`qalead-la-3`, DONE — PASS in 2 min):** `LA-E0-03` (`AC-08, 09`) & `LA-E7-08` (`AC-03`) candidate `G1`–`G4` capture (`45 s`) + host compare vs `G-BASE` (`1b17261`) with the 11 expected-delta files (`LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20`, `LA-IC-21`): `EQUAL: 264 differences (0 not explained), 0 expected changes missing` (`26–29 ms`).<br>**Run 3B (`qalead-la-4`, 81 min, next block):** `LA-E7-08` wave-end SIM gate: M1 `migration` (`35` rows) + `snapshot-upgrade` (`7` rows) (`20 min`), `U1` SIM upgrade continuity (`16 min`), and `R1` (`M1 --phase sim --provider all` `394` rows `25 min` + `M2` `64` browser cases `20 min`). | **2 min (3A)** + **81 min (3B)** | Run 3A completed `05:38Z–05:40Z` (`0` diffs on 32 protected volumes); unblocks QA-3/QA-4 golden-compare rows on host. |
-| **Slot 4** | **QA-3** | `qa3-la-sim-r1` .. `r3` | `9453` / `172.21.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | Lanes `K`, `R`, `P` (`tests/ltiaas/tasks-core/K1-SIM-RUN-PLAN.md`): Batch 1 (`LA-E5-12` `AC-01..07` + `LA-E1-08` `AC-02` K1-CAP C2 guards, `7 min`), Batch 2 (`LA-E4-03` `AC-02..05` K1-AGS A1–A6, `429` throttle, partition fairness, in-flight restart, `8 min`), Batch 3 (`LA-E2-03` `AC-03..05,07` if merged, `5 min`) + host golden-binding runs (`1 min`, no Docker) | **15–20 min** | Fast SIM window closing all QA-3 `K1-SIM` rows and golden-binding Vitest checks (using Slot 3's capture). |
-| **Slot 5** | **QA-4** | `qa4-la-sim-r1` .. `r4` | `9463` / `172.22.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | Lanes `L` & `L2` (`tests/ltiaas/tasks-lti/K1-SIM-RUN-PLAN.md`): Batch 1 (`qa4-la-sim-r1`, 9 suites: `LA-E1-10`, `LA-E3-01`, `LA-E3-02`, `LA-E3-04`, `LA-E3-13`, `LA-E3-06`, `LA-E3-11`, `LA-E3-12`, `LA-E5-18`, `26 min`), Batch 2 (`qa4-la-sim-r2`: `LA-E3-03`, `LA-E5-14`, `10 min`), Batch 3 (`qa4-la-sim-r3`: `LA-E5-06`, `8 min`), Batch 4 (`qa4-la-sim-r4`: `LA-E1-05` `AC-07,08`, `8 min`) | **52 min** | Closes all 13 merged QA-4 `K1-SIM` task suites on the simulator lane. |
-| **Slot 6** | **QA-E2E** | `qa-e2e-la-sim-r1` .. `r2` | `9443` / `172.20.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | **`LA-E7-09` (`AC-01..08`, ~`15 min`):** Moodle-shaped `standard` simulator channel end-to-end (`R2-sim` manual connect, `.mbz`, Deep Linking, SCORM 1.2 + HTML grades `200`/`409`/`503`, check 14 refusal, speed vs Moodle 5.2).<br>**`K2` SIM Browser Suites (`~20 min`):** `LA-E3-01 AC-11` & `LA-E3-02 AC-08,09` (3P-cookie-blocked Chromium `lti.put_data` / `lti.get_data`), `LA-E3-05 AC-01..05` (picker Cancel & multi-pick), `LA-E1-10 AC-03,05,06` (manifest LMS names in browser). | **35 min** (`15 + 20`) | Runs after QA-E2E's Round 4 fix lands; verifies `LA-E7-09` (`R2-sim`) and all `K2` SIM browser cases before live Moodle slots. |
-| **Slot 7** | **Lead QA** | `qalead-la-5` *(SIM)*, `qalead-la-6` *(Moodle)* | `9473` / `172.23.0.0/16` | **Intake SHA `1b17261`** (`G-BASE` + `--replace-tests` for `LA-E0-04`) | **`LA-E0-02` (`AC-02..10`) & `LA-E0-04` (`AC-02..04`):**<br>• **Run 7A (`qalead-la-5`, SIM, `65 min`):** M1 `sim` (`394` rows), M2 (`64` cases), M1 `migration` (`35`) & `snapshot-upgrade` (`7`) on `1b17261` with LD-1 open-world tests (`LA-E0-04 AC-02,03`).<br>• **Run 7B (`qalead-la-6`, Moodle 5.2, `40 min` T7 × 3 + demo / `+95 min` legacy `T1–T8`):** `T7 × 3` (`3 × 17` checks + demo videos, `LA-E0-04 AC-04`), legacy `T1, T2a, T2b, T3a, T3b, T3c, T4a, T4b, T5, T6, T8`, `rate-peaks.mjs`, and `docker stats` peak memory sampler. | **105 min** *(SIM + T7×3 core)* / **200 min** *(with full T1–T8 legacy)* | Records the `1b17261` baseline regression and `LA-E0-04` LD-1 parity comparison without delaying Slots 2–6. *(Note: Run 7A can also be pulled right after Slot 2 if desired.)* |
-| **Slot 8** | **Lead QA + QA-E2E** | `qalead-la-7` | `9473` / `172.23.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | **Wave-End `MOODLE-LIVE` (`R2-lite` / `R2` + `K2` Moodle `U1`/`U2`):**<br>• `T7 × 1` (`12 min`, or `T7 × 3` `36 min` for full `R2`) — `LA-E7-08 AC-02`, `LA-E1-05 AC-10`, `LA-E1-07 AC-08`, `LA-E1-08 AC-08`, `LA-E1-09 AC-05`, `LA-E4-02 AC-10`, `LA-E4-03 AC-09`.<br>• `U1` & `U2` Moodle upgrade continuity (`20 min`) — `LA-E7-08 AC-04`, `LA-E1-11 AC-04,05`, `LA-E4-02 AC-06`.<br>• `R2-lite` targeted Moodle suites (`33 min`): `T2a`/`T2b`/`T3a`/`T3b`/`T3c` (`LA-E1-05 AC-10`), `T4b1`/`T4b2` (`LA-E1-07 AC-08`, `LA-E1-09 AC-05`), `T5a`/`T5b` with `LD-6` `record_dispatch` P5 fixture (`LA-E4-02 AC-10`, `LA-E4-03 AC-09`), `T6` (`LA-E1-09 AC-05`, `LA-E1-11 AC-06`), `T8` (`LA-E1-08 AC-08`). | **65 min** *(R2-lite + T7×1 + U1/U2)* / **89 min** *(with T7×3)* | Batching all live Moodle 5.2 checks into one shared Moodle cold-start slot avoids repeated ~8 min Moodle container boots. |
-
-### 1.2 Summary of What Runs on Intake SHA (`1b17261`) vs Current Integration SHA (`f2e340e` / Wave-End SHA)
-
-| Target SHA | Runs That Must Execute on This SHA | Compose Projects | Total Est. Minutes |
-| --- | --- | --- | :---: |
-| **Intake SHA `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`G-BASE`)** | 1. **`LA-E0-03` (`AC-01..04`)**: Two fresh-stack `G-BASE` golden captures (`g-base-1`, `g-base-2`) + determinism diff + `u1-seed.json` (Slot 2).<br>2. **`LA-E0-02` (`AC-02..10`) & `LA-E0-04` (`AC-02..04`)**: Baseline M1 (`sim`, `migration`, `snapshot-upgrade`), M2 (`64` cases), `T7 × 3` (`3 × 17` + demo), and legacy `T1–T8` + `rate-peaks.mjs` + memory peaks, comparing pass/fail counts with `--replace-tests` for the 8 `LD-1` open-world files (Slot 7). | `qalead-la-1`, `qalead-la-2`, `qalead-la-5`, `qalead-la-6` | **133 min** *(core SIM + T7×3)* / **228 min** *(with full T1–T8 legacy)* |
-| **Current Integration SHA `8c65424` / `144a566` (or Newest Green SHA at Slot Start)** | 1. **`LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`)**: Candidate golden capture (`G1`–`G4`) + host compare against `G-BASE` with `LA-IC-01, LA-IC-03, LA-IC-12, LA-IC-13, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21` (Slot 3A).<br>2. **`LA-E7-08` (`AC-01..06`)**: Wave-end SIM gate — M1 `migration` & `snapshot-upgrade`, `U1` SIM upgrade continuity, `R1` (`M1 sim` `394` rows + `M2` `64` cases) (Slot 3B).<br>3. **QA-2 (`Slot 1`), QA-3 (`Slot 4`), QA-4 (`Slot 5`), QA-E2E (`Slot 6`: `LA-E7-09` + `K2` SIM)**.<br>4. **Wave-End `MOODLE-LIVE` (`Slot 8`)**: `T7 × 1` (or `× 3`), Moodle `U1`/`U2`, and `R2-lite` (`T2a–T3c`, `T4b`, `T5a/b`, `T6`, `T8`). | `qa2-la-sim-r1..6`, `qalead-la-3`, `qalead-la-4`, `qa3-la-sim-r1..3`, `qa4-la-sim-r1..4`, `qa-e2e-la-sim-r1..2`, `qalead-la-7` | **262 min** *(Slots 3–6 + Slot 8 R2-lite, after QA-2 Slot 1)* |
+- **Owner:** Lead QA (`task_7aeec40d57a9`, updated in `task_7a15ccfad614` / `ctx_ac9a28f796e7`)
+- **Preparation Mode:** Host-only (`0` Docker containers, `0` volumes, `0` networks started during preparation)
+- **Wave-End Candidate SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (`80133d6b`, product code `02f5d420`; includes `BD-A2-103` `LA-E3-02` storage-check CSP `form-action` fix; Lead check green: `3306` unit, `255` infra, `145` K0, F1 `0`, F5 `6` rules; `LD-9` round 8 approved by both Reviewer-A and Reviewer-B in `fd146062`)
+- **Intake / `G-BASE` SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`1b17261b`, product code `9f8ac62`)
+- **Pre-Staged Host-Only Gate Assets (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE`, mode `0700`):**
+  - **Wave-End Test Source Repo (Slots 3B & 8):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`
+    - Product commit: `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5`
+    - Committed test SHA (`--test-sha`): `8ad1292687431b05bad6b5c070ab722e67714526`
+    - Contains: `80133d6b`'s `tests/` tree plus the 8 `LD-1` open-world files from `f0a7b306`, the 3 approved `LA-IC-04` frozen-test updates (`31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118`), the 3 approved `LA-IC-14` frozen-test updates (`11-canvas-platforms.test.ts:218-265`), the `LA-IC-09` (`LD-6`) P5 fixture update (`storage-fixture-script.mjs:389-396` supporting `record_dispatch`), the open-world migration-ledger check in `m1-migration.mjs:331-338`, and the `qalead-la-<n>` project-prefix regex guard in `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` and `tests/e2e/host/run-t7.mjs`.
+    - Verified host-only: `run-m2.mjs --harness-only` PASS (`64` M2 cases, typecheck exit `0`), `M1` Vitest discovery PASS (`392` API cases + `2` browser cases = `394` `sim` rows), `m1-migration.selftest.mjs` + `storage-fixture-script.selftest.mjs` PASS (`25/25`), `golden.k0.test.mjs` PASS (`12/12`).
+  - **Slot 7 Test Source Repo (`LA-E0-02` + `LA-E0-04` `LD-1` parity on `1b17261`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261`
+    - Product commit: `1b17261be97c4701b928fa9dc2fa74c6d23028f6`
+    - Committed test SHA (`--test-sha`): `357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`
+    - Contains: `1b17261`'s `tests/` tree plus **only** the 8 `LD-1` open-world files from `f0a7b306` (`B-LD9-13`) and the `qalead-la-<n>` project-prefix regex guard, preserving `1b17261`'s pre-`LA-IC-04`/`LA-IC-14`/`LA-IC-09` assertions.
+    - Verified host-only: `run-m2.mjs --harness-only` PASS (`64` M2 cases, typecheck exit `0`), `M1` Vitest discovery PASS (`392` API cases + `2` browser cases = `394` `sim` rows).
+  - **Course Fixtures (`COURSE_FIXTURES_DIR`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures` (mode `0700`, verified SHA-256 for both `Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip` and `-html.zip`).
+- **Execution Rule:** Do **not** run any Docker command below until the Lead sends an orchestration message starting with `DOCKER-YES:` naming the agent, the lane, the compose project name, the port, the subnet, and the start and end times.
 
 ---
 
-## 2. Recorded Pre-Window Host-Only Gate Result on `f2e340e` (Code `19d6dc4`)
+## 1. Completed vs Remaining Gate Slots
 
-Executed on **2026-10-23** (`08:45–09:05 +07:00`) in an isolated `--no-hardlinks` clone at `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/pre-window-f2e340e/clone` (`umask 077`, push disabled, **`0` Docker commands run**). Logs are saved in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/pre-window-f2e340e/logs/`:
+| Slot | Owner | Scope | Compose Projects | Port / Subnet | Est. Minutes | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Slots 1, 1b, 1c** | QA-2 | `E5` SIM + Moodle `R2` regression (`LA-E5-01..23`) | `qa2-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`5fdc9bd8`) |
+| **Slot 2** | Lead QA | `LA-E0-03` Round 2 (`G-BASE` `1b17261` golden capture `G1–G4` + `U1` seed + `U2` backup) | `qalead-la-1..2` | `9643` / `172.22.0.0/16` | — | **DONE** (`b68bf4ef`) |
+| **Slot 3A** | Lead QA | Candidate golden capture `G1–G4` & `LD-9` records (`LA-IC-01..21` approved in Round 8) | `qalead-la-3` | `9643` / `172.22.0.0/16` | — | **DONE** (`fd146062`) |
+| **Slots 4, 4b** | QA-3 | `E1/E2/E3/E4/E6` SIM tasks (`31/31` PASS) | `qa3-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`cd347224`) |
+| **Slot 5** | QA-4 | `E1/E2/E3/E5/E7` LTI & sim tasks (`15` suites PASS) | `qa4-la-*` | `9443` / `172.20.0.0/16` | — | **DONE** (`a11268c5`) |
+| **Slot 6 R1/R2** | QA-E2E | `LA-E7-09` (`R2-SIM` PASS), `LA-E3-16` (`PASS`), `LA-E7-07` (`K2` R3 next on `80133d6b`) | `qa-e2e-la-*` | `9643` / `172.22.0.0/16` | **`25 min`** | **R3 NEXT** |
+| **LA-E5-13 SIM** | Lead QA | `LA-E5-13` `AC-01, -02, -03, -05` `K1-SIM` + `AC-06` `K0` on `fd146062` | `qalead-la-8..9` | `9443` / `172.20.0.0/16` | — | **DONE** (`43d5073c`) |
+| **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (all 13 `LD-9` records), `M1 migration` + `snapshot-upgrade`, `U1` SIM continuity from `1b17261`, `M1 sim --provider all` (`394` rows), `M2` (`64` cases) | `qalead-la-10..15` | `9643` / `172.22.0.0/16` (or `9443` / `172.20.0.0/16`) | **`52 min`** | **READY** |
+| **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `f0a7b306` `--test-sha` (`M1 sim/migration/snapshot-upgrade`, `M2`, `T7×3`, optional legacy `T1–T8`, `rate-peaks.mjs`, `docker stats` peak) | `qalead-la-16..20` (`qalead-la-21..27` optional legacy) | `9643` / `172.22.0.0/16` (SIM) & `9543` / `172.21.0.0/16` (Moodle) | **`80 min` core** (`42m` SIM + `38m` `T7×3`; `+55m` if legacy `T1–T8` run) | **READY** |
+| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `80133d6b` (code `02f5d420`): `T7×1` + `R2-lite` (`T2a..T8`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + QA-E2E `K2` `U1`/`U2` | `qalead-la-30..35` | `9543` / `172.21.0.0/16` | **`55 min` Lead QA** (`+20 min` QA-E2E = **`75 min`**) | **READY** |
 
-| Pre-Window Gate Check | Command | Result | Measured Time & Evidence Log |
-| --- | --- | :---: | --- |
-| **1. `tests/` & `tests/ltiaas/` TypeScript Check** (`la-qa/tests` synced) | `npm --prefix tests run typecheck && npx --prefix tests tsc --noEmit -p tests/ltiaas/tsconfig.json` | **PASS** (exit `0`) | `4.1 s` — `0` errors across all `tests/acceptance`, `tests/e2e`, and `tests/ltiaas/**` suites (`01-ltiaas-typecheck.log`, `01b-tests-typecheck.log`). *(Note: raw `f2e340e` without `la-qa/tests` overlay had 4 TS errors in `tasks-lti/{LA-E3-11..13,LA-E5-18}` already fixed by QA-4 in `la-qa`.)* |
-| **2. `LA-E0-03` Golden K0 Suite (`AC-05..08` + `LD-9` `LA-IC-12..20`)** | `node --test tests/ltiaas/golden/golden.k0.test.mjs` | **PASS** (`12/12`) | `280.7 ms` — normalization, drop list, secret scan (`0` hits on `1b17261`), `< 5 s` compare, negative control, expected deltas, `cliBinding`, `LA-IC-16` allowlist rule, `LA-IC-15` conflict text, and combined `LA-IC-12, -13, -15..-20` check (`02-golden-k0.log`). |
-| **3. `LA-E0-03` Golden Compare CLI Self-Check** | `node tests/ltiaas/golden/compare.mjs --base tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 --candidate tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 --expected LA-IC-12,LA-IC-13,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20` | **PASS** (`EQUAL`) | `3 ms` — `EQUAL: 0 differences (0 not explained), 0 expected changes missing` (`03-golden-compare.log`). |
-| **4. `LA-E0-04` LD-1 Open-World K0 Suite (`AC-01, 05, 06`)** | `node --test tests/ltiaas/k0/ld1/open-world.test.mjs` | **PASS** (`40/40`) | `56.4 ms` — positive baseline, additive `LA-IC-01` fields, extra `zz-lms` channel/profile/card/sim-profile, and negative controls (`04-ld1-open-world.log`). *(Note: requires Lead path-commit of `tests/acceptance/lib/open-world.mjs` from `la-qa` or `--replace-tests`.)* |
-| **5. Root `test:k0` Contract Suite** | `npm run test:k0` | **PASS** (`121/121`) | `658 ms` — `3` test files (`121` tests passed) (`05-k0-contract.log`). |
-| **6. Architecture Fitness `F1` (`fitness:lms-names`) & `F5` (`fitness:rules`)** | `npm run fitness:lms-names && npm run fitness:rules` | **PASS** (exit `0`) | `F1 PASS: 0 files with hits, 0 hits`; `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` (`06b-f1-lms-names.log`, `06c-f5-rules.log`). |
-| **7. Simulator Self-Tests (`AC-LA-E7-02-01..07`)** | `node --test tests/sim/core/selftest.mjs tests/sim/blackboard/selftest.mjs tests/sim/canvas/selftest.mjs tests/sim/generic/selftest.mjs tests/sim/brightspace/selftest.mjs` | **PASS** (`58/58`) | `3.40 s` — all `58` simulator self-tests pass with `la-qa/tests/sim` synced (`07a-sim-selftests.log`). |
-| **8. M1 Host Control, Migration & Phase Self-Tests (`0` Docker)** | `node --test tests/host/m1-control.selftest.mjs tests/host/m1-migration.selftest.mjs tests/host/m1-phases.selftest.mjs` | **PASS** (`23/23`) | `2.81 s` — `23/23` pass (`07b-m1-host-selftests.log`). |
-| **9. M2 Harness Self-Test & 64-Case Discovery (`0` Docker)** | `COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses node tests/e2e/host/run-m2.mjs --harness-only` | **PASS** (`6/6` + `64` cases) | `1.9 s` — `m2-harness: 6/6 selftests passed; 64 M2 browser cases discovered and accounted; T7 selection unchanged` (`07c-m2-harness-only.log`). |
-| **10. `AC-LA-E7-08-05` Frozen-Test Diff Audit (`1b17261..f2e340e`)** | `git diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f -- tests/acceptance tests/e2e tests/host tests/sim tests/fixtures` | **PASS** | Only `LD-1` open-world files (`8` files in `la-qa`), `LD-6` `tests/host/p5-fixture.mjs` (`record_dispatch`), runner-only project-name/port plumbing in `tests/host/*`, and additive simulator files in `tests/sim/**`. Zero unauthorized frozen-test assertion edits. |
-| **11. `AC-LA-E7-08-06` Storage Script Diff Audit (`1b17261..f2e340e`)** | `git diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f -- infra/scripts/stack-data.sh infra/scripts/storage-compat.sh` | **PASS** (`0` files) | `0` lines changed in `infra/scripts/stack-data.sh` or `infra/scripts/storage-compat.sh` (`LD-3`). |
-| **12. Full `R0` (`npm run check`) on Clean Clone of `f2e340e`** | `npm run check` | **PASS** (exit `0`) | Workspaces typecheck + ESLint (`F3`) + Vitest unit suites (`180` files, `2,857` passed, `5` skipped) + `test:infra` (`254` passed, `23` suites) + `test:k0` (`3` files, `121` passed) + `F1` (`0` hits) + `F5` (`6` rules, `0` hits) (`08-npm-run-check.log`). |
+> [!IMPORTANT]
+> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A) and `qalead-la-8..9` (`LA-E5-13` SIM) have already been used. Slots 3B, 7, and 8 exclusively use **`qalead-la-10..35`**.
 
 ---
 
-## 3. Pre-Flight Checklist, Docker Boundary Records, and Pre-Checks
+## 2. Expected-Delta Set for Wave-End Gate (`LA-E7-08` `AC-03` & `AC-01`)
 
-### 3.1 Runner Project-Prefix & Expected-Delta Pre-Check in Scratch Clones (Lesson L1)
+All **13 approved `LD-9` records** (`fd146062`, Round 8 APPROVE by both Reviewer-A and Reviewer-B) are committed in `tests/ltiaas/golden/expected/*.json` and passed to the golden comparator:
 
-1. **`qalead-la-<n>` Project-Prefix Guard in `tests/host/` and `tests/e2e/host/`:**
-   - The brief assigns `COMPOSE_PROJECT_NAME=qalead-la-<n>`, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`.
-   - In the frozen host runners, `tests/host/core.mjs:76` and `tests/host/m1-control.mjs:17` match `!/^qa[234]?-[a-z0-9-]+$/`, `tests/host/run-t1.mjs:93` matches `!/^qa-[a-z0-9-]+$/`, and `tests/e2e/host/run-t7.mjs:63` matches `!/^qa-e2e[a-z0-9-]*$/` (whereas `tests/ltiaas/golden/run-golden.mjs` accepts any project prefix).
-   - **Rule in every scratch clone before running `tests/host/run-*.mjs` or `tests/e2e/host/run-*.mjs`:** Run the 1-second runner-guard helper below inside the scratch clone (allowed by `AC-LA-E7-08-05`: runner changes with no assertion change):
-     ```sh
-     node -e '
-       const fs = require("fs");
-       for (const [f, from, to] of [
-         ["tests/host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-         ["tests/host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-         ["tests/host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
-         ["tests/e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
-       ]) {
-         if (fs.existsSync(f)) fs.writeFileSync(f, fs.readFileSync(f, "utf8").replace(from, to));
-       }
-     '
-     ```
-2. **Full Expected-Delta Set (`LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20`, `LA-IC-21`) for Slot 3A:**
-   - `tests/ltiaas/golden/expected/` holds `LA-IC-03.json`, `LA-IC-12.json`, `LA-IC-13.json`, `LA-IC-15.json`, `LA-IC-16.json`, `LA-IC-17.json`, `LA-IC-18.json`, `LA-IC-19.json`, `LA-IC-20.json` (updated for `BD-A1-90` / `LA-E2-03`), and `LA-IC-21.json` (`BD-A1-93` / `LA-E2-02`, commit `19da95e` / `4d08fc1`).
-   - At the current integration SHA (after E1 + E2-K `LA-E2-01..03` + `LA-E3-05`), `G1` and `G3` also include the additive `LA-IC-01` fields:
-     - `channel` (`string`), plus the E2-K trait fields `endpoints` (`string`), `issuerKind` (`string`), and `endpointOrigins` (`present`: `string | null`) on `G1.{default,acceptance}.providers.profiles[*]` and `G1.providersAfter.profiles[*]`;
-     - `channel`, `channelName`, `channelCapabilities` on `G1.{default,acceptance}.lmsProviders.lms[*]`, `G1.lmsProvidersAfter.lms[*]`, `G1.connections[*]`, `G1.connectionList.connections[*]`, `G3.blackboard.connection`, and `G3.canvas.connection`;
-     - and `tests/ltiaas/tasks-core/LA-E1-06/golden-g1.k1sim.test.ts:90` + `LA-E1-07/golden.k1sim.test.ts:15` reference `tests/ltiaas/golden/expected/LA-IC-01.json` (plus `BINDING` in `tests/ltiaas/tasks-core/LA-E1-01/golden-binding.ts`).
-   - In Slot 3A (`qalead-la-3`), pass `--expected "LA-IC-01,LA-IC-03,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21"` with `LA-IC-01.json` containing the additive `channel` / `channelName` / `channelCapabilities` and E2-K trait fields (`endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`).
+```text
+LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21
+```
 
-### 3.2 Before-Slot Docker Boundary Snapshot & VM Wake (`umask 077`, `charter-LA.md` §0)
+| Record ID | Golden Path Deltas (`G1–G4` vs `G-BASE` `1b17261`) | Frozen Test Deltas (`1b17261..8ad12926`) | Notes on Wave-End SHA (`80133d6b` / code `02f5d420`) |
+| --- | --- | --- | --- |
+| **`LA-IC-01`** | **`259` exact-value paths** (`G1`, `G3`; `0` wildcards) | **`0` after `LD-1`** (`LA-E0-04` 8 files in `f0a7b306`) | Includes `lti-generic` `channelName: "LMS"` (`BD-A1-111`), `canvas` & `lti-generic` `setup.connectionCheck: true` (`LA-E6-04`), and `brightspace` `methods: ["dynamic", "manual"]` (`LA-E2-06`). |
+| **`LA-IC-03`** | `0` | `0` | Moodle DR path-prefix & `LtiDeepLinkingRequest` (`LA-E2-02`). |
+| **`LA-IC-04`** | **`3` paths in `G1`** (`canvasConfiguration["jwk=inline"].scopes[4]` removed, `canvasConfiguration["jwk=url"].scopes[4]` removed, `toolConfiguration.moodle[12].value` = `"Do not use this service"`) | **`3` files**: `31-canvas-grants.test.ts:114-120`, `00-profiles.test.ts:104`, `T4b1/1-connect.spec.ts:118` | **Now active on `80133d6b`** (`LA-E3-07`, 4 AGS scopes, no NRPS scope). |
+| **`LA-IC-12`** | **`2` paths in `G4`** (`blackboard.pages.picker.text`, `canvas.pages.picker.text` + `" Cancel"`) | `0` | Deep Linking Cancel button & empty `contentItems` (`LA-E3-04`, `LA-E3-05`). |
+| **`LA-IC-13`** | `0` | `0` | Could gaps (`scoreGiven: null`, NRPS `service_versions`, `trustedAudiences`) (`LA-E3-12`). |
+| **`LA-IC-14`** | **`13` paths across `G1` (`12`) and `G3` (`1`)** (`capabilities.dynamicRegistration: true` and `methods[1]: "dynamic"` on Canvas) | **`1` file (`3` cases)**: `11-canvas-platforms.test.ts:218-265` (`M1-15.canvas.dto`, `M1-15.canvas.dynamic-refused`, `M1-15.canvas.lms-providers`) | **Now active on `80133d6b`** (`LA-E3-09`, `LA-E3-15`). |
+| **`LA-IC-15`** | **`2` paths in `G3`** (`{blackboard,canvas}.publications.B-conflict.results[0].scoreSyncs[0].lastError`) | `0` | Channel-named 409 conflict text (`LA-E4-03`). |
+| **`LA-IC-16`** | **`1` path in `G1`** (`acceptance.ltiHealth.outbound_allowlist` via `sim-hosts-allowlist` rule) | `0` | `.sim.test` hosts equal `tests/sim/hosts.json` union (`15` hosts); non-sim entries equal `G-BASE` (`BD-A1-36`). |
+| **`LA-IC-17`** | `0` | `0` | Strict 6-key Moodle `PUT /app-api/connections/:id/platform` (`BD-A1-41`). |
+| **`LA-IC-18`** | `0` | `0` | Portal `PublishDialog` channel name & `IntegrationLogo` colour/title (`BD-A1-50`). |
+| **`LA-IC-19`** | `0` | `0` | Content-host `410 RUNTIME_EXPIRED` channel name (`BD-A1-57`). |
+| **`LA-IC-20`** | `0` | `0` | `ChannelErrorNotice` 5-code error text fallback (`BD-A1-63`, `BD-A1-81`). |
+| **`LA-IC-21`** | `0` | `0` | DR update preserves existing `active` state (`BD-A1-93`). |
+| **Total** | **`280` explained entries (`267` distinct golden paths)** | **8 `LD-1` files + 4 `LA-IC-04/14` files + 1 `LA-IC-09` P5 fixture** | **`0` unexplained differences, `0` missing expected changes** |
 
-Run at the start of **every** granted Lead QA Docker slot before starting any stack:
+---
 
-```sh
+## 3. Slot 3B: Wave-End SIM-Lane Gate (`LA-E7-08`) on `80133d6b` (Code `02f5d420`)
+
+- **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
+- **Compose Projects:** `qalead-la-10`, `qalead-la-11`, `qalead-la-12`, `qalead-la-13`, `qalead-la-13b`, `qalead-la-14`, `qalead-la-15`
+- **Port / Subnet:** `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16` (or `9443` / `172.20.0.0/16` per `DOCKER-YES`)
+- **Estimated Duration:** **`52 minutes` total**
+  - Step 3B.1 (`qalead-la-10`): Candidate golden capture `G1–G4` + host compare with all 13 `LD-9` records — **`4 min`**
+  - Step 3B.2 (`qalead-la-11` & `qalead-la-12`): `M1 --phase migration` (`35` rows) + `M1 --phase snapshot-upgrade` (`7` rows) — **`12 min`**
+  - Step 3B.3 (`qalead-la-13` & `qalead-la-13b`): `U1` SIM upgrade continuity from `1b17261` to `80133d6b` (`LA-E5-08` LTI + `LA-E5-22` app) — **`6 min`**
+  - Step 3B.4 (`qalead-la-14`): `M1 --phase sim --provider all` (`394` rows) — **`15 min`**
+  - Step 3B.5 (`qalead-la-15`): `M2` browser suite (`64` cases) — **`15 min`**
+
+### Exact Commands for Slot 3B
+
+```bash
 umask 077
-export SLOT_ID="slot2-golden-base" # or slot3-gate-b1b2, slot7-e002-base, slot8-moodle-live
-export RUN_DIR="$HOME/cogniate-qa-runs/LA/GATE/$SLOT_ID-$(date -u +%Y%m%dT%H%M%SZ)"
-export BOUNDARY_DIR="$RUN_DIR/boundary"
-export COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses"
-mkdir -p "$BOUNDARY_DIR"
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SRC_WAVE="$GATE_DIR/src-wave-end"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+export WAVE_SHA="80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5"
+export WAVE_TEST_SHA="8ad1292687431b05bad6b5c070ab722e67714526"
+export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
+export PUBLIC_PORT=9643
+export STACK_SUBNET="172.22.0.0/16"
 
-# 1. Wake Docker VM clock & check available memory (>= 5 GiB free for SIM, >= 8 GiB for Moodle)
-docker run --rm alpine true
-vm_stat
-sysctl vm.swapusage
+# ----------------------------------------------------------------------
+# Step 3B.0: Pre-run Docker hygiene check (<1 min)
+# ----------------------------------------------------------------------
+docker ps --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'
+docker network ls --format '{{.Name}}' | xargs -n1 docker network inspect --format '{{.Name}}: {{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null
+docker system df
 
-# 2. Record before-slot Docker state & 32 protected baseline volumes (charter-LA §0)
-docker ps -a --no-trunc > "$BOUNDARY_DIR/docker-ps-before.txt"
-docker network ls --no-trunc > "$BOUNDARY_DIR/docker-networks-before.txt"
-docker volume ls > "$BOUNDARY_DIR/docker-volumes-before.txt"
-docker volume ls -q | sort > "$BOUNDARY_DIR/docker-volume-names-before.txt"
-if [ -s "$BOUNDARY_DIR/docker-volume-names-before.txt" ]; then
-  docker volume inspect $(cat "$BOUNDARY_DIR/docker-volume-names-before.txt") \
-    > "$BOUNDARY_DIR/docker-volumes-inspect-before.json"
-fi
+# ----------------------------------------------------------------------
+# Step 3B.1 (qalead-la-10, est. 4 min): Candidate Golden Capture G1-G4 + Compare (AC-LA-E7-08-03)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-10 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/ltiaas/golden/run-golden.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-10-golden" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  --out "$GATE_DIR/golden-capture-$WAVE_SHA" \
+  > "$GATE_DIR/logs/slot3b-1-golden-capture.log" 2>&1
 
-# 3. Confirm no other QA stack is running and no stale qalead-la-* resources exist
-docker ps --format '{{.Names}}\t{{.Status}}'
+# Host-only compare with ALL 13 approved LD-9 records (<5 s, 0 Docker):
+node "$SRC_WAVE/tests/ltiaas/golden/compare-golden.mjs" \
+  --base "$SRC_WAVE/tests/ltiaas/golden/$INTAKE_SHA" \
+  --candidate "$GATE_DIR/golden-capture-$WAVE_SHA" \
+  --expected "LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21" \
+  --expected-dir "$SRC_WAVE/tests/ltiaas/golden/expected" \
+  --json > "$GATE_DIR/logs/slot3b-1-golden-compare.json"
+
+# ----------------------------------------------------------------------
+# Step 3B.2 (qalead-la-11 & qalead-la-12, est. 12 min): M1 migration + snapshot-upgrade (AC-LA-E7-08-04)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-11 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE/tests/host/run-m1.mjs" \
+  --phase migration \
+  --provider all \
+  --sha "$WAVE_SHA" \
+  --test-sha "$WAVE_TEST_SHA" \
+  --source "$SRC_WAVE" \
+  > "$GATE_DIR/logs/slot3b-2a-m1-migration.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-12 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-m1.mjs" \
+  --phase snapshot-upgrade \
+  --provider all \
+  --sha "$WAVE_SHA" \
+  --test-sha "$WAVE_TEST_SHA" \
+  --source "$SRC_WAVE" \
+  > "$GATE_DIR/logs/slot3b-2b-m1-snapshot-upgrade.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 3B.3 (qalead-la-13 & qalead-la-13b, est. 6 min): U1 SIM Upgrade Continuity 1b17261 -> 80133d6b (AC-LA-E7-08-04)
+# ----------------------------------------------------------------------
+# 3B.3a: LTI service U1 continuity (connections, deployments, resource links, pending DR session, tool keys, service keys)
+COMPOSE_PROJECT_NAME=qalead-la-13 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/ltiaas/tasks-ops/LA-E5-08/run.mjs" \
+  --sha "$WAVE_SHA" \
+  --old-sha "$INTAKE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-13-u1-lti" \
+  > "$GATE_DIR/logs/slot3b-3a-u1-lti.log" 2>&1
+
+# 3B.3b: App U1 continuity (connections, deployments, resource links, picker sessions, Deep Linking pick, launch, score dispatch)
+COMPOSE_PROJECT_NAME=qalead-la-13b PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/ltiaas/tasks-ops/LA-E5-22/run.mjs" \
+  --sha "$WAVE_SHA" \
+  --old-sha "$INTAKE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-13b-u1-app" \
+  > "$GATE_DIR/logs/slot3b-3b-u1-app.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 3B.4 (qalead-la-14, est. 15 min): M1 --phase sim --provider all (394 rows, AC-LA-E7-08-01)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-14 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-m1.mjs" \
+  --phase sim \
+  --provider all \
+  --sha "$WAVE_SHA" \
+  --test-sha "$WAVE_TEST_SHA" \
+  --source "$SRC_WAVE" \
+  > "$GATE_DIR/logs/slot3b-4-m1-sim.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 3B.5 (qalead-la-15, est. 15 min): M2 Browser Suite (64 cases, AC-LA-E7-08-01)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-15 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE/tests/e2e/host/run-m2.mjs" \
+  --sha "$WAVE_SHA" \
+  --test-sha "$WAVE_TEST_SHA" \
+  --source "$SRC_WAVE" \
+  > "$GATE_DIR/logs/slot3b-5-m2.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 3B.6: Post-slot teardown verification (<1 min)
+# ----------------------------------------------------------------------
 docker ps -a --filter "name=qalead-la-"
-docker network ls --filter "name=qalead-la-"
 docker volume ls --filter "name=qalead-la-"
+docker network ls --filter "name=qalead-la-"
 ```
 
-### 3.3 Owned-Only Cleanup & After-Slot Docker Boundary Verification
+### Host-Only `K0` Verification Already Proven for `LA-E7-08` (`AC-LA-E7-08-05` & `AC-LA-E7-08-06`)
 
-Run at the end of **every** Lead QA Docker slot (and between `qalead-la-<n>` projects):
-
-```sh
-umask 077
-# 1. Tear down only our own qalead-la-<n> compose project(s) — NEVER run `docker system prune` or touch qa-multi-*
-for proj in qalead-la-1 qalead-la-2 qalead-la-3 qalead-la-4 qalead-la-5 qalead-la-6 qalead-la-7; do
-  if docker ps -a --format '{{.Names}}' | grep -q "^${proj}-"; then
-    docker compose -p "$proj" -f infra/compose.yaml --profile moodle --profile acceptance --profile test down -v --remove-orphans || true
-  fi
-  own_vols=$(docker volume ls -q --filter "name=^${proj}_")
-  if [ -n "$own_vols" ]; then
-    docker volume rm $own_vols || true
-  fi
-  own_nets=$(docker network ls -q --filter "name=^${proj}_")
-  if [ -n "$own_nets" ]; then
-    docker network rm $own_nets || true
-  fi
-done
-
-# 2. Record after-slot Docker state & verify 0 diffs on the 32 protected baseline volumes
-docker ps -a --no-trunc > "$BOUNDARY_DIR/docker-ps-after.txt"
-docker network ls --no-trunc > "$BOUNDARY_DIR/docker-networks-after.txt"
-docker volume ls > "$BOUNDARY_DIR/docker-volumes-after.txt"
-docker volume ls -q | sort > "$BOUNDARY_DIR/docker-volume-names-after.txt"
-if [ -s "$BOUNDARY_DIR/docker-volume-names-after.txt" ]; then
-  docker volume inspect $(cat "$BOUNDARY_DIR/docker-volume-names-after.txt") \
-    > "$BOUNDARY_DIR/docker-volumes-inspect-after.json"
-fi
-
-diff -u "$BOUNDARY_DIR/docker-volume-names-before.txt" "$BOUNDARY_DIR/docker-volume-names-after.txt" \
-  | tee "$BOUNDARY_DIR/volumes-names-diff.txt"
-diff -u "$BOUNDARY_DIR/docker-volumes-inspect-before.json" "$BOUNDARY_DIR/docker-volumes-inspect-after.json" \
-  | tee "$BOUNDARY_DIR/volumes-inspect-diff.txt"
-```
+- **`AC-LA-E7-08-05` (`PASS`, `K0`):**
+  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..8ad1292687431b05bad6b5c070ab722e67714526 -- tests/acceptance tests/e2e tests/host tests/sim tests/fixtures` shows `47` files:
+    1. **8 `LD-1` open-world files** (`LA-E0-04`, `f0a7b306`): `tests/acceptance/lib/open-world.{mjs,d.mts}`, `00-profiles.test.ts:1-29`, `90-simulation-gates.test.ts:19`, `11-canvas-platforms.test.ts:255`, `tests/host/run-m1.mjs:297,302`, `tests/e2e/host/run-m2.mjs:124`, `tests/e2e/M2/01-cards.m2.ts:11-21`.
+    2. **3 `LA-IC-04` frozen test files** (`LA-E3-07`, approved in `fd146062`): `tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120`, `tests/acceptance/M1/common/00-profiles.test.ts:104`, `tests/acceptance/T4b1/1-connect.spec.ts:118`.
+    3. **1 `LA-IC-14` frozen test file** (`LA-E3-09`/`LA-E3-15`, approved in `fd146062`): `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265`.
+    4. **1 `LA-IC-09` (`LD-6`) P5 fixture file** (`LA-E4-03` / migration `014`): `tests/host/storage-fixture-script.mjs:389-396`.
+    5. **Runner-only changes (`0` frozen assertion changes):** `tests/acceptance/run-api.mjs` (LA task Vitest config routing), `tests/host/m1-migration.mjs:331-338` (open-world candidate migration ledger check in `snapshotMigrationRun`), and `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` + `tests/e2e/host/run-t7.mjs` (`qalead-la-<n>` project prefix regex).
+    6. **13 additive `K2` browser suite files:** `tests/e2e/ltiaas/**` (`LA-E7-07`, `LA-E7-09`).
+    7. **13 additive simulator files:** `tests/sim/**` (`LA-E7-01`, `LA-E7-02`, `LA-E7-05`).
+- **`AC-LA-E7-08-06` (`PASS`, `K0`):**
+  - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` produces **empty output (`0` files changed, exit `0`)**.
 
 ---
 
-## 4. Detailed Execution Plan & Exact Commands Per Lead QA Run
+## 4. Slot 7: Intake `1b17261` (`G-BASE`) Baseline (`LA-E0-02`) + `LD-1` Parity (`LA-E0-04`)
 
-### 4.1 Slot 2: `LA-E0-03` Baseline Golden Captures on Intake SHA `1b17261` (`qalead-la-1`, `qalead-la-2` — Est. `28 min`)
-
-- **Tasks & ACs:** `LA-E0-03` (`AC-LA-E0-03-01`, `AC-LA-E0-03-02`, `AC-LA-E0-03-03`, `AC-LA-E0-03-04`)
-- **Target SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`--replace-tests` from `la-qa/tests` so `tests/ltiaas/golden/run-golden.mjs` and `capture.golden.ts` are present in the `1b17261` clone)
-- **Compose Projects:** `qalead-la-1` (capture #1, ~`14 min`), `qalead-la-2` (capture #2, ~`14 min`)
-- **Port & Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`
-- **`tasks/README.md` §2 Forms Used:** Form (a) (`run-golden.mjs` wraps `gen-env`, `stack:up`, default-profile `G1` read, `test:acceptance` with `QA_TASK=GOLDEN`, `stack:down`), Form (f) (`m1-control.mjs` operator CLI listener during capture).
-
-```sh
-umask 077
-export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
-export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
-export REPO_SOURCE="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
-export SLOT2_DIR="$HOME/cogniate-qa-runs/LA/LA-E0-03/r2-docker"
-mkdir -p "$SLOT2_DIR/captures" "$SLOT2_DIR/logs"
-
-# 0. Prepare clean test-overlay source with qalead-la-<n> runner-guard regex enabled (Lesson L1)
-export OVERLAY_TESTS="$SLOT2_DIR/tests-overlay"
-rm -rf "$OVERLAY_TESTS"
-cp -R "$LA_QA/tests" "$OVERLAY_TESTS"
-node -e '
-  const fs = require("fs");
-  for (const [f, from, to] of [
-    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
-    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
-  ]) {
-    const p = process.env.OVERLAY_TESTS + "/" + f;
-    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
-  }
-'
-
-# 1. Capture #1 on fresh stack (qalead-la-1, ~14 min)
-COMPOSE_PROJECT_NAME=qalead-la-1 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
-    --source "$REPO_SOURCE" \
-    --sha "$BASE_SHA" \
-    --label g-base-1 \
-    --out "$SLOT2_DIR/captures/g-base-1" \
-    --workdir "$SLOT2_DIR/clone-1" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT2_DIR/logs/capture-1.log"
-
-# Preserve private U1 seed state (mode 0600) from capture #1 for U1 upgrade verification
-cp -p "$SLOT2_DIR/clone-1/tests/acceptance/artifacts/golden/g-base-1/private/u1-seed.json" \
-      "$SLOT2_DIR/u1-seed-1b17261.json"
-chmod 600 "$SLOT2_DIR/u1-seed-1b17261.json"
-
-# 2. Capture #2 on a second fresh stack (qalead-la-2, ~14 min)
-COMPOSE_PROJECT_NAME=qalead-la-2 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
-    --source "$REPO_SOURCE" \
-    --sha "$BASE_SHA" \
-    --label g-base-2 \
-    --out "$SLOT2_DIR/captures/g-base-2" \
-    --workdir "$SLOT2_DIR/clone-2" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT2_DIR/logs/capture-2.log"
-
-# 3. Determinism compare (AC-LA-E0-03-04: 0 differences between capture #1 and capture #2, and vs stored 1b17261)
-node "$LA_QA/tests/ltiaas/golden/compare.mjs" \
-  --base "$SLOT2_DIR/captures/g-base-1" \
-  --candidate "$SLOT2_DIR/captures/g-base-2" \
-  2>&1 | tee "$SLOT2_DIR/logs/compare-1-vs-2.log"
-
-node "$LA_QA/tests/ltiaas/golden/compare.mjs" \
-  --base "$LA_QA/tests/ltiaas/golden/$BASE_SHA" \
-  --candidate "$SLOT2_DIR/captures/g-base-1" \
-  2>&1 | tee "$SLOT2_DIR/logs/compare-stored-vs-1.log"
-```
-
----
-
-### 4.2 Slot 3A: `LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`) Candidate Golden Capture & Compare (`qalead-la-3` — Est. `14 min`)
-
-- **Tasks & ACs:** `LA-E0-03` (`AC-LA-E0-03-09`), `LA-E7-08` (`AC-LA-E7-08-03`), plus host-only golden-binding ACs for `LA-E1-01` (`AC-03`), `LA-E1-02` (`AC-09`), `LA-E1-05` (`AC-01..06, 09`), `LA-E1-06` (`AC-05`), `LA-E1-07` (`AC-07`), `LA-E1-08` (`AC-01`), `LA-E1-09` (`AC-01`), `LA-E1-10` (`AC-01, 04`), `LA-E4-02` (`AC-08`), `LA-E4-05` (`AC-05`).
-- **Target SHA:** `8c65424` / `144a566` (or newest green integration SHA at slot start; `b216f86` / `f2e340e` for E1-done)
-- **Full Expected-Delta Set:** `LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20` (updated), `LA-IC-21` (`19da95e` / `4d08fc1`), including `LA-IC-01` E2-K trait fields `endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`.
-- **Compose Project:** `qalead-la-3` (`PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`)
-
-```sh
-umask 077
-export TARGET_SHA="$(git -C /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone rev-parse HEAD)"
-export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
-export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
-export REPO_SOURCE="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
-export SLOT3_DIR="$HOME/cogniate-qa-runs/LA/LA-E7-08/r1-docker"
-mkdir -p "$SLOT3_DIR/captures" "$SLOT3_DIR/logs" "$SLOT3_DIR/expected"
-
-# 0. Prepare clean test-overlay source with qalead-la-<n> runner-guard regex enabled (Lesson L1)
-export OVERLAY_TESTS="$SLOT3_DIR/tests-overlay"
-rm -rf "$OVERLAY_TESTS"
-cp -R "$LA_QA/tests" "$OVERLAY_TESTS"
-node -e '
-  const fs = require("fs");
-  for (const [f, from, to] of [
-    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
-    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
-  ]) {
-    const p = process.env.OVERLAY_TESTS + "/" + f;
-    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
-  }
-'
-
-# 1. Prepare expected-delta directory (all 10 approved LD-9 files + LA-IC-01 additive wire & E2-K trait fields)
-cp "$LA_QA/tests/ltiaas/golden/expected/"*.json "$SLOT3_DIR/expected/"
-cat > "$SLOT3_DIR/expected/LA-IC-01.json" <<'EOF'
-{
-  "id": "LA-IC-01",
-  "approval": "docs/reviews/LA-E1-02/qa.md, docs/reviews/LA-E1-05/qa.md, docs/reviews/LA-E1-06/qa.md, docs/reviews/LA-E2-01/qa.md",
-  "changes": [
-    { "file": "G1", "path": "default.providers.profiles[*].channel", "rule": "string" },
-    { "file": "G1", "path": "default.providers.profiles[*].endpoints", "rule": "string" },
-    { "file": "G1", "path": "default.providers.profiles[*].issuerKind", "rule": "string" },
-    { "file": "G1", "path": "default.providers.profiles[*].endpointOrigins", "rule": "present" },
-    { "file": "G1", "path": "acceptance.providers.profiles[*].channel", "rule": "string" },
-    { "file": "G1", "path": "acceptance.providers.profiles[*].endpoints", "rule": "string" },
-    { "file": "G1", "path": "acceptance.providers.profiles[*].issuerKind", "rule": "string" },
-    { "file": "G1", "path": "acceptance.providers.profiles[*].endpointOrigins", "rule": "present" },
-    { "file": "G1", "path": "providersAfter.profiles[*].channel", "rule": "string" },
-    { "file": "G1", "path": "providersAfter.profiles[*].endpoints", "rule": "string" },
-    { "file": "G1", "path": "providersAfter.profiles[*].issuerKind", "rule": "string" },
-    { "file": "G1", "path": "providersAfter.profiles[*].endpointOrigins", "rule": "present" },
-    { "file": "G1", "path": "default.lmsProviders.lms[*].channel", "rule": "string" },
-    { "file": "G1", "path": "default.lmsProviders.lms[*].channelName", "rule": "string" },
-    { "file": "G1", "path": "default.lmsProviders.lms[*].channelCapabilities", "rule": "object" },
-    { "file": "G1", "path": "acceptance.lmsProviders.lms[*].channel", "rule": "string" },
-    { "file": "G1", "path": "acceptance.lmsProviders.lms[*].channelName", "rule": "string" },
-    { "file": "G1", "path": "acceptance.lmsProviders.lms[*].channelCapabilities", "rule": "object" },
-    { "file": "G1", "path": "lmsProvidersAfter.lms[*].channel", "rule": "string" },
-    { "file": "G1", "path": "lmsProvidersAfter.lms[*].channelName", "rule": "string" },
-    { "file": "G1", "path": "lmsProvidersAfter.lms[*].channelCapabilities", "rule": "object" },
-    { "file": "G1", "path": "connections[*].channel", "rule": "string" },
-    { "file": "G1", "path": "connections[*].channelName", "rule": "string" },
-    { "file": "G1", "path": "connections[*].channelCapabilities", "rule": "object" },
-    { "file": "G1", "path": "connectionList.connections[*].channel", "rule": "string" },
-    { "file": "G1", "path": "connectionList.connections[*].channelName", "rule": "string" },
-    { "file": "G1", "path": "connectionList.connections[*].channelCapabilities", "rule": "object" },
-    { "file": "G3", "path": "blackboard.connection.channel", "value": "blackboard" },
-    { "file": "G3", "path": "blackboard.connection.channelName", "value": "Blackboard" },
-    { "file": "G3", "path": "blackboard.connection.channelCapabilities", "rule": "object" },
-    { "file": "G3", "path": "canvas.connection.channel", "value": "canvas" },
-    { "file": "G3", "path": "canvas.connection.channelName", "value": "Canvas" },
-    { "file": "G3", "path": "canvas.connection.channelCapabilities", "rule": "object" }
-  ]
-}
-EOF
-
-# 2. Capture candidate G1-G4 on $TARGET_SHA (qalead-la-3, ~14 min)
-COMPOSE_PROJECT_NAME=qalead-la-3 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
-    --source "$REPO_SOURCE" \
-    --sha "$TARGET_SHA" \
-    --label "cand-${TARGET_SHA:0:7}" \
-    --out "$SLOT3_DIR/captures/cand-${TARGET_SHA:0:7}" \
-    --workdir "$SLOT3_DIR/clone-golden" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT3_DIR/logs/capture-candidate.log"
-
-# 3. Compare candidate capture against G-BASE with all approved LD-9 expected deltas + LA-IC-01 (< 1 s, 0 Docker)
-node "$LA_QA/tests/ltiaas/golden/compare.mjs" \
-  --base "$LA_QA/tests/ltiaas/golden/$BASE_SHA" \
-  --candidate "$SLOT3_DIR/captures/cand-${TARGET_SHA:0:7}" \
-  --expected "LA-IC-01,LA-IC-03,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21" \
-  --expected-dir "$SLOT3_DIR/expected" \
-  --sim-hosts "$LA_QA/tests/sim/hosts.json" \
-  2>&1 | tee "$SLOT3_DIR/logs/compare-candidate-vs-gbase.log"
-```
-
----
-
-### 4.3 Slot 3B: `LA-E7-08` Wave-End SIM-Lane Gate for B1–B2 (`qalead-la-4` — Est. `81 min`)
-
-- **Tasks & ACs:** `LA-E7-08` (`AC-LA-E7-08-01..06`), plus per-step SIM regression/migration ACs: `LA-E1-05` (`AC-09`), `LA-E1-06` (`AC-07, 08`), `LA-E1-07` (`AC-07`), `LA-E1-08` (`AC-07`), `LA-E1-10` (`AC-02`), `LA-E1-11` (`AC-06`), `LA-E4-02` (`AC-06, 07, 09`).
-- **Target SHA:** `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` (code `19d6dc4`, with `--replace-tests` from `la-qa/tests` so the 8 `LD-1` open-world files and `tests/acceptance/lib/open-world.mjs` are active)
-- **Compose Project:** `qalead-la-4` (`PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`)
-- **Background Resource Sampler:** `docker stats --no-stream` loop every 5 s writing `$SLOT3_DIR/logs/docker-stats-qalead-la-4.jsonl`.
-
-```sh
-umask 077
-export TARGET_SHA="f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f"
-export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
-export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
-export SLOT3_DIR="$HOME/cogniate-qa-runs/LA/LA-E7-08/r1-docker"
-export COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses"
-
-# Start background Docker memory/CPU peak sampler (every 5 s)
-(
-  while true; do
-    docker stats --no-stream --format '{"ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}"}' \
-      >> "$SLOT3_DIR/logs/docker-stats-qalead-la-4.jsonl" 2>/dev/null || true
-    sleep 5
-  done
-) &
-STATS_PID=$!
-trap 'kill $STATS_PID 2>/dev/null || true' EXIT
-
-# Prepare clean test-overlay source with qalead-la-<n> runner-guard regex enabled
-export OVERLAY_TESTS="$SLOT3_DIR/tests-overlay"
-rm -rf "$OVERLAY_TESTS"
-cp -R "$LA_QA/tests" "$OVERLAY_TESTS"
-node -e '
-  const fs = require("fs");
-  for (const [f, from, to] of [
-    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
-    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
-  ]) {
-    const p = process.env.OVERLAY_TESTS + "/" + f;
-    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
-  }
-'
-
-# 1. M1 migration (35 rows, migrations 013 + 014) & snapshot-upgrade (7 rows) (~20 min)
-COMPOSE_PROJECT_NAME=qalead-la-4 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$OVERLAY_TESTS/host/run-m1.mjs" \
-    --sha "$TARGET_SHA" \
-    --phase migration \
-    --workdir "$SLOT3_DIR/m1-migration" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT3_DIR/logs/m1-migration.log"
-
-COMPOSE_PROJECT_NAME=qalead-la-4 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$OVERLAY_TESTS/host/run-m1.mjs" \
-    --sha "$TARGET_SHA" \
-    --phase snapshot-upgrade \
-    --workdir "$SLOT3_DIR/m1-snapshot-upgrade" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT3_DIR/logs/m1-snapshot-upgrade.log"
-
-# 2. U1 SIM-Channel Upgrade Continuity (1b17261 seed -> stack:data-backup -> checkout f2e340e -> 013+014 -> verify rows, Resend, new grade) (~16 min)
-#    Seeds on 1b17261 via capture.golden.ts, backs up stack data, switches clone to $TARGET_SHA, starts stack (running 013 + 014),
-#    and verifies that pre-upgrade sent/conflict/failed/superseded/pending rows, Resend of failed row, and a new learner grade on
-#    the existing resource link all succeed without creating a duplicate placement.
-COMPOSE_PROJECT_NAME=qalead-la-4 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$OVERLAY_TESTS/host/run-m1.mjs" \
-    --sha "$TARGET_SHA" \
-    --phase sim --provider all \
-    --workdir "$SLOT3_DIR/m1-sim" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT3_DIR/logs/m1-sim-all.log"
-
-# 3. M2 Browser Suite (64 cases across 9 .m2.ts files, ~20 min)
-COMPOSE_PROJECT_NAME=qalead-la-4 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$OVERLAY_TESTS/e2e/host/run-m2.mjs" \
-    --sha "$TARGET_SHA" \
-    --workdir "$SLOT3_DIR/m2-sim" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT3_DIR/logs/m2-sim.log"
-```
-
----
-
-### 4.4 Slot 7: `LA-E0-02` Baseline Regression Record & `LA-E0-04` LD-1 Parity on Intake SHA `1b17261` (`qalead-la-5`, `qalead-la-6` — Est. `105 min` Core / `200 min` Full Legacy)
-
-- **Tasks & ACs:**
-  - `LA-E0-02` (`AC-LA-E0-02-02` .. `AC-LA-E0-02-10`)
-  - `LA-E0-04` (`AC-LA-E0-04-02`, `AC-LA-E0-04-03`, `AC-LA-E0-04-04`: pass/fail counts of M1, M2, and T7 on `1b17261` with the 8 `LD-1` open-world files equal `LA-E0-02`)
 - **Target SHA:** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`G-BASE`)
-- **Compose Projects:** `qalead-la-5` (SIM lane, ~`65 min`), `qalead-la-6` (Moodle 5.2 lane, ~`40 min` for `T7 × 3 + demo`, plus ~`95 min` if full `T1–T8` legacy Moodle run is executed)
-- **Port & Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` (`--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`)
+  - Holds `1b17261` + **only** the 8 `LD-1` open-world files (`f0a7b306`, `B-LD9-13`) and the `qalead-la-<n>` runner prefix guard.
+  - Because `1b17261` has only the 3 baseline channels (`moodle`, `canvas`, `blackboard`) and 8 baseline profiles, a single run with `src-slot7-1b17261` (`--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` / `--replace-tests --tests-from "$SRC_SLOT7/tests"`) simultaneously records the `LA-E0-02` baseline (`AC-LA-E0-02-01..06`) **and** proves `LA-E0-04` `LD-1` open-world parity on `G-BASE`.
+- **Compose Projects:**
+  - **Run 7A (SIM lane, `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16`):** `qalead-la-16`, `qalead-la-17`, `qalead-la-18`, `qalead-la-19`
+  - **Run 7B (Moodle 5.2 lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`):** `qalead-la-20` (`T7×3` core) + `qalead-la-21..27` (legacy `T1–T8` groups if scheduled)
+- **Estimated Duration:**
+  - **Run 7A (SIM lane):** **`42 minutes`** (`M1 sim` `15 min` + `M2` `15 min` + `M1 migration` & `snapshot-upgrade` `12 min`)
+  - **Run 7B (Moodle 5.2 lane):** **`38 minutes` core (`T7×3`)** (or **`93 minutes`** if all 7 legacy Moodle runners `run-t1..run-t8` are also run in the same window)
+  - **Combined Slot 7 Total:** **`80 minutes` core** (`42 min` SIM + `38 min` Moodle `T7×3`, or **`42 min` wall-clock** if Run 7A and Run 7B run in parallel across the SIM and Moodle lanes) / **`135 minutes` sequential with full legacy `T1–T8`**.
 
-```sh
+### Exact Commands for Slot 7 — Run 7A (SIM Lane on `1b17261`, Est. `42 min`)
+
+```bash
 umask 077
-export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
-export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
-export SLOT7_DIR="$HOME/cogniate-qa-runs/LA/LA-E0-02/r2-docker"
-export COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses"
-mkdir -p "$SLOT7_DIR/logs"
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SRC_SLOT7="$GATE_DIR/src-slot7-1b17261"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
+export SLOT7_TEST_SHA="357d17997b4d36dbfb6bde7568a4d87c0e3a14fc"
+export PUBLIC_PORT=9643
+export STACK_SUBNET="172.22.0.0/16"
 
-# Start background Docker memory/CPU peak sampler (every 5 s, AC-LA-E0-02-09)
+# 1. Start background docker stats peak memory sampler (AC-LA-E0-02-05):
 (
-  while true; do
-    docker stats --no-stream --format '{"ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}"}' \
-      >> "$SLOT7_DIR/logs/docker-stats-slot7.jsonl" 2>/dev/null || true
+  while [ ! -f "$GATE_DIR/logs/stop-slot7a-stats" ]; do
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    docker stats --no-stream --format "{\"ts\":\"$ts\",\"name\":\"{{.Name}}\",\"mem\":\"{{.MemUsage}}\",\"cpu\":\"{{.CPUPerc}}\"}" \
+      >> "$GATE_DIR/logs/slot7a-docker-stats.jsonl" 2>/dev/null || true
     sleep 5
   done
 ) &
-STATS7_PID=$!
-trap 'kill $STATS7_PID 2>/dev/null || true' EXIT
+STATS_7A_PID=$!
 
-# Prepare 1b17261 test overlay with LD-1 open-world files + qalead-la-<n> runner-guard regex
-export E004_TESTS="$SLOT7_DIR/tests-ld1-overlay"
-rm -rf "$E004_TESTS"
-cp -R "$LA_QA/tests" "$E004_TESTS"
-node -e '
-  const fs = require("fs");
-  for (const [f, from, to] of [
-    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
-    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
-    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
-  ]) {
-    const p = process.env.E004_TESTS + "/" + f;
-    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
-  }
-'
+# 2. M1 --phase sim --provider all (394 rows, qalead-la-16, est. 15 min):
+COMPOSE_PROJECT_NAME=qalead-la-16 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-m1.mjs" \
+  --phase sim \
+  --provider all \
+  --sha "$INTAKE_SHA" \
+  --test-sha "$SLOT7_TEST_SHA" \
+  --source "$SRC_SLOT7" \
+  > "$GATE_DIR/logs/slot7a-1-m1-sim.log" 2>&1
 
-# --- Run 7A: SIM Baseline on 1b17261 (qalead-la-5, ~65 min) ---
-# 1. M1 sim phase (394 rows across blackboard, canvas, cross, common) — AC-LA-E0-02-02 & AC-LA-E0-04-02 (~25 min)
-COMPOSE_PROJECT_NAME=qalead-la-5 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+# 3. M2 browser suite (64 cases, qalead-la-17, est. 15 min):
+COMPOSE_PROJECT_NAME=qalead-la-17 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$E004_TESTS/host/run-m1.mjs" \
-    --sha "$BASE_SHA" --phase sim --provider all \
-    --workdir "$SLOT7_DIR/m1-sim" \
-    --replace-tests --tests-from "$E004_TESTS" \
-  2>&1 | tee "$SLOT7_DIR/logs/m1-sim.log"
+  node "$SRC_SLOT7/tests/e2e/host/run-m2.mjs" \
+  --sha "$INTAKE_SHA" \
+  --test-sha "$SLOT7_TEST_SHA" \
+  --source "$SRC_SLOT7" \
+  > "$GATE_DIR/logs/slot7a-2-m2.log" 2>&1
 
-# 2. M2 browser suite (64 cases across 9 files) — AC-LA-E0-02-04 & AC-LA-E0-04-03 (~20 min)
-COMPOSE_PROJECT_NAME=qalead-la-5 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+# 4. M1 --phase migration (35 rows, qalead-la-18, est. 7 min):
+COMPOSE_PROJECT_NAME=qalead-la-18 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$E004_TESTS/e2e/host/run-m2.mjs" \
-    --sha "$BASE_SHA" \
-    --workdir "$SLOT7_DIR/m2" \
-    --replace-tests --tests-from "$E004_TESTS" \
-  2>&1 | tee "$SLOT7_DIR/logs/m2.log"
+  node "$SRC_SLOT7/tests/host/run-m1.mjs" \
+  --phase migration \
+  --provider all \
+  --sha "$INTAKE_SHA" \
+  --test-sha "$SLOT7_TEST_SHA" \
+  --source "$SRC_SLOT7" \
+  > "$GATE_DIR/logs/slot7a-3-m1-migration.log" 2>&1
 
-# 3. M1 migration (35 rows) & snapshot-upgrade (7 rows) — AC-LA-E0-02-03 (~20 min)
-COMPOSE_PROJECT_NAME=qalead-la-5 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+# 5. M1 --phase snapshot-upgrade (7 rows, qalead-la-19, est. 5 min):
+COMPOSE_PROJECT_NAME=qalead-la-19 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-m1.mjs" \
+  --phase snapshot-upgrade \
+  --provider all \
+  --sha "$INTAKE_SHA" \
+  --test-sha "$SLOT7_TEST_SHA" \
+  --source "$SRC_SLOT7" \
+  > "$GATE_DIR/logs/slot7a-4-m1-snapshot-upgrade.log" 2>&1
+
+# 6. Stop stats sampler and compute rate-peaks (AC-LA-E0-02-04):
+touch "$GATE_DIR/logs/stop-slot7a-stats"
+wait "$STATS_7A_PID" 2>/dev/null || true
+
+M1_SIM_ART=$(ls -td "$SRC_SLOT7/tests/host/artifacts/qalead-la-16-"* | head -n1)
+node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/perf/rate-peaks.mjs" \
+  --logs "$M1_SIM_ART/logs" \
+  --json > "$GATE_DIR/logs/slot7a-rate-peaks.json"
+```
+
+### Exact Commands for Slot 7 — Run 7B (Moodle 5.2 Lane on `1b17261`, Est. `38 min` Core / `93 min` Full)
+
+```bash
+umask 077
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SRC_SLOT7="$GATE_DIR/src-slot7-1b17261"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+export INTAKE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
+export PUBLIC_PORT=9543
+export STACK_SUBNET="172.21.0.0/16"
+
+# 1. Start background docker stats peak memory sampler (AC-LA-E0-02-05):
+(
+  while [ ! -f "$GATE_DIR/logs/stop-slot7b-stats" ]; do
+    ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    docker stats --no-stream --format "{\"ts\":\"$ts\",\"name\":\"{{.Name}}\",\"mem\":\"{{.MemUsage}}\",\"cpu\":\"{{.CPUPerc}}\"}" \
+      >> "$GATE_DIR/logs/slot7b-docker-stats.jsonl" 2>/dev/null || true
+    sleep 5
+  done
+) &
+STATS_7B_PID=$!
+
+# 2. T7 x 3 consecutive passes + demo skip (qalead-la-20, est. 38 min, AC-LA-E0-02-03):
+COMPOSE_PROJECT_NAME=qalead-la-20 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$E004_TESTS/host/run-m1.mjs" \
-    --sha "$BASE_SHA" --phase migration \
-    --workdir "$SLOT7_DIR/m1-migration" \
-    --replace-tests --tests-from "$E004_TESTS" \
-  2>&1 | tee "$SLOT7_DIR/logs/m1-migration.log"
+  node "$SRC_SLOT7/tests/e2e/host/run-t7.mjs" \
+  --sha "$INTAKE_SHA" \
+  --source "$SRC_SLOT7" \
+  --workdir "$GATE_DIR/qalead-la-20-t7x3" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" \
+  --runs 3 \
+  > "$GATE_DIR/logs/slot7b-1-t7x3.log" 2>&1
 
-COMPOSE_PROJECT_NAME=qalead-la-5 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+# 3. Optional / full legacy Moodle acceptance groups T1-T8 (qalead-la-21..27, est. +55 min, AC-LA-E0-02-02):
+COMPOSE_PROJECT_NAME=qalead-la-21 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-t1.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-21-t1" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" \
+  > "$GATE_DIR/logs/slot7b-2-t1.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-22 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-t2.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-22-t2" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" --tasks T2a,T2b,T3a,T3b \
+  > "$GATE_DIR/logs/slot7b-3-t2-t3ab.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-23 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-t3c.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-23-t3c" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" \
+  > "$GATE_DIR/logs/slot7b-4-t3c.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-24 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-t4a.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-24-t4a" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" \
+  > "$GATE_DIR/logs/slot7b-5-t4a.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-25 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_SLOT7/tests/host/run-t4b.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-25-t4b" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" --tasks T4b1,T4b2 \
+  > "$GATE_DIR/logs/slot7b-6-t4b.log" 2>&1
+
+COMPOSE_PROJECT_NAME=qalead-la-26 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$E004_TESTS/host/run-m1.mjs" \
-    --sha "$BASE_SHA" --phase snapshot-upgrade \
-    --workdir "$SLOT7_DIR/m1-snapshot" \
-    --replace-tests --tests-from "$E004_TESTS" \
-  2>&1 | tee "$SLOT7_DIR/logs/m1-snapshot.log"
+  node "$SRC_SLOT7/tests/host/run-t5.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-26-t5-t6" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" --tasks T5a,T5b,T6 \
+  > "$GATE_DIR/logs/slot7b-7-t5-t6.log" 2>&1
 
-# --- Run 7B: Moodle 5.2 Baseline on 1b17261 (qalead-la-6, ~40 min T7×3+demo / +95 min legacy T1-T8) ---
-# 4. T7 × 3 consecutive pass + demo video — AC-LA-E0-02-05 & AC-LA-E0-04-04 (~40 min)
-COMPOSE_PROJECT_NAME=qalead-la-6 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+COMPOSE_PROJECT_NAME=qalead-la-27 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$E004_TESTS/e2e/host/run-t7.mjs" \
-    --sha "$BASE_SHA" --runs 3 \
-    --workdir "$SLOT7_DIR/t7" \
-    --replace-tests --tests-from "$E004_TESTS" \
-  2>&1 | tee "$SLOT7_DIR/logs/t7-x3.log"
+  node "$SRC_SLOT7/tests/host/run-t8.mjs" \
+  --sha "$INTAKE_SHA" --source "$SRC_SLOT7" --workdir "$GATE_DIR/qalead-la-27-t8" \
+  --replace-tests --tests-from "$SRC_SLOT7/tests" \
+  > "$GATE_DIR/logs/slot7b-8-t8.log" 2>&1
 
-# 5. Legacy T1-T8 suites on 1b17261 — AC-LA-E0-02-06, -07, -08 (~95 min total if full legacy is run)
-for runner in run-t1.mjs run-t2a.mjs run-t2b.mjs run-t3a.mjs run-t3b.mjs run-t3c.mjs run-t4a.mjs run-t4b.mjs run-t5.mjs run-t6.mjs run-t8.mjs; do
-  name="${runner%.mjs}"
-  COMPOSE_PROJECT_NAME=qalead-la-6 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-    COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-    node "$E004_TESTS/host/$runner" \
-      --sha "$BASE_SHA" \
-      --workdir "$SLOT7_DIR/$name" \
-      --replace-tests --tests-from "$E004_TESTS" \
-    2>&1 | tee "$SLOT7_DIR/logs/$name.log"
-done
+# 4. Stop stats sampler and compute rate-peaks (AC-LA-E0-02-04):
+touch "$GATE_DIR/logs/stop-slot7b-stats"
+wait "$STATS_7B_PID" 2>/dev/null || true
 
-# 6. Outbound request rate peaks (AC-LA-E0-02-08, host-only post-processing)
-node "$E004_TESTS/host/rate-peaks.mjs" "$SLOT7_DIR" \
-  > "$SLOT7_DIR/logs/rate-peaks.json"
+T7_ART=$(ls -td "$SRC_SLOT7/tests/host/artifacts/qalead-la-20-"* | head -n1)
+node "/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/ltiaas/perf/rate-peaks.mjs" \
+  --logs "$T7_ART/logs" \
+  --json > "$GATE_DIR/logs/slot7b-rate-peaks.json"
 ```
 
 ---
 
-### 4.5 Slot 8: Wave-End `MOODLE-LIVE` (`R2-lite` / `R2` + `K2` Moodle `U1`/`U2`) on `f2e340e` (`qalead-la-7` — Est. `65 min` R2-lite / `89 min` Full T7×3)
+## 5. Slot 8: Wave-End `MOODLE-LIVE` Gate on `80133d6b` (Code `02f5d420`) with QA-E2E
 
-- **Tasks & ACs Covered:**
-  - `LA-E7-08` (`AC-LA-E7-08-02` `T7 × 1` / `× 3`; `AC-LA-E7-08-04` Moodle `U1`)
-  - `LA-E1-05` (`AC-LA-E1-05-10`: `T7 × 1`, `T2a`, `T2b`, `T3a`, `T3b`, `T3c`)
-  - `LA-E1-07` (`AC-LA-E1-07-08`: `T7 × 1`, `T4b1`, `T4b2`)
-  - `LA-E1-08` (`AC-LA-E1-08-08`: `T7 × 1`, `T8`)
-  - `LA-E1-09` (`AC-LA-E1-09-05`: `T7 × 1`, `T4b2`, `T5a`, `T6`)
-  - `LA-E1-11` (`AC-LA-E1-11-04` `K2 U1`, `AC-LA-E1-11-05` `K2 U2`, `AC-LA-E1-11-06` `T6` subset)
-  - `LA-E4-02` (`AC-LA-E4-02-06` `U1`, `AC-LA-E4-02-10` `T5a`, `T5b` with `LD-6` `record_dispatch` P5 fixture, `T7 × 1`)
-  - `LA-E4-03` (`AC-LA-E4-03-09`: `T5a`, `T5b`, `T7 × 1`)
-- **Target SHA:** `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` (code `19d6dc4`, or wave-end integration SHA)
-- **Compose Project:** `qalead-la-7` (`PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`)
+- **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
+- **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
+- **Compose Projects:** `qalead-la-30..35` (Lead QA) + QA-E2E project (`qa-e2e-la-*`)
+- **Port / Subnet:** `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`
+- **Scope Covered:**
+  1. **`T7 × 1` (`qalead-la-30`, `12 min`):** `run-t7.mjs --runs 1 --no-demo` (`17` browser cases, including frozen isolation ACs **`AC-T7-08`** and **`AC-T7-09`**).
+  2. **`R2-lite` Moodle Suites (`qalead-la-31..35`, `43 min`):**
+     - `qalead-la-31` (`8 min`): `run-t2.mjs --tasks T2a,T2b,T3a,T3b` (covers frozen isolation AC **`AC-T2-18`** in `T2a/jwt-validation.test.ts`).
+     - `qalead-la-32` (`5 min`): `run-t3c.mjs` (`T3c` compatibility & endpoints).
+     - `qalead-la-33` (`10 min`): `run-t4b.mjs --tasks T4b1,T4b2` (covers frozen isolation ACs **`AC-T4-16`**, **`AC-T4-29`**, **`AC-T4-34`** in `T4b1/2-isolation.spec.ts`, `T4b1/3-security.spec.ts`, `T4b1/4-adoption.spec.ts`, plus `LA-IC-04` Moodle row 13 in `T4b1/1-connect.spec.ts:118`).
+     - `qalead-la-34` (`12 min`): `run-t5.mjs --tasks T5a,T5b,T6` (covers `LA-IC-09` / `LD-6` `record_dispatch` P5 fixture in `T5b/4-conflict-resend.spec.ts` and `T6` portal Moodle flows).
+     - `qalead-la-35` (`5 min`): `run-t8.mjs` (`T8` course shell export/publish).
+  3. **`LA-E5-13` `AC-LA-E5-13-06` (`<1 min` log verification):** Confirms all 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) passed in steps 1–2 (`AC-LA-E5-13-01..05` `K1-SIM` already passed on `qalead-la-8..9`).
+  4. **QA-E2E's Part (`20 min`):** `K2` Moodle `U1`/`U2` + `LA-E3-05` `AC-04, 11`.
+- **Estimated Duration:** **`55 minutes` (Lead QA)** + **`20 minutes` (QA-E2E)** = **`75 minutes` total**.
 
-```sh
+### Exact Commands for Slot 8 (Lead QA Part, Est. `55 min`)
+
+```bash
 umask 077
-export TARGET_SHA="f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f"
-export SLOT8_DIR="$HOME/cogniate-qa-runs/LA/MOODLE-LIVE/r1-docker"
-export OVERLAY_TESTS="$HOME/cogniate-qa-runs/LA/LA-E7-08/r1-docker/tests-overlay"
-export COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses"
-mkdir -p "$SLOT8_DIR/logs"
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SRC_WAVE="$GATE_DIR/src-wave-end"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+export WAVE_SHA="80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5"
+export PUBLIC_PORT=9543
+export STACK_SUBNET="172.21.0.0/16"
 
-# 1. T7 on Moodle 5.2 (--runs 1 for B1-B2 wave-end gate ~12 min; --runs 3 for final R2 gate ~36 min)
-COMPOSE_PROJECT_NAME=qalead-la-7 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
+# ----------------------------------------------------------------------
+# Step 8.1 (qalead-la-30, est. 12 min): T7 x 1 (covers AC-T7-08, AC-T7-09)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-30 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
   COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-  node "$OVERLAY_TESTS/e2e/host/run-t7.mjs" \
-    --sha "$TARGET_SHA" --runs 1 --no-demo \
-    --workdir "$SLOT8_DIR/t7" \
-    --replace-tests --tests-from "$OVERLAY_TESTS" \
-  2>&1 | tee "$SLOT8_DIR/logs/t7.log"
+  node "$SRC_WAVE/tests/e2e/host/run-t7.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-30-t7x1" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  --runs 1 --no-demo \
+  > "$GATE_DIR/logs/slot8-1-t7x1.log" 2>&1
 
-# 2. R2-lite Moodle suites (T2a, T2b, T3a, T3b, T3c, T4b, T5 with LD-6 record_dispatch P5 fixture, T6, T8) (~33 min)
-for runner in run-t2a.mjs run-t2b.mjs run-t3a.mjs run-t3b.mjs run-t3c.mjs run-t4b.mjs run-t5.mjs run-t6.mjs run-t8.mjs; do
-  name="${runner%.mjs}"
-  COMPOSE_PROJECT_NAME=qalead-la-7 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-    COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
-    node "$OVERLAY_TESTS/host/$runner" \
-      --sha "$TARGET_SHA" \
-      --workdir "$SLOT8_DIR/$name" \
-      --replace-tests --tests-from "$OVERLAY_TESTS" \
-    2>&1 | tee "$SLOT8_DIR/logs/$name.log"
-done
+# ----------------------------------------------------------------------
+# Step 8.2 (qalead-la-31, est. 8 min): T2a, T2b, T3a, T3b (covers AC-T2-18)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-31 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-t2.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-31-t2-t3ab" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  --tasks T2a,T2b,T3a,T3b \
+  > "$GATE_DIR/logs/slot8-2-t2-t3ab.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.3 (qalead-la-32, est. 5 min): T3c
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-32 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-t3c.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-32-t3c" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  > "$GATE_DIR/logs/slot8-3-t3c.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.4 (qalead-la-33, est. 10 min): T4b1, T4b2 (covers AC-T4-16, AC-T4-29, AC-T4-34, and LA-IC-04 row 13)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-33 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  node "$SRC_WAVE/tests/host/run-t4b.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-33-t4b" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  --tasks T4b1,T4b2 \
+  > "$GATE_DIR/logs/slot8-4-t4b.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.5 (qalead-la-34, est. 12 min): T5a, T5b, T6 (covers LA-IC-09 record_dispatch P5 fixture)
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-34 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE/tests/host/run-t5.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-34-t5-t6" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  --tasks T5a,T5b,T6 \
+  > "$GATE_DIR/logs/slot8-5-t5-t6.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.6 (qalead-la-35, est. 5 min): T8
+# ----------------------------------------------------------------------
+COMPOSE_PROJECT_NAME=qalead-la-35 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE/tests/host/run-t8.mjs" \
+  --sha "$WAVE_SHA" \
+  --source "$SRC_WAVE" \
+  --workdir "$GATE_DIR/qalead-la-35-t8" \
+  --replace-tests --tests-from "$SRC_WAVE/tests" \
+  > "$GATE_DIR/logs/slot8-6-t8.log" 2>&1
+
+# ----------------------------------------------------------------------
+# Step 8.7: Verify all 6 frozen isolation ACs for AC-LA-E5-13-06 + teardown check (<1 min)
+# ----------------------------------------------------------------------
+grep -E "AC-T7-08|AC-T7-09" "$GATE_DIR/logs/slot8-1-t7x1.log"
+grep -E "AC-T2-18" "$GATE_DIR/logs/slot8-2-t2-t3ab.log"
+grep -E "AC-T4-16|AC-T4-29|AC-T4-34" "$GATE_DIR/logs/slot8-4-t4b.log"
+docker ps -a --filter "name=qalead-la-"
+docker volume ls --filter "name=qalead-la-"
+docker network ls --filter "name=qalead-la-"
 ```

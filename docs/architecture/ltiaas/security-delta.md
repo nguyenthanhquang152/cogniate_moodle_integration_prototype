@@ -50,12 +50,14 @@ New rows:
 | Response | `Content-Security-Policy` (main parts) | `Referrer-Policy` | Priority |
 | --- | --- | --- | --- |
 | LTI service login page (platform storage) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'` | `no-referrer` | Must |
-| LTI service storage-check page | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self'; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
+| LTI service storage-check page (`<T>` = the origin of the account's tool URL that the check redirects to: `launchUrl` or `deepLinkingUrl`; one origin, per request; BD-A2-103; only a plain https origin, else `form-action 'self'` only, BD-A2-104) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self' <T>; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
 | `POST /tool/picker/{id}/cancel` auto-submit | as `POST /tool/picker/{id}` auto-submit | `same-origin` | Must |
 | `PLACEMENT_NOT_GRADED` page (status `403`, also on the picker POST; BD-A2-87) | as the other `/tool/*` error pages | `same-origin` | Must |
 | Admin code page (Could) | as `GET /tool/picker/{id}`, with `form-action 'none'` | `same-origin` | Could |
 
 The two LTI service pages have no form fields that a framing page can read and no button, like the error pages. `frame-ancestors https:` is needed because the platform is known but its page origin is not proven before the launch.
+
+Storage-check `<T>` guard (BD-A2-104). The service adds `<T>` only when it matches `https://` + a host of lower-case letters, digits, dots and hyphens + an optional port. This is the CSP3 host-source form. The WHATWG URL parser keeps characters such as `;`, `,`, `"`, `'` and `*` in a host; `;` or `,` in the header would start a new directive or a new policy. Any other origin gives `form-action 'self'` only: the control fails closed, and the browser stops the `303` to the tool. The stored tool URL is not trusted for this: the guard runs at each page answer, so rows written before a rule change and test seeds also pass through it. LA adds no write-time refusal and no log line: the only write path is the loopback operator API, every LA value (the `PUBLIC_APP_URL` origin of `cogniate`, the QA accounts) passes, and such hosts are not usual for an https tool URL. Diagnosis: operability §9.
 
 ## §6 CSRF
 

@@ -1,5 +1,5 @@
-Verdict: PASS (K0 + UNIT + DOC + K1-SIM AC-04, AC-06, AC-10; AC-05 item 3 and K2 AC-07 pending next slot after 08:05Z)
-Round: 3
+Verdict: PASS (K0 + UNIT + DOC + K1-SIM AC-04, AC-05, AC-06, AC-10; K2 AC-07 owned by QA-E2E)
+Round: 4
 
 # LA-E2-05 E2-N Channel `brightspace` (manual) and the add-channel gate F2: QA verification
 
@@ -90,3 +90,18 @@ Tester: QA-3 (Orca task `task_e59ce20f8f0f`, dispatch `ctx_e6263da242a0`), 2026-
 | AC-LA-E2-05-05 | pending next slot after 08:05Z (`poll` import added in `brightspace.k1sim.test.ts`) | `brightspace.k1sim.test.ts > AC-LA-E2-05-05` | Items 1 & 2 (`desire2learn` launch on `lti-generic` platform passes + logs `family_guard_mismatch`; `desire2learn` launch on Moodle `standard` platform returns `400 PROVIDER_PROFILE_MISMATCH`) executed in `qa3-la-sim-r1` and `qa3-la-sim-r3`; item 3 (`poll` import added for complete-time `family=desire2learn` check with `brightspace-dynamic` loaded) is ready for the post-08:05Z slot. |
 | AC-LA-E2-05-06 | PASS (K1-SIM + UNIT + K0) | `brightspace.k1sim.test.ts > AC-LA-E2-05-06` | Live `GET /app-api/connections/:id/tool-configuration` returns the 9 D2L rows in exact `cogniate-app-api-delta.md` §3.3 order (`104.7 ms`). `09-test-acceptance-LA-E2-05.log` |
 | AC-LA-E2-05-10 | PASS (K1-SIM) | `brightspace.k1sim.test.ts > AC-LA-E2-05-10` | Full K1 kit (`K1-LAUNCH`, `K1-DL`, `K1-AGS`, `K1-NRPS` with `0` NRPS calls, `K1-REG`, `K1-CAP`) passes on `brightspace-sim` (`1309.6 ms`). `09-test-acceptance-LA-E2-05.log` |
+
+## Round 4 (Slot 4b K1-SIM on `dc2a1b5e`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `dc2a1b5ef06d1446aaa8225bfcff100248ed070a` (`dc2a1b5e`) |
+| Lane and slot | lane K; Slot 4b Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r1`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4b-dc2a1b5e/artifacts/qa3-la-sim-r1-dc2a1b5e-2026-10-23T13-22-06-406Z/` (`cmd/08-test-acceptance-LA-E2-05.log`, `container-LA-E2-05/vitest-results.json`, `reports/LA-E2-05.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E2-05-04 | PASS (K1-SIM) | `brightspace.k1sim.test.ts > AC-LA-E2-05-04` | Manual connect on `brightspace-sim` with `--confirm-foreign-hosts`, learner launch, Deep Linking pick, and score pass (`1,352.7 ms`). `08-test-acceptance-LA-E2-05.log` |
+| AC-LA-E2-05-05 | PASS (K1-SIM) | `brightspace.k1sim.test.ts > AC-LA-E2-05-05` | All 3 items pass (`1,029.0 ms`): (1) `desire2learn` launch on an existing `lti-generic` platform succeeds (`303`) and logs `family_guard_mismatch`; (2) `desire2learn` launch on a Moodle `standard` platform is refused with `400 PROVIDER_PROFILE_MISMATCH`; (3) Dynamic Registration with `family=desire2learn` on an `lti-generic` connection is refused at `complete` (`PROVIDER_PROFILE_MISMATCH`) now that `brightspace` has `registration.dynamic: true`. `08-test-acceptance-LA-E2-05.log` |
+| AC-LA-E2-05-06 | PASS (K1-SIM + UNIT + K0) | `brightspace.k1sim.test.ts > AC-LA-E2-05-06` | Live `GET /app-api/connections/:id/tool-configuration` returns the 9 D2L rows in exact order (`108.6 ms`). `08-test-acceptance-LA-E2-05.log` |
+| AC-LA-E2-05-10 | PASS (K1-SIM) | `brightspace.k1sim.test.ts > AC-LA-E2-05-10` | Full K1 kit (`K1-LAUNCH`, `K1-DL`, `K1-AGS`, `K1-NRPS`, `K1-REG`, `K1-CAP`) passes on `brightspace-sim` (`992.2 ms`). `08-test-acceptance-LA-E2-05.log` |

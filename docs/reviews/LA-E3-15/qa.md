@@ -1,5 +1,5 @@
-Verdict: PASS (K0 + UNIT); K1-SIM pending Docker window
-Round: 1
+Verdict: PASS (K0 + UNIT + K1-SIM AC-01..04 all PASS)
+Round: 2
 
 # LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (`operatorGrant`): QA verification
 
@@ -36,4 +36,17 @@ Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E3-15/` from `docs/archi
   - K0 (`test:k0`): `3` files; `145` passed (`567ms`).
   - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
   - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
-- **Measured time:** `LA-E3-15` K0 suite `3.72s` after `npm run check` (`83.04s` including `npm run check`; `3/3` K0 tests passed; `3` unit test files / `66/66` unit tests in `1.82s`). `K1-SIM` rows (`AC-LA-E3-15-03`, `AC-LA-E3-15-04`) are `pending: Docker window`.
+- **Measured time:** `LA-E3-15` K0 suite `3.72s` after `npm run check` (`83.04s` including `npm run check`; `3/3` K0 tests passed; `3` unit test files / `66/66` unit tests in `1.82s`).
+
+## Round 2 (Slot 4b K1-SIM on `dc2a1b5e`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `dc2a1b5ef06d1446aaa8225bfcff100248ed070a` (`dc2a1b5e`) |
+| Lane and slot | lane K; Slot 4b Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r3`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4b-dc2a1b5e/artifacts/qa3-la-sim-r3-dc2a1b5e-2026-10-23T13-33-56-911Z/` (`cmd/08-test-acceptance-LA-E3-15.log`, `container-LA-E3-15/vitest-results.json`, `reports/LA-E3-15.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E3-15-03 | PASS (K1-SIM + UNIT) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-03: GET /app-api/lms-providers lists Canvas methods ["manual", "dynamic"], and Canvas DR stages platform with active: false while learner launch gets PLATFORM_NOT_ACTIVE` | Live K1-SIM (`194.9 ms`): `GET /app-api/lms-providers` lists Canvas `methods: ["manual", "dynamic"]`; `POST /app-api/connections { lms: "canvas", method: "dynamic", profile: "canvas-sim-cloud", siteUrl: "https://school-a.canvas.sim.test" }` returns `201` with `bindingAuthority: "operatorGrant"`, `status: "pending"`, and a registration URL (`BD-A1-106`); running Canvas DR on `canvas-sim-cloud` stages the platform with `active: false` (`LA-E3-09`) while keeping `status: "pending"` and `bindingAuthority: "operatorGrant"`, and a learner launch gets `403 PLATFORM_NOT_ACTIVE`. `08-test-acceptance-LA-E3-15.log` |
+| AC-LA-E3-15-04 | PASS (K1-SIM + UNIT) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-04: POST /app-api/connections {lms: "canvas", method: "dynamic"} stores operatorGrant, refuses --accept-staged (BD-A1-107), and grant redemption without bound values activates staged platform so learner launch and score pass` | Live K1-SIM (`1,610.1 ms`): `app:grant issue --accept-staged` on the staged Canvas connection is refused (`"A staged registration with fixed endpoints..."`, `BD-A1-107`); `app:grant issue` without bound values issues an approval code, `PUT /app-api/connections/:id/platform { clientId, deploymentId, grantCode }` returns `200` (`status: "registered"`), activates the staged platform (`active: true`), and a learner launch and score (`9/10`) pass end to end. `08-test-acceptance-LA-E3-15.log` |

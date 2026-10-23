@@ -1,6 +1,6 @@
 // LA-E2-03 K1-SIM acceptance tests (pending: Docker window):
 // - AC-LA-E2-03-03: `GET /app-api/lms-providers` lists `lti-generic` after the three baseline entries with
-//   `channelName: "your LMS"` and `registration` `[{dynamic, self}, {manual, operatorGrant}]`; the baseline entries are
+//   `channelName: "LMS"` and `registration` `[{dynamic, self}, {manual, operatorGrant}]`; the baseline entries are
 //   unchanged. `GET /api/providers` lists the `lti-generic` profile after the baseline real profiles and before the
 //   simulation profiles.
 // - AC-LA-E2-03-04: `POST /app-api/connections {lms: "lti-generic", method: "manual", siteUrl}` with an IP literal,
@@ -83,7 +83,7 @@ describe('LA-E2-03 K1-SIM (pending: Docker window)', () => {
     const genericEntry = lmsList[genericIdx];
     expect(genericEntry.channel).toBe('lti-generic');
     expect(genericEntry.lms).toBe('lti-generic');
-    expect(genericEntry.channelName).toBe('your LMS');
+    expect(genericEntry.channelName).toBe('LMS');
     expect(genericEntry.label).toBe('Other LTI 1.3 platform');
     expect(genericEntry.registration).toEqual([
       { method: 'dynamic', authority: 'self', profiles: ['lti-generic'] },

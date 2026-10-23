@@ -127,6 +127,18 @@ function makeReport(overrides = {}) {
     'Channel cards must be ordered 1..5: moodle, canvas, blackboard, lti-generic, brightspace',
   );
 
+  for (const m of manifests) {
+    assert.ok(m.card.title.length > 0, `${m.id}: card.title must be non-empty`);
+    assert.ok(m.card.description.length > 0, `${m.id}: card.description must be non-empty`);
+    assert.ok(
+      (typeof m.card.icon === 'string' && m.card.icon.length > 0) || m.card.mark.length > 0,
+      `${m.id}: card.icon or card.mark must be non-empty`,
+    );
+  }
+  const moodle = registry.channel('moodle');
+  assert.ok(moodle, 'moodle manifest must exist');
+  assert.equal(moodle.card.icon, 'graduation-cap', 'moodle card.icon must be graduation-cap (BD-A1-49 / BD-A1-111)');
+
   const ltiGeneric = registry.channel('lti-generic');
   assert.ok(ltiGeneric, 'lti-generic manifest must exist');
   assert.deepEqual(
@@ -141,8 +153,8 @@ function makeReport(overrides = {}) {
   assert.ok(brightspace, 'brightspace manifest must exist');
   assert.deepEqual(
     brightspace.registration.map((r) => r.method),
-    ['manual'],
-    'brightspace must expose manual registration only',
+    ['dynamic', 'manual'],
+    'brightspace must expose dynamic and manual registration (LA-E2-06)',
   );
   const defaultedFields = brightspace.setup.bindingFields.filter((f) => typeof f.default === 'string');
   assert.equal(

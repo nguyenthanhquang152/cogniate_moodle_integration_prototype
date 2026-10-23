@@ -41,7 +41,7 @@ const CARD_TEXTS = [
 ];
 
 // A new channel as LA adds it (app API delta §1-§2, LTI delta §4.7), and one that no registry knows.
-const NEW = { id: 'lti-generic', name: 'your LMS' };
+const NEW = { id: 'lti-generic', name: 'LMS' };
 const withChannel = (lmsProviders: Json, id = NEW.id, name = NEW.name): Json => {
   const next = copy(lmsProviders);
   next.lms.push({ lms: id, channel: id, channelName: name, label: name, methods: ['dynamic', 'manual'], profiles: [] });

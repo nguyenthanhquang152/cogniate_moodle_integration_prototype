@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-02 review, lens A ("Is it right and is it safe?")
 
@@ -41,3 +41,30 @@ There is no BLOCKER and no MAJOR finding. The lens-A points pass (see "Checks th
 | Canvas trait values | Every Canvas profile gets `{ targetFrame: 'from-login', origin: 'authOrigin' }` through the shared `canvas` base, which includes `canvas-sim-cloud`. `standard` and Blackboard stay `null`. The cookie path stays the first choice, so a Canvas launch that has its cookie behaves as before (AC-10). |
 | 120 s window (note) | The prepared launch can complete up to 120 s after the checks, without a new platform `active` check. The design accepts this ("exactly as the cookie path"), and the app's launch routing still refuses a disabled connection, so the effect is small. |
 | Ownership | `lti/codes.ts` gets one new code, `TOOL_ACCOUNT_SUSPENDED`, with the contract delta §1.5 text. The spec allows "new detail values only" in that file, so the Lead may record this. No other "Must not edit" file is touched. |
+
+## Round 2 (fix round: storage-check CSP, BD-A2-103)
+
+- Reviewer: Claude Code Opus 5.5 xhigh (Reviewer-A, Claude session). Round 1 above was Reviewer-A2.
+- Diff: `git show 2ea1f624` (merge `02f5d420`, lane L). It changes `lti/storage-pages.ts`, `lti/launch.ts` and two tests. The page was found by QA-E2E's live K2 run (`docs/reviews/LA-E7-07/qa.md` P3).
+- References: A2 BD-A2-103; LA-ADR-05 D1 rule 7; security delta §5 (storage-check row).
+- I ran these in the private clone at `02f5d420`. I deleted the Vitest cache before each run. No Docker.
+  - Vitest on `services/lti-service`: 1326 tests pass.
+  - `npm run test:k0`: 145 tests pass.
+  - F1 PASS; `npm run typecheck`: exit 0; ESLint on `lti/`: clean.
+  - A probe of `formActionSources` with 16 inputs, and of the login page CSP. The probe file is kept at `/tmp/ra-e201/e302/ra-csp.test.ts`.
+- Blind review: I did not open the other reviewer's file.
+- **Counts (this round): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** Round 1's A-LA-E3-02-01 is not part of this fix.
+
+| Check | Result |
+| --- | --- |
+| Exactly one extra origin, from the account's own tool URL | Holds. `formActionSources(toolUrl)` (`storage-pages.ts:89`) gives `'self' <origin>` or `'self'`, never more. The origin comes from `toolUrlOf(account, prepared.messageType)` (`launch.ts:85`): `deepLinkingUrl` for Deep Linking, else `launchUrl`. This is the same helper that builds the 303 in `completeLaunch`, so the allowed origin and the redirect target cannot differ. The test checks the full header and `new URL(result.location).origin` for a resource link, a Deep Linking launch (`:8443`), and a second account (its operator-set URL, not `PUBLIC_APP_URL`). The old code fails these tests (old header: `form-action 'self'`). |
+| Never a wildcard or a scheme source | Holds. The origin must match `^https://[a-z0-9.-]+(:\d{1,5})?$` after URL normalization. Probe: `https://*.app.test/x`, `https:`, `javascript:…`, an empty string and `http://…` all give `'self'` only. |
+| No header injection from an operator-set URL | Holds. The guard is an allow list on the serialized origin. Probe:<br>- `;` and `,` (literal or `%3B`/`%2C`), a space and `"` give `'self'`;<br>- tab and CR/LF are removed by the WHATWG URL parser before the origin is built (`https://a\r\nb.test` → `https://ab.test`). That is the same host that the 303 `Location` uses, because `toolRedirect` also parses with `URL`. No control byte reaches the header;<br>- IPv6 literals (brackets) give `'self'`; IDN becomes punycode; user info is not in the origin; `:443` is removed. |
+| Other directives unchanged | Holds. The header is still `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action …; base-uri 'none'`. `Referrer-Policy: same-origin` and `cache-control: no-store` are unchanged. The nonce is fresh per page (test). The tool URL is a header value only: the test checks it is not in the HTML or the page data (`toolUrl` is removed from `publicData`). |
+| No other page changed | Holds. Only `storageCheckPage` changed. Probe: the storage login page still sends `form-action 'none'`. Error pages have no form (BD-A2-103). |
+
+Lens A note: the form's `action` stays our `postUrl`, and the page's scripts run only with the nonce. So the new source matters only for the redirect to the account's own tool, where the launch goes anyway.
+
+### Verdict (round 2)
+
+APPROVE for lens A. The storage-check page allows exactly the one tool origin of its own 303. The origin is guarded by an allow list, so no header injection and no wildcard are possible. Everything else in the policy is unchanged.

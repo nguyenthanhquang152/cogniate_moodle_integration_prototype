@@ -6,7 +6,7 @@ Any kind A LTI 1.3 platform that has no named channel, for example Sakai, Open e
 
 | Fact | Value | Source |
 | --- | --- | --- |
-| Text name and label | `your LMS`; `Other LTI 1.3 platform` | LA-ADR-02 D3 |
+| Text name and label | `LMS` (the templates add "your" or "this": "your {LMS}", "this {LMS} site"); `Other LTI 1.3 platform` | LA-ADR-02 D3; A1 BD-A1-111 |
 | LTI profile | `lti-generic`: `endpoints: admin`, `issuerKind: per-tenant`, `endpointOrigins: any-https`, client assertion `aud` from `{platformValue}` (the stored token audience, else the token URL), Dynamic Registration `path-prefix` with an opaque bearer token, `privacyFloor: allowlist` | LA-ADR-02 D2 |
 | Platform storage | `{ targetFrame: 'from-login', origin: 'authOrigin' }` | A2 LA-ADR-05 D1 rule 1a |
 | Registration | `dynamic` with authority `self` (only under I-SELF; else staged with a grant); `manual` with authority `operatorGrant` (the grant binds every admin value) | LA-ADR-02 D2a, D3, D5 item 10, D6 |

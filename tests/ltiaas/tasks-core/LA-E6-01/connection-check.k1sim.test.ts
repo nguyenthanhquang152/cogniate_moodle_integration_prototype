@@ -25,6 +25,7 @@ import {
   cli,
   connPath,
   expectStatus,
+  logEvents,
   records,
   rememberSecret,
   session,
@@ -33,135 +34,27 @@ import {
   unique,
   type Json,
 } from '../../../acceptance/M1/common/client';
+import { CLOUD, canvasBound } from '../../../acceptance/M1/canvas/canvas';
+import { operatorApi, operatorAuth, readOperatorKey } from '../../tasks-ops/LA-E5-01/operator';
 
 describe('LA-E6-01 Connection check (K1-SIM rows)', () => {
-  it('AC-LA-E6-01-04, AC-LA-E6-01-05, AC-LA-E6-01-06: staged connection gives 409 CONNECTION_NOT_READY with 0 token requests; channel without setup.connectionCheck gives 409 CAPABILITY_NOT_SUPPORTED; LTI POST /api/platforms/:id/check on shared Blackboard platform gives limits: "shared-application" and writes platform.check audit event (AC-LA-E6-01-10)', async () => {
-    const s = await session('A');
+  let activeCanvasConnId = '';
+  let bbPlatformId = '';
+  let bbDepId = '';
 
-    // AC-LA-E6-01-05: Blackboard has no setup.connectionCheck -> 409 CAPABILITY_NOT_SUPPORTED
-    const bbPlatformId = await sharedPlatform();
-    const bbConnRes = await app(s, 'POST', '/app-api/connections', {
-      name: unique('QA3 E6-01 BB'),
-      lms: 'blackboard',
-      method: 'manual',
-      profile: 'blackboard-sim',
-      siteUrl: 'https://learn-a.blackboard.sim.test',
+  it('AC-LA-E6-01-01: On the Canvas simulator, a check of a correct connection gives 200 with result: "ok", details.jwks.ok: true and details.token.ok: true', async () => {
+    const cv = await canvasBound('A');
+    activeCanvasConnId = String(cv.connection.id);
+    const scenRes = await sim('/scenarios', 'POST', {
+      id: unique('scen-e601-ok'),
+      provider: CLOUD.provider,
+      clientId: cv.clientId,
+      deploymentId: cv.deploymentId,
+      siteHost: cv.serviceHost,
     });
-    expectStatus(bbConnRes, 201);
-    const bbCheckRes = await app(s, 'POST', `${connPath(String(bbConnRes.json.id))}/check`, {});
-    expectStatus(bbCheckRes, 409, 'CAPABILITY_NOT_SUPPORTED');
-    expect(bbCheckRes.json?.details?.capability).toBe('setup.connectionCheck');
+    expectStatus(scenRes, 201);
 
-    // AC-LA-E6-01-06 & AC-LA-E6-01-10: LTI POST /api/platforms/:id/check on shared Blackboard platform
-    // Ensure at least one active deployment exists on the shared platform
-    const depId = unique('dep-e601-bb');
-    const grantRes = await cli('app:grant', [
-      'issue',
-      '--library',
-      s.library.id,
-      '--connection',
-      String(bbConnRes.json.id),
-      '--site',
-      'https://learn-a.blackboard.sim.test',
-      '--client-id',
-      'qa-bb-app',
-      '--deployment-id',
-      depId,
-      '--note',
-      'QA-3 AC-LA-E6-01-06',
-    ]);
-    expect(grantRes.code, grantRes.stderr || grantRes.stdout).toBe(0);
-    const grantCode = grantRes.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/)![0];
-    rememberSecret(grantCode);
-    const redeemBb = await app(s, 'PUT', `${connPath(String(bbConnRes.json.id))}/platform`, {
-      deploymentId: depId,
-      grantCode,
-    });
-    expectStatus(redeemBb, 200);
-
-    const ltiCheckRes = await admin('POST', `/api/platforms/${encodeURIComponent(bbPlatformId)}/check`, {
-      deploymentId: depId,
-    });
-    expectStatus(ltiCheckRes, 200);
-    expect(ltiCheckRes.json.limits).toBe('shared-application');
-    expect(ltiCheckRes.json.platform).toEqual({ active: true, deploymentActive: true });
-
-    // AC-LA-E6-01-10: GET /api/audit shows platform.check with actor.type === 'api_key' and details.tokenResult
-    const auditRes = await admin('GET', '/api/audit?action=platform.check&limit=5');
-    expectStatus(auditRes, 200);
-    const auditEvent = (auditRes.json.events as Json[]).find((e) => e.target?.id === bbPlatformId);
-    expect(auditEvent).toBeDefined();
-    expect(auditEvent!.actor?.type).toBe('api_key');
-    expect(auditEvent!.details?.tokenResult).toBeDefined();
-    expect(JSON.stringify(auditEvent)).not.toContain('access_token');
-
-    // AC-LA-E6-01-04: Pending Canvas connection gives 409 CONNECTION_NOT_READY and simulator records 0 token requests
-    const cursorBefore = (await records()).cursor;
-    const canvasPending = await app(s, 'POST', '/app-api/connections', {
-      name: unique('QA3 E6-01 Pending Canvas'),
-      lms: 'canvas',
-      method: 'manual',
-      profile: 'canvas-sim-cloud',
-      siteUrl: 'https://canvas.sim.test',
-    });
-    expectStatus(canvasPending, 201);
-    const pendingCheck = await app(s, 'POST', `${connPath(String(canvasPending.json.id))}/check`, {});
-    expectStatus(pendingCheck, 409, 'CONNECTION_NOT_READY');
-    const tokenRecs = (await records(cursorBefore)).records.filter((r: Json) => r.kind === 'token');
-    expect(tokenRecs).toEqual([]);
-  });
-
-  it('AC-LA-E6-01-01, AC-LA-E6-01-02, AC-LA-E6-01-03, AC-LA-E6-01-07, AC-LA-E6-01-08: Canvas connection check ok, 429 rate limit within 60 s, 404 for another library with no outbound call, and invalid_client failure leaves status unchanged', async () => {
-    const sA = await session('A');
-    const sB = await session('B');
-    const siteUrl = 'https://canvas.sim.test';
-    const clientId = unique('qa3-e601-canvas');
-    const deploymentId = unique('dep-e601-cv');
-
-    const createRes = await app(sA, 'POST', '/app-api/connections', {
-      name: unique('QA3 E6-01 Canvas Active'),
-      lms: 'canvas',
-      method: 'manual',
-      profile: 'canvas-sim-cloud',
-      siteUrl,
-    });
-    expectStatus(createRes, 201);
-    const connectionId = String(createRes.json.id);
-
-    const issueRes = await cli('app:grant', [
-      'issue',
-      '--library',
-      sA.library.id,
-      '--connection',
-      connectionId,
-      '--site',
-      siteUrl,
-      '--client-id',
-      clientId,
-      '--deployment-id',
-      deploymentId,
-      '--note',
-      'QA-3 AC-LA-E6-01-01',
-    ]);
-    expect(issueRes.code, issueRes.stderr || issueRes.stdout).toBe(0);
-    const grantCode = issueRes.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/)![0];
-    rememberSecret(grantCode);
-
-    const redeemRes = await app(sA, 'PUT', `${connPath(connectionId)}/platform`, {
-      clientId,
-      deploymentId,
-      grantCode,
-    });
-    expectStatus(redeemRes, 200);
-
-    // AC-LA-E6-01-07: Another library gets 404 and makes no outbound call
-    const cursorOther = (await records()).cursor;
-    const otherRes = await app(sB, 'POST', `${connPath(connectionId)}/check`, {});
-    expectStatus(otherRes, 404);
-    expect((await records(cursorOther)).records).toEqual([]);
-
-    // AC-LA-E6-01-01: Check of a correct Canvas connection gives 200 result: "ok", jwks.ok: true, token.ok: true
-    const okRes = await app(sA, 'POST', `${connPath(connectionId)}/check`, {});
+    const okRes = await app(cv.s, 'POST', `${connPath(activeCanvasConnId)}/check`, {});
     expectStatus(okRes, 200);
     expect(okRes.json).toMatchObject({
       result: 'ok',
@@ -172,56 +65,29 @@ describe('LA-E6-01 Connection check (K1-SIM rows)', () => {
         limits: null,
       },
     });
+  });
 
-    // AC-LA-E6-01-03: Second check within 60 s gives 429 RATE_LIMITED
-    const secondRes = await app(sA, 'POST', `${connPath(connectionId)}/check`, {});
+  it('AC-LA-E6-01-03: A second check of the same connection within 60 s gives 429 RATE_LIMITED', async () => {
+    const sA = await session('A');
+    expect(activeCanvasConnId).not.toBe('');
+    const secondRes = await app(sA, 'POST', `${connPath(activeCanvasConnId)}/check`, {});
     expectStatus(secondRes, 429, 'RATE_LIMITED');
+  });
 
-    // AC-LA-E6-01-02: Separate Canvas connection with simulator token endpoint answering invalid_client
-    const clientId2 = unique('qa3-e601-canvas-bad');
-    const deploymentId2 = unique('dep-e601-cv-bad');
-    const createRes2 = await app(sA, 'POST', '/app-api/connections', {
-      name: unique('QA3 E6-01 Canvas InvalidClient'),
-      lms: 'canvas',
-      method: 'manual',
-      profile: 'canvas-sim-cloud',
-      siteUrl,
+  it('AC-LA-E6-01-02: With the simulator token endpoint set to answer invalid_client, the check gives result: "failed", details.token.ok: false, details.token.detail: "invalid_client", and the connection status does not change', async () => {
+    const cvBad = await canvasBound('A');
+    const connId = String(cvBad.connection.id);
+    const scenRes = await sim('/scenarios', 'POST', {
+      id: unique('scen-e601-bad-client'),
+      provider: CLOUD.provider,
+      clientId: cvBad.clientId,
+      deploymentId: cvBad.deploymentId,
+      siteHost: cvBad.serviceHost,
+      tokenAnswers: [{ status: 400, error: 'invalid_client', persistent: true }],
     });
-    expectStatus(createRes2, 201);
-    const connectionId2 = String(createRes2.json.id);
+    expectStatus(scenRes, 201);
 
-    const issueRes2 = await cli('app:grant', [
-      'issue',
-      '--library',
-      sA.library.id,
-      '--connection',
-      connectionId2,
-      '--site',
-      siteUrl,
-      '--client-id',
-      clientId2,
-      '--deployment-id',
-      deploymentId2,
-      '--note',
-      'QA-3 AC-LA-E6-01-02',
-    ]);
-    expect(issueRes2.code).toBe(0);
-    const grantCode2 = issueRes2.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/)![0];
-    rememberSecret(grantCode2);
-    const redeemRes2 = await app(sA, 'PUT', `${connPath(connectionId2)}/platform`, {
-      clientId: clientId2,
-      deploymentId: deploymentId2,
-      grantCode: grantCode2,
-    });
-    expectStatus(redeemRes2, 200);
-
-    await sim('/faults', 'POST', {
-      target: 'token',
-      status: 400,
-      body: { error: 'invalid_client' },
-      times: 1,
-    });
-    const badCheck = await app(sA, 'POST', `${connPath(connectionId2)}/check`, {});
+    const badCheck = await app(cvBad.s, 'POST', `${connPath(connId)}/check`, {});
     expectStatus(badCheck, 200);
     expect(badCheck.json).toMatchObject({
       result: 'failed',
@@ -230,8 +96,133 @@ describe('LA-E6-01 Connection check (K1-SIM rows)', () => {
         token: { ok: false, detail: 'invalid_client' },
       },
     });
-    const afterConn = await app(sA, 'GET', connPath(connectionId2));
+    const afterConn = await app(cvBad.s, 'GET', connPath(connId));
     expectStatus(afterConn, 200);
     expect(afterConn.json.status).toBe('registered');
+  });
+
+  it('AC-LA-E6-01-04: A connection with a staged (inactive) platform gives 409 CONNECTION_NOT_READY from the app, and the simulator records no token request', async () => {
+    const s = await session('A');
+    const cursorBefore = (await records()).cursor;
+    const canvasPending = await app(s, 'POST', '/app-api/connections', {
+      name: unique('QA3 E6-01 Pending Canvas'),
+      lms: 'canvas',
+      method: 'manual',
+      profile: CLOUD.profile,
+      siteUrl: CLOUD.siteA,
+    });
+    expectStatus(canvasPending, 201);
+    const pendingCheck = await app(s, 'POST', `${connPath(String(canvasPending.json.id))}/check`, {});
+    expectStatus(pendingCheck, 409, 'CONNECTION_NOT_READY');
+    const tokenRecs = (await records(cursorBefore)).records.filter((r: Json) => r.kind === 'token');
+    expect(tokenRecs).toEqual([]);
+  });
+
+  it('AC-LA-E6-01-05: A channel without setup.connectionCheck gives 409 CAPABILITY_NOT_SUPPORTED with details.capability: "setup.connectionCheck"', async () => {
+    const s = await session('A');
+    bbPlatformId = await sharedPlatform();
+    const bbConnRes = await app(s, 'POST', '/app-api/connections', {
+      name: unique('QA3 E6-01 BB'),
+      lms: 'blackboard',
+      method: 'manual',
+      profile: 'blackboard-sim',
+      siteUrl: 'https://learn-a.blackboard.sim.test',
+    });
+    expectStatus(bbConnRes, 201);
+    const bbConnId = String(bbConnRes.json.id);
+
+    const bbCheckRes = await app(s, 'POST', `${connPath(bbConnId)}/check`, {});
+    expectStatus(bbCheckRes, 409, 'CAPABILITY_NOT_SUPPORTED');
+    expect(bbCheckRes.json?.details?.capability).toBe('setup.connectionCheck');
+
+    // Redeem a deployment on the Blackboard shared platform for AC-06 and AC-10
+    bbDepId = unique('dep-e601-bb');
+    const grantRes = await cli('app:grant', [
+      'issue',
+      '--library',
+      s.library.id,
+      '--connection',
+      bbConnId,
+      '--site',
+      'https://learn-a.blackboard.sim.test',
+      '--client-id',
+      'qa-bb-app',
+      '--deployment-id',
+      bbDepId,
+      '--note',
+      'QA-3 AC-LA-E6-01-06',
+    ]);
+    expect(grantRes.code, grantRes.stderr || grantRes.stdout).toBe(0);
+    const grantCode = grantRes.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/)![0];
+    rememberSecret(grantCode);
+    const redeemBb = await app(s, 'PUT', `${connPath(bbConnId)}/platform`, {
+      deploymentId: bbDepId,
+      grantCode,
+    });
+    expectStatus(redeemBb, 200);
+  });
+
+  it('AC-LA-E6-01-06: POST /api/platforms/:id/check on the shared Blackboard-simulator platform gives limits: "shared-application"', async () => {
+    expect(bbPlatformId).not.toBe('');
+    expect(bbDepId).not.toBe('');
+    const scenRes = await sim('/scenarios', 'POST', {
+      id: unique('scen-e601-bb'),
+      provider: 'blackboard-sim',
+      clientId: 'qa-bb-app',
+      deploymentId: bbDepId,
+      siteHost: 'learn-a.blackboard.sim.test',
+    });
+    expectStatus(scenRes, 201);
+
+    const ltiCheckRes = await admin('POST', `/api/platforms/${encodeURIComponent(bbPlatformId)}/check`, {
+      deploymentId: bbDepId,
+    });
+    expectStatus(ltiCheckRes, 200);
+    expect(ltiCheckRes.json.limits).toBe('shared-application');
+    expect(ltiCheckRes.json.platform).toEqual({ active: true, deploymentActive: true });
+    expect(ltiCheckRes.json.jwks?.ok).toBe(true);
+    expect(ltiCheckRes.json.token?.ok).toBe(true);
+  });
+
+  it('AC-LA-E6-01-07: The check of another library connection gives 404 and makes no outbound call', async () => {
+    const sB = await session('B');
+    expect(activeCanvasConnId).not.toBe('');
+    const cursorOther = (await records()).cursor;
+    const otherRes = await app(sB, 'POST', `${connPath(activeCanvasConnId)}/check`, {});
+    expectStatus(otherRes, 404);
+    expect((await records(cursorOther)).records).toEqual([]);
+  });
+
+  it('AC-LA-E6-01-08: The platform_check and connection_check log lines hold token_result without any token or assertion value', async () => {
+    const ltiLines = logEvents('platform_check', 0, {}, 'lti-service');
+    const appLines = logEvents('connection_check', 0, {}, 'cogniate-app');
+    expect(ltiLines.length).toBeGreaterThanOrEqual(2);
+    expect(appLines.length).toBeGreaterThanOrEqual(2);
+    for (const line of [...ltiLines, ...appLines]) {
+      const raw = JSON.stringify(line);
+      expect(raw).not.toContain('access_token');
+      expect(raw).not.toContain('client_assertion');
+      expect(raw).not.toContain('[REDACTED]');
+      expect(line.token_result).toBeDefined();
+    }
+  });
+
+  it('AC-LA-E6-01-10: Each LTI check writes one audit event platform.check with actor api_key:<key id> and no token value', async () => {
+    const operatorKey = readOperatorKey();
+    const auditRes = await operatorApi<{ events?: Json[] }>(
+      'GET',
+      '/operator/v1/audit?action=platform.check&limit=10',
+      { authorization: operatorAuth(operatorKey) },
+    );
+    expect(auditRes.status).toBe(200);
+    const events = auditRes.json?.events ?? [];
+    expect(events.length).toBeGreaterThanOrEqual(2);
+    const bbEvent = events.find((e) => e.target?.id === bbPlatformId);
+    expect(bbEvent).toBeDefined();
+    expect(bbEvent!.actor?.type).toBe('api_key');
+    expect(typeof bbEvent!.actor?.id).toBe('string');
+    expect(bbEvent!.details?.tokenResult).toBeDefined();
+    expect(JSON.stringify(bbEvent)).not.toContain('access_token');
+    expect(JSON.stringify(bbEvent)).not.toContain('[REDACTED]');
   });
 });

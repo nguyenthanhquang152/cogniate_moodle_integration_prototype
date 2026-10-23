@@ -28,7 +28,7 @@ it('the provider list gives lti-generic after the three baseline entries, with i
   const generic = list.find((e) => e.lms === 'lti-generic');
   expect(list.indexOf(generic!)).toBeGreaterThan(2);
   expect(generic).toMatchObject({
-    lms: 'lti-generic', channel: 'lti-generic', label: 'Other LTI 1.3 platform', channelName: 'your LMS', family: 'lti13', methods: ['dynamic', 'manual'],
+    lms: 'lti-generic', channel: 'lti-generic', label: 'Other LTI 1.3 platform', channelName: 'LMS', family: 'lti13', methods: ['dynamic', 'manual'],
     capabilities: { dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false },
     registration: [{ method: 'dynamic', authority: 'self', profiles: ['lti-generic'] }, { method: 'manual', authority: 'operatorGrant', profiles: ['lti-generic'] }],
     profiles: [{ id: 'lti-generic', label: 'Other LTI 1.3 platform', simulation: false, ready: true, clientId: null }],
@@ -47,7 +47,7 @@ it('a manual or dynamic create passes site rules 1–4 and stores the channel, i
   }
   const manual = await create(`${SITE}/`, 'manual');
   expect([manual.statusCode, manual.json()]).toEqual([201, expect.objectContaining({
-    channel: 'lti-generic', lms: 'lti-generic', profile: 'lti-generic', channelName: 'your LMS', bindingAuthority: 'operatorGrant', method: 'manual', status: 'pending', siteUrl: SITE,
+    channel: 'lti-generic', lms: 'lti-generic', profile: 'lti-generic', channelName: 'LMS', bindingAuthority: 'operatorGrant', method: 'manual', status: 'pending', siteUrl: SITE,
   })]);
   const dynamic = await create(SITE, 'dynamic');
   expect([dynamic.statusCode, dynamic.json().bindingAuthority, dynamic.json().registrationUrl]).toEqual([201, 'self', expect.stringContaining('/lti/register/cogniate?ref=')]);

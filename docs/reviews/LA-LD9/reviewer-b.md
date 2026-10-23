@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 7
+Verdict: APPROVE
+Round: 8
 
 # LD-9 lists LA-IC-12, LA-IC-16, LA-IC-17, Reviewer-B (lens: "Can a human team own it?")
 
@@ -327,3 +327,19 @@ Reviewed `7db4f2c5` / `e085b16e` against plan §6.1 LD-9, LA-ADR-04 D8, the name
 - Private `git clone --no-hardlinks` at `7db4f2c5`, own `npm ci`; Vitest cache deleted before every run. **12/12 golden K0 tests passed**, including the ten new negative controls. The independent current-output probe passed with eight invalid-value/missing-field controls and three frozen-assertion baseline/current controls. Five additional mutations verified the sensitivity to the former type-only rules.
 - Evidence: `/tmp/reviewer-b-ld9r7-golden.log`, `/tmp/reviewer-b-ld9r7-product-probe.log`, `/tmp/reviewer-b-ld9r7-product-probe.test.ts`, `/tmp/reviewer-b-ld9r7-current-result.json`, and `/tmp/reviewer-b-ld9r7-rule-controls.{mjs,log}`. The current-output probe retains unchanged fields from the normalized slot-3A capture; it is not a fresh full G1–G4 capture. The wave-end live comparison and frozen-suite execution remain separate.
 - The nine changed files are within QA ownership; no comparator implementation, product core or frozen assertion changed in this review diff. No Docker, stack, host stack runner or commit. The private probe was removed, the clone was checked clean and deleted, and only this review file was edited in integration. Earlier findings outside the stated closures retain their prior status.
+
+## Round 8
+
+Reviewed `b796b1ec` against plan §6.1 LD-1/LD-9 and LA-ADR-04 D8. **APPROVE: B-LD9-13 and B-LD9-14 closed; 0 new BLOCKER, MAJOR or MINOR, 1 new NIT.** Same Reviewer-B lens; blind review.
+
+- **B-LD9-13 closed.** IC-01 and both indexes now name the six pending frozen-file rewrites and two shared helpers, their LA-E0-04 ownership, `la-qa` commit `f0a7b306`, and the wave-end landing gate. They distinguish zero *additional* IC-01 edits after LD-1 from current compatibility. At the reviewed pin, all six files still equal G-BASE and `f0a7b306` is not an ancestor, so the pending status matches the tree. This approval does not claim the frozen suites already pass or approve unrelated rewrite changes.
+- **B-LD9-14 closed.** All **31 file references in the 21 IC-01 coverage entries** exist. The corrected provider/binding-authority and generic-channel references identify the actual tests; the E1-01/E1-06 golden binding is explicitly pending. IC-04 correctly distinguishes the former plain-`describe` environment placeholder from the now-implemented JSON, Moodle-row and score-run assertions. IC-14 names the existing Canvas DR suites and `CanvasCreate.tsx` with its actual conditional manual default. The two range-end typos below do not reopen the missing-file/false-coverage finding.
+- IC-01's 259 exact-value rules and the IC-04/IC-14 golden `changes` arrays are unchanged. Their prior value approvals remain valid. The seven-file diff stays in QA ownership and changes no product core, comparator implementation or frozen assertion.
+
+### B-LD9-15 — NIT — Two citation ranges extend beyond the files
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-01.json:281` and `:286`.
+- **Problem/evidence:** At `b796b1ec`, `manifest.test.ts:9-170` ends beyond that file's 167 lines, and `lti-generic.test.ts:23-85` / the inner `:57-85` exceed its 77 lines. The files and starting lines are correct. The new K0 check validates file existence, not line bounds.
+- **Suggested fix:** Correct the range ends to the current source (167 and 77 respectively). No comparator or test-harness change is needed.
+
+Verification: fresh private `git clone --no-hardlinks` pinned to `b796b1ec`, own `npm ci`, then `node --test tests/ltiaas/golden/golden.k0.test.mjs`: **12/12 passed**. A nonexistent author-test path and a false landed-status mutation each failed the new metadata checks; after restoration, **12/12 passed** again. Independent git/source checks confirmed the pending rewrite, citation paths/ranges and unchanged exact golden rules. Logs: `/tmp/reviewer-b-ld9r8-{golden,missing-ref,false-landed,restored}.log`. The clone was checked clean and deleted; only this report changed in integration. No Vitest, Docker, stack, host stack runner or commit. LD-1 landing, the live G1–G4 comparison and frozen-suite execution remain pending wave-end work; earlier findings outside the stated closures retain their prior status.

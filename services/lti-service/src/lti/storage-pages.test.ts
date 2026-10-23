@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { sha256Hex } from '@cogniate/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { storageCheckPage, storageLoginPage } from './storage-pages.ts';
+import { formActionSources, storageCheckPage, storageLoginPage } from './storage-pages.ts';
 
 const input = { authUrl: 'https://auth.example.edu/login?state=state&nonce=nonce', state: 'state', target: 'forwarding', origin: 'https://auth.example.edu' };
 const dataBlock = (html: string) => html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!;
@@ -90,7 +90,10 @@ describe('storage login page (LA-ADR-05 D1 rules 2, 3, 9)', () => {
 });
 
 function checkBrowser(target = 'forwarding', topLevel = false) {
-  const page = storageCheckPage({ postUrl: 'https://tool.test/lti/launch/unit/storage-check', check: 'check-token', stateHash: sha256Hex('secret-state'), target, origin: input.origin });
+  const page = storageCheckPage({
+    postUrl: 'https://tool.test/lti/launch/unit/storage-check', check: 'check-token', stateHash: sha256Hex('secret-state'), target, origin: input.origin,
+    toolUrl: 'https://app.example.test/tool/launch',
+  });
   const data = JSON.parse(dataBlock(page.html)) as { check: string; key: string; messageId: string; origin: string; postUrl: string };
   let receive: ((event: { origin: string; data: unknown }) => void) | undefined;
   let timeout: (() => void) | undefined;
@@ -140,15 +143,31 @@ describe('storage check page', () => {
     expect(b.form.submit).toHaveBeenCalledTimes(1);
   });
 
-  it('uses the self-only form CSP and same-origin referrer, with escaped data and a fresh nonce', () => {
-    const data = { postUrl: 'https://tool.test/</script>&\u2028\u2029', check: 'check', stateHash: sha256Hex('state'), target: '_parent', origin: input.origin };
+  it('uses the form CSP of self plus the tool origin (BD-A2-103) and same-origin referrer, with escaped data and a fresh nonce', () => {
+    const data = {
+      postUrl: 'https://tool.test/</script>&\u2028\u2029', check: 'check', stateHash: sha256Hex('state'), target: '_parent', origin: input.origin,
+      toolUrl: 'https://App.Example.test:8443/tool/launch?x=1',
+    };
     const page = storageCheckPage(data);
     const nonce = page.html.match(/<script nonce="([^"]+)">/)![1];
-    expect(page.headers).toMatchObject({ 'cache-control': 'no-store', 'referrer-policy': 'same-origin', 'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action 'self'; base-uri 'none'` });
+    expect(page.headers).toMatchObject({
+      'cache-control': 'no-store', 'referrer-policy': 'same-origin',
+      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action 'self' https://app.example.test:8443; base-uri 'none'`,
+    });
+    // The tool URL is a header value only; the page data does not carry it.
+    expect(page.html).not.toContain('app.example.test');
     expect(storageCheckPage(data).headers['content-security-policy']).not.toBe(page.headers['content-security-policy']);
     expect(JSON.parse(dataBlock(page.html)).postUrl).toBe(data.postUrl);
     for (const escaped of ['\\u003c', '\\u003e', '\\u0026', '\\u2028', '\\u2029']) expect(dataBlock(page.html)).toContain(escaped);
     expect(page.html.replace(dataBlock(page.html), '')).not.toContain(data.postUrl);
+  });
+
+  it('BD-A2-103: only a plain https origin joins form-action; anything else keeps self only', () => {
+    expect(formActionSources('https://app.cogniate.test/tool/deep-link')).toBe("'self' https://app.cogniate.test");
+    expect(formActionSources('https://xn--bcher-kva.example:8443/x')).toBe("'self' https://xn--bcher-kva.example:8443");
+    for (const url of ['https://a;b.test/x', 'https://a,b.test/x', 'https://a"b.test/x', 'http://app.cogniate.test/x', 'https://[::1]/x', 'not a url']) {
+      expect(formActionSources(url), url).toBe("'self'");
+    }
   });
 
   it('posts an empty value at once outside a frame', () => {
