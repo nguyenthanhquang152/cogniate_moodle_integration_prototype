@@ -109,6 +109,54 @@ describe('AC-LA-E2-04-03: the manual admin-value redemption', () => {
   });
 });
 
+describe('B-LA-E2-04-02: a finalized repeat compares the bound values of the committed approval', () => {
+  async function registered(bound: Json) {
+    const ctx = await setup();
+    const c = await ctx.connection('manual');
+    const code = await ctx.issue(c, { boundValues: bound as IssueInput['boundValues'] });
+    const first = await ctx.put(c, manualBody(code, bound.tokenAudience ? { tokenAudience: bound.tokenAudience } : {}));
+    expect(first.status, JSON.stringify(first.json)).toBe(200);
+    const calls = t.lti.calls.length;
+    const platformId = getConnectionAnyLibrary(t.db, c.id)!.ltiPlatformId!;
+    const before = structuredClone(t.lti.platforms.get(platformId)!);
+    const repeat = async (over: Json) => {
+      const r = await ctx.put(c, { ...manualBody(code), ...over });
+      // A repeat never calls the LTI service and never changes the platform.
+      expect([t.lti.calls.length, t.lti.platforms.get(platformId)]).toEqual([calls, before]);
+      return r;
+    };
+    return { repeat };
+  }
+
+  it('a changed endpoint gives 422 GRANT_MISMATCH with the differing fields, in the fixed order; nothing changes', async () => {
+    const { repeat } = await registered(VALUES);
+    expect(refusal(await repeat({ jwksUrl: `${SITE}/different-jwks` }))).toEqual([422, 'GRANT_MISMATCH', ['jwksUrl']]);
+    expect(refusal(await repeat({ accessTokenEndpoint: 'https://token.other.test/token', authenticationEndpoint: `${SITE}/auth2` })))
+      .toEqual([422, 'GRANT_MISMATCH', ['authenticationEndpoint', 'accessTokenEndpoint']]);
+    expect(refusal(await repeat({ issuer: `${SITE}/other` }))).toEqual([422, 'GRANT_MISMATCH', ['issuer']]);
+    expect(t.logs.filter((l) => l.event === 'grant_rejected' && l.reason === 'mismatch')).toHaveLength(3);
+  });
+
+  it('an added, a removed or a changed optional audience gives GRANT_MISMATCH tokenAudience', async () => {
+    const without = await registered(VALUES);
+    expect(refusal(await without.repeat({ tokenAudience: `${SITE}/aud` }))).toEqual([422, 'GRANT_MISMATCH', ['tokenAudience']]);
+    await t.app.close();
+    const withAud = await registered({ ...VALUES, tokenAudience: `${SITE}/aud` });
+    expect(refusal(await withAud.repeat({}))).toEqual([422, 'GRANT_MISMATCH', ['tokenAudience']]);
+    expect(refusal(await withAud.repeat({ tokenAudience: `${SITE}/aud2` }))).toEqual([422, 'GRANT_MISMATCH', ['tokenAudience']]);
+    expect((await withAud.repeat({ tokenAudience: `${SITE}/aud` })).status).toBe(200);
+  });
+
+  it('an identical repeat (an origin in another form counts as identical) answers 200 with no LTI call', async () => {
+    const { repeat } = await registered(VALUES);
+    expect((await repeat({})).status).toBe(200);
+    const other = await repeat({ issuer: 'HTTPS://LMS.School.Edu:443' });
+    expect([other.status, other.json.status]).toEqual([200, 'registered']);
+    // A blank optional audience from the shared form counts as absent.
+    expect((await repeat({ tokenAudience: '' })).status).toBe(200);
+  });
+});
+
 describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => {
   const STAGED = { authenticationEndpoint: `${SITE}/auth`, accesstokenEndpoint: 'https://auth.provider.test/token', authConfig: { method: 'JWK_SET', key: `${SITE}/jwks` },
     clientAssertionAud: 'https://auth.provider.test/aud' };
@@ -135,6 +183,10 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     const stored = getConnectionAnyLibrary(t.db, c.id)!;
     expect([stored.ltiPlatformId, stored.platform, platform.active]).toEqual([platform.id, { id: platform.id, issuer: `${SITE}/sakai`, clientId: 'client-1', deploymentIds: ['dep-1'], productFamilyCode: 'sakai' }, true]);
     expect(approvalOf(t.db, platform.id, 'dep-1')?.connectionId).toBe(c.id);
+    // The finalized repeat of the short body: 200, no LTI call (it has no admin values to compare).
+    const calls = t.lti.calls.length;
+    expect((await put(c, { clientId: 'client-1', deploymentId: 'dep-1', grantCode: code })).status).toBe(200);
+    expect(t.lti.calls.length).toBe(calls);
   });
 
   it('the full manual body on a staged connection is refused (strict body), and so is a missing id', async () => {
