@@ -406,6 +406,10 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
   });
 
   it('AC-LA-E5-06-07: Moodle-shaped simulator Dynamic Registration of cogniate sends initiate_login_uri, redirect_uris, jwks_uri and target_link_uri equal to protocolUrls of cogniate', async () => {
+    await operatorRequest('PATCH', '/operator/v1/rate-limits', {
+      registrationSessionsPerAddress: 50,
+      classes: { registration: { ratePerMinute: 100, burst: 100 } },
+    });
     const acctRes = await operatorRequest('GET', '/operator/v1/accounts/cogniate');
     expect(acctRes.status).toBe(200);
     const cogniateAcct = acctRes.json as unknown as OperatorAccount;
@@ -465,6 +469,10 @@ describe('LA-E5-06 K1-SIM: Protocol wiring (resolver, status pages, session cap)
           authorization: auth.bearer(cogniateKey),
         }).catch(() => undefined);
       }
+      await operatorRequest('PATCH', '/operator/v1/rate-limits', {
+        registrationSessionsPerAddress: null,
+        classes: { registration: null },
+      }).catch(() => undefined);
     }
   });
 
