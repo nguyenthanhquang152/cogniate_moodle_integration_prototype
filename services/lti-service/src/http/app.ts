@@ -31,6 +31,7 @@ import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 import { registerServiceKeyAdminRoutes } from './routes/service-key-admin.ts';
+import { registerPlatformCheckRoutes } from './routes/platform-check.ts';
 import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
@@ -191,6 +192,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerServiceKeyAdminRoutes(app, ctx);
   registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
+  registerPlatformCheckRoutes(app, ctx);
   (await registerRegistrationRoutes(app, ctx));
   return app;
 }

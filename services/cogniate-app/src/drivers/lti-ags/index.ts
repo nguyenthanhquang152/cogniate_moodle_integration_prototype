@@ -1,7 +1,7 @@
 // AGS transport and read-back (LA-ADR-03 D5). The outbox owns delivery state.
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import { agsScoreBody } from '@cogniate/tracking';
-import { SERVICE_KEY_COLUMN, appAad, openText } from '../../app/sealing.ts';
+import { SERVICE_KEY_COLUMN, appAad, keyVersionUnavailable, openText } from '../../app/sealing.ts';
 import { LtiServiceError, normalizeRetryAfter, type LtiClient } from '../../clients/lti-client.ts';
 import type { Db } from '../../domain/db.ts';
 import { resolveLineItem } from './line-item.ts';
@@ -55,6 +55,11 @@ export function ltiAgsReporter(deps: { db: Db; lti: LtiClient; masterKey: Buffer
         // LA-E5-22: the service key is bound to its resource link row (a legacy blob also opens).
         try { serviceKey = openText(deps.masterKey, target.service_key_encrypted as Uint8Array, appAad(SERVICE_KEY_COLUMN, String(target.library_id), dispatch.placementId)); }
         catch (err) {
+          // A-LA-E5-22-02: the app key ring of this process lacks the key version (or no ring is bound). The operator
+          // fixes the ring, so the outbox tries again later; nothing was sent. The provider logs key_open_failed.
+          if (keyVersionUnavailable(deps.masterKey, target.service_key_encrypted as Uint8Array, err)) {
+            return { kind: 'retryable', uncertain: false, text: lastErrorText(`Temporary error: the app key ring cannot open the service key yet. Cogniate tries again. Give the trace id ${ctx.traceId} to your Cogniate admin.`) };
+          }
           const name = err instanceof Error ? err.name : 'Error';
           // M1 contract value (AGS): the internal_error line of a score send has path score_sync.
           ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: 'score_sync', error: name });

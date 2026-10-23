@@ -37,6 +37,8 @@ const manifest = {
   // kernel admin-value adapter gives the tool rows (A1 BD-A1-85).
   lti: { guardedFamilies: [], toolConfiguration: 'channel' },
   setup: {
+    // LA-ADR-08 D4, D6 (LA-E6-04): the "Check connection" button; the check proves the bound platform values.
+    connectionCheck: true,
     createFields: [{ key: 'siteUrl', label: 'LMS site URL', kind: 'origin', required: true }],
     // The strict body of the kernel admin-value adapter (app API delta §3.4). The issuer may have a path; its default
     // is the site URL, and a posted value replaces it.

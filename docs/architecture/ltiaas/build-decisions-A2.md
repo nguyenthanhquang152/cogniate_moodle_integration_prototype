@@ -572,3 +572,53 @@ The Lead's provisional call (option Y), routed in dispatch `ctx_e7307e62e227`. R
 | BD-A2-95 | (Provisional: option Y.) Every reserved issuer host is a reserved host, so the BD-A2-93 floor would answer `PLATFORM_URL_NOT_IN_PROFILE` first, and the M1 start page `ISSUER_RESERVED` (base contract §9.2, pinned by `lti/codes.test.ts`) could never show again. Y: a reserved **issuer** host gets the M1 `ISSUER_RESERVED` page byte for byte; any other reserved host, an own host or a failing host name gets `PLATFORM_URL_NOT_IN_PROFILE`. The AC-05 example becomes `sso.canvaslms.com` for `PLATFORM_URL_NOT_IN_PROFILE`, and `canvas.instructure.com` shows `ISSUER_RESERVED`. | **Ratified (option Y).** | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Both options refuse before any fetch. Y keeps a frozen M1 page and its action line ("Connect it as Canvas or Blackboard in the Cogniate portal"), which tells the admin the right fix. X would need a contract note and would drop that help. |
 
 Changes for the Lead to route: none beyond L's build of option Y (in progress).
+
+## 48. Round 47: the async store port (LA-E5-23, lane S2), 2026-10-23
+
+The Lead's provisional calls on S2's three questions, routed in dispatch `ctx_4d5054a2f4d8`. Ratified without change (one addition), so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-96 | (Provisional.) (1) The synchronous SQL stays private to the SQLite adapter; async per-area `LtiStore` methods; each compound audited transaction becomes one atomic store operation (no thenable inside `transaction`/`audit.change`); structural call-site changes are in scope. (2) Production SQL moves verbatim into `store/**`; the boundary probe excludes `*.test.ts` and testkit fixtures. (3) The probe is S2's `store/port-boundary.test.ts`, with no F5 rule change. | **All three ratified, with precisions and one addition.** The audited store method also holds the BD-A2-29 action rule and the `afterCommit` callbacks, and a later `4xx` writes its `refused` event through a store method. The probe has a planted-call negative case. **Addition:** the audit-retention `DELETE` gets its own store module (D4 rule 2 keeps `store/audit.ts` insert and list only), and lane P moves the F5 `audit-event-delete` `ALLOWED` path to it in the same merge; otherwise F5 fails. | LA-ADR-06 D13 item 3 "Build rules"; LA-E5-23 AC-01 (exact text) and notes | Atomicity and the commit-time counters stay inside one synchronous transaction, so D4 T0–T2 hold behind an async port, and an LG Postgres adapter can implement the same methods. |
+
+Changes for the Lead to route: **S2 (LA-E5-23):** as provisionally called, plus the audit-retention module and the planted-call test case. **P:** move `ALLOWED` in `infra/scripts/fitness/rules/audit-event-delete.mjs` from `jobs/audit-retention.ts` to S2's new store module, in the same merge.
+
+## 49. Round 48: a missing key version in the app (LA-E5-22 fix round 1, lane K), 2026-10-23
+
+The Lead's provisional calls on Claude Reviewer-A A-LA-E5-22-02 (MINOR), routed in dispatch `ctx_5c2694ba9004`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-97 | (Provisional.) (1) A score dispatch with "version missing / ring not bound" maps to `{kind: 'retryable', uncertain: false}`; an authentication failure stays `local_failure`. (2) The connection list and detail degrade only that row (`registrationUrl` and its expiry `null`, the `key_open_failed` line, `200`); an authentication failure stays `500`; no new code. (3) The `app:keys rewrap` output and help: "write the ring, restart the app and check /readyz = 200, then rewrap". | **All three ratified.** | LA-ADR-06 D6 "Scope in LA" (app part); operability §6.3 (the app order); LA-E5-22 notes | A missing version is an operator state that a restart with the right ring fixes, so retrying is right; a failed GCM tag means a moved or damaged blob, which must stay loud. The app `/readyz` (`key_version_missing`, BD-A2-88) shows the cause. The order is the same as the LTI runbook (§6.3 steps 3–5). |
+
+Changes for the Lead to route: none beyond K's fix round.
+
+## 50. Round 49: the connection check's local choices (LA-E6-01, lane P), 2026-10-23
+
+P's five provisional choices, routed in dispatch `ctx_b9f02fbfab80`. Two change, so a status message went first (`msg_e44b3e7910a9`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-98 | (a) No granted AGS scope: no token request, `token.detail: invalid_scope`. (b) A bad JWKS: `invalid_jwks`, `http_<status>` or the outbound reason. (c) No `deploymentId` = the first active deployment; an unknown or inactive `deploymentId` gives `403 DEPLOYMENT_NOT_ACTIVE`. (d) One "Check connection" panel on the connection page only. (e) Another token failure: "{LMS} did not give Cogniate an access token." with the code. Staged records refused before any call. | **(b), (d), (e) and the staged refusals ratified.** **(a) changed:** `token.detail: no_granted_scope`, with its own portal text. **(c) changed for one case:** an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`; a known inactive one, or no active deployment, keeps `403 DEPLOYMENT_NOT_ACTIVE`. | LA-ADR-08 D4 ("Work", "Portal"); contract delta §2.6 (detail values, unknown deployment); LA-E6-01 notes | `invalid_scope` is an OAuth answer of the platform; reusing it for our own decision would send an operator to look for a platform refusal that never happened. `UNKNOWN_DEPLOYMENT` is the base code for an unknown id (as for `PATCH …/deployments/:deploymentId`). |
+
+Changes for the Lead to route: **P (LA-E6-01):** the `no_granted_scope` detail and its portal text; `404 UNKNOWN_DEPLOYMENT` for an unknown `deploymentId`. The RQ-2 grants are your process calls.
+
+## 51. Round 50: the log name of the token result (LA-E6-01, lane P), 2026-10-23
+
+The Lead's provisional naming call, routed in dispatch `ctx_3638d89e08e6`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-99 | (Provisional.) The shared redaction replaces every field named or ending with `token`, so the contract's log field `token` would always read `[redacted]`. The log field becomes `token_result` (LTI `platform_check`, app `connection_check`), and the audit details key `tokenResult`, with the same value `{ ok, scope?, detail? }`. `jwks` keeps its name; the HTTP answers keep `token`. No change to the redaction rule. | **Ratified.** `token_result` and `tokenResult` end in "result", so the redaction (`SECRET_KEYS`, `SECRET_SUFFIXES`) does not touch them; the value holds no secret. | contract delta §6 (`platform_check` row), §5 (`platform.check` details), §2.6 (a naming sentence); LA-ADR-08 D4 "Logs"; LA-E6-01 notes | Widening an exception for `token` in the shared rule would weaken redaction for every other log line. HTTP answers are not redacted, so their field name stays as in the contract. |
+
+Changes for the Lead to route: none beyond P's build.
+
+## 52. Round 51: the connection health view (LA-E6-02, lane P), 2026-10-23
+
+P's seven provisional design points, routed in dispatch `ctx_6cc6b1801618`. Ratified without change, so no status message was needed.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-100 | (a) `nextKid` = `null` (the public JWKS has no status). (b) `artifactKeyCurrent` = `null` when not knowable, else the equality; warn only on `false`. (c) The `check` event code: `ok`, or `jwks:<detail>` and/or `token:<detail>`; `lastCheck` derived from the newest check row. (d) `lastError.code` = the parsed `CODE` of the stored text, else `null`. (e) Events: the kept rows, newest first. (f) No disconnect or suspend events (no call site assigned). (g) A collapsed health section; no `role="alert"`; M2 and T6 selectors unaffected. | **All seven ratified.** Precisions: (c) the order is `jwks` then `token`, with §2.6 detail values; (d) `CODE` must match `[A-Z][A-Z0-9_]*`. **D5 operator use updated:** the operator reads the next kid from `GET /operator/v1/accounts/<id>/signing-keys`, and the Could CLI takes `--next-kid <kid>`. (f) is a deferral. | LA-ADR-08 D5 "Build notes" and "Operator use"; LA-E6-02 notes | D5 assumed that the JWKS order shows the next key, but after a rotation the second key is a retired one. Only ids and codes reach the portal, never free text. |
+
+Changes for the Lead to route: **A1** (A1's files): app API delta §3.7, the health answer rules (`nextKid` null in LA; `artifactKeyCurrent` null rule; `lastError.code` parse rule; the `check` code format); data model §5a, the `connection_event.code` format for `check` rows. **Lead:** a `deferred.md` row for disconnect and suspend events (K call sites, Could). Nothing new for P.
