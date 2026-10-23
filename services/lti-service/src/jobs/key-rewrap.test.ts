@@ -225,10 +225,10 @@ describe('key-rewrap', () => {
     expect(legacyBlobsRefused(h.db)).toBe(true);
   });
 
-  it('status counts all sealed and derived rows, omits cleared blobs, and exposes no values', () => {
+  it('status counts all sealed and derived rows, omits cleared blobs, and exposes no values', async () => {
     const h = fixture(); h.tool('legacy'); h.tool('old', 'old'); h.tool('current', 'current'); h.tool('cleared'); h.session('expired');
     h.db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE kid = 'cleared'").run(new Uint8Array(0));
-    const status = keyProviderStatus(h.db, h.provider);
+    const status = (await keyProviderStatus(h.db, h.provider));
     expect(status).toEqual({ kind: 'local-keyring', activeVersion: 'k2', versions: [
       { id: 'k2', state: 'active', sealedCount: 1, derivedCount: 0 },
       { id: 'legacy', state: 'decrypt-only', sealedCount: 2, derivedCount: 0 },

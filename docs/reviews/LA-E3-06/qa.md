@@ -1,5 +1,5 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 2
+Verdict: PASS (K0 + UNIT + K1-SIM)
+Round: 3
 
 # LA-E3-06 NRPS scope: `complete.scopes` and the registration audit event: QA verification
 
@@ -25,17 +25,17 @@ Round: 1
 
 | AC | Result | Test id | Command | Evidence |
 | --- | --- | --- | --- | --- |
-| AC-LA-E3-06-01 | pending: Docker window (K1-SIM) | `tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts > AC-LA-E3-06-01` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/lti-service/src/lti/registration.test.ts > registration request (ADR-009) > sends the requested scopes in request order (LA-E3-06)` (`e3-06-r1-unit.log`). |
-| AC-LA-E3-06-02 | pending: Docker window (K1-SIM) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-02` | SIM Docker slot | In `36f70d8`, an absent `scopes` list was also checked against `scopes_supported` (`checks advertised scopes for an explicit list = false before sending`), refusing default `complete` calls when `scopes_supported` was incomplete or absent (`B-LA-E3-06-01` / `A-LA-E3-06-01`); fixed in Round 2 (`0f52458` in `028c30a`). |
-| AC-LA-E3-06-03 | pending: Docker window (K1-SIM) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-03` | SIM Docker slot | Pending Docker window. Verified at host unit level in `services/lti-service/src/http/routes/registration.test.ts > checks advertised scopes for an explicit list = true before sending` (`e3-06-r1-unit.log`). |
-| AC-LA-E3-06-04 | PASS (UNIT + K0) | `services/lti-service/src/http/routes/registration.test.ts > refuses empty list / unknown scope / mixed scopes / not a list / null / non-string member before sending or claiming the session (LA-E3-06 AC-04)` (6 tests) + `nrps-scopes.k0.test.ts` | `LA_LEVEL=k0 LA_TARGET_ROOT=$PWD ./node_modules/.bin/vitest run --config tests/ltiaas/tasks-lti/LA-E3-06/vitest.config.mts --reporter=verbose` | `scopes: []`, a scope outside the five of ADR-009, a mixed list, or a non-array / non-string member returns `400 INVALID_REQUEST` naming `scopes` before claiming the session or sending an outbound request (`41` unit tests pass in `e3-06-r1-unit.log`, `3/3` K0 pass in `LA-E3-06-r1-k0.log`). |
-| AC-LA-E3-06-05 | pending: Docker window (K1-SIM) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-05` | SIM Docker slot | Pending Docker window. Verified at host unit level in `registration.test.ts > rolls back the platform and session completion if the audit insert fails` and the `complete` route tests (`e3-06-r1-unit.log`). |
-| AC-LA-E3-06-06 | pending: Docker window (K1-SIM) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-06` | SIM Docker slot | Pending Docker window (`platform/nrps.ts` and `/api/memberships` are untouched, and `compat.test.ts > memberships maps user_id, strips personal fields, defaults status, and preserves short and URI role filters` passes). |
+| AC-LA-E3-06-01 | PASS (K1-SIM + UNIT) | `tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts > AC-LA-E3-06-01` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `POST /api/registrations/:id/complete` with `scopes = FOUR_AGS_SCOPES` sends a registration request whose `scope` has those exact four scopes (`5/5` K1-SIM tests pass in `748ms`; `LA-E3-06-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E3-06-02 | PASS (K1-SIM + UNIT) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-02` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `complete` without `scopes` sends all five ADR-009 scopes as before LA (`LA-E3-06-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E3-06-03 | PASS (K1-SIM + UNIT) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-03 & AC-LA-E3-06-04` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `complete` with a scope not in `scopes_supported` returns `400 INVALID_REQUEST` (`field: 'scopes'`) and sends no registration request (`LA-E3-06-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E3-06-04 | PASS (UNIT + K0 + K1-SIM) | `services/lti-service/src/http/routes/registration.test.ts > refuses empty list / unknown scope / mixed scopes / not a list / null / non-string member before sending or claiming the session (LA-E3-06 AC-04)` (6 tests) + `nrps-scopes.k0.test.ts` + `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-03 & AC-LA-E3-06-04` | `LA_LEVEL=k0 LA_TARGET_ROOT=$PWD ./node_modules/.bin/vitest run --config tests/ltiaas/tasks-lti/LA-E3-06/vitest.config.mts --reporter=verbose` | `scopes: []`, a scope outside the five of ADR-009, a mixed list, or a non-array / non-string member returns `400 INVALID_REQUEST` naming `scopes` before claiming the session or sending an outbound request (`41` unit tests pass in `e3-06-r1-unit.log`, `3/3` K0 pass in `LA-E3-06-r1-k0.log`, `5/5` K1-SIM pass in `LA-E3-06-k1sim.log`). |
+| AC-LA-E3-06-05 | PASS (K1-SIM + UNIT) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-05` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Successful `complete` writes one audit event `registration.complete` with `result: 'ok'`; a second `complete` of the same registration (`409 REGISTRATION_ALREADY_COMPLETED`) writes one event with `result: 'refused'` and `code: 'REGISTRATION_ALREADY_COMPLETED'` (`LA-E3-06-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E3-06-06 | PASS (K1-SIM + UNIT) | `nrps-scopes.k1sim.test.ts > AC-LA-E3-06-06` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `GET /api/memberships` answers for a launch with an NRPS claim without personal fields (`LA-E3-06-k1sim.log`, `all-17-k1sim.log`). |
 
 ## Round 2 (`028c30a` / `a2dfc04`)
 
-Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 2
+Verdict: PASS (K0 + UNIT + K1-SIM)
+Round: 3
 
 ### Round 2 changes and verification (`0f52458`, `af9e8bc`, `b65c087` in `028c30a`, verified at `a2dfc04`)
 

@@ -1,3 +1,4 @@
+import { storeFor } from '../store/index.ts';
 // The LTI service HTTP app (contract lti-service-api). Setup only: hooks, error handling, health, auth and the error
 // page; the routes live in one file per group (B-T2a-01): routes/protocol.ts (Moodle and browser), routes/idtoken.ts
 // and routes/services.ts (LTIAAS-shaped API), routes/platforms.ts (admin), routes/registration.ts (dynamic registration).
@@ -8,7 +9,7 @@ import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
 import { listProfiles } from '../profiles/index.ts';
 import type { ProfileRegistry } from '../profiles/index.ts';
@@ -31,7 +32,6 @@ import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 import { registerServiceKeyAdminRoutes } from './routes/service-key-admin.ts';
 import { registerPlatformCheckRoutes } from './routes/platform-check.ts';
-import { getAccount } from '../store/accounts.ts';
 import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
@@ -120,9 +120,9 @@ export function installApiBasics(app: FastifyInstance, log: Logger, metrics?: Lt
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const metrics = metricsFor(deps.db, now);
+  const metrics = (await metricsFor(deps.db, now));
   const log = metrics.logger(deps.logger);
-  const limiter = rateLimiterFor(deps.db, log, now);
+  const limiter = (await rateLimiterFor(deps.db, log, now));
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
@@ -140,13 +140,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const authenticated = new WeakMap<FastifyRequest, AuthResult>();
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
-    auth: (req, schemes) => {
+    auth: async (req, schemes) => {
       const cached = authenticated.get(req);
       if (cached && schemes.includes(cached.scheme)) return cached;
-      const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
+      const result = (await authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
         if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
-      });
+      }));
       req.toolAccountId = result.account.id;
       limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
       authenticated.set(req, result);
@@ -172,7 +172,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     }
     if (name !== 'keys') {
       const accountId = (req.params as { account: string }).account;
-      const account = getAccount(deps.db, accountId);
+      const account = (await storeFor(deps.db).accounts.getAccount(accountId));
       if (account) limiter.check(name === 'protocol' ? 'protocol_account' : 'registration_account', account.id, account);
     }
   });
@@ -193,6 +193,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
   registerPlatformCheckRoutes(app, ctx);
-  registerRegistrationRoutes(app, ctx);
+  (await registerRegistrationRoutes(app, ctx));
   return app;
 }

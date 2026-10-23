@@ -9,6 +9,7 @@ import type { LtiClient, LtiPlatformCheck } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import { getConnection } from '../domain/connections.ts';
+import { checkEventCode, recordConnectionEvent } from '../domain/connection-events.ts';
 import { ApiError } from './api-errors.ts';
 
 /** One check per connection per minute (LA-ADR-08 D4). */
@@ -70,6 +71,8 @@ export function registerConnectionCheckRoutes(api: FastifyInstance, deps: Connec
       throw new ApiError('LTI_SERVICE_ERROR');
     }
     const { checkedAt, ...details } = check;
+    // LA-E6-02: the health view shows the last check (connection_event kind "check").
+    recordConnectionEvent(deps.db, { connectionId: c.id, libraryId: library.id, kind: 'check', code: checkEventCode(details), traceId: req.traceId }, deps.now());
     // The shared redaction hides every field named "token": the token result is logged as token_result.
     deps.logger.info('connection_check', { trace_id: req.traceId, connection_id: c.id, platform_id: c.ltiPlatformId, jwks: details.jwks, token_result: details.token });
     return { result: details.jwks.ok && details.token.ok ? 'ok' : 'failed', checkedAt, details };

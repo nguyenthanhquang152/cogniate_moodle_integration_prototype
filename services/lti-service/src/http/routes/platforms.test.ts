@@ -30,7 +30,7 @@ async function setup(profileRegistry: ProfileRegistry = registry, db = openDb(':
   installApiBasics(app, logger);
   registerPlatformRoutes(app, {
     db, urls: URLS, logger, profiles: { simulation: true, registry: profileRegistry }, now: Date.now,
-    auth: (req, schemes) => authenticate(db, req.headers.authorization, schemes, Date.now(), () => {}),
+    auth: async (req, schemes) => (await authenticate(db, req.headers.authorization, schemes, Date.now(), () => {})),
   });
   cleanup.push(async () => { await app.close(); db.close(); });
   const post = (payload: Record<string, unknown>, url = '/api/platforms') => app.inject({ method: 'POST', url, headers: { authorization: `Bearer ${account.apiKey}` }, payload });

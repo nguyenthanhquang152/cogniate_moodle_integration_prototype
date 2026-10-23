@@ -1,11 +1,12 @@
+import { storeFor } from '../../store/index.ts';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAccountResolver } from '../../accounts/resolver.ts';
 import { AccountLimitsSchema, AccountStatusSchema, ClaimPolicySchema, toolUrlSchema } from '../../accounts/validation.ts';
 import { ApiError } from '../../api-errors.ts';
 import type { ToolAccount } from '../../store/accounts.ts';
-import { ACCOUNT_ID, createAccount, getAccount, listAccounts, requireWritableAccount, updateAccount } from '../../store/accounts.ts';
-import { createFirstToolKey, prepareToolKey } from '../../store/tool-keys.ts';
+import { ACCOUNT_ID } from '../../store/accounts.ts';
+import { prepareToolKey } from '../../store/tool-keys.ts';
 import { invalid } from '../validation.ts';
 import type { OperatorContext } from './index.ts';
 
@@ -48,53 +49,41 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
     const parsed = ListQuery.safeParse(req.query);
     if (!parsed.success) throw invalidAccount(parsed.error);
     const { status, cursor, limit } = parsed.data;
-    const page = listAccounts(ctx.db, { limit, ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) });
+    const page = (await storeFor(ctx.db).accounts.listAccounts({ limit, ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) }));
     return { ...page, accounts: page.accounts.map(view) };
   });
   app.get<{ Params: { id: string } }>('/operator/v1/accounts/:id', async (req) => {
-    const account = getAccount(ctx.db, req.params.id);
+    const account = (await storeFor(ctx.db).accounts.getAccount(req.params.id));
     if (!account) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
-    return view(account);
+    return (await view(account));
   });
 
   app.post('/operator/v1/accounts', async (req, reply) => {
     const id = z.object({ id: z.string().regex(ACCOUNT_ID) }).safeParse(req.body);
     const accountId = id.success ? id.data.id : null;
-    return ctx.audited(req, { action: 'account.create', target: { type: 'account', id: accountId }, toolAccountId: accountId }, async (audit) => {
+    return (await ctx.audited(req, { action: 'account.create', target: { type: 'account', id: accountId }, toolAccountId: accountId }, async (audit) => {
       const parsed = Create.safeParse(req.body);
       if (!parsed.success) throw invalidAccount(parsed.error);
       const input = parsed.data;
-      if (getAccount(ctx.db, input.id)) throw new ApiError('ACCOUNT_ALREADY_EXISTS');
+      if ((await storeFor(ctx.db).accounts.getAccount(input.id))) throw new ApiError('ACCOUNT_ALREADY_EXISTS');
       const key = await prepareToolKey(ctx.keys, input.id);
       const now = ctx.now();
-      const account = audit.change(() => {
-        // The store repeats the id check after async preparation, while this transaction owns the writer lock.
-        const created = createAccount(ctx.db, input, now);
-        createFirstToolKey(ctx.db, key, now);
-        return created;
-      }, () => ({ details: { fields: Object.keys(input), kid: key.kid } }));
+      const account = (await audit.createAccount(input, key, now));
       ctx.logger.info('signing_key_changed', { tool_account_id: account.id, kid: key.kid, status: 'active' });
-      return reply.code(201).send(view(account));
-    });
+      return reply.code(201).send((await view(account)));
+    }));
   });
 
   app.patch<{ Params: { id: string } }>('/operator/v1/accounts/:id', async (req) => {
     const parsed = Patch.safeParse(req.body);
-    return ctx.audited(req, { action: 'account.update',
+    return (await ctx.audited(req, { action: 'account.update',
       target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id,
-      details: { fields: req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? Object.keys(req.body) : [] } }, (audit) => {
-      const writable = requireWritableAccount(ctx.db, req.params.id);
+      details: { fields: req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? Object.keys(req.body) : [] } }, async (audit) => {
+      const writable = (await storeFor(ctx.db).accounts.requireWritableAccount(req.params.id));
       if (!parsed.success) throw invalidAccount(parsed.error);
-      const { account, changedStatus } = audit.change(() => {
-        const current = requireWritableAccount(ctx.db, writable.id);
-        const account = updateAccount(ctx.db, writable.id, parsed.data, ctx.now());
-        return { account, changedStatus: account.status !== current.status };
-      }, ({ changedStatus }) => ({
-        action: changedStatus ? 'account.status' : 'account.update',
-        details: { fields: Object.keys(parsed.data), ...(changedStatus ? { status: parsed.data.status } : {}) },
-      }));
+      const { account, changedStatus } = (await audit.updateAccount(writable.id, parsed.data, ctx.now()));
       if (changedStatus) ctx.logger.info('account_status_changed', { tool_account_id: account.id, status: account.status, trace_id: req.traceId });
-      return view(account);
-    });
+      return (await view(account));
+    }));
   });
 }

@@ -1,90 +1,790 @@
 {
   "id": "LA-IC-01",
-  "approval": "docs/reviews/LA-E1-02/qa.md, docs/reviews/LA-E1-05/qa.md, docs/reviews/LA-E1-06/qa.md, docs/reviews/LA-E2-01/qa.md, docs/reviews/LA-E2-03/qa.md, docs/reviews/LA-E2-05/qa.md",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md, docs/reviews/LA-E1-02/qa.md, docs/reviews/LA-E1-05/qa.md, docs/reviews/LA-E1-06/qa.md, docs/reviews/LA-E2-01/qa.md, docs/reviews/LA-E2-03/qa.md, docs/reviews/LA-E2-05/qa.md, docs/reviews/LA-E2-06/qa.md, docs/reviews/LA-E3-07/qa.md, docs/reviews/LA-E3-15/qa.md",
+  "ld9": {
+    "epic": "E1 / E2 / E3 / E6 (LA-E1-02, LA-E1-05, LA-E1-06, LA-E1-07, LA-E2-01, LA-E2-03, LA-E2-05, LA-E2-06, LA-E3-07, LA-E3-15, LA-E6-04)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d2-channel-manifest-packageschannelsidmanifestts",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d3-capability-catalog",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d6-lti-profiles-in-the-lti-service",
+      "docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md#d2-profile-traits-added-in-e2",
+      "docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md#1-connection-object-changes-to-12",
+      "docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md#2-get-app-apilms-providers-41",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#47-get-apiproviders-93",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-24, BD-A1-74, BD-A1-85, BD-A1-94, BD-A1-95, BD-A1-108, BD-A1-110)"
+    ],
+    "goldenFields": [
+      "G1.acceptance.lmsProviders.lms[0].channel",
+      "G1.acceptance.lmsProviders.lms[0].channelCapabilities",
+      "G1.acceptance.lmsProviders.lms[0].channelName",
+      "G1.acceptance.lmsProviders.lms[0].family",
+      "G1.acceptance.lmsProviders.lms[0].registration",
+      "G1.acceptance.lmsProviders.lms[1].channel",
+      "G1.acceptance.lmsProviders.lms[1].channelCapabilities",
+      "G1.acceptance.lmsProviders.lms[1].channelName",
+      "G1.acceptance.lmsProviders.lms[1].family",
+      "G1.acceptance.lmsProviders.lms[1].registration",
+      "G1.acceptance.lmsProviders.lms[2].channel",
+      "G1.acceptance.lmsProviders.lms[2].channelCapabilities",
+      "G1.acceptance.lmsProviders.lms[2].channelName",
+      "G1.acceptance.lmsProviders.lms[2].family",
+      "G1.acceptance.lmsProviders.lms[2].registration",
+      "G1.acceptance.lmsProviders.lms[3]",
+      "G1.acceptance.lmsProviders.lms[4]",
+      "G1.acceptance.providers.profiles[0].channel",
+      "G1.acceptance.providers.profiles[0].endpointOrigins",
+      "G1.acceptance.providers.profiles[0].endpoints",
+      "G1.acceptance.providers.profiles[0].issuerKind",
+      "G1.acceptance.providers.profiles[1].channel",
+      "G1.acceptance.providers.profiles[1].endpointOrigins",
+      "G1.acceptance.providers.profiles[1].endpoints",
+      "G1.acceptance.providers.profiles[1].issuerKind",
+      "G1.acceptance.providers.profiles[2].channel",
+      "G1.acceptance.providers.profiles[2].endpointOrigins",
+      "G1.acceptance.providers.profiles[2].endpoints",
+      "G1.acceptance.providers.profiles[2].issuerKind",
+      "G1.acceptance.providers.profiles[3].channel",
+      "G1.acceptance.providers.profiles[3].endpointOrigins",
+      "G1.acceptance.providers.profiles[3].endpoints",
+      "G1.acceptance.providers.profiles[3].issuerKind",
+      "G1.acceptance.providers.profiles[4].channel",
+      "G1.acceptance.providers.profiles[4].endpointOrigins",
+      "G1.acceptance.providers.profiles[4].endpoints",
+      "G1.acceptance.providers.profiles[4].issuerKind",
+      "G1.acceptance.providers.profiles[5].channel",
+      "G1.acceptance.providers.profiles[5].endpointOrigins",
+      "G1.acceptance.providers.profiles[5].endpoints",
+      "G1.acceptance.providers.profiles[5].issuerKind",
+      "G1.acceptance.providers.profiles[6].accesstokenEndpoint",
+      "G1.acceptance.providers.profiles[6].authenticationEndpoint",
+      "G1.acceptance.providers.profiles[6].channel",
+      "G1.acceptance.providers.profiles[6].endpointOrigins",
+      "G1.acceptance.providers.profiles[6].endpoints",
+      "G1.acceptance.providers.profiles[6].id",
+      "G1.acceptance.providers.profiles[6].issuer",
+      "G1.acceptance.providers.profiles[6].issuerKind",
+      "G1.acceptance.providers.profiles[6].jwksUrl",
+      "G1.acceptance.providers.profiles[6].label",
+      "G1.acceptance.providers.profiles[6].lms",
+      "G1.acceptance.providers.profiles[6].sharedPlatform",
+      "G1.acceptance.providers.profiles[6].sharing",
+      "G1.acceptance.providers.profiles[6].simulation",
+      "G1.acceptance.providers.profiles[6].siteUrlOn",
+      "G1.acceptance.providers.profiles[7].accesstokenEndpoint",
+      "G1.acceptance.providers.profiles[7].authenticationEndpoint",
+      "G1.acceptance.providers.profiles[7].channel",
+      "G1.acceptance.providers.profiles[7].endpointOrigins",
+      "G1.acceptance.providers.profiles[7].endpoints",
+      "G1.acceptance.providers.profiles[7].id",
+      "G1.acceptance.providers.profiles[7].issuer",
+      "G1.acceptance.providers.profiles[7].issuerKind",
+      "G1.acceptance.providers.profiles[7].jwksUrl",
+      "G1.acceptance.providers.profiles[7].label",
+      "G1.acceptance.providers.profiles[7].lms",
+      "G1.acceptance.providers.profiles[7].serviceUrl",
+      "G1.acceptance.providers.profiles[7].simulation",
+      "G1.acceptance.providers.profiles[7].siteUrlOn",
+      "G1.acceptance.providers.profiles[8]",
+      "G1.acceptance.providers.profiles[9]",
+      "G1.connectionList.connections[0].bindingAuthority",
+      "G1.connectionList.connections[0].channel",
+      "G1.connectionList.connections[0].channelCapabilities",
+      "G1.connectionList.connections[0].channelName",
+      "G1.connectionList.connections[1].bindingAuthority",
+      "G1.connectionList.connections[1].channel",
+      "G1.connectionList.connections[1].channelCapabilities",
+      "G1.connectionList.connections[1].channelName",
+      "G1.connectionList.connections[2].bindingAuthority",
+      "G1.connectionList.connections[2].channel",
+      "G1.connectionList.connections[2].channelCapabilities",
+      "G1.connectionList.connections[2].channelName",
+      "G1.connectionList.connections[3].bindingAuthority",
+      "G1.connectionList.connections[3].channel",
+      "G1.connectionList.connections[3].channelCapabilities",
+      "G1.connectionList.connections[3].channelName",
+      "G1.connectionList.connections[4].bindingAuthority",
+      "G1.connectionList.connections[4].channel",
+      "G1.connectionList.connections[4].channelCapabilities",
+      "G1.connectionList.connections[4].channelName",
+      "G1.connectionList.connections[5].bindingAuthority",
+      "G1.connectionList.connections[5].channel",
+      "G1.connectionList.connections[5].channelCapabilities",
+      "G1.connectionList.connections[5].channelName",
+      "G1.connections.blackboard-connected.bindingAuthority",
+      "G1.connections.blackboard-connected.channel",
+      "G1.connections.blackboard-connected.channelCapabilities",
+      "G1.connections.blackboard-connected.channelName",
+      "G1.connections.blackboard-disabled.bindingAuthority",
+      "G1.connections.blackboard-disabled.channel",
+      "G1.connections.blackboard-disabled.channelCapabilities",
+      "G1.connections.blackboard-disabled.channelName",
+      "G1.connections.blackboard-pending.bindingAuthority",
+      "G1.connections.blackboard-pending.channel",
+      "G1.connections.blackboard-pending.channelCapabilities",
+      "G1.connections.blackboard-pending.channelName",
+      "G1.connections.blackboard-registered.bindingAuthority",
+      "G1.connections.blackboard-registered.channel",
+      "G1.connections.blackboard-registered.channelCapabilities",
+      "G1.connections.blackboard-registered.channelName",
+      "G1.connections.canvas-connected.bindingAuthority",
+      "G1.connections.canvas-connected.channel",
+      "G1.connections.canvas-connected.channelCapabilities",
+      "G1.connections.canvas-connected.channelName",
+      "G1.connections.canvas-disabled.bindingAuthority",
+      "G1.connections.canvas-disabled.channel",
+      "G1.connections.canvas-disabled.channelCapabilities",
+      "G1.connections.canvas-disabled.channelName",
+      "G1.connections.canvas-pending.bindingAuthority",
+      "G1.connections.canvas-pending.channel",
+      "G1.connections.canvas-pending.channelCapabilities",
+      "G1.connections.canvas-pending.channelName",
+      "G1.connections.canvas-registered.bindingAuthority",
+      "G1.connections.canvas-registered.channel",
+      "G1.connections.canvas-registered.channelCapabilities",
+      "G1.connections.canvas-registered.channelName",
+      "G1.connections.moodle-dynamic-pending.bindingAuthority",
+      "G1.connections.moodle-dynamic-pending.channel",
+      "G1.connections.moodle-dynamic-pending.channelCapabilities",
+      "G1.connections.moodle-dynamic-pending.channelName",
+      "G1.connections.moodle-manual-pending.bindingAuthority",
+      "G1.connections.moodle-manual-pending.channel",
+      "G1.connections.moodle-manual-pending.channelCapabilities",
+      "G1.connections.moodle-manual-pending.channelName",
+      "G1.default.lmsProviders.lms[0].channel",
+      "G1.default.lmsProviders.lms[0].channelCapabilities",
+      "G1.default.lmsProviders.lms[0].channelName",
+      "G1.default.lmsProviders.lms[0].family",
+      "G1.default.lmsProviders.lms[0].registration",
+      "G1.default.lmsProviders.lms[1].channel",
+      "G1.default.lmsProviders.lms[1].channelCapabilities",
+      "G1.default.lmsProviders.lms[1].channelName",
+      "G1.default.lmsProviders.lms[1].family",
+      "G1.default.lmsProviders.lms[1].registration",
+      "G1.default.lmsProviders.lms[2].channel",
+      "G1.default.lmsProviders.lms[2].channelCapabilities",
+      "G1.default.lmsProviders.lms[2].channelName",
+      "G1.default.lmsProviders.lms[2].family",
+      "G1.default.lmsProviders.lms[2].registration",
+      "G1.default.lmsProviders.lms[3]",
+      "G1.default.lmsProviders.lms[4]",
+      "G1.default.providers.profiles[0].channel",
+      "G1.default.providers.profiles[0].endpointOrigins",
+      "G1.default.providers.profiles[0].endpoints",
+      "G1.default.providers.profiles[0].issuerKind",
+      "G1.default.providers.profiles[1].channel",
+      "G1.default.providers.profiles[1].endpointOrigins",
+      "G1.default.providers.profiles[1].endpoints",
+      "G1.default.providers.profiles[1].issuerKind",
+      "G1.default.providers.profiles[2].channel",
+      "G1.default.providers.profiles[2].endpointOrigins",
+      "G1.default.providers.profiles[2].endpoints",
+      "G1.default.providers.profiles[2].issuerKind",
+      "G1.default.providers.profiles[3].channel",
+      "G1.default.providers.profiles[3].endpointOrigins",
+      "G1.default.providers.profiles[3].endpoints",
+      "G1.default.providers.profiles[3].issuerKind",
+      "G1.default.providers.profiles[4].channel",
+      "G1.default.providers.profiles[4].endpointOrigins",
+      "G1.default.providers.profiles[4].endpoints",
+      "G1.default.providers.profiles[4].issuerKind",
+      "G1.default.providers.profiles[5].channel",
+      "G1.default.providers.profiles[5].endpointOrigins",
+      "G1.default.providers.profiles[5].endpoints",
+      "G1.default.providers.profiles[5].issuerKind",
+      "G1.default.providers.profiles[6]",
+      "G1.default.providers.profiles[7]",
+      "G1.lmsProvidersAfter.lms[0].channel",
+      "G1.lmsProvidersAfter.lms[0].channelCapabilities",
+      "G1.lmsProvidersAfter.lms[0].channelName",
+      "G1.lmsProvidersAfter.lms[0].family",
+      "G1.lmsProvidersAfter.lms[0].registration",
+      "G1.lmsProvidersAfter.lms[1].channel",
+      "G1.lmsProvidersAfter.lms[1].channelCapabilities",
+      "G1.lmsProvidersAfter.lms[1].channelName",
+      "G1.lmsProvidersAfter.lms[1].family",
+      "G1.lmsProvidersAfter.lms[1].registration",
+      "G1.lmsProvidersAfter.lms[2].channel",
+      "G1.lmsProvidersAfter.lms[2].channelCapabilities",
+      "G1.lmsProvidersAfter.lms[2].channelName",
+      "G1.lmsProvidersAfter.lms[2].family",
+      "G1.lmsProvidersAfter.lms[2].registration",
+      "G1.lmsProvidersAfter.lms[3]",
+      "G1.lmsProvidersAfter.lms[4]",
+      "G1.providersAfter.profiles[0].channel",
+      "G1.providersAfter.profiles[0].endpointOrigins",
+      "G1.providersAfter.profiles[0].endpoints",
+      "G1.providersAfter.profiles[0].issuerKind",
+      "G1.providersAfter.profiles[1].channel",
+      "G1.providersAfter.profiles[1].endpointOrigins",
+      "G1.providersAfter.profiles[1].endpoints",
+      "G1.providersAfter.profiles[1].issuerKind",
+      "G1.providersAfter.profiles[2].channel",
+      "G1.providersAfter.profiles[2].endpointOrigins",
+      "G1.providersAfter.profiles[2].endpoints",
+      "G1.providersAfter.profiles[2].issuerKind",
+      "G1.providersAfter.profiles[3].channel",
+      "G1.providersAfter.profiles[3].endpointOrigins",
+      "G1.providersAfter.profiles[3].endpoints",
+      "G1.providersAfter.profiles[3].issuerKind",
+      "G1.providersAfter.profiles[4].channel",
+      "G1.providersAfter.profiles[4].endpointOrigins",
+      "G1.providersAfter.profiles[4].endpoints",
+      "G1.providersAfter.profiles[4].issuerKind",
+      "G1.providersAfter.profiles[5].channel",
+      "G1.providersAfter.profiles[5].endpointOrigins",
+      "G1.providersAfter.profiles[5].endpoints",
+      "G1.providersAfter.profiles[5].issuerKind",
+      "G1.providersAfter.profiles[6].accesstokenEndpoint",
+      "G1.providersAfter.profiles[6].authenticationEndpoint",
+      "G1.providersAfter.profiles[6].channel",
+      "G1.providersAfter.profiles[6].endpointOrigins",
+      "G1.providersAfter.profiles[6].endpoints",
+      "G1.providersAfter.profiles[6].id",
+      "G1.providersAfter.profiles[6].issuer",
+      "G1.providersAfter.profiles[6].issuerKind",
+      "G1.providersAfter.profiles[6].jwksUrl",
+      "G1.providersAfter.profiles[6].label",
+      "G1.providersAfter.profiles[6].lms",
+      "G1.providersAfter.profiles[6].sharedPlatform",
+      "G1.providersAfter.profiles[6].sharing",
+      "G1.providersAfter.profiles[6].simulation",
+      "G1.providersAfter.profiles[6].siteUrlOn",
+      "G1.providersAfter.profiles[7].accesstokenEndpoint",
+      "G1.providersAfter.profiles[7].authenticationEndpoint",
+      "G1.providersAfter.profiles[7].channel",
+      "G1.providersAfter.profiles[7].endpointOrigins",
+      "G1.providersAfter.profiles[7].endpoints",
+      "G1.providersAfter.profiles[7].id",
+      "G1.providersAfter.profiles[7].issuer",
+      "G1.providersAfter.profiles[7].issuerKind",
+      "G1.providersAfter.profiles[7].jwksUrl",
+      "G1.providersAfter.profiles[7].label",
+      "G1.providersAfter.profiles[7].lms",
+      "G1.providersAfter.profiles[7].serviceUrl",
+      "G1.providersAfter.profiles[7].simulation",
+      "G1.providersAfter.profiles[7].siteUrlOn",
+      "G1.providersAfter.profiles[8]",
+      "G1.providersAfter.profiles[9]",
+      "G3.blackboard.connection.bindingAuthority",
+      "G3.blackboard.connection.channel",
+      "G3.blackboard.connection.channelCapabilities",
+      "G3.blackboard.connection.channelName",
+      "G3.canvas.connection.bindingAuthority",
+      "G3.canvas.connection.channel",
+      "G3.canvas.connection.channelCapabilities",
+      "G3.canvas.connection.channelName"
+    ],
+    "authorUnitTestChanges": [
+      "packages/channel-kernel/src/manifest.test.ts (validates channel manifests, capability catalog, and registration methods/authorities)",
+      "packages/channel-kernel/src/legacy-wire.test.ts (verifies legacy capability flags and frozen baseline wire mappings)",
+      "services/lti-service/src/profiles/channel-registry.test.ts (verifies GET /api/providers channel owner, frozen baseline wireLms values, and open-world listOrder ordering)",
+      "services/lti-service/src/profiles/traits.test.ts (verifies E2 profile traits endpoints, issuerKind, and endpointOrigins on GET /api/providers)",
+      "services/cogniate-app/src/app/connect.test.ts (verifies GET /app-api/lms-providers and connection DTOs with channel, channelName, channelCapabilities, family, registration, and bindingAuthority)",
+      "packages/channels/lti-generic/channel.test.ts (verifies lti-generic manifest, profile traits, tool rows via channel, and setup.connectionCheck: true)",
+      "packages/channels/brightspace/channel.test.ts (verifies brightspace manifest, dynamic + manual registration methods, tool rows via channel, and profile traits)"
+    ],
+    "qaTaskTestChanges": [
+      "tests/ltiaas/k0/contract.test.ts (K0 channel contract kit K-MANIFEST, K-CAPS, K-LEGACY, K-PROFILES, K-ADAPTER across all discovered channels)",
+      "tests/ltiaas/tasks-core/LA-E1-01/golden-baseline.k1sim.test.ts (verifies G1/G3 additive fields against LA-IC-01)",
+      "tests/ltiaas/tasks-core/LA-E1-02/registry.k0.test.ts (verifies channel registry discovery, capabilities, and legacy flags)",
+      "tests/ltiaas/tasks-lti/LA-E1-05/profiles.k0.test.ts and tests/ltiaas/tasks-lti/LA-E1-05/profiles.k1sim.test.ts (verifies profile registry and GET /api/providers channel field)",
+      "tests/ltiaas/tasks-core/LA-E1-06/connections.k0.test.ts and tests/ltiaas/tasks-core/LA-E1-06/connections.k1sim.test.ts (verifies connection DTO and GET /app-api/lms-providers additive fields)",
+      "tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k0.test.ts and tests/ltiaas/tasks-lti/LA-E2-01/profile-traits.k1sim.test.ts (verifies endpoints, issuerKind, and endpointOrigins traits on GET /api/providers)",
+      "tests/ltiaas/tasks-core/LA-E2-03/lti-generic-app.k0.test.ts and tests/ltiaas/tasks-core/LA-E2-03/lti-generic-app.k1sim.test.ts (verifies lti-generic channel in lms-providers and connection DTOs)",
+      "tests/ltiaas/tasks-core/LA-E2-05/brightspace.k0.test.ts and tests/ltiaas/tasks-core/LA-E2-05/brightspace.k1sim.test.ts (verifies brightspace channel in providers and lms-providers)",
+      "tests/ltiaas/tasks-core/LA-E2-06/brightspace-dr.k0.test.ts and tests/ltiaas/tasks-core/LA-E2-06/brightspace-dr.k1sim.test.ts (verifies brightspace dynamic registration method and capabilities)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-01.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:178-225 (captures G1.{default,acceptance}.{providers,lmsProviders}, G1.connections, G1.connectionList, G1.{providersAfter,lmsProvidersAfter}, and G3.{blackboard,canvas}.connection)",
+      "tests/acceptance/M1/common/00-profiles.test.ts:18-48,82-145 (LD-1 rows 1, 2, 4 rewritten in LA-E0-02 before G-BASE 1b17261be97c4701b928fa9dc2fa74c6d23028f6: checks the 6 baseline GET /api/providers profiles and 3 baseline GET /app-api/lms-providers entries by baseline fields and relative order, allowing additive fields channel, endpoints, issuerKind, endpointOrigins, channelName, channelCapabilities, family, registration and extra registered channels lti-generic and brightspace)",
+      "tests/acceptance/M1/common/90-simulation-gates.test.ts:15-35 (LD-1 row 8 rewritten in LA-E0-02: checks baseline real profiles in default profile and absence of simulator profiles; lti-generic and brightspace have simulation: false)",
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265 (LD-1 row 7 rewritten in LA-E0-02: checks baseline lms entries in relative order and registered extra channels; Canvas dynamicRegistration/methods changes are tracked in LA-IC-14)",
+      "tests/acceptance/T4b1/1-connect.spec.ts:18-140 (checks connection DTO fields by property access / subset match, unaffected by additive channel, channelName, channelCapabilities, and bindingAuthority)",
+      "tests/acceptance/T6/1-integrations.spec.ts:15-45 and tests/acceptance/T6/2-connect.spec.ts:15-160 (checks integration cards and connection flows without closed-world count or whole-object DTO equality)",
+      "tests/e2e/M2/01-cards.m2.ts:10-40 (LD-1 row 6 rewritten in LA-E0-02: checks the 3 baseline LMS cards and registered extra cards)",
+      "tests/host/run-m1.mjs:290-315 and tests/e2e/host/run-m2.mjs:115-135 (LD-1 rows 2 and 3 rewritten in LA-E0-02: open-world profile and simulation_profiles checks)"
+    ],
+    "scanResult": "259 golden paths in G1 and G3 (every path pinned by exact index/key and exact JSON value, with 0 wildcard paths and 0 type-only rules) and 0 frozen tests touched after G-BASE (all 8 LD-1 open-world rewrites in tests/acceptance, tests/e2e, and tests/host landed in LA-E0-02 prior to G-BASE 1b17261be97c4701b928fa9dc2fa74c6d23028f6): (1) GET /api/providers in G1.{default,acceptance}.providers and G1.providersAfter pins exact channel, endpoints, issuerKind, and endpointOrigins values on every baseline profile plus the new lti-generic and brightspace profiles (inserted at [6..7] before blackboard-sim and canvas-sim-cloud at [8..9] in acceptance/providersAfter); (2) GET /app-api/lms-providers in G1.{default,acceptance}.lmsProviders and G1.lmsProvidersAfter pins exact channel, channelName, channelCapabilities, family (lti13), and registration values on moodle (lms[0]), canvas (lms[1], with dynamic registration from LA-E3-15 and setup.connectionCheck: true from LA-E6-04), and blackboard (lms[2]) — all with the 4 AGS scopes from LA-E3-07 — plus full objects for lti-generic (lms[3], setup.connectionCheck: true) and brightspace (lms[4], methods [dynamic, manual], dynamicRegistration: true, and self/operatorGrant authorities from LA-E2-06); (3) G1.connections, G1.connectionList.connections[0..5], and G3.{blackboard,canvas}.connection pin exact channel, channelName, channelCapabilities (including profile-derived platform.sharing and site.serviceOrigin), and bindingAuthority values per connection."
+  },
   "changes": [
     {
       "file": "G1",
-      "path": "default.providers.profiles[*].channel",
-      "rule": "string"
+      "path": "acceptance.lmsProviders.lms[0].channel",
+      "value": "moodle"
     },
     {
       "file": "G1",
-      "path": "default.providers.profiles[*].endpoints",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "default.providers.profiles[*].issuerKind",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "default.providers.profiles[*].endpointOrigins",
-      "rule": "present"
-    },
-    {
-      "file": "G1",
-      "path": "default.providers.profiles[6]",
+      "path": "acceptance.lmsProviders.lms[0].channelCapabilities",
       "value": {
-        "accesstokenEndpoint": null,
-        "authenticationEndpoint": null,
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[0].channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[0].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[0].registration",
+      "value": [
+        {
+          "authority": "self",
+          "method": "dynamic",
+          "profiles": [
+            "standard"
+          ]
+        },
+        {
+          "authority": "self",
+          "method": "manual",
+          "profiles": [
+            "standard"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[1].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        },
+        {
+          "authority": "operatorGrant",
+          "method": "dynamic",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[2].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[2].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[2].channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[2].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[2].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "blackboard",
+            "blackboard-sim"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.lmsProviders.lms[3]",
+      "value": {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
         "channel": "lti-generic",
-        "endpointOrigins": "any-https",
-        "endpoints": "admin",
-        "id": "lti-generic",
-        "issuer": null,
-        "issuerKind": "per-tenant",
-        "jwksUrl": null,
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": true,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": true,
+          "siteApi.token": false
+        },
+        "channelName": "your LMS",
+        "family": "lti13",
         "label": "Other LTI 1.3 platform",
         "lms": "lti-generic",
-        "serviceUrl": false,
-        "sharedPlatform": null,
-        "sharing": "exclusive",
-        "simulation": false,
-        "siteUrlOn": null
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "lti-generic",
+            "label": "Other LTI 1.3 platform",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "lti-generic"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "lti-generic"
+            ]
+          }
+        ]
       }
     },
     {
       "file": "G1",
-      "path": "default.providers.profiles[7]",
+      "path": "acceptance.lmsProviders.lms[4]",
       "value": {
-        "accesstokenEndpoint": null,
-        "authenticationEndpoint": null,
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
         "channel": "brightspace",
-        "endpointOrigins": "any-https",
-        "endpoints": "admin",
-        "id": "brightspace",
-        "issuer": null,
-        "issuerKind": "per-tenant",
-        "jwksUrl": null,
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": false,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": false,
+          "siteApi.token": false
+        },
+        "channelName": "Brightspace",
+        "family": "lti13",
         "label": "D2L Brightspace",
         "lms": "brightspace",
-        "serviceUrl": false,
-        "sharedPlatform": null,
-        "sharing": "exclusive",
-        "simulation": false,
-        "siteUrlOn": null
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "brightspace",
+            "label": "D2L Brightspace",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "brightspace"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "brightspace"
+            ]
+          }
+        ]
       }
     },
     {
       "file": "G1",
-      "path": "acceptance.providers.profiles[*].channel",
-      "rule": "string"
+      "path": "acceptance.providers.profiles[0].channel",
+      "value": "moodle"
     },
     {
       "file": "G1",
-      "path": "acceptance.providers.profiles[*].endpoints",
-      "rule": "string"
+      "path": "acceptance.providers.profiles[0].endpointOrigins",
+      "value": "issuer"
     },
     {
       "file": "G1",
-      "path": "acceptance.providers.profiles[*].issuerKind",
-      "rule": "string"
+      "path": "acceptance.providers.profiles[0].endpoints",
+      "value": "admin"
     },
     {
       "file": "G1",
-      "path": "acceptance.providers.profiles[*].endpointOrigins",
-      "rule": "present"
+      "path": "acceptance.providers.profiles[0].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[1].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[1].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[1].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[2].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[2].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[2].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[2].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[3].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[3].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[3].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[3].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[4].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[4].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[4].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[4].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[5].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[5].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[5].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[5].issuerKind",
+      "value": "fixed"
     },
     {
       "file": "G1",
@@ -98,6 +798,21 @@
     },
     {
       "file": "G1",
+      "path": "acceptance.providers.profiles[6].channel",
+      "value": "lti-generic"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[6].endpointOrigins",
+      "value": "any-https"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[6].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
       "path": "acceptance.providers.profiles[6].id",
       "value": "lti-generic"
     },
@@ -105,6 +820,11 @@
       "file": "G1",
       "path": "acceptance.providers.profiles[6].issuer",
       "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[6].issuerKind",
+      "value": "per-tenant"
     },
     {
       "file": "G1",
@@ -153,6 +873,21 @@
     },
     {
       "file": "G1",
+      "path": "acceptance.providers.profiles[7].channel",
+      "value": "brightspace"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[7].endpointOrigins",
+      "value": "any-https"
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[7].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
       "path": "acceptance.providers.profiles[7].id",
       "value": "brightspace"
     },
@@ -160,6 +895,11 @@
       "file": "G1",
       "path": "acceptance.providers.profiles[7].issuer",
       "value": null
+    },
+    {
+      "file": "G1",
+      "path": "acceptance.providers.profiles[7].issuerKind",
+      "value": "per-tenant"
     },
     {
       "file": "G1",
@@ -241,23 +981,1775 @@
     },
     {
       "file": "G1",
-      "path": "providersAfter.profiles[*].channel",
-      "rule": "string"
+      "path": "connectionList.connections[0].bindingAuthority",
+      "value": "operatorGrant"
     },
     {
       "file": "G1",
-      "path": "providersAfter.profiles[*].endpoints",
-      "rule": "string"
+      "path": "connectionList.connections[0].channel",
+      "value": "canvas"
     },
     {
       "file": "G1",
-      "path": "providersAfter.profiles[*].issuerKind",
-      "rule": "string"
+      "path": "connectionList.connections[0].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
     },
     {
       "file": "G1",
-      "path": "providersAfter.profiles[*].endpointOrigins",
-      "rule": "present"
+      "path": "connectionList.connections[0].channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[1].bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[1].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[1].channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[2].bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[2].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[2].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[2].channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[3].bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[3].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[3].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[3].channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[4].bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[4].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[4].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[4].channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[5].bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[5].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[5].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connectionList.connections[5].channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-connected.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-connected.channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-connected.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-connected.channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-disabled.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-disabled.channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-disabled.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-disabled.channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-pending.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-pending.channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-pending.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-pending.channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-registered.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-registered.channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-registered.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.blackboard-registered.channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-connected.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-connected.channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-connected.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-connected.channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-disabled.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-disabled.channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-disabled.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-disabled.channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-pending.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-pending.channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-pending.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-pending.channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-registered.bindingAuthority",
+      "value": "operatorGrant"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-registered.channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-registered.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.canvas-registered.channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-dynamic-pending.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-dynamic-pending.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-dynamic-pending.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-dynamic-pending.channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-manual-pending.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-manual-pending.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-manual-pending.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-manual-pending.channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[0].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[0].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[0].channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[0].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[0].registration",
+      "value": [
+        {
+          "authority": "self",
+          "method": "dynamic",
+          "profiles": [
+            "standard"
+          ]
+        },
+        {
+          "authority": "self",
+          "method": "manual",
+          "profiles": [
+            "standard"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[1].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        },
+        {
+          "authority": "operatorGrant",
+          "method": "dynamic",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[2].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[2].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[2].channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[2].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[2].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "blackboard",
+            "blackboard-sim"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[3]",
+      "value": {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "channel": "lti-generic",
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": true,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": true,
+          "siteApi.token": false
+        },
+        "channelName": "your LMS",
+        "family": "lti13",
+        "label": "Other LTI 1.3 platform",
+        "lms": "lti-generic",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "lti-generic",
+            "label": "Other LTI 1.3 platform",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "lti-generic"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "lti-generic"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.lmsProviders.lms[4]",
+      "value": {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "channel": "brightspace",
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": false,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": false,
+          "siteApi.token": false
+        },
+        "channelName": "Brightspace",
+        "family": "lti13",
+        "label": "D2L Brightspace",
+        "lms": "brightspace",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "brightspace",
+            "label": "D2L Brightspace",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "brightspace"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "brightspace"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[0].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[0].endpointOrigins",
+      "value": "issuer"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[0].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[0].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[1].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[1].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[1].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[2].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[2].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[2].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[2].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[3].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[3].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[3].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[3].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[4].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[4].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[4].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[4].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[5].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[5].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[5].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[5].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[6]",
+      "value": {
+        "accesstokenEndpoint": null,
+        "authenticationEndpoint": null,
+        "channel": "lti-generic",
+        "endpointOrigins": "any-https",
+        "endpoints": "admin",
+        "id": "lti-generic",
+        "issuer": null,
+        "issuerKind": "per-tenant",
+        "jwksUrl": null,
+        "label": "Other LTI 1.3 platform",
+        "lms": "lti-generic",
+        "serviceUrl": false,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": null
+      }
+    },
+    {
+      "file": "G1",
+      "path": "default.providers.profiles[7]",
+      "value": {
+        "accesstokenEndpoint": null,
+        "authenticationEndpoint": null,
+        "channel": "brightspace",
+        "endpointOrigins": "any-https",
+        "endpoints": "admin",
+        "id": "brightspace",
+        "issuer": null,
+        "issuerKind": "per-tenant",
+        "jwksUrl": null,
+        "label": "D2L Brightspace",
+        "lms": "brightspace",
+        "serviceUrl": false,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": null
+      }
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[0].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[0].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[0].channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[0].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[0].registration",
+      "value": [
+        {
+          "authority": "self",
+          "method": "dynamic",
+          "profiles": [
+            "standard"
+          ]
+        },
+        {
+          "authority": "self",
+          "method": "manual",
+          "profiles": [
+            "standard"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].channelName",
+      "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[1].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        },
+        {
+          "authority": "operatorGrant",
+          "method": "dynamic",
+          "profiles": [
+            "canvas-cloud-production",
+            "canvas-cloud-beta",
+            "canvas-cloud-test",
+            "canvas-self-hosted",
+            "canvas-sim-cloud"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[2].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[2].channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[2].channelName",
+      "value": "Blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[2].family",
+      "value": "lti13"
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[2].registration",
+      "value": [
+        {
+          "authority": "operatorGrant",
+          "method": "manual",
+          "profiles": [
+            "blackboard",
+            "blackboard-sim"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[3]",
+      "value": {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "channel": "lti-generic",
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": true,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": true,
+          "siteApi.token": false
+        },
+        "channelName": "your LMS",
+        "family": "lti13",
+        "label": "Other LTI 1.3 platform",
+        "lms": "lti-generic",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "lti-generic",
+            "label": "Other LTI 1.3 platform",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "lti-generic"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "lti-generic"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "G1",
+      "path": "lmsProvidersAfter.lms[4]",
+      "value": {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": true,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "channel": "brightspace",
+        "channelCapabilities": {
+          "binding.authority": {
+            "dynamic": "self",
+            "manual": "operatorGrant"
+          },
+          "content.multiple": false,
+          "content.ungraded": false,
+          "deployments.multiple": true,
+          "export.packages": [],
+          "launch.topLevelContinue": false,
+          "launch.windowHint": true,
+          "publish.createCourse": false,
+          "records.readBack": true,
+          "records.reporters": [
+            "lti-ags"
+          ],
+          "registration.dynamic": true,
+          "registration.scopes": [
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+          ],
+          "setup.artifacts": [],
+          "setup.connectionCheck": false,
+          "siteApi.token": false
+        },
+        "channelName": "Brightspace",
+        "family": "lti13",
+        "label": "D2L Brightspace",
+        "lms": "brightspace",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "brightspace",
+            "label": "D2L Brightspace",
+            "ready": true,
+            "simulation": false
+          }
+        ],
+        "registration": [
+          {
+            "authority": "self",
+            "method": "dynamic",
+            "profiles": [
+              "brightspace"
+            ]
+          },
+          {
+            "authority": "operatorGrant",
+            "method": "manual",
+            "profiles": [
+              "brightspace"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[0].channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[0].endpointOrigins",
+      "value": "issuer"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[0].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[0].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[1].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[1].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[1].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[1].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[2].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[2].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[2].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[2].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[3].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[3].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[3].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[3].issuerKind",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[4].channel",
+      "value": "canvas"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[4].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[4].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[4].issuerKind",
+      "value": "per-tenant"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[5].channel",
+      "value": "blackboard"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[5].endpointOrigins",
+      "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[5].endpoints",
+      "value": "fixed"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[5].issuerKind",
+      "value": "fixed"
     },
     {
       "file": "G1",
@@ -271,6 +2763,21 @@
     },
     {
       "file": "G1",
+      "path": "providersAfter.profiles[6].channel",
+      "value": "lti-generic"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[6].endpointOrigins",
+      "value": "any-https"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[6].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
       "path": "providersAfter.profiles[6].id",
       "value": "lti-generic"
     },
@@ -278,6 +2785,11 @@
       "file": "G1",
       "path": "providersAfter.profiles[6].issuer",
       "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[6].issuerKind",
+      "value": "per-tenant"
     },
     {
       "file": "G1",
@@ -326,6 +2838,21 @@
     },
     {
       "file": "G1",
+      "path": "providersAfter.profiles[7].channel",
+      "value": "brightspace"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[7].endpointOrigins",
+      "value": "any-https"
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[7].endpoints",
+      "value": "admin"
+    },
+    {
+      "file": "G1",
       "path": "providersAfter.profiles[7].id",
       "value": "brightspace"
     },
@@ -333,6 +2860,11 @@
       "file": "G1",
       "path": "providersAfter.profiles[7].issuer",
       "value": null
+    },
+    {
+      "file": "G1",
+      "path": "providersAfter.profiles[7].issuerKind",
+      "value": "per-tenant"
     },
     {
       "file": "G1",
@@ -413,542 +2945,9 @@
       }
     },
     {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[*].channel",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[*].channelName",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[*].channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[*].family",
-      "value": "lti13"
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[*].registration",
-      "rule": "array"
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[3]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": true,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "lti-generic",
-        "channelCapabilities": {
-          "binding.authority": {
-            "dynamic": "self",
-            "manual": "operatorGrant"
-          },
-          "content.multiple": true,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": true,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "your LMS",
-        "family": "lti13",
-        "label": "Other LTI 1.3 platform",
-        "lms": "lti-generic",
-        "methods": [
-          "dynamic",
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "lti-generic",
-            "label": "Other LTI 1.3 platform",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "self",
-            "method": "dynamic",
-            "profiles": [
-              "lti-generic"
-            ]
-          },
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "lti-generic"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "default.lmsProviders.lms[4]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": false,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "brightspace",
-        "channelCapabilities": {
-          "binding.authority": {
-            "manual": "operatorGrant"
-          },
-          "content.multiple": false,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": false,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "Brightspace",
-        "family": "lti13",
-        "label": "D2L Brightspace",
-        "lms": "brightspace",
-        "methods": [
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "brightspace",
-            "label": "D2L Brightspace",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "brightspace"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[*].channel",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[*].channelName",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[*].channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[*].family",
-      "value": "lti13"
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[*].registration",
-      "rule": "array"
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[3]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": true,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "lti-generic",
-        "channelCapabilities": {
-          "binding.authority": {
-            "dynamic": "self",
-            "manual": "operatorGrant"
-          },
-          "content.multiple": true,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": true,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "your LMS",
-        "family": "lti13",
-        "label": "Other LTI 1.3 platform",
-        "lms": "lti-generic",
-        "methods": [
-          "dynamic",
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "lti-generic",
-            "label": "Other LTI 1.3 platform",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "self",
-            "method": "dynamic",
-            "profiles": [
-              "lti-generic"
-            ]
-          },
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "lti-generic"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "acceptance.lmsProviders.lms[4]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": false,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "brightspace",
-        "channelCapabilities": {
-          "binding.authority": {
-            "manual": "operatorGrant"
-          },
-          "content.multiple": false,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": false,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "Brightspace",
-        "family": "lti13",
-        "label": "D2L Brightspace",
-        "lms": "brightspace",
-        "methods": [
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "brightspace",
-            "label": "D2L Brightspace",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "brightspace"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[*].channel",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[*].channelName",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[*].channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[*].family",
-      "value": "lti13"
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[*].registration",
-      "rule": "array"
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[3]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": true,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "lti-generic",
-        "channelCapabilities": {
-          "binding.authority": {
-            "dynamic": "self",
-            "manual": "operatorGrant"
-          },
-          "content.multiple": true,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": true,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "your LMS",
-        "family": "lti13",
-        "label": "Other LTI 1.3 platform",
-        "lms": "lti-generic",
-        "methods": [
-          "dynamic",
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "lti-generic",
-            "label": "Other LTI 1.3 platform",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "self",
-            "method": "dynamic",
-            "profiles": [
-              "lti-generic"
-            ]
-          },
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "lti-generic"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "lmsProvidersAfter.lms[4]",
-      "value": {
-        "capabilities": {
-          "addDeployment": true,
-          "canvasConfiguration": false,
-          "courseShell": false,
-          "dynamicRegistration": false,
-          "operatorApproval": true,
-          "webServices": false
-        },
-        "channel": "brightspace",
-        "channelCapabilities": {
-          "binding.authority": {
-            "manual": "operatorGrant"
-          },
-          "content.multiple": false,
-          "content.ungraded": false,
-          "deployments.multiple": true,
-          "export.packages": [],
-          "launch.topLevelContinue": false,
-          "launch.windowHint": true,
-          "publish.createCourse": false,
-          "records.readBack": true,
-          "records.reporters": [
-            "lti-ags"
-          ],
-          "registration.dynamic": false,
-          "registration.scopes": [
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
-            "https://purl.imsglobal.org/spec/lti-ags/scope/score"
-          ],
-          "setup.artifacts": [],
-          "setup.connectionCheck": false,
-          "siteApi.token": false
-        },
-        "channelName": "Brightspace",
-        "family": "lti13",
-        "label": "D2L Brightspace",
-        "lms": "brightspace",
-        "methods": [
-          "manual"
-        ],
-        "profiles": [
-          {
-            "clientId": null,
-            "id": "brightspace",
-            "label": "D2L Brightspace",
-            "ready": true,
-            "simulation": false
-          }
-        ],
-        "registration": [
-          {
-            "authority": "operatorGrant",
-            "method": "manual",
-            "profiles": [
-              "brightspace"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "file": "G1",
-      "path": "connections[*].channel",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "connections[*].channelName",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "connections[*].channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G1",
-      "path": "connections[*].bindingAuthority",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "connectionList.connections[*].channel",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "connectionList.connections[*].channelName",
-      "rule": "string"
-    },
-    {
-      "file": "G1",
-      "path": "connectionList.connections[*].channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G1",
-      "path": "connectionList.connections[*].bindingAuthority",
-      "rule": "string"
+      "file": "G3",
+      "path": "blackboard.connection.bindingAuthority",
+      "value": "operatorGrant"
     },
     {
       "file": "G3",
@@ -957,17 +2956,44 @@
     },
     {
       "file": "G3",
+      "path": "blackboard.connection.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": true,
+        "platform.sharing": "shared",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": false,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G3",
       "path": "blackboard.connection.channelName",
       "value": "Blackboard"
     },
     {
       "file": "G3",
-      "path": "blackboard.connection.channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G3",
-      "path": "blackboard.connection.bindingAuthority",
+      "path": "canvas.connection.bindingAuthority",
       "value": "operatorGrant"
     },
     {
@@ -977,18 +3003,43 @@
     },
     {
       "file": "G3",
+      "path": "canvas.connection.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "operatorGrant",
+          "manual": "operatorGrant"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": true,
+        "export.packages": [],
+        "launch.topLevelContinue": true,
+        "launch.windowHint": true,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": false,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [
+          "developer-key-json"
+        ],
+        "setup.connectionCheck": true,
+        "site.serviceOrigin": true,
+        "siteApi.token": false
+      }
+    },
+    {
+      "file": "G3",
       "path": "canvas.connection.channelName",
       "value": "Canvas"
-    },
-    {
-      "file": "G3",
-      "path": "canvas.connection.channelCapabilities",
-      "rule": "object"
-    },
-    {
-      "file": "G3",
-      "path": "canvas.connection.bindingAuthority",
-      "value": "operatorGrant"
     }
   ]
 }

@@ -740,7 +740,7 @@ describe('LA-E7-04 QA verification of fitness checks F1–F5 (K0)', () => {
       const auditProbes: Array<[string, string]> = [
         ['services/lti-service/src/store/audit.ts', 'export const q = "DELETE FROM audit_event WHERE ts < ?";\n'],
         ['services/lti-service/src/store/audit.ts', 'export const q = "INSERT OR REPLACE INTO audit_event (id) VALUES (?)";\n'],
-        ['services/lti-service/src/jobs/audit-retention.ts', 'export const q = "REPLACE INTO audit_event (id) VALUES (?)";\n'],
+        ['services/lti-service/src/store/audit-retention.ts', 'export const q = "REPLACE INTO audit_event (id) VALUES (?)";\n'],
         ['services/cogniate-app/src/domain/zz-qa-probe.ts', 'export const q = \'DELETE FROM "main"."audit_event" WHERE id = ?\';\n'],
       ];
       for (const [asPath, code] of auditProbes) {
@@ -751,11 +751,11 @@ describe('LA-E7-04 QA verification of fitness checks F1–F5 (K0)', () => {
       }
 
       const retentionPass = await f5Text(
-        'services/lti-service/src/jobs/audit-retention.ts',
+        'services/lti-service/src/store/audit-retention.ts',
         'export const q = "DELETE FROM audit_event WHERE ts < ?";\n',
       );
-      log.push(`## audit-event-delete PASS CONTROL (jobs/audit-retention.ts)\n${retentionPass.output.trim()}`);
-      expect.soft(retentionPass.code, 'DELETE FROM audit_event in jobs/audit-retention.ts passes').toBe(0);
+      log.push(`## audit-event-delete PASS CONTROL (store/audit-retention.ts)\n${retentionPass.output.trim()}`);
+      expect.soft(retentionPass.code, 'DELETE FROM audit_event in store/audit-retention.ts passes').toBe(0);
     } finally {
       writeAcEvidence('e7-04-ac05-f5-probes.log', `${log.join('\n\n')}\n`);
     }

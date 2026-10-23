@@ -106,6 +106,16 @@ export interface ConnectionCheckAnswer {
     limits: "shared-application" | null;
   };
 }
+/** GET /app-api/connections/:id/health (app API delta §3.7, LA-ADR-08 D5). */
+export interface ConnectionHealth {
+  status: Connection["status"];
+  lastLaunchAt: string | null;
+  lastLaunchRefusal: { reason: string | null; at: string } | null;
+  dispatch: { pending: number; oldestPendingAt: string | null; lastSentAt: string | null; failedLast24h: number; lastError: { code: string | null; at: string } | null };
+  keys: { activeKid: string | null; nextKid: string | null; artifactKeyKid: string | null; artifactKeyCurrent: boolean | null };
+  lastCheck: { at: string; jwks: boolean; token: boolean } | null;
+  events: { kind: string; code: string | null; at: string }[];
+}
 export interface ToolRow {
   key: string;
   label: string;
