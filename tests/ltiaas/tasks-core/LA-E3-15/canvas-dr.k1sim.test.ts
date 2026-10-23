@@ -2,10 +2,12 @@
 // and BD-A1-106 / BD-A1-107).
 //
 // Covers:
-// - AC-LA-E3-15-03 (K1-SIM): A Canvas DR on the Canvas simulator provider ends with complete answering active: false;
-//   the connection shows authority operatorGrant and status pending; a learner launch gets PLATFORM_NOT_ACTIVE.
-// - AC-LA-E3-15-04 (K1-SIM): app:grant issue, then the redemption, activate the staged platform; a learner launch and a
-//   score then pass.
+// - AC-LA-E3-15-03 (K1-SIM): GET /app-api/lms-providers lists Canvas methods ["manual", "dynamic"], and a Canvas DR
+//   on the Canvas simulator provider ends with complete answering active: false, the connection showing authority
+//   operatorGrant and status pending, and a learner launch getting PLATFORM_NOT_ACTIVE.
+// - AC-LA-E3-15-04 (K1-SIM): POST /app-api/connections {lms: "canvas", method: "dynamic", ...} gives 201 with
+//   authority operatorGrant; app:grant issue refuses --accept-staged (bound_values_not_allowed, BD-A1-107); app:grant
+//   issue without bound values and redemption activate the staged platform, and a learner launch and score pass.
 import { describe, expect, it } from 'vitest';
 import {
   APP,
@@ -15,7 +17,6 @@ import {
   connPath,
   expectStatus,
   httpsRequest,
-  launch,
   parseForm,
   records,
   rememberSecret,
@@ -24,7 +25,8 @@ import {
   unique,
   type Json,
 } from '../../../acceptance/M1/common/client';
-import { commitGrade, openPlay, publication, waitSync } from '../../../acceptance/M1/common/course';
+import { commitGrade, publication, waitSync } from '../../../acceptance/M1/common/course';
+import { CLOUD, canvasLaunch, canvasPlay, hostOf } from '../../../acceptance/M1/canvas/canvas';
 
 describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K1-SIM rows)', () => {
   let sharedState: {
@@ -36,9 +38,18 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
     stagedPlatformId: string;
   } | null = null;
 
-  it('AC-LA-E3-15-03: Canvas DR on Canvas simulator provider stages platform with active: false, keeps connection at operatorGrant and pending, and learner launch gets PLATFORM_NOT_ACTIVE', async () => {
+  it('AC-LA-E3-15-03: GET /app-api/lms-providers lists Canvas methods ["manual", "dynamic"], and Canvas DR stages platform with active: false while learner launch gets PLATFORM_NOT_ACTIVE', async () => {
     const s = await session('A');
-    const siteUrl = 'https://canvas.sim.test';
+
+    const providersRes = await app(s, 'GET', '/app-api/lms-providers');
+    expectStatus(providersRes, 200);
+    const providers = (providersRes.json.lms ?? providersRes.json.providers ?? providersRes.json) as Json[];
+    const canvasProv = providers.find((p) => p.channel === 'canvas' || p.id === 'canvas' || p.lms === 'canvas');
+    expect(canvasProv).toBeDefined();
+    expect(canvasProv!.methods).toEqual(['manual', 'dynamic']);
+
+    const siteUrl = CLOUD.siteA;
+    const siteHost = hostOf(siteUrl);
     const clientId = unique('qa3-e315-canvas-dr');
     const deploymentId = 'deploy-canvas-dr-1';
 
@@ -46,7 +57,7 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
       name: unique('QA3 E3-15 Canvas DR'),
       lms: 'canvas',
       method: 'dynamic',
-      profile: 'canvas-sim-cloud',
+      profile: CLOUD.profile,
       siteUrl,
     });
     expectStatus(createRes, 201);
@@ -59,10 +70,10 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
 
     const scenRes = await sim('/scenarios', 'POST', {
       id: unique('scen-e315-canvas-dr'),
-      provider: 'canvas-sim',
+      provider: CLOUD.provider,
       clientId,
       deploymentId,
-      siteHost: 'canvas.sim.test',
+      siteHost,
     });
     expectStatus(scenRes, 201);
     const { openidConfiguration, registrationToken } = scenRes.json.registration;
@@ -102,11 +113,12 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
     expect(pltRes.json.active).toBe(false);
 
     // Learner launch against staged Canvas platform gets PLATFORM_NOT_ACTIVE
-    const launchRes = await launch({
-      provider: 'canvas-sim',
+    const launchRes = await canvasLaunch({
+      provider: CLOUD.provider,
       clientId,
       deploymentId,
-      siteHost: 'canvas.sim.test',
+      serviceHost: siteHost,
+      pageHost: siteHost,
     });
     expect(launchRes.response.status).toBe(403);
     expect(launchRes.response.body).toContain('PLATFORM_NOT_ACTIVE');
@@ -114,10 +126,32 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
     sharedState = { s, connectionId, siteUrl, clientId, deploymentId, stagedPlatformId };
   });
 
-  it('AC-LA-E3-15-04: app:grant issue and redemption activate the staged Canvas platform, and learner launch and score pass', async () => {
+  it('AC-LA-E3-15-04: POST /app-api/connections {lms: "canvas", method: "dynamic"} stores operatorGrant, refuses --accept-staged (BD-A1-107), and grant redemption without bound values activates staged platform so learner launch and score pass', async () => {
     expect(sharedState, 'AC-LA-E3-15-03 must succeed first').not.toBeNull();
     const { s, connectionId, siteUrl, clientId, deploymentId, stagedPlatformId } = sharedState!;
+    const siteHost = hostOf(siteUrl);
 
+    // BD-A1-107: app:grant issue refuses --accept-staged on a fixed-endpoint staged Canvas connection
+    const refusedStaged = await cli('app:grant', [
+      'issue',
+      '--library',
+      s.library.id,
+      '--connection',
+      connectionId,
+      '--site',
+      siteUrl,
+      '--client-id',
+      clientId,
+      '--deployment-id',
+      deploymentId,
+      '--accept-staged',
+      '--note',
+      'QA-3 BD-A1-107 negative',
+    ]);
+    expect(refusedStaged.code).not.toBe(0);
+    expect(refusedStaged.stderr + refusedStaged.stdout).toContain('fixed endpoints');
+
+    // Issue grant without bound values and redeem with { clientId, deploymentId, grantCode }
     const issueRes = await cli('app:grant', [
       'issue',
       '--library',
@@ -154,15 +188,18 @@ describe('LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (K
     expect(pltRes.json.active).toBe(true);
 
     // Learner launch and score pass
-    const binding = { s, connection: redeemRes.json, deploymentId };
-    const pub = await publication(binding, 'scorm12');
-    const cursor = (await records()).cursor;
-    const play = await openPlay(binding, pub, {
-      provider: 'canvas-sim',
+    const binding = {
+      s,
+      connection: redeemRes.json,
       clientId,
       deploymentId,
-      siteHost: 'canvas.sim.test',
-    });
+      provider: CLOUD.provider,
+      serviceHost: siteHost,
+      pageHost: siteHost,
+    };
+    const pub = await publication(binding, 'scorm12');
+    const cursor = (await records()).cursor;
+    const play = await canvasPlay(binding, pub);
     await commitGrade(play, 'scorm12', 9, 10);
     await waitSync(binding, pub, 'sent');
     const recs = (await records(cursor)).records;

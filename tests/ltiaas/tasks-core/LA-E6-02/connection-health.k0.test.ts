@@ -62,6 +62,8 @@ describe('LA-E6-02 Connection health view (K0 + UNIT + host API checks)', () => 
         'services/cogniate-app/src/domain/domain.test.ts',
         'packages/shared/src/migrations.test.ts',
         'apps/portal/src/connect/ConnectionHealth.test.tsx',
+        'apps/portal/src/channels/shell.test.tsx',
+        'packages/channels/canvas/portal/canvas.test.tsx',
       ],
       { timeoutMs: 5 * 60_000 },
     );
