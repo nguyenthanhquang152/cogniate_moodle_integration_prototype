@@ -8,6 +8,12 @@ const BLACKBOARD_FLAGS = {
   serviceOriginCheck: true, // ADR-011 §5
 };
 
+// LA-ADR-02 D2: one vendor issuer, fixed endpoints, aud = [token endpoint] (F-BB-5), no Dynamic Registration.
+const BLACKBOARD_TRAITS = {
+  issuerKind: 'fixed', endpointOrigins: null, clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' }, assertionDeploymentId: false,
+  dynamicRegistration: null,
+} as const;
+
 const profiles = [
   {
     id: 'blackboard', listOrder: 50, wireLms: 'blackboard', endpoints: 'fixed', privacyFloor: 'allowlist', label: 'Blackboard Learn', sharing: 'shared',
@@ -16,7 +22,7 @@ const profiles = [
     accesstokenEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken', // F-BB-5
     jwksUrl: 'https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json', // F-BB-4
     siteUrlOn: 'deployment', serviceUrl: false, simulation: false, productFamily: 'blackboardlearn', // F-BB-16
-    flags: BLACKBOARD_FLAGS, sources: ['F-BB-3', 'F-BB-4', 'F-BB-5', 'F-BB-16'],
+    ...BLACKBOARD_TRAITS, flags: BLACKBOARD_FLAGS, sources: ['F-BB-3', 'F-BB-4', 'F-BB-5', 'F-BB-16'],
   },
   {
     // Copy of `blackboard` on fixed .sim.test hosts (ADR-011 §6 simulation table, M3 §3.1).
@@ -26,7 +32,7 @@ const profiles = [
     accesstokenEndpoint: 'https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken',
     jwksUrl: 'https://developer.blackboard.sim.test/api/v1/management/applications/{clientId}/jwks.json',
     siteUrlOn: 'deployment', serviceUrl: false, simulation: true, productFamily: 'blackboardlearn',
-    flags: BLACKBOARD_FLAGS, sources: ['ADR-011 §6 (simulation copy of blackboard)'],
+    ...BLACKBOARD_TRAITS, flags: BLACKBOARD_FLAGS, sources: ['ADR-011 §6 (simulation copy of blackboard)'],
   },
 ] as const satisfies readonly ProfileSource[];
 

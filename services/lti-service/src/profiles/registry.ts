@@ -1,6 +1,6 @@
 import type { ChannelRegistry, LoadedChannel } from '@cogniate/channel-kernel';
 import { BASELINE_PROFILE_WIRE_LMS, RegistryError, buildChannelRegistry } from '@cogniate/channel-kernel';
-import { parseProfileSource } from './schema.ts';
+import { issuerKindOf, parseProfileSource } from './schema.ts';
 import type { ProviderProfile } from './types.ts';
 
 export interface ProfileRegistry {
@@ -21,7 +21,15 @@ export function buildProfileRegistry(loaded: readonly LoadedChannel[]): ProfileR
     Object.freeze(source.sources);
     if (source.platformStorage) Object.freeze(source.platformStorage);
     if (source.refusedHostSuffixes) Object.freeze(source.refusedHostSuffixes);
-    return Object.freeze({ ...source, platformStorage: source.platformStorage ?? null, channel, lms: source.wireLms === undefined ? channel : source.wireLms });
+    // E2 traits (LA-ADR-02 D2): an omitted trait gets its default (provisional Lead call, A1 to ratify).
+    const traits = {
+      issuerKind: source.issuerKind ?? issuerKindOf(source.issuer),
+      endpointOrigins: source.endpointOrigins !== undefined ? source.endpointOrigins : source.endpoints === 'admin' ? 'issuer' as const : null,
+      clientAssertionAud: Object.freeze(source.clientAssertionAud ?? { value: '{tokenEndpoint}' as const, form: 'string' as const }),
+      assertionDeploymentId: source.assertionDeploymentId ?? false,
+      dynamicRegistration: source.dynamicRegistration ? Object.freeze(source.dynamicRegistration) : null,
+    };
+    return Object.freeze({ ...source, ...traits, platformStorage: source.platformStorage ?? null, channel, lms: source.wireLms === undefined ? channel : source.wireLms });
   })).sort((a, b) => Number(a.simulation) - Number(b.simulation) || a.listOrder - b.listOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const baselineOrder = Math.max(-1, ...profiles.filter((profile) => Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, profile.id)).map((profile) => profile.listOrder));
   for (const profile of profiles) {
