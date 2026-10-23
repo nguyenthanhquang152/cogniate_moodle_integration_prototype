@@ -484,3 +484,113 @@ Preserved as history, not counted: C8 Canvas SIM round 1 (258 PASS, index `4626b
 - The E-R6 route, the selection choice of §12.5 and the judge for the 162 common and Blackboard rows.
 - The QA instance that implements, and two blind reviewers.
 - AC-M4-06 stays PENDING. Real-LMS rows stay UNVERIFIED and local Canvas stays DEFERRED.
+
+## 13. M2 attempt 3 lane-monitor failure, repair and retest; corrections to §12 (2026-10-23, about 02:37–03:05 UTC)
+
+Author: Architect, Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Task `task_9e46ef359386`, dispatch `ctx_957b549f0798`, run `run_ebe671ad72a9`. This is an architecture assessment. It is not a blind review, and it does not accept or grant anything.
+Authority: Lead `msg_d168894a65f3`, `msg_f0bdf5454a99`, `msg_d3795c20f318`, `msg_c370492d63c1` and `msg_c6e6b7476fc3`. My interim was `msg_5a9994c68d2d`, and the Lead accepted its direction in `msg_c6e6b7476fc3`.
+§0–§12 are unchanged: the first 60,809 B have SHA-256 `0bae7b7b6e809ae82d7f3b8362e3379dc52cd66a6349936693e2a7331de41172`. I ran no test, Docker, build or install.
+
+R = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep`. ART = `R/source/tests/host/artifacts/qa-e2e-sim-r6-5561e8f7-2026-10-23T02-20-19-399Z`.
+I used the raw runtime files only. I did not use the closure manifest, because its metadata is being corrected (`msg_c370492d63c1`). The one exception is item 6 below.
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `R/m2/lane/summary.json` | 642 | `c5047ee8013849e90342a4b35a2db4944f25506eb9fdd8edd5c5afbb16c9a512` |
+| `R/m2/lane/lane-ownership.json` | 8,000 | `67e9b662d595b55b880a2179ec9bf50188013c46ea51564238d2adc5f6122ad9` |
+| `R/m2/lane/watch.jsonl` | 228 | `fb216c13eaf1ad81af0455d0dfe6b848471732b1660fc7ee9b6b07fa44b7f870` |
+| `R/m2/lane/events.jsonl` | 10,479 | `c3a0c45fab730322a264d94750de0b4ce1c9697b9dc80d5cb65bbbf3b4de2426` |
+| `R/m2/lane/ledger.jsonl` | 8,059 | `81d3a34d37f30c067c9a251a18fc6fc2206e59ced7215c009f3a260c735cf4e8` |
+| `ART/summary.json` | 21,360 | `a8f31c5525be4d767f426a9a88255b6e4eb80943bcb7929a3fb43fcc9467a47a` |
+| `ART/lane-ownership.json` | 20,927 | `1631ce96fd84e06b2bbe88620fb7756202aa167235570fa11cee2b877502f6b5` |
+| `ART/cmd/10-stack-down.log` | 1,950 | `10a35053b7f17fa080d5e98cff04a506cd9659f17fb33322ce64ebc7c5e115a1` |
+| `R/tools/lane-watch/lane-watch-core.mjs` | 21,712 | `7bca56c5e5416646a63f0b70c03e91d9e2b846bf974729e8cc341dfeabae952e` |
+| `R/tools/lane-watch/lane-watch.mjs` | 6,170 | `9090ce248251e430a4552ca2d3a4b85afe91be62ed905d844b3f0ace18ed33fb` |
+| `R/tools/lane-watch/lane-watch-selftest.mjs` | 24,341 | `171b92b1af9556cb89c0ad36ae601ea3505591954f5c33a1d2899dce2b19ac82` |
+
+`tests/host/storage-docker.mjs` has the same blob, `3a4fbc4bf64bf078a70a2a6450f409707bf87a7f`, in C8, in C9 and in the run's source clone.
+
+### 13.1 Facts
+
+1. `summary.json`: `isolationPass` is false only because `ownershipErrors` is 1. Every other input of the formula holds: clone bound, live end, identity, protected records, networks, Docker settings and non-lane containers unchanged; `everNotMadeByRun` 0; lane end 0/0/0; Build Runner 0; `endErrors` empty.
+2. `watch.jsonl` line 2: `ownership_error`, label `poll`, error `StorageBlocked`, at 02:23:41.097.
+3. `events.jsonl` has 23 create events, `ledger.jsonl` and `lane-ownership.json` have 23 records (all `madeByRun` true), and there are 23 destroy events. The ids match one to one. The last create was at 02:22:07.357, and the event child did not end early.
+4. Chronology. The runner's own `npm run stack:down` (`ART/cmd/10-stack-down.log`: exit 0, 4,071 ms) ends with "postgres-1 Removed", then "Network qa-e2e-sim-r6_default Removing", then "Removed". Its container destroy events run from 02:23:36.487 to 41.041. The network destroy event is at 41.127 (`timeNano`) and the volume destroy events are at 41.414–41.518. So the error came 30 ms before the network destroy event. The runner's own ownership record has `ledgerErrors: []`, kept 0 and failed 0, and TEARDOWN is PASS.
+5. Source. In `lane-watch-core.mjs`, `:67` and `:170` keep only `e.name` of a listing error, and `private/` is empty. The failed Docker call and its stderr were not captured. `listLane` (`storage-docker.mjs:212-247`) lists first and then inspects. When a bulk inspect fails, it inspects one by one, and it treats an item as gone only when the stderr matches `/no such/i` (`:234`).
+6. Post-run and outside the window (QA closure report; not runtime evidence; its metadata is under correction): on Docker 29.9.1, a missing container gives "No such container", a missing volume gives "no such volume", and a missing network gives "network <id> not found".
+
+### 13.2 Inference (not proven)
+
+The poll listing probably ran `network ls` while the lane network still existed. It then ran `network inspect` after Docker had started to remove that network. The one-by-one inspect got "network … not found", which `/no such/i` does not match, so `listLane` threw `StorageBlocked`. Facts 4–6 support this, but fact 5 means it is not proven. A failed `ls` or a failed volume inspect is less likely, but it is not excluded.
+
+Exposure: any listing that runs while lane resources are being removed.
+- In M2 observe mode, the poll and event listings run during the runner's own `stack:down`.
+- In T7 teardown mode, the event child stays live during the tool's own `stack:down` (`lane-watch-core.mjs:214-216`), so event-triggered listings run during the removal.
+- M1 is not exposed. `core.mjs:117-121` lists only after each command has ended, and its teardown listing comes after `stack:down` (`:380-384`). The V4/v5 boundary tools do not call `listLane`.
+
+### 13.3 Disposition: one rerun after the repair; no narrow acceptance
+
+- The lane check is a required control as written (E-R6, "Host window and resource conditions"). The tool's design never proves absence from events alone (`lane-watch-core.mjs:11`). Only fact 3, which comes from events, could close the gap in attempt 3. So accepting attempt 3 would waive a required control. That is not an architecture finding, and I do not recommend it: the cause was not captured, and a rerun is short (runner 02:20:19–02:23:41).
+- Attempt 3 stays monitor FAIL and M2 NOT ACCEPTED. Its 64/64 cases and seven runner gates stay as supporting history only. Its original files, the wrapper exit 1, the 37 qualified tools and the 84-entry manifest stay untouched.
+- **AR-M2-LW-01 (MAJOR, QA tool):** a concurrent lane listing cannot prove that an own resource vanished between list and inspect. The required check can then fail during an own teardown. This blocks M2 and T7 acceptance until the tool is repaired. No product or C8/C9 test finding.
+- **AR-M2-LW-02 (MINOR, deferred):** the vanish text rule of `listLane` does not match the Docker 29.9.1 network text. No sequential caller can reach it. Fix it at the next permitted harness change, together with B-M1-DH-01. Do not reopen C9 for it.
+
+### 13.4 Repair (QA tool only, in a fresh directory)
+
+Owner: the independent QA session that runs M2 and T7 (the Lead names the instance). Then one focused independent tool review.
+Copy `R/tools/lane-watch/` to a new directory `R/tools/lane-watch-r4/`, with mode 0700 for the directory and the scripts. The old directory and all its files stay byte-identical.
+- `lane-watch.mjs`: a byte-identical copy (it imports `./lane-watch-core.mjs`).
+- `lane-watch-core.mjs`: the only logic change, inside the `observeSoon` step.
+- `lane-watch-selftest.mjs`: the copy, plus the cases below.
+- A new 3-file hash manifest for this directory. The old tool manifests stay as they are.
+
+Logic, in the same chained step as the failed listing:
+1. Each `sd.listLane` call gets a fresh recording wrapper around `docker`. The wrapper remembers every call of that listing with a non-zero exit: argv, exit code and stderr.
+2. On a listing error, append one private record (`private/listing-errors.jsonl`, mode 0600). It holds the label, `e.name`, `e.message`, the failed calls and the result of step 3. Public files get no stderr.
+3. Classify the error as an **own vanish** only if all of these hold:
+   - (a) `e.name` is `StorageBlocked`, and `e.message` equals `Cannot inspect <kind> <id>` (`storage-docker.mjs:234`), with `<kind>` `network` or `container`.
+   - (b) The last failed call is exactly `[<kind>, 'inspect', <id>]`, and its stderr does not match `/no such/i`. Every other failed call of the listing is either the bulk `[<kind>, 'inspect', …ids]` that contains `<id>`, or a single `[<kind>, 'inspect', x]` whose stderr matches `/no such/i`.
+   - (c) The ledger already has a record of `<kind>` with Id `<id>`, and no record of that Id was ever `madeByRun: false`.
+   - (d) Exactly one immediate confirmatory `sd.listLane` succeeds (with its own wrapper), is observed into the ledger like any listing (label `<label>-confirm`), and does not contain `<id>`.
+
+   Then append the public event `listing_vanish` with the label, kind and id to `watch.jsonl`. This does not count as an ownership error.
+4. In every other case, record the ownership error exactly as today: `err(label, e.name)`.
+
+Negatives, each fail-closed with one ownership error and no further listing:
+- **failure:** the confirmatory listing throws, or it still contains `<id>`.
+- **foreign:** `<id>` was never in the ledger, or some record of it was ever `madeByRun: false`.
+- **multi:** any other failed call in the listing, for example an `ls`, a volume inspect, another kind or id, or a second non-"no such" single inspect.
+- **other:** any error other than `StorageBlocked`, or a message that is not the `:234` text.
+
+Unchanged: the summary fields, the `isolationPass` formula, R1–R3, W1–W4, the poll interval, the event child, the teardown order and every other tool. No general retry loop and no new collector.
+
+New selftest cases:
+- all four conditions → no error, one `listing_vanish`, and the confirm listing is observed;
+- each negative above → exactly one ownership error;
+- no stderr in any public file, and the private file is mode 0600;
+- the existing cases pass unchanged.
+
+### 13.5 Retest and dependency mapping
+
+- **M2:** one new invocation at tests C8 and product C6, under a new grant, with the window script changed only to the `lane-watch-r4` path and to new unused output paths. All other E-R6 conditions and checks stay as written. Monitor pass rule: `isolationPass` true as written. Each `listing_vanish` needs its private record with (a)–(d), and the judge also finds the destroy event of that id in `events.jsonl` (corroboration only).
+- **T7:** uses the same `lane-watch-r4` in teardown mode, with no other change.
+- **M1:** no dependency. C9, the v5 launchers and their two approvals stay as they are.
+- **Legacy (E-R4):** no change.
+- **Not changed:** C8, C9, the product and `tests/host/storage-docker.mjs`.
+
+### 13.6 Corrections to §12
+
+- **§12.6 (Reviewer A, A-DH-02):** "it sends only `m1-profile`" is wrong. M2 also sends `m1-cli` through `canvas/browser.ts:65` (`hostAction('m1-cli', …)`). In C9, the `m1-cli` branch (`m1-control.mjs:18`) comes before the inserted block (`:34`), and the `m1-profile` branch (`:60`) comes after it. Both are unchanged. So equivalence check (2) reads: "a pure insertion that only `m1-restart` with `mode` reaches; the `m1-cli` and `m1-profile` branches are unchanged". The conclusion does not change. The carry sentence is only a static precondition until actual M2/T7 results exist (B-M1-DH-05).
+- **§12.5 judge record (Reviewer A, A-DH-03):** the app log sink is asynchronous, so a SIGKILL can lose its last lines. The "no `outbound_blocked` and no `http_request` of the first trace" check is corroboration only, never a pass rule. A PASS rests on the lease assertion.
+- **§12.3 and §12.4 (Reviewer A, A-DH-01):** the dead-handler setup is now stated in the three architecture files (§13.7). B-M1-DH-01 (no-mode `cogniate-app` self-test) waits for the next permitted harness change.
+
+### 13.7 Clarifications appended to the architecture files
+
+Each file gets one dated section at its end, and its earlier text is unchanged. None of them changes a product rule, an acceptance outcome or an assertion. Sizes and hashes are in the Lead handoff.
+- `docs/architecture/tasks/M1.md`: for AC-M1-37 (d), (o), the (s) dead-handler variant and (v4)–(v6), "`stack:restart -- cogniate-app`" means the QA kill mode: SIGKILL, then the unchanged guarded restart.
+- `docs/architecture/contracts/cogniate-app-api.md`: the §4.7.1 row "App stops during a call" covers a handler that ends without its failure path. If a graceful stop lets the held call reach its 5 s timeout first, the handler is alive, and the "LTI failure" rule and the "held past 5 s" row apply.
+- `docs/architecture/adr/ADR-012-sqlite-volume-storage.md`: §7 lists the QA kill mode next to the QA `stop`/`start` row.
+
+### 13.8 Status
+
+M2 is NOT ACCEPTED. T7 has not run. The M1 v5 rounds wait for their own grants. AC-M4-06 stays PENDING. All 32 real-LMS rows stay UNVERIFIED, and local Canvas stays DEFERRED.

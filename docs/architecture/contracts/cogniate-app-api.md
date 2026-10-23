@@ -938,3 +938,11 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `deployment_orphan_deactivated` | warn | `platform_id`, `deployment_id` (a compensation of §4.7.1 switched off a record; M1) |
 | `deployment_orphan_deactivate_failed` | error | `platform_id`, `deployment_id`, `error` (M1) |
 | `gradebook_refresh_failed` | warn | `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (one per row that "Refresh from Moodle" could not read) |
+
+## Dated clarification — §4.7.1 "App stops during a call" (2026-10-23)
+
+Reason: Reviewer A finding A-DH-01 (`docs/reviews/M1/dead-handler-reviewer-a.md`) and `docs/reviews/M3/t6-09-failure-plan.md` §12–§13. No rule, outcome, invariant, timeout or product behavior changes. The text above is unchanged.
+
+- The §4.7.1 row "App stops during a call" covers a handler that ends **without** running its failure path, for example after a process kill, a crash or a host loss. The lease then stays live until 60 s after phase 1, as the row says.
+- A graceful stop does not always give that state. On SIGTERM a service closes its listeners and exits after at most 2 s (`closeOnSignal`, `packages/shared/src/http.ts:48`), and in-flight work continues until then. If a held call reaches its 5 s timeout before the exit, the handler is alive. The "LTI failure" rule and the row "S1 or S3 held past 5 s" then apply: lease cleared, `502`.
+- QA reproduces the "App stops during a call" row with SIGKILL of `cogniate-app`, followed by the unchanged guarded `stack:restart -- cogniate-app` (M1 task, dated clarification of AC-M1-37).

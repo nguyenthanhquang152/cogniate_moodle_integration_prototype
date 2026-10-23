@@ -377,3 +377,14 @@ The held prefix (44,211 B, SHA-256 `2fb3f06139c93111dbee8afbd63aea16b1f7427e6951
 - AC-M4-06: PENDING. Final conformance waits for accepted complete runtime under the approved route.
 - All accepted limits and findings of R2.4, R3.4 and the dispatch list stay as written. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.
 - Disclosures: I read the two round app logs (size and SHA-256 checked against the sealed indexes), the round-2 case results, QA's v3 diagnosis and the C8 test, host, infra and product source named in plan §12. I wrote no private evidence file. I did not touch the untracked `pnpm-workspace.yaml`.
+
+## Round 5 checkpoint — M2 lane-monitor failure and A-DH clarifications (2026-10-23, about 02:37–03:05 UTC)
+
+Author: Architect, Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Task `task_9e46ef359386`, dispatch `ctx_957b549f0798`, run `run_ebe671ad72a9`. Authority: Lead `msg_d168894a65f3` and `msg_c6e6b7476fc3`.
+The held prefix (47,297 B, SHA-256 `cd4e888ed523f9a41530cf79d3841770939dda416c8288327a137037b6af6a20`) is unchanged. This section is append-only. I ran no test, Docker, build or install.
+
+- **Identities:** tests C9 `9eb504f5bff4be7e291570fde12fdf9919a07fa1` = C8 plus the six §12 paths. Both blind reviews approve it (`e81fb2b`, `4b571d9`). Product C6 is unchanged.
+- **M2 attempt 3** (`qa-e2e-sim-r6-5561e8f7-2026-10-23T02-20-19-399Z`, tests C8, product C6): monitor FAIL, NOT ACCEPTED. The 64/64 cases and seven runner gates are supporting history only. Plan §13 has the facts, the inference and the disposition: one rerun after a QA-tool-only repair in a fresh `lane-watch-r4` directory, plus a focused review. New findings: AR-M2-LW-01 (MAJOR, QA tool) and AR-M2-LW-02 (MINOR, deferred). No product finding. **Source conformance stays APPROVE.**
+- **Dependencies:** the repair touches no repository file. M1 (v5 provider-all rounds), legacy (E-R4) and the C8 → C9 M2/T7 carry conditions do not change. Plan §13.6 corrects §12.6: M2 sends `m1-cli` and `m1-profile`, and both branches are unchanged.
+- **A-DH-01:** dated clarifications were appended to `docs/architecture/tasks/M1.md`, `docs/architecture/contracts/cogniate-app-api.md` and `docs/architecture/adr/ADR-012-sqlite-volume-storage.md`. They change no rule, outcome or assertion.
+- **AC-M4-06:** PENDING. It waits for accepted M1 rounds, M2, T7 and the approved route. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.

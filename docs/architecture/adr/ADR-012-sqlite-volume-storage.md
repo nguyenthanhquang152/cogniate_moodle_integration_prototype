@@ -838,3 +838,12 @@ Recorded with them, as context and not as part of the binding: engine 29.9.1 (gi
 - A lane that cannot recover has a non-destructive quarantine exit.
 - Storage commands of one checkout are serialized. A killed client cannot let a second writer start while its storage container still runs.
 - The released-v10 and `011` evidence rows carry the §12 qualifier.
+
+## Dated clarification — §7 guarded paths: QA dead-handler kill mode (2026-10-23)
+
+Reason: Reviewer A finding A-DH-01 (`docs/reviews/M1/dead-handler-reviewer-a.md`) and `docs/reviews/M3/t6-09-failure-plan.md` §12–§13. No storage rule changes. The text above is unchanged.
+
+- Tests C9 add a QA-only mode to the host-control action `m1-restart`: `mode: 'kill'`, for `cogniate-app` only (`tests/host/m1-control.mjs`). It first runs `docker compose … kill -s SIGKILL cogniate-app` without the operation lock. Only if that exits 0 does it run the unchanged guarded `stack:restart -- cogniate-app`, which takes the lock and runs the preflight before `up --force-recreate`.
+- The kill step is in the same class as the QA harness row "`docker compose stop` and `start` of an existing service container". It creates no container, changes no mount and writes no database file. It leaves the app database as a process crash leaves it: `cogniate.db` with its `-wal` and `-shm` files, which the §4 file table allows. SQLite recovers the WAL when the restarted service opens the database.
+- The existing host-control refusal while the `x-cogniate-storage-compat` marker is present (§11) applies to this mode too. QA uses it only at the seven AC-M1-37 dead-handler points, where no other guarded command of the lane runs. Do not use it while a storage command runs.
+- Not measured: whether Docker's `restart: unless-stopped` policy starts the killed container again before `up --force-recreate`. Either way the old process has ended, and the guarded restart then recreates the container.
