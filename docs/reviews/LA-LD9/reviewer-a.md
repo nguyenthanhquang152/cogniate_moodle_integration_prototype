@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 7
+Round: 8
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -385,3 +385,33 @@ No Docker, stack, browser or host stack runner was used.
 - Suggested fix: describe the environment assertion accurately, or cite an explicit different revision if the skip guard exists only on a QA branch. No product or frozen-assertion change is needed for this NIT.
 
 Only this review file was edited in the integration worktree. No commit was made. Live wave-end capture and outstanding QA gates remain outside this host-only review.
+
+## Round 8
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Reviewed **`b796b1ec`** (QA source `d1200f0b`) against plan §6.1 LD-9, the affected records, source at their cited `195930c1` pin, and the six frozen files plus two helpers staged in `f0a7b306`. This is a proportional metadata and citation review. Blind review; no Reviewer-B file read.
+
+**APPROVE. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** A-LA-LD9-15 and -16 are closed. Earlier findings outside this dispatch retain their status.
+
+### Scope and resolved findings
+
+IC-01 now correctly records **six frozen files plus two shared helpers pending on integration**, owned by **LA-E0-04 / LD-1**, staged on `la-qa` in `f0a7b306`, and due at the wave-end gate after separate LD-1 list approval. The record and both summary tables agree. Its zero-edit conclusion means **zero additional IC-01 frozen edits after LD-1**, not that the existing frozen assertions already accept the current output. This supersedes any earlier implication that the rewrite had landed before G-BASE. The M2 card entry correctly describes adding registered-extra-card and ordering checks; its existing baseline presence/text checks remain. IC-14 retains its separate Canvas legacy-field edits.
+
+IC-01's 10 Author and 11 QA evidence entries resolve to **31 existing files**. The formerly absent or misnamed paths are corrected, and the E1-01/E1-06 golden-binding placeholders are explicitly recorded as pending. The new K0 guard checks path existence; it does not validate citation line ranges or prove pending suites have run.
+
+**A-LA-LD9-15 closed:** IC-14 now cites `packages/channels/canvas/portal/CanvasCreate.tsx:13-17` and accurately describes its conditional manual default. The cited E3-15 `canvas-dr.k0.test.ts` and `canvas-dr.k1sim.test.ts` files now exist at the reviewed integration pin.
+
+**A-LA-LD9-16 closed:** IC-04 distinguishes the historical plain-`describe` placeholder and its environment assertion from the implemented 99-line suite at the current pin. Its descriptions match the four-AGS-scope Canvas JSON checks, Moodle row 13, and score paths without NRPS. No K1-SIM execution is inferred from reading that suite.
+
+### Verification
+
+Fresh private clone `/tmp/la-review-a-503c471af31b`, detached at `b796b1ec`, with its own install: **12/12 golden K0 tests pass**. Two private negative controls fail at the intended new assertions: removing the pending frozen list fails its required count, and replacing an Author citation with an absent path fails the file-existence check. The record was restored byte-for-byte after each control. IC-01/04/14 `changes` arrays are unchanged from the parent commit; the existing 259-path IC-01, combined 280-difference, and negative-value checks remain intact. No product source, frozen assertion, G-BASE, normalization rule or comparator changed in this diff. No Docker, stack, browser or host stack runner was used.
+
+### Non-blocking citation finding
+
+**A-LA-LD9-17 (NIT): a few IC-01 line references remain inaccurate.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-01.json:281,286,311,324`; repeated host-runner citation in `tests/ltiaas/golden/README.md:131` and `tests/ltiaas/TEST-STRATEGY.md:438`.
+- Evidence: both at `195930c1` and `b796b1ec`, `manifest.test.ts` ends at line **167**, not 170, and app `lti-generic.test.ts` ends at **77**, not 85. The host runner's exact six-profile assertion is at **297**; line 296 closes its API helper. These nearby citation errors do not change the named cases, pending ownership or approved change list.
+- Suggested fix: trim the two ranges and the repeated app-test subrange to existing lines, and cite host assertion line 297 consistently. No product or frozen-assertion change is needed.
+
+Only this review file was edited in the integration worktree. No commit was made. Separate LD-1 approval/landing and live wave-end verification remain pending.
