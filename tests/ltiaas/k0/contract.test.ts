@@ -594,7 +594,8 @@ const M1_BASELINE_LEGACY_FLAGS: Record<string, LegacyCapabilities> = {
     canvasConfiguration: false,
   },
   canvas: {
-    dynamicRegistration: false,
+    // LA-IC-14 (LA-E3-15 / LA-E3-09, LA-ADR-05 D6): Canvas supports staged Dynamic Registration with operatorGrant.
+    dynamicRegistration: true,
     operatorApproval: true,
     webServices: false,
     courseShell: false,
