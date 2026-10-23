@@ -2,7 +2,7 @@
   "id": "LA-IC-12",
   "approval": "docs/reviews/LA-E3-04/reviewer-a.md, docs/reviews/LA-E3-04/reviewer-b.md, docs/reviews/LA-LD9/reviewer-a.md, docs/reviews/LA-LD9/reviewer-b.md",
   "ld9": {
-    "epic": "E3 (LA-E3-04 service part, lane L; LA-E3-05 app picker part)",
+    "epic": "E3 (LA-E3-04 service part, lane L, merged 3344520; LA-E3-05 app picker part, lane L2, merged 8c65424 / 7c0ba57)",
     "design": [
       "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
       "docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md#d3-deep-linking-completeness-must-except-d3e",
@@ -16,7 +16,12 @@
     "authorUnitTestChanges": [
       "services/lti-service/src/lti/deep-linking.test.ts (removes old empty-list rejection row; adds positive contentItems: [] and accept_lineitem: false coverage)",
       "services/lti-service/src/http/routes/compat.test.ts (replaces old empty-list negative with null; adds positive signed-empty coverage for /api/deeplinking, /api/deeplinking/message, and /api/deeplinking/form)",
-      "services/lti-service/src/lti/idtoken.test.ts (adds acceptLineItem and acceptMediaTypes coverage on launch.deepLinkingSettings)"
+      "services/lti-service/src/lti/idtoken.test.ts (adds acceptLineItem and acceptMediaTypes coverage on launch.deepLinkingSettings)",
+      "services/cogniate-app/src/tool-pages/picker.test.ts and services/cogniate-app/src/tool-pages/launch.test.ts (LA-E3-05: adds Cancel button and empty Deep Linking return coverage on the app picker)"
+    ],
+    "qaTaskTestChanges": [
+      "tests/ltiaas/tasks-lti/LA-E3-04/deep-linking.k0.test.ts and tests/ltiaas/tasks-lti/LA-E3-04/deep-linking.k1sim.test.ts (QA-4 LA-E3-04 suite)",
+      "tests/ltiaas/tasks-lti/LA-E3-05/picker-completeness.k0.test.ts and tests/ltiaas/tasks-lti/LA-E3-05/picker-completeness.k1sim.test.ts (QA-4 LA-E3-05 suite)"
     ],
     "testChanges": [
       "tests/ltiaas/golden/expected/LA-IC-12.json",
@@ -30,10 +35,10 @@
       "tests/acceptance/M1/canvas/21-canvas-protocol.test.ts:40-46 (checks simulator record settings, not GET /api/idtoken deepLinkingSettings)",
       "tests/acceptance/lib/moodle-dl.ts:330 (clicks form button[type=\"submit\"], form input[type=\"submit\"] .first() in the pick form)",
       "tests/e2e/lib/moodle.ts:413 (clicks getByRole('button', { name: 'Add to Moodle', exact: true }))",
-      "tests/e2e/M2/07-sim-scenario.m2.ts:36 (clicks picker.getByRole('button').first() — stays green when 'Add to {LMS}' precedes 'Cancel' in DOM order)",
-      "tests/ltiaas/golden/capture.golden.ts:90-105 (G1-G4 do not capture GET /api/idtoken of a Deep Linking launch or an empty Deep Linking call; G4.{blackboard,canvas}.pages.picker.text will add 'Cancel' when LA-E3-05 lands)"
+      "tests/e2e/M2/07-sim-scenario.m2.ts:36 (clicks picker.getByRole('button').first() — stays green because 'Add to {LMS}' precedes 'Cancel' in DOM order)",
+      "tests/ltiaas/golden/capture.golden.ts:90-105,227-261 (G1-G4 do not capture GET /api/idtoken of a Deep Linking launch or an empty Deep Linking call; LA-E3-05 adds 'Cancel' to G4.{blackboard,canvas}.pages.picker.text)"
     ],
-    "scanResult": "Service part (LA-E3-04, 3344520): 0 golden changes and 0 frozen-test changes (no frozen acceptance, e2e, or host test sends contentItems: [] expecting 400 or asserts whole-object equality on launch.deepLinkingSettings; the 3 Author unit test files lti/deep-linking.test.ts, http/routes/compat.test.ts, and lti/idtoken.test.ts updated for positive empty-list and acceptLineItem/acceptMediaTypes coverage). App picker part (LA-E3-05, when it lands): will add the Cancel button text to G4.{blackboard,canvas}.pages.picker.text."
+    "scanResult": "2 golden fields changed in G4 (G4.blackboard.pages.picker.text and G4.canvas.pages.picker.text append 'Cancel' from LA-E3-05 in services/cogniate-app/src/tool-pages/picker.ts) and 0 frozen-test changes: (1) service part (LA-E3-04, 3344520) has 0 golden changes and 0 frozen-test changes (no frozen acceptance, e2e, or host test sends contentItems: [] expecting 400 or asserts whole-object equality on launch.deepLinkingSettings); (2) app picker part (LA-E3-05, 8c65424 / 7c0ba57) adds the Cancel button after 'Add to {LMS}' in DOM order, so tests/e2e/M2/07-sim-scenario.m2.ts:36 (picker.getByRole('button').first()) and all Moodle Deep Linking helpers stay green with 0 frozen-test edits."
   },
   "changes": [
     {
