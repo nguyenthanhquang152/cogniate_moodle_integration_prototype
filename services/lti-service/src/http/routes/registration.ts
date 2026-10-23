@@ -282,11 +282,27 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         fillText(registrationText(profileChannel, 'TOOL_MAY_EXIST'), { LMS: profileLms, tool: toolName }), { details: { reason: 'tool_may_exist' } });
       // D5 item 3: an opaque token is only sent back, so the operation is always "new".
       const operation0: RegistrationOperation = rule.registrationToken === 'opaque-bearer' ? 'new' : session.operation;
+      const updateNotAllowed = (reason?: string) => new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED',
+        withLms(registrationText(profileChannel, 'REGISTRATION_UPDATE_NOT_ALLOWED'), profileLms), reason ? { details: { reason } } : {});
+      /**
+       * The update of an existing platform (the explicit update, or the duplicate client of B-T3b-02). BD-A1-88: the
+       * platform keeps its profile, so the chosen profile must be the stored one. A-LA-E2-02-04 (BD-A1-84): a platform
+       * that another connection holds (another non-null binding ref) is never changed. Nothing is written on a refusal.
+       */
+      const updateProblem = (existing: Platform): ApiError | null => {
+        if (existing.profile !== profile.id) return updateNotAllowed('profile_mismatch');
+        if (body.data.bindingRef !== undefined && existing.bindingRef !== null && existing.bindingRef !== body.data.bindingRef) {
+          return new ApiError('BINDING_REF_MISMATCH', 'This platform belongs to another connection (another binding ref). Nothing changed.',
+            { details: { reason: 'platform_of_other_connection' } });
+        }
+        return null;
+      };
       // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to the platform otherwise.
       if (operation0 === 'update') {
-        const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
-          && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
-        if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', withLms(registrationText(profileChannel, 'REGISTRATION_UPDATE_NOT_ALLOWED'), profileLms)));
+        const target = session.existingPlatformId === null ? null : getPlatform(ctx.db, account.id, session.existingPlatformId);
+        if (target === null || body.data.updatePlatformId !== session.existingPlatformId) reject(updateNotAllowed());
+        const problem = updateProblem(target!);
+        if (problem) reject(problem);
       }
       // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
       for (const m of body.data.messages ?? []) {
@@ -358,17 +374,26 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         const reg = parseRegistrationResponse(answer);
         if (!reg) throw toolMayExist(clientName);
         const bindingRef = staged ? body.data.bindingRef ?? null : null;
+        // BD-A1-89: every credential value of the configuration is written as one set (an omitted authorization_server
+        // clears the stored audience), so I-SELF above was decided on exactly the values that are stored.
         const values = {
           clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
           active: staged ? false : body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
           grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef,
+        };
+        /** The update of an existing platform, checked again in the write transaction (the record can change meanwhile). */
+        const update = (existing: Platform | null, active: boolean): Platform | null => {
+          if (!existing) return null;
+          const problem = updateProblem(existing);
+          if (problem) throw problem;
+          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active });
         };
         // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
         const { platform, operation } = audit.change(() => {
           let platform: Platform | null;
           let operation: RegistrationOperation = operation0;
           if (operation0 === 'update') {
-            platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
+            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!), values.active);
           } else {
             try {
               platform = createPlatform(ctx.db, account.id, {
@@ -386,7 +411,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
               // app deactivated) is never switched on again by this path.
               // A staged registration never leaves the platform active (I-SELF).
               const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-              platform = applyRegistrationUpdate(ctx.db, account.id, same.id, { ...values, active: staged ? false : same.active });
+              platform = update(same, staged ? false : same.active);
               operation = 'update';
             }
           }
