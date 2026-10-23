@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import { LEGACY_SELF_BINDING_TEXT } from './legacy-wire.ts';
+import { LEGACY_SELF_BINDING_TEXT, pendingToolText } from './legacy-wire.ts';
 import { loadChannelFolders } from './registry.ts';
 import { ERROR_TEXT_KEYS, fillFieldDefault, parseChannelManifest } from './manifest.ts';
 import { DEFAULT_REGISTRATION_TEXTS, REGISTRATION_TEXT_KEYS, fillText, registrationText } from './text.ts';
@@ -73,10 +73,16 @@ it('BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app reg
     INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
     REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.',
     UPDATE_NOT_ALLOWED: 'Go back in Moodle and choose Register as a new external tool.',
+    TOOL_MAY_EXIST: "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '{tool}', then connect again.",
   });
+  // BD-A1-87: with the tool name filled, the Moodle sentence is the frozen pendingToolText, byte for byte.
+  const tool = fillText(registrationText(parsed.manifest, 'TOOL_MAY_EXIST'), { LMS: 'Moodle', tool: 'Course tool' });
+  expect(tool).toBe(pendingToolText('Course tool'));
+  expect(fillText(DEFAULT_REGISTRATION_TEXTS.TOOL_MAY_EXIST, { LMS: 'your LMS', tool: 'Course tool' }))
+    .toBe("your LMS may have saved the Cogniate tool already. If your LMS shows the tool 'Course tool', delete it there, then connect again.");
 });
 
-it('BD-A1-59: texts.registration is optional, closed to the six keys (BD-A1-68) and to the text placeholders', async () => {
+it('BD-A1-59: texts.registration is optional, closed to the seven keys (BD-A1-68, BD-A1-87) and to the text placeholders', async () => {
   const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
   const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
   if (!parsed.ok) throw new Error('The product manifest must be valid');
