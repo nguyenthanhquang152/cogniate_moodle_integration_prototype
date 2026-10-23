@@ -18,11 +18,13 @@ import {
   sim,
   unique,
 } from '../../../acceptance/M1/common/client';
+import { CLOUD, hostOf } from '../../../acceptance/M1/canvas/canvas';
 
 describe('LA-E3-16 Canvas Dynamic Registration in the portal (K1-SIM row)', () => {
   it('AC-LA-E3-16-04: dynamic Canvas connection -> DR in Canvas simulator -> staged platform pre-filled values -> grant redemption -> Active (status: registered)', async () => {
     const s = await session('A');
-    const siteUrl = 'https://canvas.sim.test';
+    const siteUrl = CLOUD.siteA;
+    const siteHost = hostOf(siteUrl);
     const clientId = unique('qa3-e316-canvas-dr');
     const deploymentId = 'deploy-canvas-portal-dr-1';
 
@@ -31,7 +33,7 @@ describe('LA-E3-16 Canvas Dynamic Registration in the portal (K1-SIM row)', () =
       name: unique('QA3 E3-16 Canvas Portal DR'),
       lms: 'canvas',
       method: 'dynamic',
-      profile: 'canvas-sim-cloud',
+      profile: CLOUD.profile,
       siteUrl,
     });
     expectStatus(createRes, 201);
@@ -52,10 +54,10 @@ describe('LA-E3-16 Canvas Dynamic Registration in the portal (K1-SIM row)', () =
     // 2. Portal step 2: run DR in Canvas simulator
     const scenRes = await sim('/scenarios', 'POST', {
       id: unique('scen-e316-canvas-portal-dr'),
-      provider: 'canvas-sim',
+      provider: CLOUD.provider,
       clientId,
       deploymentId,
-      siteHost: 'canvas.sim.test',
+      siteHost,
     });
     expectStatus(scenRes, 201);
     const { openidConfiguration, registrationToken } = scenRes.json.registration;
