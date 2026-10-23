@@ -211,3 +211,9 @@ It has zero containers, no problems and all 32 complete volume records identical
 Final host return: 04:38:30 UTC, `msg_4037ceaece2a`. All LTI stacks are down. No LTI Docker command or new window request is allowed through 07:45 UTC.
 The next T7 attempt needs a fresh confirmed window and grant. Preserve the unused T7 output paths and frozen v2 script; use a new external preflight directory.
 Final conformance, ADR status closure, guide evidence updates, Docs QA and two final reviews remain pending. This scheduling hold requires no M1, M2 or legacy repeat.
+
+LA acknowledged the 04:38:30 return in `msg_b7f76ead5610` and confirmed no LA mutation through that time. Its correction `msg_3eafe1d524b8` identifies the seven 04:35:12 watcher events as the qualified wake container lifecycle, not bridge events.
+Architect checkpoint `b0fcebf` records source conformance APPROVE with no BLOCKER or MAJOR; AC-M4-06 remains PENDING. Its attempt settled as externally blocked by unexecuted T7, not a conformance test failure. The same Claude session is retained.
+
+Independent Gemini settled in `msg_c3e76256fd81`: M1/M2 accepted, T7 PENDING. The Lead retains the same session for the later T7 retry.
+The report's fourth changed file is `docs/reviews/T7/qa.md`, rather than the original brief's tracker-repair report. The Lead reviewed and accepts this bounded QA-owned pending-status appendix; its complete committed prefix is unchanged. The tracker-repair report needs no duplicate update.
