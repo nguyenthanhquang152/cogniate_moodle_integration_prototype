@@ -15,9 +15,15 @@ import * as settings from './settings.ts';
 import * as states from './states.ts';
 import * as storageChecks from './storage-checks.ts';
 import * as toolKeys from './tool-keys.ts';
+import * as sharedPlatforms from './shared-platforms.ts';
+import { sqliteAuditedOperations } from './audited-operations.ts';
 
 export function createSqliteLtiStore(db: Db): LtiStore {
   return {
+    sharedPlatforms: {
+      checkSharedPlatform: async (...args) => sharedPlatforms.checkSharedPlatform(db, ...args),
+      provisionSharedPlatform: async (...args) => sharedPlatforms.provisionSharedPlatform(db, ...args),
+    },
     accounts: {
       createAccount: async (...args) => accounts.createAccount(db, ...args),
       listAccounts: async (...args) => accounts.listAccounts(db, ...args),
@@ -38,6 +44,7 @@ export function createSqliteLtiStore(db: Db): LtiStore {
       revokeActiveAccountApiKeys: async (...args) => apiKeys.revokeActiveAccountApiKeys(db, ...args),
     },
     audit: {
+      request: (now, base, body) => audit.withAudit(db, now, base, (change) => body(sqliteAuditedOperations(db, change))),
       observeAuditEvents: async (...args) => audit.observeAuditEvents(db, ...args),
       insertAuditEvent: async (...args) => audit.insertAuditEvent(db, ...args),
       listAuditEvents: async (...args) => audit.listAuditEvents(db, ...args),
@@ -75,6 +82,8 @@ export function createSqliteLtiStore(db: Db): LtiStore {
       changeDeployment: async (...args) => platforms.changeDeployment(db, ...args),
     },
     registrations: {
+      countOpenRegistrationSessions: async (...args) => registrations.countOpenRegistrationSessions(db, ...args),
+      createCappedRegistrationSession: async (...args) => registrations.createCappedRegistrationSession(db, ...args),
       createRegistrationSession: async (...args) => registrations.createRegistrationSession(db, ...args),
       getRegistrationSession: async (...args) => registrations.getRegistrationSession(db, ...args),
       claimRegistrationSession: async (...args) => registrations.claimRegistrationSession(db, ...args),

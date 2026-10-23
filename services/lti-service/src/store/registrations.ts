@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import type { KeyHandle } from '@cogniate/shared';
 import { keyProviderFor } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
+import { transaction } from '../db/index.ts';
 import { REGISTRATION_TOKEN_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
 
 export type RegistrationOperation = 'new' | 'update';
@@ -39,6 +40,22 @@ interface Row {
 }
 
 const tokenAad = REGISTRATION_TOKEN_COLUMN.aad;
+
+export function countOpenRegistrationSessions(db: Db, accountId: string, clientKey: string, now: number): number {
+  const { count } = db.prepare(`SELECT count(*) AS count FROM registration_session
+    WHERE tool_account_id = ? AND client_key = ? AND status IN ('open', 'completing') AND expires_at > ?`)
+    .get(accountId, clientKey, now) as { count: number };
+  return count;
+}
+
+/** The address cap and insert share the writer lock, including after a remote configuration fetch. */
+export function createCappedRegistrationSession(db: Db, keys: KeyHandle, input: Parameters<typeof createRegistrationSession>[2],
+  now: number, limit: number, checkAt: number): RegistrationSession | null {
+  return transaction(db, () => {
+    if (countOpenRegistrationSessions(db, input.toolAccountId, input.clientKey!, checkAt) >= limit) return null;
+    return createRegistrationSession(db, keys, input, now);
+  });
+}
 
 export function createRegistrationSession(
   db: Db,

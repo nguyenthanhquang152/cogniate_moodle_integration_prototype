@@ -4,7 +4,6 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import type { AuditEvent, AuditFilter } from '../../store/audit.ts';
-import { listAuditEvents } from '../../store/audit.ts';
 import { invalid } from '../validation.ts';
 import type { OperatorContext } from './index.ts';
 
@@ -35,7 +34,7 @@ const toApi = (e: AuditEvent) => ({
 });
 
 export function registerAuditRoutes(app: FastifyInstance, ctx: OperatorContext): void {
-  app.get('/operator/v1/audit', async (req) => ctx.audited(req, { action: 'audit.read', target: { type: 'audit', id: null } }, (audit) => {
+  app.get('/operator/v1/audit', async (req) => (await ctx.audited(req, { action: 'audit.read', target: { type: 'audit', id: null } }, async (audit) => {
     const parsed = AuditQuery.safeParse(req.query ?? {});
     if (!parsed.success) throw invalid(parsed.error);
     const q = parsed.data;
@@ -51,7 +50,7 @@ export function registerAuditRoutes(app: FastifyInstance, ctx: OperatorContext):
     };
     // The event names the filters (not the cursor value) and the number of events shown.
     const query = Object.fromEntries(Object.entries(q).filter(([k]) => k !== 'cursor'));
-    const page = audit.change(() => listAuditEvents(ctx.db, filter), (p) => ({ details: { query, cursor: q.cursor !== undefined, count: p.events.length } }));
+    const page = (await audit.readAudit(filter, query, q.cursor !== undefined));
     return { events: page.events.map(toApi), ...(page.next ? { next: encodeCursor(page.next) } : {}) };
-  }));
+  })));
 }

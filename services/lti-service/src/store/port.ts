@@ -13,6 +13,8 @@ import type * as settings from './settings.ts';
 import type * as states from './states.ts';
 import type * as storageChecks from './storage-checks.ts';
 import type * as toolKeys from './tool-keys.ts';
+import type * as sharedPlatforms from './shared-platforms.ts';
+import type { AuditBase, AuditedOperations } from './audited-operations.ts';
 
 /** A store area has no database handle in its public methods. */
 type AsyncArea<T> = {
@@ -21,12 +23,15 @@ type AsyncArea<T> = {
 
 export type AccountsStore = AsyncArea<Pick<typeof accounts, 'createAccount' | 'listAccounts' | 'updateAccount' | 'getAccount' | 'requireWritableAccount' | 'ensureAccount'>>;
 export type ApiKeysStore = AsyncArea<Pick<typeof apiKeys, 'requireApiKeyAccount' | 'listApiKeys' | 'getApiKey' | 'requireApiKeySlot' | 'issueApiKey' | 'useApiKey' | 'revokeApiKey' | 'revokeAccountApiKeys' | 'revokeActiveAccountApiKeys'>>;
-export type AuditStore = AsyncArea<Pick<typeof audit, 'observeAuditEvents' | 'insertAuditEvent' | 'listAuditEvents'>>;
+export interface AuditStore extends AsyncArea<Pick<typeof audit, 'observeAuditEvents' | 'insertAuditEvent' | 'listAuditEvents'>> {
+  request<R>(now: () => number, base: AuditBase, body: (operations: AuditedOperations) => Promise<R> | R): Promise<R>;
+}
+export type SharedPlatformsStore = AsyncArea<Pick<typeof sharedPlatforms, 'checkSharedPlatform' | 'provisionSharedPlatform'>>;
 export type IdempotencyStore = AsyncArea<Pick<typeof idempotency, 'claimIdempotency' | 'completeIdempotency' | 'abandonIdempotency'>>;
 export type LaunchesStore = AsyncArea<Pick<typeof launches, 'createLaunch' | 'findLaunchByLtik'>>;
 export type OperatorKeysStore = AsyncArea<Pick<typeof operatorKeys, 'listOperatorKeys' | 'getOperatorKey' | 'issueOperatorKey' | 'findActiveOperatorKey' | 'revokeOperatorKey' | 'initOperatorKey' | 'hasActiveOperatorKey'>>;
 export type PlatformsStore = AsyncArea<Pick<typeof platforms, 'createPlatform' | 'getPlatform' | 'listPlatforms' | 'findSharedPlatform' | 'updatePlatform' | 'setProductFamilyCode' | 'findLoginPlatforms' | 'findPlatformByDeployment' | 'applyRegistrationUpdate' | 'deletePlatform' | 'addDeployment' | 'changeDeployment'>>;
-export type RegistrationsStore = AsyncArea<Pick<typeof registrations, 'createRegistrationSession' | 'getRegistrationSession' | 'claimRegistrationSession' | 'releaseRegistrationSession' | 'completeRegistrationSession' | 'registrationTokenVersions'>>;
+export type RegistrationsStore = AsyncArea<Pick<typeof registrations, 'createRegistrationSession' | 'getRegistrationSession' | 'claimRegistrationSession' | 'releaseRegistrationSession' | 'completeRegistrationSession' | 'registrationTokenVersions' | 'countOpenRegistrationSessions' | 'createCappedRegistrationSession'>>;
 export type RetentionStore = AsyncArea<Pick<typeof retention, 'cleanupExpired'>>;
 export type ServiceKeysStore = AsyncArea<Pick<typeof serviceKeys, 'issueServiceKey' | 'findServiceKey' | 'serviceKeyVersions' | 'revokeServiceKeys' | 'revokeScopedServiceKeys'>>;
 export type SettingsStore = AsyncArea<Pick<typeof settings, 'readRateLimitSettings' | 'patchRateLimitSettings' | 'legacyBlobsRefused' | 'refuseLegacyBlobs'>>;
@@ -36,6 +41,7 @@ export type ToolKeysStore = AsyncArea<Pick<typeof toolKeys, 'requireSigningKeyAc
 
 /** Database-independent data access for the LTI service (LA-ADR-06 D13). */
 export interface LtiStore {
+  readonly sharedPlatforms: SharedPlatformsStore;
   readonly accounts: AccountsStore;
   readonly apiKeys: ApiKeysStore;
   readonly audit: AuditStore;

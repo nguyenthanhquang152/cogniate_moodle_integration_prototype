@@ -1,3 +1,5 @@
+import { storeFor } from '../../store/index.ts';
+import type { AuditedOperations } from '../../store/audited-operations.ts';
 // The operator listener (LA-ADR-06 D3, contract delta §3): a second Fastify app on OPERATOR_HOST:OPERATOR_PORT
 // (default 127.0.0.1:4110). The proxy has no route to it. Every /operator/v1/* route needs
 // `Authorization: OPERATOR-AUTH-V1 <operator key>`. A tenant API key is an unknown credential here.
@@ -8,9 +10,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
 import type { Db } from '../../db/index.ts';
 import type { LtiJobRunner } from '../../jobs/index.ts';
-import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
-import { withAudit } from '../../store/audit.ts';
-import { findActiveOperatorKey } from '../../store/operator-keys.ts';
+import type { AuditTarget } from '../../store/audit.ts';
+
 import { BODY_LIMIT, installApiBasics } from '../app.ts';
 import { registerAuditRoutes } from './audit.ts';
 import { registerOperatorKeyRoutes } from './operator-keys.ts';
@@ -56,7 +57,7 @@ export interface OperatorContext {
    * One audit event for this operator request (LA-ADR-06 D4 rule 1; actor operator:<name>): `ok` in the transaction of
    * `audit.change`, or `refused` with the code after a 4xx. Every non-GET route uses it, and GET /operator/v1/audit.
    */
-  audited: <R>(req: FastifyRequest, event: OperatorAuditEvent, body: (audit: AuditedRequest) => Promise<R> | R) => Promise<R>;
+  audited: <R>(req: FastifyRequest, event: OperatorAuditEvent, body: (audit: AuditedOperations) => Promise<R> | R) => Promise<R>;
 }
 
 export interface OperatorAuditEvent {
@@ -128,10 +129,10 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   const ctx: OperatorContext = {
     db: deps.db, keys: deps.keys, jobs: deps.jobs, logger: log, now, operator, limiter,
     urls: deps.urls, simulationProfiles: deps.simulationProfiles ?? false,
-    audited: (req, event, body) => withAudit(deps.db, now, {
+    audited: async (req, event, body) => (await storeFor(deps.db).audit.request(now, {
       actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,
       action: event.action, target: event.target, details: event.details ?? null,
-    }, body),
+    }, body)),
   };
 
   app.decorateRequest('operator', null);
@@ -140,7 +141,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
     scope.addHook('onRequest', async (req) => {
       limiter.refuseIfBlocked(req.ip, req.traceId);
       const presented = parseOperatorAuthorization(req.headers.authorization);
-      const key = presented ? findActiveOperatorKey(deps.db, presented, now()) : null;
+      const key = presented ? (await storeFor(deps.db).operatorKeys.findActiveOperatorKey(presented, now())) : null;
       if (!key) {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme: 'operator', code: 'INVALID_OPERATOR_AUTHORIZATION_HEADER' });
         recordAuthFailure(limiter, req.ip, req.traceId);
