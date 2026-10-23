@@ -118,9 +118,10 @@ export function stagedCall(deps: { db: Db; lti: LtiClient; urls: PublicUrls }, c
   return async (ref) => {
     if (staged.kind === 'platform') {
       if (!('profile' in staged.body)) throw new Error('operator grant create requires a profile');
-      // The admin-value body (endpoints, no site URL) is sent by LA-E2-04 with the grant bound values.
-      if (!('siteUrl' in staged.body)) throw new Error('the admin-value staged create is not wired yet (LA-E2-04)');
-      const p = await deps.lti.createProviderPlatform({ ...staged.body, active: false, bindingRef: ref }, traceId);
+      // An admin-value profile sends its typed endpoints (no site URL); a fixed profile sends its site URL.
+      const p = 'siteUrl' in staged.body
+        ? await deps.lti.createProviderPlatform({ ...staged.body, active: false, bindingRef: ref }, traceId)
+        : await deps.lti.createAdminProfilePlatform({ ...staged.body, active: false, bindingRef: ref }, traceId);
       return { platformId: p.id };
     }
     await deps.lti.addDeployment(staged.platformId, { ...staged.body, active: false, bindingRef: ref }, traceId);
