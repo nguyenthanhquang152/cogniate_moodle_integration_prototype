@@ -158,7 +158,7 @@ Model plan (product owner, 18:25Z; charter-LA §0): reviews on Codex GPT-6-Astra
 | LA-E2-02 | L | A r2 APPROVE, B r2 MAJOR (BD-A1-93, fixed in f8fa4ff); L round 2 groups 1-4 done; flag removal waits for the lead QA K0 change | QA-4 R1 PASS |
 | LA-E2-03 | K | A, B r2 APPROVE; QA-3 R1 PASS | E2-K |
 | LA-E2-04 | K | A, B r1 CHANGES_REQUESTED (BLOCKER finalized repeat ignores changed bound values; MAJOR staged wizard IDs); fix round next | QA-3 R1 PASS (host) |
-| E2-K follow-ups | K | merged e82808e (toolRows BD-A1-94; open-world core tests N10 BD-A1-95) | E2-K-done SHA named after lane L's round |
+| E2-K follow-ups | K | merged e82808e (toolRows BD-A1-94; open-world core tests N10 BD-A1-95) | **E2-K-done SHA = 678eb72** (03:38Z; full check green, caches cleared: 3011 unit, 134 K0, F1 0) |
 | LA-E2-05 (brightspace) | K | Author running: channel folder only, F2 core = 0 against the E2-K-done SHA | E2-N gate |
 | LA-E3-03 | L2 | A, B r1 APPROVE; QA-4 R1 PASS | **done** except K1-SIM |
 | Docker | QA | slot 1 (QA-2) ran LA-E5-01 PASS, paused for the other run's window 03:07-04:22Z; slots 2-8 per tests/ltiaas/GATE-RUN-PLAN.md after it | |
