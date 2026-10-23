@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E2-03 review: Reviewer-A
 
@@ -46,3 +46,19 @@ Reviewed `c81bc24`, `278a0a8`, `56851de`, `0605770` and `d252e02` (merge `ddfd4c
 - Three negative controls are detected: removed defaults, removed kernel-served site checks, and disabled manual-self load check. After all mutations were restored, the four affected public suites pass (**88/88**).
 
 Probe sources are saved outside the clean clone at `/tmp/la-reviewer-a-ctx-a2a42535d055-probes`; logs use the same prefix in `/tmp`. No Docker, stack, stack-starting runner or commit was used. No other reviewer's file was opened, and only this review file was written in the integration worktree. K1-SIM, R1 and live/golden regression remain QA gates; this review does not claim those results.
+
+
+## Round 2
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `3777e7c` at integration merge `0e6bace` against the task spec and both Round 1 findings. Verification ran in private clone `/tmp/la-reviewer-a-ctx-88ca8c796cc6`; the separate LA-E2-04 work has its own report.
+
+- **A-LA-E2-03-01 (MAJOR): CLOSED.** The parser treats only blank optional string values as absent. The actual generic manual form still sends `tokenAudience: ""`, but its submitted body now passes the real parser; the new app-route test redeems that complete form body with a valid grant. Required blanks, unknown fields and malformed non-empty values remain invalid. This uses the server-normalization option accepted in Round 1 and needs no portal edit.
+- **A-LA-E2-03-02 (MINOR): CLOSED.** Filled defaults now go through the same trim/form checks as posted values, followed by the issuer-origin check. All five private invalid-default cases from Round 1 are refused: HTTP issuer, credential-bearing issuer, HTTP authentication endpoint, overlong invalid JWKS URL and invalid client ID. Valid defaults and posted overrides remain covered by the public tests.
+
+The six formerly failing private parser/form probes now pass. Restoring only the pre-fix `admin-value.ts` in the private clone makes **9 tests fail** across the new public tests and private regression probes, including all six former failures; the product file was then restored. Thus the new tests exercise the changed behavior rather than only the new implementation.
+
+Focused public verification shared with LA-E2-04: **231/231 tests in 10 files**, app typecheck, **134/134 K0**, full lint, F1 (**0 hits**) and F5 (**6 rules, 0 hits**) pass. After restoring all mutations, the five affected public suites pass (**75/75**). The private clone is clean; probe sources and logs are saved under `/tmp/la-reviewer-a-ctx-88ca8c796cc6-probes` and the same `/tmp` prefix.
+
+The fix changes only the allowed adapter and adjacent unit tests; no frozen acceptance, migration, LTI profile or P-owned product file changes. No Docker, stack, stack-starting runner or commit was used, and no other reviewer's file was opened. The two LA-E2-04 findings are separate from this fix verdict; stack/live regression remains with QA.
