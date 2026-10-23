@@ -53,14 +53,16 @@ The status comes from the [channel README](../../../packages/channels/brightspac
 ## Procedure 1: Make the connection (Cogniate library user)
 
 1. In the portal, open **Integrations**, then the card **D2L Brightspace**. Click **Connect** [K2 E7-07-01].
-2. In **Your site**, enter the connection name.
-3. Select the connection method: **Manual** or **Automatic**.
-4. Enter the **Brightspace URL**.
+2. In **Your site**, enter the connection name [K2 E7-07-02].
+3. Select the connection method: **Manual** or **Automatic** [K2 E7-07-02].
+4. Enter the **Brightspace URL** [K2 E7-07-02].
 5. Click **Continue** [K2 E7-07-02].
 
 Result: the connection is `pending`. The card **Tool settings** shows the steps for the Brightspace administrator and the tool values [K2 E7-07-02].
 
 ## Procedure 2A: Manual method (Brightspace administrator)
+
+Steps 2 to 7 happen in Brightspace. Nobody tested them on a real Brightspace site; QA did them with the D2L simulator [SIM E2-05-04], [K2 E7-07-03]. The tool values of step 4 come from the portal [K2 E7-07-02].
 
 1. You need a Brightspace administrator for this procedure.
 2. In Brightspace, open **Manage Extensibility**, then **LTI Advantage**, and select **Register Tool** (confirmed in shape).
@@ -93,10 +95,12 @@ Notes:
 
 ## Procedure 2B: Automatic method (Brightspace administrator)
 
+Steps 2, 3 and 6 happen in Brightspace. Nobody tested them on a real Brightspace site; QA did them with the D2L simulator [SIM E2-06-02].
+
 1. In the portal, on the connection page, copy the **Registration URL** [K2 E7-07-02]. If there is no URL, or it expired, click **Get registration URL**.
 2. In Brightspace, open **Manage Extensibility**, then **LTI Advantage**, and select **Register Tool** (confirmed in shape).
 3. Choose **Dynamic** and paste the registration URL (confirmed in shape).
-4. The Cogniate page "Connect this Brightspace site to Cogniate" opens. Check the site and the library. Click **Connect**.
+4. The Cogniate page "Connect this Brightspace site to Cogniate" opens. Check the site and the library. Click **Connect** [SIM E2-06-02].
 5. The result page shows "Waiting for approval" and "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." [SIM E2-06-02]
 6. Make a deployment of the tool for your org units. Copy its **Deployment ID**.
 7. Do [Procedure 3](#procedure-3-ask-for-the-approval-code-brightspace-administrator).
@@ -107,23 +111,27 @@ The Brightspace registration token format is **UNVERIFIED**. QA proved only the 
 
 ## Procedure 3: Ask for the approval code (Brightspace administrator)
 
-1. Send the request to your Cogniate operator through the channel that your institution agreed with Cogniate.
-2. Give these values:
+1. Ask the Cogniate library user for the Cogniate library name, the connection name and the address of the connection page in the portal. The operator needs them to find the connection.
+2. Send the request to your Cogniate operator through the channel that your institution agreed with Cogniate.
+3. Give these values:
 
    | Method | Values to give |
    | --- | --- |
+   | Every method | the Cogniate library name, the connection name and the connection page address (from step 1) |
    | Manual | the Brightspace URL, the issuer, the Client ID, the Deployment ID, the OpenID Connect authentication endpoint, the OAuth2 access token URL, the keyset URL and the OAuth2 audience |
    | Automatic | the Brightspace URL, the Client ID and the Deployment ID |
 
-3. Answer the operator's check. The token URL is on a host other than the issuer host (for example `auth.brightspace.com`). So the operator asks you to confirm that D2L issued this Client ID for this issuer at that token host [SIM E2-05-04], [SIM E2-06-03].
-4. Give the approval code to the Cogniate library user through a private channel.
+   The operator matches the library, the connection and the values before the approval (M1 rule, [operator guide §2.1](../operator.md#21-check-the-request)).
+
+4. Answer the operator's check. The token URL is on a host other than the issuer host (for example `auth.brightspace.com`). So the operator asks you to confirm that D2L issued this Client ID for this issuer at that token host [SIM E2-05-04], [SIM E2-06-03].
+5. Give the approval code to the Cogniate library user through a private channel.
 
 The code works once and expires (24 hours by default). This is the M1 grant rule (`[SIM AC-M1-28]` in the [M1 operator guide](../operator.md#22-issue-the-code)).
 
 ## Procedure 4: Save the connection (Cogniate library user)
 
 1. Open the connection page in the portal.
-2. In **Platform values**, check or enter the values from the Brightspace administrator.
+2. In **Platform values**, check or enter the values from the Brightspace administrator [K2 E7-07-02].
 
    | Method | Fields |
    | --- | --- |
@@ -141,12 +149,12 @@ The code works once and expires (24 hours by default). This is the M1 grant rule
    | OAuth2 audience | `https://api.brightspace.com/auth/token` |
 
    The four D2L values are defaults from D2L and third-party sources (see [D2L facts](#d2l-facts-and-their-status)). The approval binds the values that you save, not the defaults.
-4. In **Verify connection**, enter the **Approval code**.
-5. Click **Save**.
+4. In **Verify connection**, enter the **Approval code** [K2 E7-07-02].
+5. Click **Save** [K2 E7-07-03].
 
 Result: the connection is `registered` [SIM E2-05-04], [SIM E2-06-03]. The first valid launch sets it to `connected`.
 
-If a value differs from the approval, the portal shows "The values do not match the approval." and names the field (`GRANT_MISMATCH`) [K2 E7-07-03]. Check the value with the Brightspace administrator.
+If a value differs from the approval, the portal shows "The values do not match the approval. Check the marked fields, or ask your Cogniate operator." and marks the field (`GRANT_MISMATCH`) [K2 E7-07-03]. Check the value with the Brightspace administrator.
 
 ## After the connection
 
@@ -164,8 +172,8 @@ The Brightspace card has no **Check connection** panel in LA [SIM E6-01-05].
 | Message or code | Where | Meaning | Do this | Evidence |
 | --- | --- | --- | --- | --- |
 | `INVALID_SITE_URL` | portal, Procedure 1 | the Brightspace URL is not a public `https` origin | Use the address of the site. | design (pending verification for this channel) |
-| "The values do not match the approval." (`GRANT_MISMATCH`) | portal, Procedure 4 | a value differs from the approval | Check the named field. | `[K2 E7-07-03]` |
-| "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator." (`PLATFORM_IN_USE`) | portal, Procedure 4 | another Cogniate connection uses this Client ID | Register a new tool in Brightspace for this library, or ask the operator. | `[UNIT E2-04]` (round 4) |
+| "The values do not match the approval. Check the marked fields, or ask your Cogniate operator." (`GRANT_MISMATCH`) | portal, Procedure 4 | a value differs from the approval | Check the marked field. | `[K2 E7-07-03]` |
+| "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library." (`PLATFORM_IN_USE`) | portal, Procedure 4 | another Cogniate connection uses this Client ID | Register a new tool in Brightspace for this library. If you think that this is an error, ask your Cogniate operator. | `[UNIT E2-04]` (round 4) |
 | "The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator." (`PLATFORM_IN_USE`) | portal, Procedure 4 | the staged registration does not exist any more | Make a new connection and register again. | `[UNIT E2-04]` (rounds 3, 4) |
 | `PLATFORM_NOT_ACTIVE` | launch | the connection waits for the approval | Finish Procedures 3 and 4. | `[SIM E2-06-02]` |
 

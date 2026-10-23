@@ -581,7 +581,8 @@ In this procedure `k1` is the version in use now. A stack with no ring file uses
    | Log line of your trace id | Meaning | Do this | Evidence |
    | --- | --- | --- | --- |
    | `job_run` with `"result":"skipped_lease"` | another run took the job first; your run did nothing | Do step 6 again. | `[UNIT E4-01-07]` |
-   | `key_rewrap_failed` | the run did not start | Do step 6 again. | pending verification (name from `http/operator/key-provider.ts`) |
+   | `job_run` with `"result":"failed"` | the run failed before it wrote its end event | Keep every key version in the ring. Read all lines of the trace id. Do step 6 once more. If it fails again, start an incident. | `[UNIT E4-01-08]` |
+   | `key_rewrap_failed` | the run did not start | Do step 6 again. | pending verification (contract delta §6, BD-A2-107) |
    | no line | the run has not ended yet | Wait one more minute and read again. If there is still no line, do step 6 again. Two requests at the same time can skip one run (operability §6.3). | design |
 
    When the `system:key-rewrap` event is there, read its field `details.outcome`:
@@ -837,7 +838,7 @@ Procedure: read the job state and run one job now.
    | `202 {"job":"<name>","traceId":"…"}` | your run started. The `traceId` is the trace of your run. | Write down the `traceId`. Go to step 3. | `[SIM E5-20-02]` |
    | `409 JOB_RUNNING` | another run of the job holds it: a timed run or another request. Your request started nothing, and its trace id does not find the other run. | Wait one minute. Do step 2 again. Repeat until the answer is `202`. | `[UNIT E5-20-03]` |
    | `404 NOT_FOUND` | the job name is wrong | Use a name from step 1. | `[UNIT E5-20]` (BD-A2-65 row) |
-   | `503 NOT_READY reasons=job_runner_not_active retryAfter=30` | the job runner is not active yet, for example just after a restart | Wait 30 s. Do step 2 again. | pending verification for this route (the re-wrap route: `[UNIT E5-09]`) |
+   | `503 NOT_READY reasons=job_runner_not_active retryAfter=30` | the job runner is not active yet, for example just after a restart | Wait 30 s. Do step 2 again. | `[UNIT E5-20]` (`jobs.test.ts`: "a %s runner gives 503 NOT_READY with Retry-After and no event") |
 
    To see a run that you did not start: `grep '"event":"job_run"' infra/.logs/lti-service.jsonl | grep '"job":"<name>"' | tail -n 3`. It shows the newest runs of the job, each with its time (`ts`) and `result`.
 
@@ -1050,8 +1051,8 @@ Read the logs with `npm run stack:logs -- lti-service` or `npm run stack:logs --
 | `platform_created`, `deployment_updated`, `platform_deleted` | LTI | a platform change through the tenant API | Check the matching audit event. | pending verification (the audit events: `[SIM E5-02-01]`, `[SIM E5-02-03]`) |
 | `job_run {job, ms, result, counts}` | both | one job run | [§12.1](#121-lti-service-jobs) | `[SIM E5-19-01]`, `[SIM E5-20-02]` |
 | `retention_cleanup` | LTI | rows that the `retention` job deleted, one line per table | none | `[UNIT E5-19-02]` |
-| `job_run_request_failed {job}` | LTI | a run request got `202`, but the run did not start | Run the job again ([§12.1](#121-lti-service-jobs)). | pending verification |
-| `key_rewrap_failed` | LTI | a re-wrap request got `202`, but the run did not start | Start the re-wrap again ([§8.1](#81-lti-service-key-ring-and-re-wrap)). | pending verification (name from the code) |
+| `job_run_request_failed {job, error}` | LTI | a request to `/operator/v1/jobs/<name>/run` got `202`, but the run did not start (also for `key-rewrap` started this way) | Run the job again ([§12.1](#121-lti-service-jobs)). | pending verification |
+| `key_rewrap_failed {error}` | LTI | a request to `/operator/v1/key-provider/rewrap` got `202`, but the run did not start | Start the re-wrap again ([§8.1](#81-lti-service-key-ring-and-re-wrap)). | pending verification (contract delta §6, BD-A2-107) |
 | `trusted_proxy_unresolved {host}` | LTI | a host name of `TRUSTED_PROXY_CIDRS` does not resolve | Check the proxy container. | pending verification |
 | `operator_refused` | app | an app CLI policy refusal | [§10.2](#102-operator-name-and-evidence-flags) | `[SIM E5-12-01]` |
 | `launch_rejected {reason}`, `score_sync`, `grant_*`, `binding_*` | app | the M1 events of the launch, the grades, the grants and the bindings | as in M1 | M1 |
