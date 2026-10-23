@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E2-04 review: Reviewer-A
 
@@ -75,3 +75,16 @@ Reviewed `71da381` and `16085aa` (merge `67e5ab0`), the staged-form fix `9d52c24
 - K0: **149/149**. App and portal typechecks and full lint pass. F1: **0 hits**. F5: **6 rules, 0 hits**. The private clone is clean; probe sources and logs are saved under `/tmp/la-reviewer-a-ctx-5531550d7cc2-probes` and the same `/tmp` prefix.
 
 The fix stays within the engine/adjacent-test scope and the explicit P test handover; the earlier manifest/DTO fix supplies the staged form without a shared-wizard edit. No frozen acceptance, LTI-service, migration or unrelated product file changes. No Docker, stack, stack-starting runner or commit was used. No other reviewer's file was opened, and only this review file was edited in the integration worktree. K1-SIM, R1 and live/browser gates remain QA work.
+
+
+## Round 3
+
+Verdict: APPROVE. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `da423f9` (merge `77df44e`) against the task spec, app API delta §3.4 and BD-A1-97.
+
+**A-LA-E2-04-03 (MINOR): CLOSED.** The missing staged-platform lookup now returns `409 PLATFORM_IN_USE` with the cause and new-connection instruction. The optional description is supplied only for that staged branch. The developer-key collision sentence and shared-deployment error remain unchanged, as does the common attempt-cancellation and lease-cleanup block. The new public test and the original Round 2 probe both pass: no create or activation, the grant remains unredeemed, and the direct route leaves the connection pending with no lease. This text fix does not change status transitions.
+
+Verification in fresh private clone `/tmp/la-reviewer-a-ctx-50efa367f558` at `77df44e`, with its own `npm ci` and `node_modules/.vitest-cache` removed before each Vitest run: **21/21** admin-redemption/public and original private checks pass, plus **3/3** selected existing redemption regressions covering collision behavior. Restoring the pre-fix engine makes both gone-platform text tests fail; restoring the reviewed engine makes both pass. App typecheck and lint of both changed files pass.
+
+Only the authorized K engine file and adjacent test changed under the dispatched L2 RQ-2 handover; no LMS name or unrelated behavior was added. The private clone is clean; probes/logs use `/tmp/la-reviewer-a-ctx-50efa367f558-probes` and the same `/tmp` prefix. No Docker, stack, commit or other reviewer's file was used. Only this review file was edited in the integration worktree. No Reviewer-A findings remain; QA's remaining gates are unchanged.
