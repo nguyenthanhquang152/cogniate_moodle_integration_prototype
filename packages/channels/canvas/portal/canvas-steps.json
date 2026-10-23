@@ -21,5 +21,30 @@
       "title": "Add a Cogniate course in Canvas",
       "verified": false
     }
-  ]
+  ],
+  "dynamic": {
+    "methods": {
+      "manual": {
+        "label": "Developer key",
+        "help": "Paste the developer key JSON into {LMS}. Then enter the Client ID and the Deployment ID."
+      },
+      "dynamic": {
+        "label": "Dynamic Registration",
+        "help": "Copy one registration URL into {LMS}. Cogniate gets the Client ID and the Deployment ID."
+      }
+    },
+    "registration": {
+      "id": "canvas-registration",
+      "title": "Register Cogniate in {LMS}",
+      "verified": false,
+      "instructions": [
+        "Select Get registration URL, then copy the URL.",
+        "In {LMS}, open Admin, select your account, then open Developer Keys.",
+        "Select + Developer Key, then + LTI Registration. Paste the registration URL and complete the steps in {LMS}.",
+        "Come back to this page. When {LMS} sends the registration, the next step shows the Client ID and the Deployment ID."
+      ]
+    },
+    "urlExpires": "This URL expires {time}.",
+    "waiting": "Finish the registration in {LMS}. Then this page shows the values to check."
+  }
 }
