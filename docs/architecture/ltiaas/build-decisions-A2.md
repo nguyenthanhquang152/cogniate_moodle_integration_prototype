@@ -508,3 +508,13 @@ Lane R's design calls D1–D4, routed in dispatch `ctx_0289fb00215b`. One call c
 Changes for the Lead to route:
 - **R (LA-E4-07):** drop the `lti_service` readiness check; count sends at commit; `JobStale` only for interval jobs.
 - **A1:** in app API delta §8a, record the listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` 4210, the production loopback refusal), the series list with sources and label guards (unknown channel `''`, reason grammar else `other`), the readiness checks and answer shape (no LTI check), and the topology rule (send and job series only with `APP_JOB_RUNNER=on`; absent, not zero, with a standalone worker). Also the same notes in the LA-E4-07 spec (A1's file).
+
+## 42. Round 41: the Canvas Dynamic Registration origin rule (LA-E3-09, lane L), 2026-10-23
+
+Lane L's question, the Lead's provisional P1, routed in dispatch `ctx_40723308ea61`. One sub-point changes, so a status message went first (`msg_157053e3622d`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-89 | (Provisional: P1.) The start page gets only `?ref`, and `complete` has no `siteUrl` or `serviceUrl`. P1: derive the values from the configuration, check them with the Canvas site rules, store them on the staged platform, and let the operator grant prove them (no app or contract change). Site origin = the configuration URL origin, "or, for `sso.canvaslms.com`, the issuer". | **P1 ratified, with one change.** The grant's adoption rule (`app/redemption.ts:391-397`) already requires issuer, `siteUrl` and `serviceUrl` to equal the connection's granted values, so a derived value never activates the wrong site. **Change:** a configuration URL on a fixed Canvas host (`sso.canvaslms.com`, beta, test) is refused at `complete` (the AP-05-30 page; nothing stored or sent) until the CANVAS-HOSTED live row. The site origin is never taken from the issuer. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5; LA-E3-09 notes | For hosted Canvas the issuer is the shared `https://canvas.instructure.com`, not the school's site, so "site = issuer" would stage a platform that can never be adopted. P2's URL parameters are unsigned and add no proof. |
+
+Changes for the Lead to route: **L (LA-E3-09):** one refusal branch for a configuration on a fixed Canvas host, with one unit test. The rest of P1 as built.
