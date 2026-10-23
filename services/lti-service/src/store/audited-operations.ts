@@ -100,6 +100,13 @@ export function sqliteAuditedOperations(db: Db, audit: AuditedRequest) {
       return audit.change(() => createPlatform(db, accountId, plan),
         (created) => ({ target: { type: 'platform', id: created.id }, details: { profile: created.profile, active: created.active } }));
     },
+    async recordPlatformCheck(details: {
+      deploymentId: string;
+      jwks: { ok: boolean; keys?: number; detail?: string };
+      tokenResult: { ok: boolean; scope?: string; detail?: string };
+    }) {
+      return audit.change(() => undefined, () => ({ details }));
+    },
     async deletePlatform(accountId: string, id: string, options: Parameters<typeof deletePlatform>[3], profile: string) {
       return audit.change(() => {
         if (!deletePlatform(db, accountId, id, options)) throw new ApiError('UNREGISTERED_PLATFORM');
