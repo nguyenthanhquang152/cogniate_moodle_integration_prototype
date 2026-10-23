@@ -14,7 +14,8 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
     expect(profile).toMatchObject({
       issuer, authenticationEndpoint: `${sso}/api/lti/authorize_redirect`, jwksUrl: `${sso}/api/lti/security/jwks`,
       accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', privacyFloor: 'allowlist', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
-      flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: true },
+      flags: { deepLinkingResponseSub: false, serviceOriginCheck: true },
+      clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, dynamicRegistration: null,
     });
     expect(profile.sources.length).toBeGreaterThan(0);
   }
