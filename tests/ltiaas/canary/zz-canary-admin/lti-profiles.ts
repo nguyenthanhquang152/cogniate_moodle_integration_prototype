@@ -1,6 +1,10 @@
-// Admin-value canary channel LTI 1.3 profile definitions (LA-E7-01, LA-E2-03 AC-05, BD-A1-21).
+// Admin-value canary channel LTI 1.3 profile definitions (LA-E7-01, LA-E2-03 AC-05, BD-A1-21, BD-A1-75).
 // Uses `endpoints: 'admin'` so the admin supplies the platform endpoints at binding time.
 import type { ProfileSource } from '@cogniate/channel-kernel';
+
+type CanaryProfileSource = Omit<ProfileSource, 'flags'> & {
+  readonly flags: Omit<ProfileSource['flags'], 'clientAssertionAudArray'>;
+};
 
 const adminValueCanaryProfiles = [
   {
@@ -20,11 +24,10 @@ const adminValueCanaryProfiles = [
     productFamily: null,
     flags: {
       deepLinkingResponseSub: false,
-      clientAssertionAudArray: false,
       serviceOriginCheck: false,
     },
     sources: ['LA-E7-01 admin-value canary profile (LA-E2-03 AC-05)'],
   },
-] as const satisfies readonly ProfileSource[];
+] as const satisfies readonly CanaryProfileSource[];
 
 export default adminValueCanaryProfiles;

@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # LA-E2-02 review, Reviewer-B
 
@@ -77,3 +77,16 @@ The update checks are centralized in `updateProblem` and repeated inside the loc
 - K1-SIM, Moodle, goldens and R1/R2-lite remain QA gates. The app-side use of the new recovery key belongs to LA-E2-04. The deferred flag-removal/null-trait follow-up is outside these commits.
 
 Only the assigned Reviewer-B reports were changed in the integration worktree. No commit was made.
+
+
+## Round 3
+
+**Verdict: APPROVE.** Reviewer-B: Codex GPT-6-Astra xhigh. Date: 2026-10-23. Reviewed `f8fa4ff` in merge `678eb72` against B-LA-E2-02-04, BD-A1-93, LA-IC-21, the task notes and the `complete` contract in lti-service-api-delta §4.5. Verification used a private clone at `667bcf875102865884c0d30b8c4f04e8dc20ae4b`. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No new findings.
+
+**B-LA-E2-02-04 — CLOSED.** `services/lti-service/src/http/routes/registration.ts:393` now puts the activation rule in the shared existing-platform update helper: staged updates set `active: false`; all other updates keep `existing.active`. Both the explicit-id and duplicate-client paths read the existing record inside the write transaction and call that helper. `autoActivate` remains on the create path only. The comment, task, contract and LA-IC-21 agree, so the operator's disabled state has one clear rule.
+
+The regression at `registration.test.ts:728` reproduces the original inactive-platform case and verifies the response and stored row. It also checks an explicit `autoActivate: true` update and a new platform with `autoActivate: false`. Restoring only the route from `f8fa4ff^` makes this test fail at the first update: actual `active: true`, expected `false`. The fixed route was restored; the existing staged and duplicate-client cases still pass.
+
+The combined review suite passed **329 tests in 13 files**, including all **55 registration route tests**, before and after the temporary probes. Root type checks, full lint, F1 and F5 passed. Evidence: `/tmp/reviewer-b-e2k-focused.log`, `/tmp/reviewer-b-e2k-mutant-active.log` and `/tmp/reviewer-b-e2k-restored.log`. The commit changes only L's route and colocated unit test; no forbidden file, new LMS-name branch or unrelated behavior change was found. QA retains the live/simulator and frozen-suite confirmation for LA-IC-21. No Docker, stack, commit or push was run.

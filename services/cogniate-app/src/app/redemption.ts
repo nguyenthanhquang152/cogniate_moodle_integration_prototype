@@ -82,6 +82,18 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       && p.deploymentIds.includes(values.deploymentId);
   }
 
+  /**
+   * LA-ADR-02 D6 (B-LA-E2-04-02): a finalized repeat with admin values needs the bound values of the committed approval,
+   * compared as phase 1 does (canonical form for an origin, exact text for a URL); the answer names each differing
+   * field. A body without admin values (a fixed profile, the short staged body) has nothing more to compare.
+   */
+  function repeatMismatch(c: Connection, values: PlatformBodyValues): string[] {
+    if (values.adminValues === undefined) return [];
+    const approval = c.ltiPlatformId !== null ? approvalOf(db, c.ltiPlatformId, values.deploymentId) : undefined;
+    const bound = approval ? grantAdminValues(getGrant(db, approval.grantId)?.boundValues ?? null) : null;
+    return bound ? differingBoundFields(bound, values.adminValues) : ['connection'];
+  }
+
   /** Phase 1 (§4.7.1): checks 1 to 7 in order; on success the attempt, the lease and the Blackboard reservation. */
   function phase1(req: RedemptionRequest): { connection: Connection; attempt: Attempt; grant: Grant; resolved: LocalTarget } {
     return transaction(db, () => {
@@ -156,7 +168,13 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       const traceId = req.traceId;
       const connection = getConnection(db, req.libraryId, req.connectionId);
       if (!connection) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-      if (finalizedRepeat(connection, req.purpose, req.values)) return connection;
+      if (finalizedRepeat(connection, req.purpose, req.values)) {
+        const fields = repeatMismatch(connection, req.values);
+        if (fields.length > 0) {
+          return reject('mismatch', connection.id, traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
+        }
+        return connection;
+      }
       const committed = phase1(req);
       const { attempt, grant, resolved } = committed;
       // A refusal or rollback must never produce this event. No LTI request has run yet.

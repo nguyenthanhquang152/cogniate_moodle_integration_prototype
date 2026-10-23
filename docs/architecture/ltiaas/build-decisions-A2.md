@@ -476,3 +476,13 @@ Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`ms
 | BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
 
 Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
+
+## 39. Round 38: the `autoActivate` line of `complete` (A1 BD-A1-93, LA-E2-02), 2026-10-23
+
+Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
+
+Changes for the Lead to route: none (contract text only).

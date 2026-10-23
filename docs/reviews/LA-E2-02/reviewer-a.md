@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 ## Round 1
 
@@ -132,3 +132,25 @@ BD-A1-77, the task notes and data-model §4.2 require `TEXT NULL CHECK (token_ki
 ### Verdict (round 2)
 
 APPROVE for lens A. All round 1 BLOCKER and MAJOR findings are closed: each has a committed test, and the round 1 probes pass unchanged. A-07 waits for an A1 answer and A-08 implements the A2 ruling BD-A2-84; both are MINOR and can land with the lane L change for BD-A2-83/84. My reproduction files are in `/tmp/ra-e201/` (private clone; not committed).
+
+## Round 3
+
+- Reviewer-A: Claude Code Opus 5.5 xhigh (the same session as round 2).
+- Diff: `git show f8fa4ff` (A1 BD-A1-93, LA-IC-21) and the LA-E2-02 part of `git show 4dfd87d` (A2 BD-A2-84), merged by `678eb72`.
+- I ran these in the private clone at `678eb72` (no Docker, no stack):
+  - Vitest on `services/lti-service` and `packages/channel-kernel`: 98 files, 1313 tests pass.
+  - `npm run test:k0`: 134 tests pass.
+  - F1 PASS (0 hits); `npm run typecheck`: exit 0. ESLint on the product packages: clean.
+  - Probes: the round 1 probe file (10 tests) and my three round 2 edge probes, re-run unchanged. All pass.
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 3): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Finding | Status | Evidence at `678eb72` |
+| --- | --- | --- |
+| A-LA-E2-02-07 (MINOR): the explicit update activates a staged platform | **Closed** (BD-A1-93) | `update()` now writes `active: staged ? false : existing.active` on both paths. `existing` is read inside the write transaction. `autoActivate` applies only to a new platform. My edge probe (explicit update of an inactive `pending-grant` platform with an I-SELF configuration): `200`, `active: false`, the ref is kept. The duplicate path still keeps the stored value. The committed test also checks that `autoActivate: true` has no effect on an update, and that a new platform still takes `autoActivate`. It fails on the old rule. The Moodle effect is recorded as LA-IC-21. The app never sends `updatePlatformId`, and AC-T3-26 updates an active platform, so no frozen answer changes. |
+| A-LA-E2-02-08 (MINOR): a staged `complete` stores a reserved-host `authorization_server` | **Closed** (BD-A2-84) | `checkAudienceHost(platformAud, hosts, 'authorization_server')` runs before the staged decision, before `claimRegistrationSession` and before the remote POST, and its refusal goes through `reject`. My edge probe: start `303`, then `complete` gives `400 PLATFORM_URL_NOT_IN_PROFILE`, "authorization_server is on a reserved host of a hosted LMS profile." The committed test checks that nothing is sent. A non-https `authorization_server` is now `400 INVALID_REQUEST` (the ruling's https part). A `{tokenEndpoint}` profile (`standard`) stores no audience, so Moodle does not change. |
+| A-LA-E2-02-09 (NIT): `021` changed after merge | **Closed** (Lead) | The Lead confirms that no persistent database applied the old file. The only one was QA-2's K1-SIM stack, which has been removed. |
+
+### Verdict (round 3)
+
+APPROVE for lens A. Every lens A finding of rounds 1 to 3 is closed. The K1-SIM, MOODLE-LIVE and G4 rows stay with QA.
