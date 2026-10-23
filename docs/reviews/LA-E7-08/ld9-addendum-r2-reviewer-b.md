@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -32,3 +32,29 @@ The LA-IC-06 classification is correct: this Canvas login must return the storag
 - Cloned the gate source with `git clone --no-hardlinks` into `/tmp/review-b-ld9-r2-wef6-fdic3rq0`, detached at `e46bb27c`. Extracted the single diff block, passed `git apply --check`, then applied it only in that clone. The resulting blob is `1e58a120049d4cb9d50dd6fc0a864661f2c4b9b8`, matching the addendum; only the named test file changes, and `git diff --check` passes.
 - Installed test dependencies only in the private clone. `npm --prefix tests run typecheck`: **PASS**. Logs/checks: `/tmp/reviewer-b-ld9-wef6-typecheck.log`, `/tmp/reviewer-b-ld9-wef6-checks.json`, `/tmp/reviewer-b-ld9-wef6-regex.json`, `/tmp/reviewer-b-ld9-wef6-source-checks.json`.
 - No product, shared helper, simulator or other frozen case changes are proposed. No Docker, stack runner or live test was run; the re-gate result remains pending. Blind review maintained; only this review file was written in the integration worktree, and no commit was made.
+
+
+## Round 2
+
+Reviewer-B: Codex GPT-6-Astra xhigh. **APPROVE; 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** This approval covers only the **Round 2 / R2.3 patch** in `ld9-addendum-r2.md` at integration `02cdf091`, against `la-gate-test-3` (`e46bb27c9487d332f40fcefd4dd880304d1d31f1`). The completed Round 1 A and B reviews were read at integration `02cdf091`, as this dispatch expressly requires; no current-round Reviewer-A review was read.
+
+### Round 1 findings
+
+| Finding | Result |
+| --- | --- |
+| B-LA-E7-08-LD9-03; A-LD9-R2-01 — wrong storage-key length | **Closed.** R2.3 uses `/^cog_state_[0-9a-f]$/`, and the Round 2 rationale/table describe one digit and 16 possible keys. The extracted assertion accepts all 16 valid keys and rejects 8 malformed keys, including the former 16-digit value. The old pattern rejects all 16 valid keys and accepts that invalid long value. |
+| B-LA-E7-08-LD9-04; A-LD9-R2-02 — narrative and evidence references | **Closed.** R2.1 states the non-null profile trait plus target trigger, 64-character target grammar, E3 trait values and trait-based origin rule. The pinned helpers, simulator hostname, one-line frozen scan and package/typecheck output match. The cited Slot 3C artifacts exist; their ledgers and decoded log confirm this case's `200 !== 302` failure at `21-canvas-protocol.test.ts:19:10`. Plan §6.1 LD-9 and the LA-IC-06 rows provide the rule and scope. |
+
+### BD-A2-110 and scope checks
+
+- Login: `200`, absent `Location`, exact cache/referrer headers and the specified nonce CSP pattern.
+- JSON block: required `lti-storage-data`; exact target and `CLOUD.auth` origin; one-digit storage key; data state equals the authorize URL's state.
+- Authorize query: the original `CLOUD.auth` origin/path assertion stays. The block from `client_id` through the state-cookie assertion is byte-identical: redirect URI, both hints, scope, response type/mode, prompt, state/nonce lengths and cookie prefix. No hint assertion is weaker.
+- Completion: follows `authUrl`, checks authorize status 200, posts the returned form with the original cookie, records the token/state/ltik for secret scanning, requires launch 303 and retains `canvas-oidc.missing === []`.
+- Scope: only `M1-08.canvas.login-redirect` changes, plus its `httpsRequest` import. Every other case is byte-identical. Shared helpers, product files and simulators do not change; no core LMS name is added. This is the QA-owned LA-IC-06 exception under LD-9 and BD-A1-114, not a product fix.
+
+### Verification and boundary
+
+Fresh `git clone --no-hardlinks` of the stated gate source into `/tmp/ld9-r2-round2-review-b-7vf8bc9y/repo`, detached at `e46bb27c`: extracted only R2.3, passed `git apply --check --verbose`, applied privately and passed `git diff --check`. The resulting test blob is `36a3ffa818b0721a722996c71438bfdff06b74e3`, matching the patch. Own test dependencies installed in that clone; `npm --prefix tests run typecheck` **PASS** (`cogniate-qa-tests@0.0.0`). Evidence in its parent: `round2.patch`, `apply-check.log`, `scope.json`, `key-oracle.json`, `evidence-paths.json`, `typecheck.log`.
+
+No new findings. The shared gate checkout remains clean. Only this review file was edited in integration; no commit, Docker, stack, live request or stack runner. The actual M1 SIM result on the new gate-test SHA remains pending in R2.5 after both approvals; this is not a full-gate verdict.

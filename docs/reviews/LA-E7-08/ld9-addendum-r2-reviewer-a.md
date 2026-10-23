@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -33,3 +33,24 @@ Reviewed QA commit `3b8b3a5c3d6a73829fcb56f69209eb01f9c6539f`, integrated at `d9
 - The patch correctly adds status 200/no Location, the specified cache/referrer/CSP headers, JSON target/origin/state equality, then follows `authUrl`, posts the returned form with the original state cookie, asserts launch 303 and retains `canvas-oidc.missing === []`. Secret capture is retained. The key oracle above is the exception to the required expected answer.
 - The frozen-tree scan finds `lti_storage_target` only in this case. No shared helper or product file changes; no LMS name added to a core path. The submitted QA commit itself changes only the addendum document, pending LD-9 approval. This review does not approve the full wave gate or claim live acceptance evidence.
 - Private evidence: `reviewer-scope.log`, `reviewer-key-pattern.txt`, `reviewer-key-probe.log` and the extracted patch. No dependency installation, stack, Docker, live request, host stack runner or commit. Type checking and live SIM were not rerun. Reviewer-B's file was not opened. Only this review file was written in integration.
+
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the Round 2 addendum at `02cdf091` against BD-A2-110, BD-A1-114, LA-ADR-05 D1, LA-ADR-04 D8 and plan §6.1 LD-9. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. All Round 1 finding IDs are closed.**
+
+- **A-LD9-R2-01 / B-LA-E7-08-LD9-03 closed:** the proposed assertion is now `/^cog_state_[0-9a-f]$/`. A host probe using the regex extracted from the applied patch accepts all 16 valid keys and rejects seven invalid samples, including the former 16-digit key. The Round 2 rationale and table agree.
+- **A-LD9-R2-02 / B-LA-E7-08-LD9-04 closed:** Round 2 corrects the target limit/grammar, profile trait and authentication-endpoint origin rules. Helper locations, non-302 return behavior, simulator hostname, frozen scan and package/script names match the pinned source. The cited Slot 3C summary, case ledger and command log exist and confirm `200 !== 302` at `21-canvas-protocol.test.ts:19:10`; the plan and ADR references now point to the actual decisions.
+
+BD-A2-110 checks:
+
+| Required answer | Result |
+| --- | --- |
+| Login 200, no Location, cache/referrer headers and exact nonce CSP pattern | All asserted. |
+| Parse `lti-storage-data`; target, auth origin, one-digit key and state equal to `authUrl` state | All asserted with the specified values. |
+| Preserve authorize URL, client/redirect IDs, both hints, scope, response type/mode, prompt, state/nonce lengths and state cookie | Assertions are byte-identical to the frozen case; only the URL source changes to `data.authUrl`. No hint check is weaker. |
+| Complete cookie launch and retain simulator check | Follows `authUrl`, parses/posts the form with `started.cookie`, retains secret capture, asserts 303 and unchanged `canvas-oidc.missing === []`. |
+
+`git apply --check --verbose` and `git diff --check` pass in `/tmp/la-reviewer-a-ctx-4f6925776076`, a fresh `--no-hardlinks` clone at `la-gate-test-3` (`e46bb27c`). Applied blob: `36a3ffa818b0721a722996c71438bfdff06b74e3`. Only the named case and its `httpsRequest` import change (21 insertions, 4 deletions); every other case and shared helper is unchanged. The frozen scan finds only this case sending `lti_storage_target`. No product/core path changes are proposed; this is the QA-owned LA-IC-06 list.
+
+Evidence: `/tmp/la-reviewer-a-ctx-4f6925776076-evidence/` (`round2.patch`, `apply-check.log`, `scope.json`, `key-probe.json`, `reference-check.json`). The gate source remains clean and untouched. No dependency installation, typecheck rerun, Docker, stack, live request or commit; the authorized M1 SIM re-gate remains pending. Both Round 1 reports were read at `02cdf091` as explicitly requested; no Round 2 Reviewer-B content was opened. Only this review file changed in integration.
