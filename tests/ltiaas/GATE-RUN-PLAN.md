@@ -6,7 +6,8 @@
 - **Lead QA Compose Project Prefix:** `COMPOSE_PROJECT_NAME=qalead-la-<n>` (`qalead-la-1` .. `qalead-la-7`)
 - **Lead QA Port & Subnet:** `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`
 - **Intake Baseline SHA (`G-BASE`):** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`LA-E0-01`)
-- **Current Integration SHA:** `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` (product code identical to `19d6dc4a2ebe64dd5e97cb9ed43b0bb64c01c3e9`)
+- **Current Integration SHA:** `8c65424` / `144a566` (or latest green integration SHA at slot start; pre-window host gate recorded on `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` and re-verified on `144a566`)
+- **Full Expected-Delta Set for Slot 3A:** `LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20` (updated with `BD-A1-90`), `LA-IC-21` (`BD-A1-93`, commit `19da95e` / `4d08fc1`), including `LA-IC-01` E2-K trait fields `endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`.
 - **Private Run Root (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/`
 - **Host Course Fixture Zips (`COURSE_FIXTURES_DIR`):** `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T12-05-24-521Z/tests/fixtures/courses`
 
@@ -21,8 +22,8 @@ Only **one QA stack** runs at a time (`docs/team/ltiaas/charter-LA.md` §0). Aft
 | Slot | Owner | Compose Project(s) | Port / Subnet | Target SHA | Tasks & Suites Covered | Est. Minutes | Why This Slot Position |
 | --- | --- | --- | --- | --- | --- | :---: | --- |
 | **Slot 1** *(active)* | **QA-2** | `qa2-la-sim-r1` .. `r6` | `9443` / `172.20.0.0/16` | `f2e340e` (code `19d6dc4`) | Lanes `S1` & `S2` (`tests/ltiaas/tasks-ops/K1-SIM-RUN-PLAN.md`: 11 tasks, 64 `K1-SIM` ACs across 6 batches) | **~72 min** *(ends ~03:36Z)* | Already running under Lead grant #1 (`docs/team/ltiaas/briefs/p4/QA2-sim1.md`). |
-| **Slot 2** | **Lead QA** | `qalead-la-1`, `qalead-la-2` | `9473` / `172.23.0.0/16` | **Intake SHA `1b17261`** (`G-BASE`) | **`LA-E0-03` (`AC-01..04`)**: Two independent fresh-stack `G-BASE` golden captures (`g-base-1` on `qalead-la-1`, `g-base-2` on `qalead-la-2`) + host-only determinism compare (`0` diffs between `g-base-1`, `g-base-2`, and committed `tests/ltiaas/golden/1b17261...`) + saves private `u1-seed.json` (`0600`) | **28 min** (`14 + 14`) | **Must run first after Slot 1** so the verified two-capture `G-BASE` baseline and `u1-seed.json` exist before any candidate golden compare or `U1` upgrade run. |
-| **Slot 3** | **Lead QA** | `qalead-la-3`, `qalead-la-4` | `9473` / `172.23.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | **Run 3A (`qalead-la-3`, 14 min):** `LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`) candidate `G1`–`G4` capture + host compare vs `G-BASE` (`1b17261`) with all approved LD-9 deltas (`LA-IC-12, -13, -15..-20` + `LA-IC-01`). Also unblocks all 10 QA-3/QA-4 golden-compare rows on host (`0` extra Docker).<br>**Run 3B (`qalead-la-4`, 81 min):** `LA-E7-08` B1–B2 SIM gate: M1 `migration` (`35` rows) + `snapshot-upgrade` (`7` rows) (`20 min`), `U1` SIM upgrade continuity on `013`+`014` (`16 min`), and `R1` (`M1 --phase sim --provider all` `394` rows `25 min` + `M2` `64` browser cases `20 min`). | **95 min** (`14 + 81`) | Produces the candidate golden capture for all task suites and closes `LA-E0-03`, `LA-E7-08` SIM (`AC-02,03,04`), and all per-step `R1` / `migration` / `U1` SIM rows (`LA-E1-05..11`, `LA-E4-02`). |
+| **Slot 2** *(DONE)* | **Lead QA** | `qalead-la-1`, `qalead-la-2` | `9473` / `172.23.0.0/16` | **Intake SHA `1b17261`** (`G-BASE`) | **`LA-E0-03` (`AC-01..04, 09` — PASS):** Two independent fresh-stack `G-BASE` golden captures (`g-base-1` on `qalead-la-1` `48 s`, `g-base-2` on `qalead-la-2` `45 s`) + host-only determinism compare (`EQUAL: 0 differences` between `g-base-1`, `g-base-2`, and committed `tests/ltiaas/golden/1b17261...`) + saved private `u1-seed-1b17261.json` (`0600`) | **6 min actual** *(est. 28 min)* | Completed `05:31Z–05:37Z` (`0` diffs on 32 protected volumes). |
+| **Slot 3** *(3A DONE; 3B pending)* | **Lead QA** | `qalead-la-3`, `qalead-la-4` | `9473` / `172.23.0.0/16` | **Integration SHA `8f1ecea`** (`8f1eceadb8e4e116ec34deb6dbb85f142741f7fc`) | **Run 3A (`qalead-la-3`, DONE — PASS in 2 min):** `LA-E0-03` (`AC-08, 09`) & `LA-E7-08` (`AC-03`) candidate `G1`–`G4` capture (`45 s`) + host compare vs `G-BASE` (`1b17261`) with the 11 expected-delta files (`LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20`, `LA-IC-21`): `EQUAL: 264 differences (0 not explained), 0 expected changes missing` (`26–29 ms`).<br>**Run 3B (`qalead-la-4`, 81 min, next block):** `LA-E7-08` wave-end SIM gate: M1 `migration` (`35` rows) + `snapshot-upgrade` (`7` rows) (`20 min`), `U1` SIM upgrade continuity (`16 min`), and `R1` (`M1 --phase sim --provider all` `394` rows `25 min` + `M2` `64` browser cases `20 min`). | **2 min (3A)** + **81 min (3B)** | Run 3A completed `05:38Z–05:40Z` (`0` diffs on 32 protected volumes); unblocks QA-3/QA-4 golden-compare rows on host. |
 | **Slot 4** | **QA-3** | `qa3-la-sim-r1` .. `r3` | `9453` / `172.21.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | Lanes `K`, `R`, `P` (`tests/ltiaas/tasks-core/K1-SIM-RUN-PLAN.md`): Batch 1 (`LA-E5-12` `AC-01..07` + `LA-E1-08` `AC-02` K1-CAP C2 guards, `7 min`), Batch 2 (`LA-E4-03` `AC-02..05` K1-AGS A1–A6, `429` throttle, partition fairness, in-flight restart, `8 min`), Batch 3 (`LA-E2-03` `AC-03..05,07` if merged, `5 min`) + host golden-binding runs (`1 min`, no Docker) | **15–20 min** | Fast SIM window closing all QA-3 `K1-SIM` rows and golden-binding Vitest checks (using Slot 3's capture). |
 | **Slot 5** | **QA-4** | `qa4-la-sim-r1` .. `r4` | `9463` / `172.22.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | Lanes `L` & `L2` (`tests/ltiaas/tasks-lti/K1-SIM-RUN-PLAN.md`): Batch 1 (`qa4-la-sim-r1`, 9 suites: `LA-E1-10`, `LA-E3-01`, `LA-E3-02`, `LA-E3-04`, `LA-E3-13`, `LA-E3-06`, `LA-E3-11`, `LA-E3-12`, `LA-E5-18`, `26 min`), Batch 2 (`qa4-la-sim-r2`: `LA-E3-03`, `LA-E5-14`, `10 min`), Batch 3 (`qa4-la-sim-r3`: `LA-E5-06`, `8 min`), Batch 4 (`qa4-la-sim-r4`: `LA-E1-05` `AC-07,08`, `8 min`) | **52 min** | Closes all 13 merged QA-4 `K1-SIM` task suites on the simulator lane. |
 | **Slot 6** | **QA-E2E** | `qa-e2e-la-sim-r1` .. `r2` | `9443` / `172.20.0.0/16` | **Current SHA `f2e340e`** *(or wave-end SHA)* | **`LA-E7-09` (`AC-01..08`, ~`15 min`):** Moodle-shaped `standard` simulator channel end-to-end (`R2-sim` manual connect, `.mbz`, Deep Linking, SCORM 1.2 + HTML grades `200`/`409`/`503`, check 14 refusal, speed vs Moodle 5.2).<br>**`K2` SIM Browser Suites (`~20 min`):** `LA-E3-01 AC-11` & `LA-E3-02 AC-08,09` (3P-cookie-blocked Chromium `lti.put_data` / `lti.get_data`), `LA-E3-05 AC-01..05` (picker Cancel & multi-pick), `LA-E1-10 AC-03,05,06` (manifest LMS names in browser). | **35 min** (`15 + 20`) | Runs after QA-E2E's Round 4 fix lands; verifies `LA-E7-09` (`R2-sim`) and all `K2` SIM browser cases before live Moodle slots. |
@@ -34,7 +35,7 @@ Only **one QA stack** runs at a time (`docs/team/ltiaas/charter-LA.md` §0). Aft
 | Target SHA | Runs That Must Execute on This SHA | Compose Projects | Total Est. Minutes |
 | --- | --- | --- | :---: |
 | **Intake SHA `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`G-BASE`)** | 1. **`LA-E0-03` (`AC-01..04`)**: Two fresh-stack `G-BASE` golden captures (`g-base-1`, `g-base-2`) + determinism diff + `u1-seed.json` (Slot 2).<br>2. **`LA-E0-02` (`AC-02..10`) & `LA-E0-04` (`AC-02..04`)**: Baseline M1 (`sim`, `migration`, `snapshot-upgrade`), M2 (`64` cases), `T7 × 3` (`3 × 17` + demo), and legacy `T1–T8` + `rate-peaks.mjs` + memory peaks, comparing pass/fail counts with `--replace-tests` for the 8 `LD-1` open-world files (Slot 7). | `qalead-la-1`, `qalead-la-2`, `qalead-la-5`, `qalead-la-6` | **133 min** *(core SIM + T7×3)* / **228 min** *(with full T1–T8 legacy)* |
-| **Current Integration SHA `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` (code `19d6dc4` / Wave-End SHA)** | 1. **`LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`)**: Candidate golden capture (`G1`–`G4`) + host compare against `G-BASE` with `LA-IC-12, -13, -15..-20` + `LA-IC-01` (Slot 3A).<br>2. **`LA-E7-08` (`AC-01..06`)**: Wave-end B1–B2 SIM gate — M1 `migration` (`013`+`014`) & `snapshot-upgrade`, `U1` SIM upgrade continuity, `R1` (`M1 sim` `394` rows + `M2` `64` cases) (Slot 3B).<br>3. **QA-2 (`Slot 1`), QA-3 (`Slot 4`), QA-4 (`Slot 5`), QA-E2E (`Slot 6`: `LA-E7-09` + `K2` SIM)**.<br>4. **Wave-End `MOODLE-LIVE` (`Slot 8`)**: `T7 × 1` (or `× 3`), Moodle `U1`/`U2`, and `R2-lite` (`T2a–T3c`, `T4b`, `T5a/b`, `T6`, `T8`). | `qa2-la-sim-r1..6`, `qalead-la-3`, `qalead-la-4`, `qa3-la-sim-r1..3`, `qa4-la-sim-r1..4`, `qa-e2e-la-sim-r1..2`, `qalead-la-7` | **262 min** *(Slots 3–6 + Slot 8 R2-lite, after QA-2 Slot 1)* |
+| **Current Integration SHA `8c65424` / `144a566` (or Newest Green SHA at Slot Start)** | 1. **`LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`)**: Candidate golden capture (`G1`–`G4`) + host compare against `G-BASE` with `LA-IC-01, LA-IC-03, LA-IC-12, LA-IC-13, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21` (Slot 3A).<br>2. **`LA-E7-08` (`AC-01..06`)**: Wave-end SIM gate — M1 `migration` & `snapshot-upgrade`, `U1` SIM upgrade continuity, `R1` (`M1 sim` `394` rows + `M2` `64` cases) (Slot 3B).<br>3. **QA-2 (`Slot 1`), QA-3 (`Slot 4`), QA-4 (`Slot 5`), QA-E2E (`Slot 6`: `LA-E7-09` + `K2` SIM)**.<br>4. **Wave-End `MOODLE-LIVE` (`Slot 8`)**: `T7 × 1` (or `× 3`), Moodle `U1`/`U2`, and `R2-lite` (`T2a–T3c`, `T4b`, `T5a/b`, `T6`, `T8`). | `qa2-la-sim-r1..6`, `qalead-la-3`, `qalead-la-4`, `qa3-la-sim-r1..3`, `qa4-la-sim-r1..4`, `qa-e2e-la-sim-r1..2`, `qalead-la-7` | **262 min** *(Slots 3–6 + Slot 8 R2-lite, after QA-2 Slot 1)* |
 
 ---
 
@@ -80,10 +81,13 @@ Executed on **2026-10-23** (`08:45–09:05 +07:00`) in an isolated `--no-hardlin
        }
      '
      ```
-2. **`LA-IC-01.json` Expected-Delta File for Full `G1`–`G4` Compare on `f2e340e`:**
-   - `tests/ltiaas/golden/expected/` holds `LA-IC-12.json`, `LA-IC-13.json`, `LA-IC-15.json` .. `LA-IC-20.json`.
-   - At `f2e340e` (after `LA-E1-05` and `LA-E1-06`), `G1` and `G3` also include the additive `LA-IC-01` fields (`channel` on `G1.{default,acceptance}.providers.profiles[*]` and `G1.providersAfter.profiles[*]`; `channel`, `channelName`, `channelCapabilities` on `G1.{default,acceptance}.lmsProviders.lms[*]`, `G1.lmsProvidersAfter.lms[*]`, `G1.connections[*]`, `G1.connectionList.connections[*]`, `G3.blackboard.connection`, and `G3.canvas.connection`), and `tests/ltiaas/tasks-core/LA-E1-06/golden-g1.k1sim.test.ts:90` + `LA-E1-07/golden.k1sim.test.ts:15` reference `tests/ltiaas/golden/expected/LA-IC-01.json` (plus `BINDING` in `tests/ltiaas/tasks-core/LA-E1-01/golden-binding.ts`).
-   - In Slot 3A (`qalead-la-3`), pass `--expected LA-IC-01,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20` with `LA-IC-01.json` containing the 10 additive path patterns above.
+2. **Full Expected-Delta Set (`LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20`, `LA-IC-21`) for Slot 3A:**
+   - `tests/ltiaas/golden/expected/` holds `LA-IC-03.json`, `LA-IC-12.json`, `LA-IC-13.json`, `LA-IC-15.json`, `LA-IC-16.json`, `LA-IC-17.json`, `LA-IC-18.json`, `LA-IC-19.json`, `LA-IC-20.json` (updated for `BD-A1-90` / `LA-E2-03`), and `LA-IC-21.json` (`BD-A1-93` / `LA-E2-02`, commit `19da95e` / `4d08fc1`).
+   - At the current integration SHA (after E1 + E2-K `LA-E2-01..03` + `LA-E3-05`), `G1` and `G3` also include the additive `LA-IC-01` fields:
+     - `channel` (`string`), plus the E2-K trait fields `endpoints` (`string`), `issuerKind` (`string`), and `endpointOrigins` (`present`: `string | null`) on `G1.{default,acceptance}.providers.profiles[*]` and `G1.providersAfter.profiles[*]`;
+     - `channel`, `channelName`, `channelCapabilities` on `G1.{default,acceptance}.lmsProviders.lms[*]`, `G1.lmsProvidersAfter.lms[*]`, `G1.connections[*]`, `G1.connectionList.connections[*]`, `G3.blackboard.connection`, and `G3.canvas.connection`;
+     - and `tests/ltiaas/tasks-core/LA-E1-06/golden-g1.k1sim.test.ts:90` + `LA-E1-07/golden.k1sim.test.ts:15` reference `tests/ltiaas/golden/expected/LA-IC-01.json` (plus `BINDING` in `tests/ltiaas/tasks-core/LA-E1-01/golden-binding.ts`).
+   - In Slot 3A (`qalead-la-3`), pass `--expected "LA-IC-01,LA-IC-03,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21"` with `LA-IC-01.json` containing the additive `channel` / `channelName` / `channelCapabilities` and E2-K trait fields (`endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`).
 
 ### 3.2 Before-Slot Docker Boundary Snapshot & VM Wake (`umask 077`, `charter-LA.md` §0)
 
@@ -172,17 +176,36 @@ diff -u "$BOUNDARY_DIR/docker-volumes-inspect-before.json" "$BOUNDARY_DIR/docker
 umask 077
 export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
 export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
+export REPO_SOURCE="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
 export SLOT2_DIR="$HOME/cogniate-qa-runs/LA/LA-E0-03/r2-docker"
 mkdir -p "$SLOT2_DIR/captures" "$SLOT2_DIR/logs"
 
+# 0. Prepare clean test-overlay source with qalead-la-<n> runner-guard regex enabled (Lesson L1)
+export OVERLAY_TESTS="$SLOT2_DIR/tests-overlay"
+rm -rf "$OVERLAY_TESTS"
+cp -R "$LA_QA/tests" "$OVERLAY_TESTS"
+node -e '
+  const fs = require("fs");
+  for (const [f, from, to] of [
+    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
+    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
+    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
+    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
+  ]) {
+    const p = process.env.OVERLAY_TESTS + "/" + f;
+    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
+  }
+'
+
 # 1. Capture #1 on fresh stack (qalead-la-1, ~14 min)
 COMPOSE_PROJECT_NAME=qalead-la-1 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$LA_QA/tests/ltiaas/golden/run-golden.mjs" \
+  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
+    --source "$REPO_SOURCE" \
     --sha "$BASE_SHA" \
     --label g-base-1 \
     --out "$SLOT2_DIR/captures/g-base-1" \
     --workdir "$SLOT2_DIR/clone-1" \
-    --replace-tests --tests-from "$LA_QA/tests" \
+    --replace-tests --tests-from "$OVERLAY_TESTS" \
   2>&1 | tee "$SLOT2_DIR/logs/capture-1.log"
 
 # Preserve private U1 seed state (mode 0600) from capture #1 for U1 upgrade verification
@@ -192,12 +215,13 @@ chmod 600 "$SLOT2_DIR/u1-seed-1b17261.json"
 
 # 2. Capture #2 on a second fresh stack (qalead-la-2, ~14 min)
 COMPOSE_PROJECT_NAME=qalead-la-2 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$LA_QA/tests/ltiaas/golden/run-golden.mjs" \
+  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
+    --source "$REPO_SOURCE" \
     --sha "$BASE_SHA" \
     --label g-base-2 \
     --out "$SLOT2_DIR/captures/g-base-2" \
     --workdir "$SLOT2_DIR/clone-2" \
-    --replace-tests --tests-from "$LA_QA/tests" \
+    --replace-tests --tests-from "$OVERLAY_TESTS" \
   2>&1 | tee "$SLOT2_DIR/logs/capture-2.log"
 
 # 3. Determinism compare (AC-LA-E0-03-04: 0 differences between capture #1 and capture #2, and vs stored 1b17261)
@@ -214,30 +238,58 @@ node "$LA_QA/tests/ltiaas/golden/compare.mjs" \
 
 ---
 
-### 4.2 Slot 3A: `LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`) Candidate Golden Capture & Compare on `f2e340e` (`qalead-la-3` — Est. `14 min`)
+### 4.2 Slot 3A: `LA-E0-03` (`AC-09`) & `LA-E7-08` (`AC-03`) Candidate Golden Capture & Compare (`qalead-la-3` — Est. `14 min`)
 
 - **Tasks & ACs:** `LA-E0-03` (`AC-LA-E0-03-09`), `LA-E7-08` (`AC-LA-E7-08-03`), plus host-only golden-binding ACs for `LA-E1-01` (`AC-03`), `LA-E1-02` (`AC-09`), `LA-E1-05` (`AC-01..06, 09`), `LA-E1-06` (`AC-05`), `LA-E1-07` (`AC-07`), `LA-E1-08` (`AC-01`), `LA-E1-09` (`AC-01`), `LA-E1-10` (`AC-01, 04`), `LA-E4-02` (`AC-08`), `LA-E4-05` (`AC-05`).
-- **Target SHA:** `f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f` (code `19d6dc4`, or current wave-end integration SHA)
+- **Target SHA:** `8c65424` / `144a566` (or newest green integration SHA at slot start; `b216f86` / `f2e340e` for E1-done)
+- **Full Expected-Delta Set:** `LA-IC-01`, `LA-IC-03`, `LA-IC-12`, `LA-IC-13`, `LA-IC-15`, `LA-IC-16`, `LA-IC-17`, `LA-IC-18`, `LA-IC-19`, `LA-IC-20` (updated), `LA-IC-21` (`19da95e` / `4d08fc1`), including `LA-IC-01` E2-K trait fields `endpoints`, `issuerKind`, `endpointOrigins` on `G1.*.providers.profiles[*]`.
 - **Compose Project:** `qalead-la-3` (`PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`)
 
 ```sh
 umask 077
-export TARGET_SHA="f2e340e0e5bce7e2071ca7d7dfecd92a40c12e5f"
+export TARGET_SHA="$(git -C /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone rev-parse HEAD)"
 export BASE_SHA="1b17261be97c4701b928fa9dc2fa74c6d23028f6"
 export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
+export REPO_SOURCE="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone"
 export SLOT3_DIR="$HOME/cogniate-qa-runs/LA/LA-E7-08/r1-docker"
 mkdir -p "$SLOT3_DIR/captures" "$SLOT3_DIR/logs" "$SLOT3_DIR/expected"
 
-# 1. Prepare expected-delta directory (all 8 approved LD-9 files + LA-IC-01 additive wire fields)
+# 0. Prepare clean test-overlay source with qalead-la-<n> runner-guard regex enabled (Lesson L1)
+export OVERLAY_TESTS="$SLOT3_DIR/tests-overlay"
+rm -rf "$OVERLAY_TESTS"
+cp -R "$LA_QA/tests" "$OVERLAY_TESTS"
+node -e '
+  const fs = require("fs");
+  for (const [f, from, to] of [
+    ["host/core.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
+    ["host/m1-control.mjs", "/^qa[234]?-[a-z0-9-]+$/", "/^(?:qa[234]?|qalead)-[a-z0-9-]+$/"],
+    ["host/run-t1.mjs", "/^qa-[a-z0-9-]+$/", "/^(?:qa|qalead)-[a-z0-9-]+$/"],
+    ["e2e/host/run-t7.mjs", "/^qa-e2e[a-z0-9-]*$/", "/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/"],
+  ]) {
+    const p = process.env.OVERLAY_TESTS + "/" + f;
+    if (fs.existsSync(p)) fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(from, to));
+  }
+'
+
+# 1. Prepare expected-delta directory (all 10 approved LD-9 files + LA-IC-01 additive wire & E2-K trait fields)
 cp "$LA_QA/tests/ltiaas/golden/expected/"*.json "$SLOT3_DIR/expected/"
 cat > "$SLOT3_DIR/expected/LA-IC-01.json" <<'EOF'
 {
   "id": "LA-IC-01",
-  "approval": "docs/reviews/LA-E1-02/qa.md, docs/reviews/LA-E1-05/qa.md, docs/reviews/LA-E1-06/qa.md",
+  "approval": "docs/reviews/LA-E1-02/qa.md, docs/reviews/LA-E1-05/qa.md, docs/reviews/LA-E1-06/qa.md, docs/reviews/LA-E2-01/qa.md",
   "changes": [
     { "file": "G1", "path": "default.providers.profiles[*].channel", "rule": "string" },
+    { "file": "G1", "path": "default.providers.profiles[*].endpoints", "rule": "string" },
+    { "file": "G1", "path": "default.providers.profiles[*].issuerKind", "rule": "string" },
+    { "file": "G1", "path": "default.providers.profiles[*].endpointOrigins", "rule": "present" },
     { "file": "G1", "path": "acceptance.providers.profiles[*].channel", "rule": "string" },
+    { "file": "G1", "path": "acceptance.providers.profiles[*].endpoints", "rule": "string" },
+    { "file": "G1", "path": "acceptance.providers.profiles[*].issuerKind", "rule": "string" },
+    { "file": "G1", "path": "acceptance.providers.profiles[*].endpointOrigins", "rule": "present" },
     { "file": "G1", "path": "providersAfter.profiles[*].channel", "rule": "string" },
+    { "file": "G1", "path": "providersAfter.profiles[*].endpoints", "rule": "string" },
+    { "file": "G1", "path": "providersAfter.profiles[*].issuerKind", "rule": "string" },
+    { "file": "G1", "path": "providersAfter.profiles[*].endpointOrigins", "rule": "present" },
     { "file": "G1", "path": "default.lmsProviders.lms[*].channel", "rule": "string" },
     { "file": "G1", "path": "default.lmsProviders.lms[*].channelName", "rule": "string" },
     { "file": "G1", "path": "default.lmsProviders.lms[*].channelCapabilities", "rule": "object" },
@@ -263,21 +315,22 @@ cat > "$SLOT3_DIR/expected/LA-IC-01.json" <<'EOF'
 }
 EOF
 
-# 2. Capture candidate G1-G4 on f2e340e (qalead-la-3, ~14 min)
+# 2. Capture candidate G1-G4 on $TARGET_SHA (qalead-la-3, ~14 min)
 COMPOSE_PROJECT_NAME=qalead-la-3 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 \
-  node "$LA_QA/tests/ltiaas/golden/run-golden.mjs" \
+  node "$OVERLAY_TESTS/ltiaas/golden/run-golden.mjs" \
+    --source "$REPO_SOURCE" \
     --sha "$TARGET_SHA" \
     --label "cand-${TARGET_SHA:0:7}" \
     --out "$SLOT3_DIR/captures/cand-${TARGET_SHA:0:7}" \
     --workdir "$SLOT3_DIR/clone-golden" \
-    --replace-tests --tests-from "$LA_QA/tests" \
+    --replace-tests --tests-from "$OVERLAY_TESTS" \
   2>&1 | tee "$SLOT3_DIR/logs/capture-candidate.log"
 
 # 3. Compare candidate capture against G-BASE with all approved LD-9 expected deltas + LA-IC-01 (< 1 s, 0 Docker)
 node "$LA_QA/tests/ltiaas/golden/compare.mjs" \
   --base "$LA_QA/tests/ltiaas/golden/$BASE_SHA" \
   --candidate "$SLOT3_DIR/captures/cand-${TARGET_SHA:0:7}" \
-  --expected "LA-IC-01,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20" \
+  --expected "LA-IC-01,LA-IC-03,LA-IC-12,LA-IC-13,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21" \
   --expected-dir "$SLOT3_DIR/expected" \
   --sim-hosts "$LA_QA/tests/sim/hosts.json" \
   2>&1 | tee "$SLOT3_DIR/logs/compare-candidate-vs-gbase.log"

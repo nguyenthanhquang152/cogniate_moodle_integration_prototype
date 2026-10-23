@@ -9,8 +9,7 @@
       "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#41-get-apiidtoken-31",
       "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#42-deep-linking-32"
     ],
-    "goldenFields": [],
-    "goldenFieldsPendingAppPart": [
+    "goldenFields": [
       "G4.blackboard.pages.picker.text",
       "G4.canvas.pages.picker.text"
     ],
@@ -36,5 +35,16 @@
     ],
     "scanResult": "Service part (LA-E3-04, 3344520): 0 golden changes and 0 frozen-test changes (no frozen acceptance, e2e, or host test sends contentItems: [] expecting 400 or asserts whole-object equality on launch.deepLinkingSettings; the 3 Author unit test files lti/deep-linking.test.ts, http/routes/compat.test.ts, and lti/idtoken.test.ts updated for positive empty-list and acceptLineItem/acceptMediaTypes coverage). App picker part (LA-E3-05, when it lands): will add the Cancel button text to G4.{blackboard,canvas}.pages.picker.text."
   },
-  "changes": []
+  "changes": [
+    {
+      "file": "G4",
+      "path": "blackboard.pages.picker.text",
+      "value": "Select a Cogniate course Select a Cogniate course Blackboard course: QA course Choose one course M1 course-<id:1> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:2> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:3> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:4> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:5> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:6> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:7> HTML Version 1 Add to Blackboard Cancel"
+    },
+    {
+      "file": "G4",
+      "path": "canvas.pages.picker.text",
+      "value": "Select a Cogniate course Select a Cogniate course Canvas course: QA course Choose one course M1 course-<id:8> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:9> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:10> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:11> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:12> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:13> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:14> HTML Version 1 Add to Canvas Cancel"
+    }
+  ]
 }

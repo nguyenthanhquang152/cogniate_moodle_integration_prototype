@@ -328,7 +328,7 @@ test('LA-IC-15 (LA-E4-03): G3 B-conflict score 409 lastError names the connectio
 
 test('LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12 (LA-E3-04), LA-IC-13 (LA-E3-12), LA-IC-14 (LA-E3-09/15), LA-IC-17 (BD-A1-41), LA-IC-18 (BD-A1-50), LA-IC-19 (BD-A1-57), LA-IC-20 (BD-A1-63/81), and LA-IC-21 (BD-A1-93): expected-delta LD-9 records load cleanly and explain their golden and frozen-test changes', () => {
   const base = load(baseDir);
-  for (const id of ['LA-IC-03', 'LA-IC-12', 'LA-IC-13', 'LA-IC-17', 'LA-IC-18', 'LA-IC-19', 'LA-IC-20', 'LA-IC-21']) {
+  for (const id of ['LA-IC-03', 'LA-IC-13', 'LA-IC-17', 'LA-IC-18', 'LA-IC-19', 'LA-IC-20', 'LA-IC-21']) {
     const delta = loadExpectedDelta(id);
     assert.equal(delta.id, id);
     assert.deepEqual(delta.changes, []);
@@ -350,10 +350,18 @@ test('LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12 (LA-E3-04), LA-IC-13 (L
   assert.ok(ic03.ld9.scanChecked.some((s) => s.includes('tests/acceptance/T3b/3-negative.spec.ts:32-70')));
   const ic12 = loadExpectedDelta('LA-IC-12');
   assert.equal(ic12.ld9.authorUnitTestChanges.length, 3);
-  assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
-    'G4.blackboard.pages.picker.text',
-    'G4.canvas.pages.picker.text',
-  ]);
+  if (ic12.changes.length === 0) {
+    assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
+      'G4.blackboard.pages.picker.text',
+      'G4.canvas.pages.picker.text',
+    ]);
+  } else {
+    assert.equal(ic12.changes.length, 2);
+    assert.deepEqual(ic12.ld9.goldenFields, [
+      'G4.blackboard.pages.picker.text',
+      'G4.canvas.pages.picker.text',
+    ]);
+  }
   const ic13 = loadExpectedDelta('LA-IC-13');
   assert.equal(ic13.ld9.authorUnitTestChanges.length, 6);
   assert.ok(ic13.ld9.scanChecked.length >= 14);
@@ -456,8 +464,15 @@ test('LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12 (LA-E3-04), LA-IC-13 (L
     '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Blackboard has a grade with a newer time)';
   candAll.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
     '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Canvas has a grade with a newer time)';
+  for (const ch of ic12.changes) {
+    if (ch.file === 'G4' && ch.path === 'blackboard.pages.picker.text') {
+      candAll.G4.blackboard.pages.picker.text = ch.value;
+    } else if (ch.file === 'G4' && ch.path === 'canvas.pages.picker.text') {
+      candAll.G4.canvas.pages.picker.text = ch.value;
+    }
+  }
   const resAll = compareCaptures(base, candAll, allDeltas);
   assert.equal(resAll.ok, true);
-  assert.equal(resAll.differences.length, 19);
+  assert.equal(resAll.differences.length, 19 + ic12.changes.length);
   assert.deepEqual(resAll.missing, []);
 });
