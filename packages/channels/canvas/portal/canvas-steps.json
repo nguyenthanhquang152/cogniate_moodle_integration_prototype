@@ -38,7 +38,7 @@
       "title": "Register Cogniate in {LMS}",
       "verified": false,
       "instructions": [
-        "Select Get registration URL, then copy the URL.",
+        "Copy the registration URL. If there is no URL, or the URL expired, select Get registration URL.",
         "In {LMS}, open Admin, select your account, then open Developer Keys.",
         "Select + Developer Key, then + LTI Registration. Paste the registration URL and complete the steps in {LMS}.",
         "Come back to this page. When {LMS} sends the registration, the next step shows the Client ID and the Deployment ID."

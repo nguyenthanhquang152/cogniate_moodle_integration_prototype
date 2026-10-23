@@ -271,7 +271,12 @@ it("AC-LA-E3-16-02: shows the registration URL step instead of the developer key
   fetchMock.mockResolvedValue(json({ registrationUrl: "https://lti.test/register?ref=abc", expiresAt: "2026-10-24T05:00:00Z" }));
   const view = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform: null }), onChanged }))));
   expect(screen.getByRole("heading", { name: "Register Cogniate in Canvas" })).toBeTruthy();
-  expect(document.querySelector('[data-step-id="canvas-registration"] ol')!.textContent).toContain("Select + Developer Key, then + LTI Registration.");
+  expect([...document.querySelectorAll('[data-step-id="canvas-registration"] li')].map((item) => item.textContent)).toEqual([
+    "Copy the registration URL. If there is no URL, or the URL expired, select Get registration URL.",
+    "In Canvas, open Admin, select your account, then open Developer Keys.",
+    "Select + Developer Key, then + LTI Registration. Paste the registration URL and complete the steps in Canvas.",
+    "Come back to this page. When Canvas sends the registration, the next step shows the Client ID and the Deployment ID.",
+  ]);
   expect(screen.queryByRole("heading", { name: "Make a developer key in Canvas" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Copy Registration URL" })).toBeNull();
@@ -286,6 +291,14 @@ it("AC-LA-E3-16-02: shows the registration URL step instead of the developer key
   expect(screen.getByRole("button", { name: "Get registration URL" })).toBeTruthy();
   // No developer key JSON request at any time.
   expect(fetchMock.mock.calls.some(([url]) => String(url).includes("canvas-configuration"))).toBe(false);
+});
+
+it("AC-LA-E3-16-02: shows the URL and its expiry at once when the create answer has the URL (BD-A1-106)", () => {
+  render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform: null, registrationUrl: "https://lti.test/register?ref=new", registrationUrlExpiresAt: "2026-10-24T06:00:00Z" }) }))));
+  expect(screen.getByRole("button", { name: "Copy Registration URL" })).toBeTruthy();
+  expect(screen.getByText(`This URL expires ${new Date("2026-10-24T06:00:00Z").toLocaleString()}.`)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Get registration URL" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
 });
 
 it("AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits without inputs before the platform is staged", async () => {
