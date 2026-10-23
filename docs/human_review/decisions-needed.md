@@ -127,13 +127,26 @@ The charter does not require human permission before the authorized corrections.
 
 Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
 
-**Current status:** the blocking design findings of G1 are closed. The Lead accepts the storage design for implementation.
-Implementation and all runtime checks are still open. See [G1 current status](#g1-current-status-design-accepted-for-implementation).
+**Current status — 2026-10-23:** G1's blocking design findings are closed. The source implementation passed review.
+M1, M2 and legacy checks are accepted. Final T7 testing and prototype storage acceptance remain pending.
 
-The two G1 history parts below keep the earlier records. Their UNRESOLVED and "open" statements were true at that time.
+M1 has two matching fresh runs of 394 tests, plus 94 separately carried C4 results.
+The carried results include all 72 storage criteria rows. They are not fresh C6 runs.
+The [Architect's evidence assessment](../reviews/M4/architect-conformance.md#r68-review-of-the-qa-carried-evidence-mapping-for-adr-012-about-0417-utc) closes the four precision findings within their stated limits.
+
+G-1 applies only to the measured host and tool identities. Docker volumes have no generation id.
+The `content_check_failed` result has unit evidence. The lost-lock exit has host fault-injection evidence.
+Neither has a corresponding runtime fault result.
+
+The [completion audit](../team/prototype-completion-audit-2026-10-23.md) lists the remaining final checks.
+This checkpoint grants no human approval, production acceptance, push or main merge.
+
+All G1 records below are historical snapshots. Their queued, UNRESOLVED and "open" statements were true at that time.
 They do not give the current status.
 
 #### G1 current status: design accepted for implementation
+
+Historical checkpoint, 2026-10-21. The heading remains for existing links; the current status is above.
 
 Updated by Docs on 2026-10-21 from the Lead decision at commit `5f3337a`.
 The Architect's bounded revision 3.2 of ADR-012 is frozen at commit `d0bdda0` ([response](../architecture/review-response-storage.md#g1-bounded-correction-r3b-01-a-s-13-b-s-22-adr-012-revision-32)).
@@ -218,7 +231,7 @@ Reviewer-A separately accepted the complete follow-up evidence.
 
 #### G1 history: Round 3
 
-History: this was the status at commit `9124cfd`. For the current status, see [G1 current status](#g1-current-status-design-accepted-for-implementation).
+History: this was the status at commit `9124cfd`. For the current status, see [the G1 checkpoint above](#g1-storage-design-blocking-design-findings-closed).
 
 Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at commit `7f2c2c5`.
 
@@ -250,7 +263,7 @@ Add any new BLOCKER or MAJOR from that check to G1.
 
 #### G1 history: first bounded check (revision 3.1)
 
-History: this was the status at commit `0810b84`, before revision 3.2. For the current status, see [G1 current status](#g1-current-status-design-accepted-for-implementation).
+History: this was the status at commit `0810b84`, before revision 3.2. For the current status, see [the G1 checkpoint above](#g1-storage-design-blocking-design-findings-closed).
 
 The Architect's bounded revision 3.1 is frozen at commit `a65a4ee` ([response](../architecture/review-response-storage.md#round-3-bounded-corrections-to-the-round-3-rechecks-adr-012-revision-31)).
 On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked their findings against that exact commit.
