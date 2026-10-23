@@ -59,7 +59,7 @@ describe('AC-LA-E2-03-06: the admin-value strict body', () => {
     expect(setup.parseBindingBody(without(['jwksUrl', 'grantCode']), ctx)).toEqual({ ok: false, fields: ['jwksUrl', 'grantCode'] });
     expect(setup.parseBindingBody({ ...full, authenticationEndpoint: 'http://lms.school.edu/auth', clientId: 'has space', grantCode: 'short' }, ctx))
       .toEqual({ ok: false, fields: ['clientId', 'authenticationEndpoint', 'grantCode'] });
-    expect(setup.parseBindingBody({ ...full, issuer: 'https://other.school.edu/sakai' }, ctx)).toEqual({ ok: false, fields: ['issuer'], reason: 'origin' });
+    expect(setup.parseBindingBody({ ...full, issuer: 'https://other.school.edu/sakai' }, ctx)).toEqual({ ok: false, fields: ['issuer'], reason: 'issuerOrigin' });
     expect(setup.parseBindingBody([full], ctx)).toEqual({ ok: false, fields: ['body'] });
   });
 
@@ -113,7 +113,7 @@ describe('LA-E2-03 fix round 1: blank optional values and filled defaults', () =
     }
     // A valid https default on another origin keeps the origin refusal.
     const other = { ...manifest, setup: { ...manifest.setup, bindingFields: [{ key: 'issuer', label: 'Issuer', kind: 'url', required: true, method: 'manual', default: 'https://other.school.edu/issuer' }] } } as ChannelManifest;
-    expect(adminValueSetup(other, registry.capabilities('zz-admin')).parseBindingBody(without(['issuer']), ctx)).toEqual({ ok: false, fields: ['issuer'], reason: 'origin' });
+    expect(adminValueSetup(other, registry.capabilities('zz-admin')).parseBindingBody(without(['issuer']), ctx)).toEqual({ ok: false, fields: ['issuer'], reason: 'issuerOrigin' });
   });
 });
 

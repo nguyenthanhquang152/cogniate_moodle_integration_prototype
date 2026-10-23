@@ -66,8 +66,9 @@ it('the tool configuration gives the eight generic rows; the strict body refuses
   const refused = async (b: Json) => { const r = await put(b); return [r.statusCode, r.json().details.message, r.json().details.fields, r.json().details.description]; };
   expect(await refused({ ...body, extra: 'x' })).toEqual([422, 'INVALID_PLATFORM_VALUES', ['extra'], 'Some values are missing or not valid.']);
   expect(await refused({ ...body, jwksUrl: undefined })).toEqual([422, 'INVALID_PLATFORM_VALUES', ['jwksUrl'], 'Some values are missing or not valid.']);
+  // B-LA-E2-03-03: the issuer has its own sentence; the token URL on another host is allowed.
   expect(await refused({ ...body, issuer: 'https://other.school.edu/sakai' }))
-    .toEqual([422, 'INVALID_PLATFORM_VALUES', ['issuer'], 'The URLs must be https and on the your LMS site of this connection.']);
+    .toEqual([422, 'INVALID_PLATFORM_VALUES', ['issuer'], 'The issuer must have the same https origin as the site URL of this connection.']);
   expect(t.lti.calls).toEqual(expect.not.arrayContaining([expect.stringMatching(/^POST platform/)]));
   expect(TEST_CHANNELS.appAdapter('lti-generic')).toBeNull();
 });

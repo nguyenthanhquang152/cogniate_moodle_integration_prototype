@@ -107,7 +107,7 @@ export function adminValueSetup(manifest: ChannelManifest, capabilities: Capabil
       const v = parsed.values;
       // The issuer may have a path; its origin must be the connection site. Other endpoints may be on another https
       // host (`endpointOrigins: any-https`); the LTI service checks their hosts, and the grant binds them.
-      if (new URL(v.issuer!).origin !== ctx.siteUrl) return { ok: false, fields: ['issuer'], reason: 'origin' };
+      if (new URL(v.issuer!).origin !== ctx.siteUrl) return { ok: false, fields: ['issuer'], reason: 'issuerOrigin' };
       const adminValues: AdminValues = {
         issuer: v.issuer!, authenticationEndpoint: v.authenticationEndpoint!, accessTokenEndpoint: v.accessTokenEndpoint!, jwksUrl: v.jwksUrl!,
         ...(v.tokenAudience !== undefined ? { tokenAudience: v.tokenAudience } : {}),

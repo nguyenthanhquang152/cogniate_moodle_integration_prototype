@@ -94,8 +94,10 @@ export interface PlatformBodyValues {
 /**
  * Values or all unknown, missing and malformed body keys (422 INVALID_PLATFORM_VALUES).
  * reason:'origin' is only for URL-origin failures; core owns both frozen error descriptions (BD-A1-35).
+ * reason:'issuerOrigin' is an admin-value issuer off the site origin; the other endpoints may be on another https host
+ * (B-LA-E2-03-03), so it has its own core description.
  */
-export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' };
+export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' | 'issuerOrigin' };
 
 export interface PlatformBodyContext {
   /** The connection site origin used to check typed endpoint origins. */
