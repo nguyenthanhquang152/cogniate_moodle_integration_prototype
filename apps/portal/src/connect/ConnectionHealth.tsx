@@ -25,6 +25,10 @@ export function healthWarnings(health: Health, now = Date.now()): ("staleKey" | 
   ];
 }
 
+/** A health answer has these parts; any other answer counts as "not available" (the page never fails on it). */
+const isHealth = (value: unknown): value is Health => typeof value === "object" && value !== null
+  && typeof (value as Health).dispatch === "object" && (value as Health).dispatch !== null
+  && typeof (value as Health).keys === "object" && (value as Health).keys !== null && Array.isArray((value as Health).events);
 const time = (value: string | null) => value === null ? "none" : new Date(value).toLocaleString();
 const passed = (ok: boolean) => ok ? "ok" : "failed";
 
@@ -35,7 +39,10 @@ const passed = (ok: boolean) => ok ? "ok" : "failed";
  */
 export function ConnectionHealth({ connection }: { connection: Connection }) {
   const { registry } = useChannels();
-  const { data, error, reload } = useApi<Health>(`/connections/${idPath(connection.id)}/health`);
+  const answer = useApi<unknown>(`/connections/${idPath(connection.id)}/health`);
+  const { reload } = answer;
+  const data = isHealth(answer.data) ? answer.data : undefined;
+  const error = answer.error ?? (answer.data !== undefined && !data ? new Error("not a health answer") : null);
   const manifest = registry.channel(channelOf(connection));
   const text = (value: string) => fillText(value, { LMS: manifest?.names.text ?? "your LMS" });
   const warnings = data ? healthWarnings(data) : [];

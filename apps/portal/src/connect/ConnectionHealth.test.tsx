@@ -77,11 +77,15 @@ describe("connection health warnings (LA-ADR-08 D5; AC-LA-E6-02-08)", () => {
     ]);
   });
 
-  it("says when the health cannot be read, without an alert", async () => {
-    fetchMock.mockResolvedValue(json({ details: { message: "LTI_SERVICE_ERROR", description: "x" } }, 502));
+  it.each([
+    ["a refusal", json({ details: { message: "LTI_SERVICE_ERROR", description: "x" } }, 502)],
+    ["an answer of another shape", json({ id: "con_canvas", status: "connected" })],
+  ])("says when the health cannot be read (%s), without an alert", async (_name, reply) => {
+    fetchMock.mockResolvedValue(reply);
     render(<ConnectionHealth connection={connection()} />);
     expect(await screen.findByText(/The connection health is not available/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Load the connection health again" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+    expect(document.querySelectorAll("[data-health-warning]")).toHaveLength(0);
   });
 });
