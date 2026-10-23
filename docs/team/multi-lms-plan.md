@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 02:35 UTC
+### Current directive — 2026-10-23, 02:51 UTC
+
+Both blind Claude reviews approve C9 and v5 with no BLOCKER or MAJOR (`e81fb2b`, `4b571d9`).
+The Lead accepts [E-R7](r7-m1-verification-2026-10-23.md) for two fresh 394-row M1 rounds with 94 separate carried rows.
+Common Gemini `ctx_45c8bf2cadf6` prepares the retained session for these rounds; each still needs its own grant.
+
+Claude's §13 assessment requires a small private lane-monitor repair and one M2 rerun. Attempt 3 stays NOT ACCEPTED.
+Independent Gemini `ctx_8449a3df3e54` owns that host-only repair under `msg_71a79a38b36b`; old tools and failed evidence stay intact.
+M1 and legacy do not use the affected concurrent monitor path. C8, C9 and product code remain unchanged.
+T7 waits for the repaired monitor and a separate grant. Final conformance, guides and final independent checks remain pending.
+All real-LMS limits, model roles and the no-push rule remain unchanged.
+
+### Prior directive — 2026-10-23, 02:35 UTC
 
 C9 and the v5 launcher are frozen. Common Gemini completed host-only preparation; the Lead verified its 58-entry manifest.
 Claude Reviewer-A `ctx_de7c7933e455` and Reviewer-B `ctx_ba563ee9afc1` now review the same source and launcher independently.
