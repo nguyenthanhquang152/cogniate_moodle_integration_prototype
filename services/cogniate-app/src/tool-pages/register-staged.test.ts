@@ -79,6 +79,25 @@ describe('the staged Dynamic Registration (LA-ADR-02 D5 item 10)', () => {
     expect(getConnectionAnyLibrary(t.db, c.id)!.platform!.id).toBe('plt_staged');
   });
 
+  it('A1 BD-A1-108: brightspace is staged by I-SELF, not by policy: a same-origin configuration completes active with self', async () => {
+    const { pending, post } = await world();
+    t.lti.providers.push({ id: 'brightspace', lms: 'brightspace', label: 'D2L Brightspace', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
+      accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null, endpoints: 'admin' });
+    const D2L = 'https://d2l.school.edu';
+    // The control: every endpoint on the issuer origin, so the LTI service completes active and the connection is self.
+    const same = await pending('brightspace', D2L);
+    const done = await post(t.lti.addRegistration({ url: D2L, familyCode: 'desire2learn' }), same.ref);
+    expect(done.body).toContain('data-connection-status="registered"');
+    const complete = JSON.parse(t.lti.calls.filter((x) => x.startsWith('POST complete')).at(-1)!.replace(/^POST complete \S+ /, '')) as Json;
+    expect(complete).toMatchObject({ profile: 'brightspace', scopes: TEST_CHANNELS.capabilities('brightspace')['registration.scopes'] });
+    expect(t.db.prepare('SELECT status, binding_authority FROM connection WHERE id = ?').get(same.id)).toEqual({ status: 'registered', binding_authority: 'self' });
+    // The real D2L shape (token host off the issuer origin): staged, and the authority becomes operatorGrant.
+    const real = await pending('brightspace', 'https://d2l-two.school.edu');
+    const staged = await post(t.lti.addRegistration({ url: 'https://d2l-two.school.edu', familyCode: 'desire2learn', stage: { ...STAGE, accesstokenEndpoint: 'https://auth.brightspace.test/core/connect/token' } }), real.ref);
+    expect(staged.body).toContain('data-connection-status="pending"');
+    expect(t.db.prepare('SELECT status, binding_authority FROM connection WHERE id = ?').get(real.id)).toEqual({ status: 'pending', binding_authority: 'operatorGrant' });
+  });
+
   it('an inactive platform without our binding ref keeps the A-T4b1-03 refusal; Moodle completes as today', async () => {
     const { pending, post } = await world();
     const c = await pending('lti-generic', SITE);

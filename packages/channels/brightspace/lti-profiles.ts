@@ -1,6 +1,7 @@
 // The `brightspace` profile (LA-ADR-02 D4): D2L Brightspace with admin values and one issuer per tenant (the site
 // URL). The D2L token host is off the issuer origin (`any-https`), so every binding needs an operator grant that binds
-// each value (D2a, D6): a Dynamic Registration is always staged. Facts and sources: README.md.
+// each value (D2a, D6). A Dynamic Registration is staged by I-SELF for every real D2L configuration (A1 BD-A1-108).
+// Facts and sources: README.md.
 import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const profiles = [
