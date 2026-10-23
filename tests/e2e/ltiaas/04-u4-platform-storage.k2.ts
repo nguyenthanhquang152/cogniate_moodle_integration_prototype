@@ -24,7 +24,7 @@ import {
 } from './lib/k2';
 
 const STORAGE_HELP_TEXT =
-  'Your browser blocked the launch state in both cookies and platform storage. Open the activity in a new tab, or allow cookies for this site.';
+  'Your browser blocked the Cogniate sign-in in this frame. Open the activity in a new window, or allow cookies for this site.';
 
 k2Case(
   'U4.platform-storage.positive',
@@ -64,7 +64,7 @@ k2Case(
     const toolFrame = await waitForFrame(
       page,
       (u) => u.origin === APP && (embeddedPath.test(u.pathname) || playPath.test(u.pathname)),
-      45_000,
+      10_000,
     );
     await expect(toolFrame.getByText('Open in a new window').first()).toBeVisible({ timeout: 15_000 });
 

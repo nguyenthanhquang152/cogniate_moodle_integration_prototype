@@ -15,6 +15,7 @@ import {
   ok,
   portalSignIn,
   session,
+  sharedPlatform,
   shot,
   type Json,
 } from './lib/k2';
@@ -76,6 +77,7 @@ k2Case(
   'U1.card-copy-and-action',
   'every channel card renders its manifest card.title, card.description, card.mark, and Connect action routing to /integrations/:channelId/connect',
   async ({ page }) => {
+    await sharedPlatform();
     const registry = await loadProductChannelRegistry(false);
     const manifests = [...registry.channels()].sort((a, b) => a.card.order - b.card.order);
 
