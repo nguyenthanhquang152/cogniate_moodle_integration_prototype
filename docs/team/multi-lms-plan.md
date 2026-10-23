@@ -13,7 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 01:24 UTC
+### Current directive — 2026-10-23, 01:52 UTC
+
+The Claude quota blocker is resolved for the planning deliverable: the all-seven repair plan is committed at `5116227`.
+Common Gemini `ctx_b34c29c515f2` owns the six test paths in `t6-09-failure-plan.md` §12.3 and private v5 launcher preparation.
+Its task is host-only. The Lead commits its held source; two blind Claude reviews precede M1 runtime.
+Use two future provider-all SIM rounds of 394 rows each, plus 94 carried C4 rows. Independent Gemini judges every fresh row.
+This selection is accepted; the M1 runtime route and each invocation still need explicit Lead decisions.
+
+[E-R6](r6-independent-verification-2026-10-23.md) applies only to M2/T7 at C8 tests and C6 product.
+Independent Gemini `ctx_8449a3df3e54` has the separate M2 grant `msg_4dd81c22cc1a` for 01:46–02:07 UTC and is in preflight.
+T7 remains ungranted. LA confirmed its stack is down and holds starts for the agreed 01:46–02:25 UTC window.
+No overlapping LTI runtime, automatic retry, test weakening or inherited E-R5 exception is authorized.
+All accepted evidence and failed history remain. Final conformance, guides, Docs QA and two blind final reviews remain required.
+The user's model roles, real-LMS limits and no-push rule remain unchanged.
+
+### Prior directive — 2026-10-23, 01:24 UTC
 
 The user resumed the goal. Architect retry `ctx_49da070f64c0` started on the same task using Claude Opus 5.5 xhigh after the quota stop.
 Read the current continuation brief and corrected v3 diagnosis. Complete the bounded repair plan first; do not repeat completed source reviews.

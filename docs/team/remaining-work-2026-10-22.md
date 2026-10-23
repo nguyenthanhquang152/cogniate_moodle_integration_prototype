@@ -2,7 +2,27 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 01:24 UTC
+## Current checkpoint — 2026-10-23, 01:52 UTC
+
+Claude completed the seven-case repair plan. The Lead committed the plan and conformance checkpoint at `5116227`.
+The diagnosis is a test-harness defect: graceful restart can let the old handler clear its lease before exit.
+No product change is planned. Common Gemini `task_4acf2acaf2b9` / `ctx_b34c29c515f2` owns the six test paths in plan §12.3.
+It will run host-only checks, hold the source for a Lead commit, and prepare the private v5 launcher.
+Two blind Claude reviews must approve the repair and launcher before any new M1 runtime grant.
+
+Independent Gemini `ctx_8449a3df3e54` resumed in its retained session. Its 84-entry readiness manifest passed.
+[E-R6](r6-independent-verification-2026-10-23.md), committed at `7df8ba4`, permits separate M2 and T7 invocations at C8 tests and C6 product.
+M2 has grant `msg_4dd81c22cc1a` for 01:46–02:07 UTC and is in preflight. No runner start or PASS is claimed.
+T7 has no grant yet. LA confirmed its stack is down and holds new starts during the agreed 01:46–02:25 window.
+Runtime phases remain serial. Test repair and source review are host-only parallel work.
+
+Remaining sequence: repair and two reviews; two fresh M1 SIM rounds; M2 and T7 closure; final conformance; final guide stamps, Docs QA and two blind reviews.
+The selected M1 rounds each cover 394 rows: 26 common, 136 Blackboard and 232 Canvas.
+The final M1 ledger will distinguish these fresh rows from 94 carried C4 rows. Independent Gemini will judge all 394 rows and round equality.
+M1 still needs a new route decision after the repair and launcher reviews. No E-R5 shared-host exception is adopted by this checkpoint.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 01:24 UTC
 
 The user resumed the goal after more than five hours. The Lead confirmed that all prior attempts were settled and the integration checkout had no new changes.
 Claude Architect retry `ctx_49da070f64c0` started on the same task with effective model Opus 5.5 and xhigh effort.
