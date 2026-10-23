@@ -1,5 +1,7 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { PublicUrls } from '@cogniate/shared';
 import { canonicalOrigin, hostOf } from '@cogniate/shared';
+import { servedByKernel } from '../kernel/setup.ts';
 import { toolContext } from '../kernel/setup/common.ts';
 // Provider data of a binding (app contract §4.7.1 "Target", §4.7.3; accepted B-M1-03 design). The provider snapshot is
 // taken ONCE, at create, from that request's one GET /api/providers answer. Phase 1 of a redemption builds the target
@@ -178,6 +180,14 @@ export function holdsBoundValues(p: LtiPlatform, bound: AdminValues): boolean {
  */
 export const stagedRegistration = (c: Pick<Connection, 'method' | 'bindingAuthority' | 'platform'>): boolean =>
   c.method === 'dynamic' && c.bindingAuthority === 'operatorGrant' && c.platform !== null;
+
+/**
+ * A1 BD-A1-107: a staged registration of an admin-value channel (served by the kernel adapter). Only its grant binds the
+ * staged values (`--accept-staged`). A staged registration of a fixed-endpoint profile (Canvas, LA-ADR-05 D6) binds no
+ * values: the redemption adopts it with the fixed target (snapshot issuer, site and service URL; rule A3).
+ */
+export const adminValueStaged = (channels: ChannelRegistry, c: Pick<Connection, 'method' | 'bindingAuthority' | 'platform' | 'channel'>): boolean =>
+  stagedRegistration(c) && servedByKernel(channels, c.channel);
 
 /** The fields whose host is not the issuer host (LA-ADR-02 D6, Reviewer-A A-LAD-23): the operator confirms them. */
 export function foreignHostFields(values: AdminValues): string[] {
