@@ -1,6 +1,8 @@
 // LA-E3-05 (LA-ADR-05 D3a, D3b, D3c; data model §5b): picker Cancel, multi-select and the not-graded page.
 import { makeZip } from '@cogniate/package-inspector/testing';
+import { sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import type { TestApp } from '../testkit.ts';
 import { DL_RETURN, INSTRUCTOR, QA_B, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
 import { PICKER_ERRORS } from './picker.ts';
@@ -82,6 +84,26 @@ const radios = (body: string) => [...body.matchAll(/type="radio" name="publicati
 const checkboxes = (body: string) => [...body.matchAll(/type="checkbox" name="publicationId" value="(pub_[^"]+)"/g)].map((m) => m[1]);
 const cancelForm = (id: string) => `<form method="post" action="/tool/picker/${id}/cancel">\n  <button type="submit" data-cancel>Cancel</button>\n  </form>`;
 const rejected = (traceId: string) => t.logs.filter((l) => l.trace_id === traceId && l.event === 'picker_rejected');
+
+/** The claim state of a picker: used or not, and its pick rows (publication ids, sorted). */
+const claimState = (id: string) => ({
+  used: (t.db.prepare('SELECT used_at FROM picker_session WHERE id = ?').get(sha256Hex(id)) as { used_at: number | null }).used_at !== null,
+  picks: (t.db.prepare('SELECT publication_id FROM picker_pick WHERE picker_id_hash = ? ORDER BY publication_id').all(sha256Hex(id)) as Array<{ publication_id: string }>)
+    .map((r) => r.publication_id),
+});
+
+/**
+ * B-LA-E3-05-01: fail the Deep Linking call itself, not the token lookup before it. `seen` keeps the claim state at the
+ * moment of the call, so a test proves that the release after the error removes a real claim and its picks.
+ */
+function failDeepLinking(id: string) {
+  const seen: Array<ReturnType<typeof claimState>> = [];
+  const spy = vi.spyOn(t.lti.client, 'deepLinking').mockImplementationOnce(async () => {
+    seen.push(claimState(id));
+    throw new LtiServiceError(502, 'PLATFORM_ERROR', '');
+  });
+  return { spy, seen };
+}
 
 describe('multi-select (LA-ADR-05 D3b)', () => {
   it('content.multiple and acceptMultiple: checkboxes; three picks give one answer with three items in list order (AC-LA-E3-05-01 at unit level)', async () => {
@@ -212,13 +234,30 @@ describe('multi-select (LA-ADR-05 D3b)', () => {
   it('a failed Deep Linking call releases the claim and its picks; the retry sends the same items', async () => {
     const w = await world('lti-generic');
     const id = await openPicker(w.a.platformId, { acceptMultiple: true });
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(id);
     const failed = await pick(id, [w.pubs[0], w.pubs[1]]);
     expect([failed.statusCode, pageCode(failed.body)]).toEqual([502, 'LTI_SERVICE_ERROR']);
-    expect(count('SELECT COUNT(*) AS n FROM picker_pick')).toBe(0);
-    expect(t.db.prepare('SELECT used_at FROM picker_session').get()).toEqual({ used_at: null });
+    // The call failed after the claim: the picker was used and held both picks then.
+    expect(fault.spy).toHaveBeenCalledTimes(1);
+    expect(fault.seen).toEqual([{ used: true, picks: [w.pubs[0], w.pubs[1]].sort() }]);
+    // The release removed the claim and its picks.
+    expect(claimState(id)).toEqual({ used: false, picks: [] });
     expect((await pick(id, [w.pubs[0], w.pubs[1]])).statusCode).toBe(200);
-    expect(count('SELECT COUNT(*) AS n FROM picker_pick')).toBe(2);
+    expect(fault.spy).toHaveBeenCalledTimes(2);
+    expect(fault.spy.mock.calls[1]![1]).toEqual(fault.spy.mock.calls[0]![1]);
+    expect(claimState(id)).toEqual({ used: true, picks: [w.pubs[0], w.pubs[1]].sort() });
+  });
+
+  it('a failed token lookup gives LTI_SERVICE_ERROR before any claim: no Deep Linking call, the picker stays usable', async () => {
+    const w = await world('lti-generic');
+    const id = await openPicker(w.a.platformId, { acceptMultiple: true });
+    const deepLinking = vi.spyOn(t.lti.client, 'deepLinking');
+    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' }; // the next fake call is GET /api/idtoken
+    const failed = await pick(id, [w.pubs[0], w.pubs[1]]);
+    expect([failed.statusCode, pageCode(failed.body)]).toEqual([502, 'LTI_SERVICE_ERROR']);
+    expect(deepLinking).not.toHaveBeenCalled();
+    expect(claimState(id)).toEqual({ used: false, picks: [] });
+    expect((await pick(id, [w.pubs[0], w.pubs[1]])).statusCode).toBe(200);
   });
 });
 
@@ -290,11 +329,13 @@ describe('Cancel (LA-ADR-05 D3a)', () => {
   it('a failed Deep Linking call releases the cancel; a retry works', async () => {
     const w = await world();
     const id = await openPicker(w.a.platformId);
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(id);
     const r = await cancel(id);
     expect([r.statusCode, pageCode(r.body)]).toEqual([502, 'LTI_SERVICE_ERROR']);
-    expect(t.db.prepare('SELECT used_at FROM picker_session').get()).toEqual({ used_at: null });
+    expect(fault.seen).toEqual([{ used: true, picks: [] }]);
+    expect(claimState(id)).toEqual({ used: false, picks: [] });
     expect((await cancel(id)).statusCode).toBe(200);
+    expect(fault.spy).toHaveBeenCalledTimes(2);
   });
 });
 
