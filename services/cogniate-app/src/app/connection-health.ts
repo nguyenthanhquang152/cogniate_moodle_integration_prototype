@@ -5,7 +5,7 @@ import type { Logger } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
 import type { LtiClient } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
-import type { ConnectionStatus } from '../domain/connections.ts';
+import type { Connection, ConnectionStatus } from '../domain/connections.ts';
 import { getConnection } from '../domain/connections.ts';
 import { checkEventParts, listConnectionEvents } from '../domain/connection-events.ts';
 import { TOOL_ACCOUNT } from '../kernel/setup/common.ts';
@@ -60,6 +60,27 @@ function dispatchState(db: Db, connectionId: string, now: number): ConnectionHea
   };
 }
 
+/** The health of one connection of its library (no outbound call). `activeKid`: the active tool key id, or null. */
+export function readConnectionHealth(db: Db, c: Connection, activeKid: string | null, now: number): ConnectionHealth {
+  const events = listConnectionEvents(db, c.libraryId, c.id);
+  const refusal = events.find((event) => event.kind === 'launch_refused' || event.kind === 'deep_link_refused');
+  const check = events.find((event) => event.kind === 'check');
+  const artifact = db.prepare('SELECT artifact_key_kid FROM connection WHERE id = ? AND library_id = ?').get(c.id, c.libraryId);
+  const artifactKeyKid = artifact?.artifact_key_kid === null || artifact?.artifact_key_kid === undefined ? null : String(artifact.artifact_key_kid);
+  return {
+    status: c.status,
+    lastLaunchAt: iso(c.lastLaunchAt),
+    lastLaunchRefusal: refusal ? { reason: refusal.code, at: iso(refusal.at)! } : null,
+    dispatch: dispatchState(db, c.id, now),
+    keys: {
+      activeKid, nextKid: null, artifactKeyKid,
+      artifactKeyCurrent: artifactKeyKid === null || activeKid === null ? null : artifactKeyKid === activeKid,
+    },
+    lastCheck: check ? { at: iso(check.at)!, ...checkEventParts(check.code) } : null,
+    events: events.map((event) => ({ kind: event.kind, code: event.code, at: iso(event.at)! })),
+  };
+}
+
 export function registerConnectionHealthRoutes(api: FastifyInstance, deps: ConnectionHealthDeps): void {
   // The active key id of the public tool JWKS (active first), for 60 s; a failed read gives null for 60 s too.
   let toolKeys: { readAt: number; activeKid: string | null } | null = null;
@@ -80,24 +101,6 @@ export function registerConnectionHealthRoutes(api: FastifyInstance, deps: Conne
     const library = req.auth!.signedIn.library;
     const c = getConnection(deps.db, library.id, req.params.id);
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-    const now = deps.now();
-    const events = listConnectionEvents(deps.db, library.id, c.id);
-    const refusal = events.find((event) => event.kind === 'launch_refused' || event.kind === 'deep_link_refused');
-    const check = events.find((event) => event.kind === 'check');
-    const artifact = deps.db.prepare('SELECT artifact_key_kid FROM connection WHERE id = ? AND library_id = ?').get(c.id, library.id);
-    const artifactKeyKid = artifact?.artifact_key_kid === null || artifact?.artifact_key_kid === undefined ? null : String(artifact.artifact_key_kid);
-    const active = await activeKid(req.traceId);
-    return {
-      status: c.status,
-      lastLaunchAt: iso(c.lastLaunchAt),
-      lastLaunchRefusal: refusal ? { reason: refusal.code, at: iso(refusal.at)! } : null,
-      dispatch: dispatchState(deps.db, c.id, now),
-      keys: {
-        activeKid: active, nextKid: null, artifactKeyKid,
-        artifactKeyCurrent: artifactKeyKid === null || active === null ? null : artifactKeyKid === active,
-      },
-      lastCheck: check ? { at: iso(check.at)!, ...checkEventParts(check.code) } : null,
-      events: events.map((event) => ({ kind: event.kind, code: event.code, at: iso(event.at)! })),
-    };
+    return readConnectionHealth(deps.db, c, await activeKid(req.traceId), deps.now());
   });
 }
