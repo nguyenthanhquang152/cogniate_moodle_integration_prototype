@@ -11,6 +11,7 @@
 // No database transaction is open during an LTI call; every call has the normal 5 s timeout of the outbound client.
 // Authority comes ONLY from the approval that phase 2 writes (§6.1).
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { fillText, registrationText } from '@cogniate/channel-kernel';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
@@ -225,7 +226,8 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
-        : new ApiError('PLATFORM_IN_USE', description ?? `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
+        // BD-A1-101: the channel's texts.registration.PLATFORM_IN_USE with {LMS} filled, else the core default.
+        : new ApiError('PLATFORM_IN_USE', description ?? fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
     };
     const stagedChanged = (fields: string[]): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });

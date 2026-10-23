@@ -157,6 +157,19 @@ describe('B-LA-E2-04-02: a finalized repeat compares the bound values of the com
   });
 });
 
+describe('the grant collision text (BD-A1-101)', () => {
+  it('lti-generic: a second connection with the same values gets 409 PLATFORM_IN_USE with the core default, which names no LMS', async () => {
+    const { issue, connection, put } = await setup();
+    const first = await connection('manual');
+    expect((await put(first, manualBody(await issue(first, { boundValues: VALUES })))).status).toBe(200);
+    const second = await connection('manual');
+    const r = await put(second, manualBody(await issue(second, { boundValues: VALUES })));
+    expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
+      'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.']);
+    expect(grantsOfConnection(t.db, second.id).map((g) => g.redeemedAt)).toEqual([null]);
+  });
+});
+
 describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => {
   const STAGED = { authenticationEndpoint: `${SITE}/auth`, accesstokenEndpoint: 'https://auth.provider.test/token', authConfig: { method: 'JWK_SET', key: `${SITE}/jwks` },
     clientAssertionAud: 'https://auth.provider.test/aud' };
