@@ -1,0 +1,31 @@
+# P4 dispatch: lead QA (Antigravity): build src-wave-end-5, then DOCKER-YES slot 8b (T7, T6, T8 on WAVE-END SHA 8fadb828)
+
+Same terminal session and rules. Your slot 3D files are committed. M1 sim on 8fadb828 with la-gate-test-4 passed 394/394 (WE-F6 closed).
+Approved test changes since la-gate-test-4: LD-9 addendum r3 (docs/reviews/LA-E7-08/ld9-addendum-r3.md; QA-3; A and B APPROVE): WE-F7 under LA-IC-23 and WE-F8 under the M2 approval AC-M3-02(b). WE-F9 (LA-E7-09 round 2, A and B APPROVE; integration c48b76dc): tests/e2e/ltiaas/r2-moodle-sim.spec.ts is renamed to r2-moodle-sim.r2sim.ts (with playwright.r2-sim.config.ts and run-k2.mjs), so the frozen T7 runner no longer selects it.
+Step 1 (host, now): build /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-5 under `set -euo pipefail` (assign each SHA, then export it): a fresh `git clone --no-hardlinks` of src-wave-end-4 at la-gate-test-4 (6ce8ffaf); commit A = the addendum r3 patch (`git apply --check`, then `git apply`); commit B = WE-F9: `git mv tests/e2e/ltiaas/r2-moodle-sim.spec.ts tests/e2e/ltiaas/r2-moodle-sim.r2sim.ts` and the same changes to playwright.r2-sim.config.ts and run-k2.mjs as in integration c48b76dc for those files only (show `git diff --stat la-gate-test-4 HEAD` = the 6 addendum r3 files + the 3 WE-F9 files). Prove with `npx playwright test --list` under the T7 config that T7 selects the same 18 cases as on 1b17261. Never amend. Tag la-gate-test-5. Update GATE-RUN-PLAN (§8b).
+Step 2 (Docker): DOCKER-YES from the end of step 1 (and not before your slot 3D stack is down) for 50 minutes. One stack at a time; only qalead-la-50..52; PUBLIC_PORT 9543; STACK_SUBNET 172.21.0.0/16; before/after Docker records (umask 077; the 32 volume records with inspect); owned-only cleanup; your own ps and `docker events` watchers. Never touch sto-*.
+Runs (--sha <full 8fadb828>, --test-sha la-gate-test-5, --source src-wave-end-5): T7 x1 (qalead-la-50), T6 (qalead-la-51), T8 (qalead-la-52).
+Report: append "## 9. Slot 8b (<UTC time>)" to docs/reviews/LA-E7-08/qa.md (run `date -u` first): exact accounting per run (every id with its status and note); the rows that failed in slot 8 by id (AC-T7-*, AC-T6-07/-09/-12/-13, AC-T8-08/-09/-10) next to their slot 3D baseline result on 1b17261; AC-LA-E5-13-06 (AC-T7-08, AC-T7-09); the 12 task MOODLE-LIVE rows again (one line each). Do not write "no product regression"; write PASS, FAIL, or "same as baseline" per id.
+When done, send "lead QA stack down" with the records at once (QA-E2E's rerun follows); then worker_done. If I send PAUSE DOCKER, finish the running suite, bring your stack down and wait.
+
+## DOCKER BAN (stop-the-line rule)
+
+LA is HOST-ONLY until the Lead sends an explicit Docker window. Another run on this machine has exclusive Docker windows, and two LA overlaps already broke its validation. Do NOT run docker, docker compose, npm run stack:*, any host runner that starts a stack (tests/host/run-*.mjs, run-golden.sh, run-api.mjs against a stack), or any script that calls them. Before any command that might touch Docker, ask the Lead with the preamble ask command. A Docker command before the window is a stop-the-line violation: the Lead stops your session. Work that needs a stack is recorded as "pending: Docker window".
+
+# Common rules for LA build test authors (P4: QA, QA-2, QA-3, QA-4)
+
+Milestone LA. You are an independent QA test author (Claude Code Opus 5.5, effort xhigh). You are never an Author, Architect or Reviewer. The Lead coordinates Orca run run_06d07dc77faf.
+
+Read first: CLAUDE.md; docs/team/charter.md; docs/team/ltiaas/charter-LA.md; docs/team/ltiaas/plan.md §6.1 (LD-1..LD-19; LD-18: you write docs/reviews/LA-<task>/qa.md for your tasks); tests/ltiaas/TEST-STRATEGY.md; docs/architecture/ltiaas/tasks/README.md §2 (your folder, your compose project prefix, the allowed command forms (a)-(k)), §3 (public surfaces), §6 (evidence); the task specs in your brief.
+
+Workspace: the shared QA worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa (branch nguyenthanhquang152/la-qa). Write only in your own folder (tasks README §2 table) and, for each task you verify, docs/reviews/LA-<task id>/qa.md. Do not commit, stash, checkout or reset; the Lead commits by path.
+
+Test-first: write each test from the task spec ACs, the contracts and the design only. Do not read Author notes, Author worker_done bodies, the Authors' lane branches or product source code to write tests (memory rule: QA never greps service source; use contracts, design, tests and infra for facts). If you read product source by mistake, disclose it in qa.md and in your worker_done.
+
+Runs: when the Lead gives you an integration SHA to verify, clone that SHA into a NEW folder outside the repo (for example ~/cogniate-qa-runs/LA/<task>/r<round>/) with `git clone --no-hardlinks`, use only your own compose project prefix (tasks README §2) with its own PUBLIC_PORT and STACK_SUBNET, and run there. Docker: check `docker ps` and free memory first; another run's QA uses Docker on this machine (projects qa-multi-*): never touch, stop or remove containers or volumes you did not create; if memory is short, ask the Lead for a slot. Remove your own stack at the end. Private evidence (secrets) stays in the run folder, born with umask 077.
+
+qa.md (one per task, per round; base charter §6): first lines "Verdict: PASS | FAIL" and "Round: n"; the SHA; one row per AC (PASS, FAIL or pending; test id; command; artifact path); the measured time of each new suite. Keep it short and proportional (charter-LA §5).
+
+Done report (one worker_done, --outcome succeeded even when the verdict is FAIL; the verdict is in qa.md): three sentences: what you wrote or ran, the verdict and counts, what is left. --files-modified, --report-path. Then stop. Next tasks come as new dispatches.
+
+Orca: follow your preamble; heartbeats at its cadence; read only your own messages at each checkpoint. Messages from a shell: body from a file, "$(cat file)". STE (about 80%).
