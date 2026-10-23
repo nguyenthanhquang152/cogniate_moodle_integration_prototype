@@ -28,6 +28,12 @@ function testManifest(over: Json = {}): Json {
 
 const channel = (manifest: unknown, folder = '/x/zz-test', extra: Partial<LoadedChannel> = {}): LoadedChannel => ({ folder, manifest, ...extra });
 
+/** The baseline channels, in their frozen order (the product root may hold more channels: an open-world list). */
+const BASELINE = ['moodle', 'canvas', 'blackboard'];
+/** The registry order rule: card.order, then id. */
+const cardOrder = (ms: ReadonlyArray<{ id: string; card: { order: number } }>) =>
+  [...ms].sort((a, b) => a.card.order - b.card.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((m) => m.id);
+
 it('carries app adapters through discovery without exposing hidden channels', () => {
   const adapter = { channel: 'zz-test', checkCreate: () => ({ ok: true }) };
   const loaded = [channel(testManifest({ availability: 'simulation-only' }), '/x/zz-test', { appAdapter: adapter })];
@@ -63,13 +69,17 @@ it('accepts only the closed card icon name and keeps mark required', () => {
 });
 
 describe('baseline channels (product root)', () => {
-  it('loads moodle, canvas and blackboard in this order, with the M1 capability objects', async () => {
+  it('loads moodle, canvas and blackboard in this order, with the M1 capability objects; every new channel follows (open world)', async () => {
     const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
-    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+    const ids = registry.channels().map((m) => m.id);
+    expect(ids.slice(0, 3)).toEqual(BASELINE);
+    expect(ids).toEqual(cardOrder(registry.channels()));
+    expect(ids).toContain('lti-generic');
     expect(JSON.stringify(registry.legacyCapabilities('moodle'))).toBe(JSON.stringify(
       { dynamicRegistration: true, operatorApproval: false, webServices: true, courseShell: true, addDeployment: false, canvasConfiguration: false }));
+    // LA-IC-14 (LA-E3-15): Canvas has the `dynamic` method, so its legacy flag `dynamicRegistration` is true.
     expect(JSON.stringify(registry.legacyCapabilities('canvas'))).toBe(JSON.stringify(
-      { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true }));
+      { dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true }));
     expect(JSON.stringify(registry.legacyCapabilities('blackboard'))).toBe(JSON.stringify(
       { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false }));
   });
@@ -101,7 +111,7 @@ describe('load checks (each failing case throws RegistryError with its check num
     [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'verifiedAdminLaunch', profiles: ['zz-test'], defaultProfile: 'zz-test' }] }), 'registration.0.authority'],
     [1, 'manifest_schema', testManifest({ family: 'xapi' }), 'family'],
     [1, 'manifest_schema', testManifest({ setup: { createFields: [], bindingFields: [], verify: 'x' } }), 'setup'],
-    [1, 'manifest_schema', testManifest({ setup: { createFields: [{ key: 'siteUrl', label: 'Site', kind: 'origin', required: true, default: '{siteUrl}' }], bindingFields: [] } }), 'setup.createFields.0'],
+    [1, 'manifest_schema', testManifest({ setup: { createFields: [], bindingFields: [{ key: 'issuer', label: 'Issuer', kind: 'url', required: true, default: '{LMS}/x' }] } }), 'setup.bindingFields.0.default'],
     [1, 'manifest_schema', testManifest({ texts: { adminSteps: ['Open {library}.'], teacherSteps: [], disconnect: 'x', notReady: null } }), 'texts.adminSteps.0'],
     [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['zz-test'], defaultProfile: 'zz-other' }] }), 'registration.0.defaultProfile'],
     [1, 'manifest_id_not_folder', testManifest({ id: 'zz-other' })],
@@ -148,8 +158,12 @@ describe('registry contents', () => {
     ];
     const off = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: false });
     const on = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: true });
-    expect(off.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard']);
-    expect(on.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard', 'zz-sim']);
+    const ids = (r: typeof on) => r.channels().map((m) => m.id);
+    expect(ids(off).slice(0, 4)).toEqual(['zz-test', ...BASELINE]);
+    expect([ids(off).includes('zz-sim'), ids(on).includes('zz-sim')]).toEqual([false, true]);
+    // Open world (N10): every simulation-only channel of the product root drops out, not only the fixture.
+    expect(ids(off)).toEqual(ids(on).filter((id) => on.channel(id)?.availability !== 'simulation-only'));
+    expect(ids(on)).toEqual(cardOrder(on.channels()));
     expect([off.channelOfProfile('zz-sim'), on.channelOfProfile('zz-sim')]).toEqual([null, 'zz-sim']);
     expect(off.ownerOfFamily('zz')).toBe('zz-test');
   });
@@ -183,9 +197,13 @@ describe('loadChannelFolders (folder discovery)', () => {
     });
     writeFileSync(join(extra, 'notes.txt'), 'not a channel');
     const app = await loadChannelFolders([PRODUCT_ROOT, extra], 'app');
-    expect(app.map((c) => c.folder.split(/[\\/]/).pop())).toEqual(['blackboard', 'canvas', 'moodle', 'zz-test']);
-    expect(app[3]).toMatchObject({ folder: join(extra, 'zz-test'), manifest: { id: 'zz-test' }, appAdapter: { kind: 'app' } });
-    expect(app[3]).not.toHaveProperty('ltiProfiles');
+    // The product root first, in name order (open world: any number of channel folders), then the extra root.
+    const product = app.slice(0, -1).map((c) => c.folder.split(/[\\/]/).pop()!);
+    expect(product).toEqual([...product].sort());
+    expect(product).toEqual(expect.arrayContaining([...BASELINE, 'lti-generic']));
+    expect(app.filter((c) => c.folder.startsWith(extra)).map((c) => c.folder)).toEqual([join(extra, 'zz-test')]);
+    expect(app.at(-1)).toMatchObject({ folder: join(extra, 'zz-test'), manifest: { id: 'zz-test' }, appAdapter: { kind: 'app' } });
+    expect(app.at(-1)).not.toHaveProperty('ltiProfiles');
     const lti = await loadChannelFolders([extra], 'lti');
     expect(lti).toEqual([{ folder: join(extra, 'zz-test'), manifest: expect.objectContaining({ id: 'zz-test' }), ltiProfiles: [{ id: 'zz-test', sharing: 'exclusive' }] }]);
     expect(buildChannelRegistry(lti, { simulations: false }).channelOfProfile('zz-test')).toBe('zz-test');
@@ -206,5 +224,41 @@ describe('loadChannelFolders (folder discovery)', () => {
     await expect(loadChannelFolders([join(tmpdir(), 'channel-root-missing-zz')], 'app')).rejects.toMatchObject({ channel: null, check: 1, reason: 'channel_root_unreadable' });
     const noManifest = await loadChannelFolders([root({ 'zz-test': { 'README.md': '# no manifest' } })], 'app');
     expect(failure(noManifest)).toMatchObject({ channel: 'zz-test', check: 1, reason: 'manifest_missing' });
+  });
+});
+
+describe('lti-generic (LA-E2-03)', () => {
+  type Json = Record<string, unknown>;
+  const generic = (loaded: LoadedChannel[]) => loaded.find((c) => (c.manifest as Json).id === 'lti-generic')!;
+
+  it('AC-LA-E2-03-08: load check 6 stops the start for an lti-generic variant with manual -> self', async () => {
+    for (const side of ['app', 'lti'] as const) {
+      const loaded = await loadChannelFolders([PRODUCT_ROOT], side);
+      expect(() => buildChannelRegistry(loaded, { simulations: false })).not.toThrow();
+      const entry = generic(loaded);
+      const manifest = entry.manifest as { registration: Array<{ method: string; authority: string }> };
+      const variant = { ...entry, manifest: { ...manifest, registration: manifest.registration.map((r) => (r.method === 'manual' ? { ...r, authority: 'self' } : r)) } };
+      const err = failure(loaded.map((c) => (c === entry ? variant : c)));
+      expect([side, err.check, err.reason, err.channel]).toEqual([side, 6, 'manual_self_authority', 'lti-generic']);
+    }
+  });
+
+  it('loads with no app.ts, after the baseline channels, with the D3 capabilities and legacy flags', async () => {
+    const app = await loadChannelFolders([PRODUCT_ROOT], 'app');
+    expect(generic(app).appAdapter).toBeUndefined();
+    const registry = buildChannelRegistry(app, { simulations: false });
+    // A1 BD-A1-111: the text name is 'LMS'; the templates add "your" or "this".
+    expect(registry.textName('lti-generic')).toBe('LMS');
+    expect(registry.legacyCapabilities('lti-generic')).toEqual({ dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false });
+    expect(registry.capabilities('lti-generic')).toMatchObject({
+      'registration.dynamic': true, 'binding.authority': { dynamic: 'self', manual: 'operatorGrant' }, 'deployments.multiple': true, 'content.multiple': true,
+      'launch.windowHint': true, 'records.reporters': ['lti-ags'], 'records.readBack': true, 'siteApi.token': false, 'publish.createCourse': false,
+      'setup.artifacts': [], 'export.packages': [], 'registration.scopes': [
+        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem', 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
+        'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly', 'https://purl.imsglobal.org/spec/lti-ags/scope/score',
+      ],
+    });
+    const lti = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'lti'), { simulations: false });
+    expect([lti.channelOfProfile('lti-generic'), lti.ownerOfFamily('sakai')]).toEqual(['lti-generic', null]);
   });
 });

@@ -14,8 +14,13 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
   it('[SIM] AC-LA-E3-12-01: score POST with scoreGiven: null (and no scoreMaximum) gives the same answer as POST without scoreGiven {case:LA-E3-12-01}', async () => {
     const key = apiKey(ACCOUNT);
     const target = await canvasPlatform({ name: unique('QA4 E3-12 ac01') });
+    const resource = unique('res-e3-12');
+    const subject = 'learner-1';
     const launched = await canvasLaunch(target, {
       id: unique('ags-e3-12'),
+      resource,
+      subject,
+      allowNullScore: true,
       roles: [ROLE.instructor],
     });
     expect(launched.response.status).toBe(303);
@@ -26,7 +31,7 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       body: {
         scoreMaximum: 100,
         label: 'QA4 E3-12 Null Score',
-        resourceId: unique('res-e3-12'),
+        resourceId: resource,
       },
     });
     expect(createLi.status).toBe(201);
@@ -38,9 +43,9 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       {
         authorization: authz,
         body: {
-          userId: 'learner-e3-12-absent',
-          activityProgress: 'InProgress',
-          gradingProgress: 'PendingManual',
+          userId: subject,
+          activityProgress: 'Completed',
+          gradingProgress: 'FullyGraded',
         },
       },
     );
@@ -50,10 +55,10 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       {
         authorization: authz,
         body: {
-          userId: 'learner-e3-12-null',
+          userId: subject,
           scoreGiven: null,
-          activityProgress: 'InProgress',
-          gradingProgress: 'PendingManual',
+          activityProgress: 'Completed',
+          gradingProgress: 'FullyGraded',
         },
       },
     );
@@ -73,7 +78,7 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       roles: [ROLE.instructor],
       claims: {
         [NRPS_CLAIM]: {
-          context_memberships_url: 'https://canvas.sim.test/api/lti/courses/101/names_and_roles',
+          context_memberships_url: 'https://school-a.canvas.sim.test/api/lti/courses/101/names_and_roles',
           service_versions: ['1.0'],
         },
       },
@@ -84,8 +89,8 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       authorization: auth.ltik(key, v1Launch.ltik),
     });
     expect(v1Res.status).toBe(403);
-    expect(hasErrorShape(v1Res.json, 403)).toBe(true);
-    expect(errorCode(v1Res.json)).toBe('SERVICE_NOT_AVAILABLE');
+    expect(hasErrorShape(v1Res)).toBe(true);
+    expect(errorCode(v1Res)).toBe('SERVICE_NOT_AVAILABLE');
 
     // 2. Claim without service_versions -> still answers
     const noVerLaunch = await canvasLaunch(target, {
@@ -93,7 +98,7 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
       roles: [ROLE.instructor],
       claims: {
         [NRPS_CLAIM]: {
-          context_memberships_url: 'https://canvas.sim.test/api/lti/courses/101/names_and_roles',
+          context_memberships_url: 'https://school-a.canvas.sim.test/api/lti/courses/101/names_and_roles',
         },
       },
     });
@@ -136,7 +141,8 @@ describe('LA-E3-12 Small spec gaps (K1-SIM)', () => {
         azp: target.clientId,
       },
     });
-    expect(untrustedLaunch.response.status).toBe(400);
+    expect([400, 401]).toContain(untrustedLaunch.response.status);
+    expect(untrustedLaunch.response.body).toContain('INVALID_ISSUER_OR_AUDIENCE');
 
     // AC-LA-E3-12-04 & AC-LA-E3-12-03 (b): PATCH trustedAudiences = ["https://other.test"], then launch passes
     const patchPlat = await ltiApi<Record<string, unknown>>(

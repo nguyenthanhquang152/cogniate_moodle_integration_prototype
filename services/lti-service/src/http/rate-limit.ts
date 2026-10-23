@@ -3,12 +3,13 @@ import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 import { z } from 'zod';
 import type { Logger } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
+import { storeFor } from '../store/index.ts';
 import { ApiError } from '../api-errors.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import { RATE_LIMIT_CLASSES } from '../store/accounts.ts';
 import type { RateLimit, RateLimitClass, RateLimitSettings } from '../store/settings.ts';
-import { RateLimitSettingsSchema, readRateLimitSettings } from '../store/settings.ts';
+import { RateLimitSettingsSchema } from '../store/settings.ts';
 
 export const DEFAULT_RATE_LIMITS: Record<RateLimitClass, RateLimit> = {
   protocol: { ratePerMinute: 600, burst: 200 },
@@ -121,7 +122,7 @@ export class RateLimiter {
   private readonly env: RateLimitSettings;
   private readonly logger: Logger;
   private readonly now: () => number;
-  constructor(db: Db, logger: Logger, now: () => number = Date.now, env = process.env.LTI_RATE_LIMITS) {
+  constructor(db: Db, logger: Logger, now: () => number = Date.now, env = process.env.LTI_RATE_LIMITS, settings: RateLimitSettings = {}) {
     this.db = db;
     this.logger = logger;
     this.now = now;
@@ -134,7 +135,7 @@ export class RateLimiter {
       }
       throw new Error('LTI_RATE_LIMITS: expected valid JSON', { cause: error });
     }
-    this.settings = readRateLimitSettings(db);
+    this.settings = settings;
   }
 
   replaceSettings(settings: RateLimitSettings): void { this.settings = settings; }
@@ -184,10 +185,14 @@ export class RateLimiter {
 }
 
 // Both listeners share buckets and committed settings. Weak keys keep test databases isolated.
-const limiters = new WeakMap<Db, RateLimiter>();
-export function rateLimiterFor(db: Db, logger: Logger, now: () => number = Date.now): RateLimiter {
+const limiters = new WeakMap<Db, Promise<RateLimiter>>();
+export async function rateLimiterFor(db: Db, logger: Logger, now: () => number = Date.now): Promise<RateLimiter> {
   let limiter = limiters.get(db);
-  if (!limiter) { limiter = new RateLimiter(db, logger, now); limiters.set(db, limiter); }
+  if (!limiter) {
+    limiter = storeFor(db).settings.readRateLimitSettings().then((settings) => new RateLimiter(db, logger, now, process.env.LTI_RATE_LIMITS, settings));
+    limiters.set(db, limiter);
+    void limiter.catch(() => { if (limiters.get(db) === limiter) limiters.delete(db); });
+  }
   return limiter;
 }
 
@@ -197,15 +202,13 @@ export function recordAuthFailure(limiter: RateLimiter, address: string, traceId
 }
 
 /**
- * BD-A2-20, BD-A2-72: call before registration's outbound fetch, then again in the transaction that inserts the session
- * (with no await between the two), so the cap is exact also for parallel starts. Store clientKey with the new session.
+ * BD-A2-20, BD-A2-72: preflight before registration's outbound fetch. The atomic store operation checks again
+ * before it inserts the session, so the cap is exact also for parallel starts. Store clientKey with the new session.
  * Completion clears client_key. Old rows without a key and expired rows do not count.
  */
-export function checkRegistrationSessionCap(db: Db, limiter: RateLimiter, address: string, accountId: string, now: number) {
+export async function checkRegistrationSessionCap(db: Db, limiter: RateLimiter, address: string, accountId: string, now: number) {
   const clientKey = addressKey(address);
-  const { count } = db.prepare(`SELECT count(*) AS count FROM registration_session
-    WHERE tool_account_id = ? AND client_key = ? AND status IN ('open', 'completing') AND expires_at > ?`)
-    .get(accountId, clientKey, now) as { count: number };
+  const count = await storeFor(db).registrations.countOpenRegistrationSessions(accountId, clientKey, now);
   return { allowed: count < limiter.registrationSessionLimit, clientKey, open: count, limit: limiter.registrationSessionLimit };
 }
 

@@ -17,13 +17,12 @@ const manifest = {
     { method: 'manual', authority: 'operatorGrant', profiles: ['blackboard', 'blackboard-sim'], defaultProfile: 'blackboard' },
   ],
   capabilities: {
-    // ADR-009: the services that the tool asks for today (LA-E3-07 changes this list, LA-IC-04).
+    // A2 LA-ADR-05 D4 (LA-E3-07, LA-IC-04): the four AGS scopes, no NRPS scope. The LTI service keeps the NRPS client.
     'registration.scopes': [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     'content.multiple': false,
     'launch.windowHint': true,

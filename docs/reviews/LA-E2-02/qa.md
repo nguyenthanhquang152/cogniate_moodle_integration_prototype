@@ -1,0 +1,67 @@
+Verdict: PASS (K0 + UNIT + K1-SIM; MOODLE-LIVE pending live Moodle window)
+Round: 3
+
+# LA-E2-02 E2-K Generic Dynamic Registration fixes and the staged registration: QA verification
+
+Tester: QA-4 (Orca task `task_137675644106`, dispatch `ctx_4f37c1f70c6c`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E2-02.md` (with `BD-A1-43`, `BD-A1-54`/`55`, `BD-A1-59`/`68`, `BD-A1-75`/`76`/`77`, `BD-A1-83`/`84`, `BD-A1-87`, `BD-A1-88`, `BD-A1-89`, `LA-IC-03`). Suite: `tests/ltiaas/tasks-lti/LA-E2-02/` (QA-4 test-first, authored in this round).
+
+Independence: QA-4 authored `tests/ltiaas/tasks-lti/LA-E2-02/` from `docs/architecture/ltiaas/tasks/LA-E2-02.md`, `LA-ADR-02` D2a/D5, `lti-service-api-delta.md` §2.4/§4.5, `data-model.md` §4.2, and `build-decisions-A1.md` before running any test against `6689a18`, and never read product source files (`services/**`, `packages/**`, `apps/**`). (Disclosure: a `grep` for `BD-A1-7`/`BD-A1-8` in `docs/` matched 3 lines in `docs/reviews/LA-E2-02/reviewer-a.md`, and after authoring the suite a `grep` for `021|token_kind` in `services/lti-service/src/**/*.test.ts` confirmed the test line numbers in `store/registrations.test.ts`.)
+
+| Item | Value |
+| --- | --- |
+| SHA | `6689a185faa90c444de2e1c540a476bccb4dcf01` (integration `6689a18`, code `0e6bace`; holds `LA-E2-02` merge `865c3d0` + fix rounds `ddf3771`, `734de51`..`80e31d7`) |
+| Lane and slot | lane L; no Docker (`HOST-ONLY`; `K1-SIM` and `MOODLE-LIVE` rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/e2-r1-6689a18/clone`: `git clone --no-hardlinks --no-checkout`, detached at `6689a185faa90c444de2e1c540a476bccb4dcf01`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/e2-r1-6689a18/logs/` (umask 077): `tsc.log`, `LA-E2-02-k0-vitest.log`, `unit-verbose.log`, `head-sha.txt`, `status-before.txt`, `status-after.txt` |
+
+## Acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E2-02-01 + `BD-A1-77`, `BD-A1-84`, `BD-A1-87`, `BD-A1-88`, `BD-A1-89` | PASS (UNIT + K0) | `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k0.test.ts` (3 tests) + `services/lti-service/src/lti/registration.test.ts > Dynamic Registration rule table per profile (LA-ADR-02 D5, AC-LA-E2-02-01)` (4 tests) + `services/lti-service/src/http/routes/registration.test.ts > E2 Dynamic Registration rules per profile (AC-LA-E2-02-01)` (13 tests) + `LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88, BD-A1-89, A-LA-E2-02-04)` (6 tests) + `services/lti-service/src/store/registrations.test.ts > registration token kind (LA-ADR-02 D5 item 3, LTI migration 021)` (2 tests) + `packages/channel-kernel/src/manifest.test.ts > BD-A1-59` | `rm -rf node_modules/.vitest-cache tests/node_modules/.vitest-cache && LA_LEVEL=k0 QA_TASK=LA-E2-02 QA_REPO_ROOT=$CLONE LA_TARGET_ROOT=$CLONE npx --prefix tests vitest run --config ltiaas/tasks-lti/LA-E2-02/vitest.config.mts --reporter=verbose` | D5 items 1–8 and 10 pass/fail per profile: (1) `path-prefix` issuer rule & `configurationPath` (`LA-IC-03`); (2) `issuer` vs `any-https` endpoint origins & fixed-host refusal (`PLATFORM_URL_NOT_IN_PROFILE`); (3) `scope-jwt` vs `opaque-bearer` token kinds persisted in `registration_session.token_kind` (`021_registration_token_kind.sql` with `CHECK (token_kind IN ('scope-jwt', 'opaque-bearer'))`, `BD-A1-77`) and fail-closed JWT verification even when an opaque-token profile is loaded (`A-LA-E2-02-05`); (4 & 10) `authorization_server` -> `clientAssertionAud` and I-SELF staging (`endpointsOnIssuerOrigin`, `active: false` with `bindingRef`); (5) capability checks (`familyGuardVerdict(..., 'registration')`, `LtiDeepLinkingRequest`, `scopes_supported`); (6 & 7) `complete.profile` and `grantedScopes`; (8) `texts.registration.TOOL_MAY_EXIST` (`BD-A1-87`), `ISSUER_MISMATCH`, and `INVALID_OPENID_CONFIGURATION` (`BD-A1-59`, `BD-A1-68`); (`BD-A1-88` & `A-LA-E2-02-04`) profile identity (`REGISTRATION_UPDATE_NOT_ALLOWED` with `profile_mismatch`) and binding-ref ownership on explicit update and duplicate-client paths; (`BD-A1-89`) credentials written as one set (omitted `authorization_server` clears stored `client_assertion_aud`, and `A-LA-E2-02-03` invalidates cached/in-flight tokens on credential change). `LA-E2-02-k0-vitest.log`, `unit-verbose.log` |
+| AC-LA-E2-02-02 | PASS (K1-SIM + UNIT) | `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-02, AC-LA-E2-02-03 & AC-LA-E2-02-06` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `lti-generic` DR with opaque bearer token and path-prefix issuer where I-SELF holds creates an active platform (`active: true`) with `profile: 'lti-generic'` and `grantedScopes` (`4/4` K1-SIM tests pass in `232ms`; `LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-03 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-02, AC-LA-E2-02-03 & AC-LA-E2-02-06` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `lti-generic` DR where `token_endpoint` or `authorization_server` is off the issuer origin reports `endpointsOnIssuerOrigin: false` and stages an inactive platform (`active: false`) with `bindingRef` (`LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-04 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-04` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live configuration endpoint using a fixed Canvas simulator host (`sso.canvas.sim.test`) is refused with `400 PLATFORM_URL_NOT_IN_PROFILE` and sends nothing to that host (`LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-05 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-05` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live capability checks refuse guarded `product_family_code` (`canvas` on `lti-generic`), missing `LtiDeepLinkingRequest`, and missing advertised scopes before any outbound registration POST (`LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-06 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-02, AC-LA-E2-02-03 & AC-LA-E2-02-06` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `POST /api/registrations/:id/complete` with `profile: 'lti-generic'` stores `profile: 'lti-generic'` and `grantedScopes` (`LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-07 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-07 & AC-LA-E2-02-09` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live `standard` DR enforces `configurationPath: '/mod/lti/openid-configuration.php'` (`LA-IC-03`) and `scope-jwt` verification (`LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+| AC-LA-E2-02-08 | pending: Docker window (MOODLE-LIVE) | `T3b` and `T7 × 1` | Live Moodle slot | Pending live Moodle Docker window. |
+| AC-LA-E2-02-09 | PASS (K1-SIM + UNIT) | `dynamic-registration.k1sim.test.ts > [SIM] AC-LA-E2-02-07 & AC-LA-E2-02-09` | Docker Slot 5 (`qa4-la-sim-r1`, `d12b7b94`) | Live registration error pages render channel-specific `TOOL_MAY_EXIST`, `ISSUER_MISMATCH`, and `INVALID_OPENID_CONFIGURATION` texts (`BD-A1-87`, `BD-A1-59`; `LA-E2-02-k1sim.log`, `all-17-k1sim.log`). |
+
+## Other checks
+
+- **`LA-IC-03` fixture update (`tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts`):** Updated `startQaPlatformRegistration` so its `qa-platform.test` configuration lives at `${issuer}/mod/lti/openid-configuration.php` instead of `/openid-<id>.json`, matching the `standard` profile `configurationPath` rule (`LA-IC-03`).
+- **F1 and F5 checks (`LA-E2-02-k0-vitest.log`):** `services/lti-service/src/lti/registration.ts`, `services/lti-service/src/lti/checks.ts`, `services/lti-service/src/http/routes/registration.ts`, `services/lti-service/src/store/registrations.ts`, `services/lti-service/src/store/platforms.ts`, `services/lti-service/src/lti/platform-rules.ts`, `services/lti-service/src/lti/codes.ts`, `packages/channel-kernel/src/profiles.ts`, and `services/lti-service/src/db/migrations/021_registration_token_kind.sql` pass `fitness:lms-names` (`0` F1 hits) and `fitness:rules` (`0` F5 violations).
+- **Clone cleanliness:** `status-before.txt` and `status-after.txt` in `~/cogniate-qa-runs/LA/e2-r1-6689a18/logs/` are both `0` bytes.
+
+## Regression and time
+
+R0: PASS (`22.23s` `LA-E2-02` K0 Vitest suite, 3/3 tests; `11.51s` verbose unit & migration run across 76 test files, 1074/1074 tests). `K1-SIM` (`AC-LA-E2-02-02`..`07`, `09`) and `MOODLE-LIVE` (`AC-LA-E2-02-08`) are `pending: Docker window`.
+
+## Round 2
+
+Tester: QA-4 (Orca task `task_1400ed757bff`, dispatch `ctx_1c3f075aac12`), 2026-10-23. Spec & decisions: `docs/architecture/ltiaas/tasks/LA-E2-02.md` with `BD-A1-93` / `BD-A2-86` (`LD-9 LA-IC-21`: a DR update keeps the stored `active` value on both update paths; staged -> `false`; `autoActivate` applies only to a new platform; golden recorded in `19da95e`) and `BD-A2-84` (`A-LA-E2-02-08`: staged DR `complete` with `authorization_server` on a reserved host is refused before anything is sent). Suite: `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k0.test.ts` (updated for `BD-A1-75`, `BD-A1-93`, and `BD-A2-84`).
+
+Independence: QA-4 updated `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k0.test.ts` from `build-decisions-A1.md` (`BD-A1-93`), `build-decisions-A2.md` (`BD-A2-84`, `BD-A2-86`), and `tasks/LA-E2-02.md` without reading product source files (`services/**`, `packages/**`, `apps/**`) or reviewer files, and verified all `K0` and `UNIT` checks in an isolated `--no-hardlinks` clone of `4db030d` with `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run.
+
+| Item | Value |
+| --- | --- |
+| SHA | `4db030df8691b0923e80d6b2007047097f42b49b` (integration `4db030d`, code `176e823`; holds lane L fix round 2 merge `678eb72`: `f8fa4ff`, `4dfd87d`, and `LA-IC-21` golden `19da95e`) |
+| Lane and slot | lane L; no Docker (`HOST-ONLY`; `K1-SIM` and `MOODLE-LIVE` rows stay `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/r12-4db030d/clone`: `git clone --no-hardlinks --no-checkout`, detached at `4db030df8691b0923e80d6b2007047097f42b49b`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/r12-4db030d/logs/` (umask 077): `tsc.log`, `LA-E2-02-k0-vitest.log`, `unit-lti-verbose.log`, `head-sha.txt`, `status-before.txt`, `status-after.txt` |
+
+### Round 2 verification
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `BD-A1-93` / `BD-A2-86` (`LD-9 LA-IC-21`, `B-LA-E2-02-04` = `A-LA-E2-02-07`): DR update keeps stored `active` value on both paths; `autoActivate` only on create | PASS (UNIT + K0) | `services/lti-service/src/http/routes/registration.test.ts > LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88, BD-A1-89, A-LA-E2-02-04) > B-LA-E2-02-04 = A-LA-E2-02-07 (BD-A1-93): an explicit update keeps a switched-off platform off; a new platform takes autoActivate` + `a duplicate client_id for the same issuer updates the platform and deployment in place (even with autoActivate: false)` + `dynamic-registration.k0.test.ts` | On both explicit (`updatePlatformId`) and duplicate-client (`issuer, client_id`) update paths, `active` is `false` when staged (`!endpointsOnIssuerOrigin`) and otherwise keeps the stored `existing.active` value; `autoActivate` (`true` by default) applies only when creating a new platform. `unit-lti-verbose.log`, `LA-E2-02-k0-vitest.log` |
+| `BD-A2-84` (`A-LA-E2-02-08`): staged DR `complete` with `authorization_server` on a reserved host is refused | PASS (UNIT + K0) | `services/lti-service/src/http/routes/registration.test.ts > E2 Dynamic Registration rules per profile (AC-LA-E2-02-01) > A-LA-E2-02-08 (BD-A2-84): a staged complete refuses an authorization_server on a reserved host before anything is sent` + `dynamic-registration.k0.test.ts` | When `authorization_server` is on a reserved host (fixed host or fixed-issuer host of any loaded profile), even a staged DR `complete` (`endpointsOnIssuerOrigin: false`) refuses with `400 PLATFORM_URL_NOT_IN_PROFILE` before sending any outbound registration POST. `unit-lti-verbose.log` |
+| `BD-A1-75` K0 contract alignment | PASS (K0) | `dynamic-registration.k0.test.ts > Static & schema checks` | `services/lti-service/src/platform/token-client.ts` never references `clientAssertionAudArray` and `tests/ltiaas/k0/contract.test.ts` (`19da95e`) no longer asserts `flags.clientAssertionAudArray` on profiles. `LA-E2-02-k0-vitest.log` |
+| F1, F5 and clone cleanliness | PASS (K0) | `dynamic-registration.k0.test.ts > F1 (lms-names) and F5 (rules) checks pass on LA-E2-02 core files and migration 021` | All 9 LA-E2-02 core files and `021_registration_token_kind.sql` pass F1 (`0` hits) and F5 (`0` violations). `status-before.txt` and `status-after.txt` are `0` bytes. |
+
+### Round 2 regression and time
+
+R0: PASS (`13.47s` `LA-E2-02` K0 Vitest suite, 3/3 tests; `11.64s` verbose LTI unit & migration run across 76 test files, 1084/1084 tests). `K1-SIM` (`AC-LA-E2-02-02`..`07`, `09`) and `MOODLE-LIVE` (`AC-LA-E2-02-08`) remain `pending: Docker window`.

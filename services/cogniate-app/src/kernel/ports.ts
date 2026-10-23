@@ -94,8 +94,10 @@ export interface PlatformBodyValues {
 /**
  * Values or all unknown, missing and malformed body keys (422 INVALID_PLATFORM_VALUES).
  * reason:'origin' is only for URL-origin failures; core owns both frozen error descriptions (BD-A1-35).
+ * reason:'issuerOrigin' is an admin-value issuer off the site origin; the other endpoints may be on another https host
+ * (B-LA-E2-03-03), so it has its own core description.
  */
-export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' };
+export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' | 'issuerOrigin' };
 
 export interface PlatformBodyContext {
   /** The connection site origin used to check typed endpoint origins. */
@@ -126,6 +128,8 @@ export type BindingTarget =
     serviceUrl: string;
     /** Known after S1 or S2 (until then the target is found by issuer, client id and profile). */
     platformId: string | null;
+    /** Admin-value profile only (LA-ADR-02 D3, D6): the typed endpoint values that the staged create sends. */
+    adminValues?: AdminValues;
   }
   | { kind: 'platform_deployment'; platformId: string; deploymentId: string }
   | { kind: 'shared_deployment'; platformId: string; deploymentId: string; siteUrl: string };
@@ -190,6 +194,10 @@ export type StagedCreate =
       authConfig: { method: 'JWK_SET'; key: string }; deploymentIds: string[];
     } | {
       profile: string; url?: string; clientId: string; name: string; siteUrl: string; serviceUrl?: string; deploymentIds: string[];
+    } | {
+      // Admin-value profile (app API delta §3.4): the typed endpoints with the profile id; no site URL.
+      profile: string; url: string; clientId: string; name: string; authenticationEndpoint: string; accesstokenEndpoint: string;
+      authConfig: { method: 'JWK_SET'; key: string }; clientAssertionAud?: string; deploymentIds: string[];
     } }
   | { kind: 'deployment'; platformId: string; body: { deploymentId: string; siteUrl?: string } };
 
@@ -271,10 +279,13 @@ export interface PortContext {
   sql: ChannelSql;
   /** The shared SSRF-guarded outbound client. */
   outbound: GuardedClient;
-  /** Asynchronously encrypt an extension secret through the kernel key owner. */
-  seal(value: string): Promise<Uint8Array>;
-  /** Asynchronously decrypt a sealed extension secret. */
-  unseal(blob: Uint8Array): Promise<string>;
+  /**
+   * Asynchronously seal an extension secret of the bound connection through the kernel key provider. LA-E5-22: the
+   * value is bound to its `connection` column, the library and the connection (another row cannot open it).
+   */
+  seal(value: string, column: string): Promise<Uint8Array>;
+  /** Asynchronously open a sealed extension secret of the bound connection (also a legacy blob). */
+  unseal(blob: Uint8Array, column: string): Promise<string>;
   /** The call logger; never include secret values. */
   logger: Logger;
   /** Correlation id for this call. */
@@ -328,7 +339,15 @@ export interface ExtensionRoute {
   legacyCapabilityName?: string;
   /** Run after ownership and capability checks; return success or an error the kernel renders. */
   handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
-    { status: number; body: unknown; headers?: Record<string, string> } |
+    {
+      status: number; body: unknown; headers?: Record<string, string>;
+      /**
+       * LA-E6-05 (LA-ADR-08 D5): a setup artifact reports the `kid` of the key snapshot that it embeds, or null when it
+       * embeds no key (it names the key URL). The kernel records it on the connection (`artifact_key_kid`) and never
+       * sends it. Absent: the route is not a setup artifact, and the stored value does not change.
+       */
+      artifactKeyKid?: string | null;
+    } |
     { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;
 }
 /** Read-only publication fields needed by a publish hook. Extension state is read through scoped SQL. */

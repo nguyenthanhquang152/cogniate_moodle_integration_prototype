@@ -33,6 +33,8 @@ export interface AgsContext {
   platform: Platform;
   agsClaim: Record<string, unknown> | null;
   traceId: string;
+  /** The deployment of the launch or service key, for the client assertion (LA-ADR-02 D2 assertionDeploymentId). */
+  deploymentId?: string;
 }
 
 export interface LineItem {
@@ -158,11 +160,18 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
 
 const scopesOf = (ctx: AgsContext): string[] => (Array.isArray(ctx.agsClaim?.scope) ? (ctx.agsClaim!.scope as unknown[]).filter((s): s is string => typeof s === 'string') : []);
 
-/** The first scope of `wanted` that the launch has, else 403 SERVICE_NOT_AVAILABLE. */
+/**
+ * A2 BD-A2-83: the first scope of `wanted` that the launch claim has AND the platform granted (`grantedScopes`; null =
+ * no limit), else 403 SERVICE_NOT_AVAILABLE with the reason (the claim, or the grant). Every AGS call and the create
+ * preflight use it, so the grant refusal comes before the LA-E5-16 claim. The token client keeps its filter as a backstop.
+ */
 function needScope(ctx: AgsContext, ...wanted: string[]): string {
   const have = scopesOf(ctx);
-  const scope = wanted.find((w) => have.includes(w));
-  if (!scope) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS scope for this call.');
+  const inClaim = wanted.filter((w) => have.includes(w));
+  if (inClaim.length === 0) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS scope for this call.');
+  const granted = ctx.platform.grantedScopes;
+  const scope = inClaim.find((w) => granted === null || granted.includes(w));
+  if (!scope) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The platform did not grant the scope for this call.');
   return scope;
 }
 
@@ -177,8 +186,9 @@ function checkedUrl(ctx: AgsContext, url: string, code: 'INVALID_LINE_ITEM_ID' |
 /**
  * The checks of a line item create before any I/O (A2 BD-A2-71), in this order and with the refusals of the create:
  * the line items URL of the claim (403), the AGS base URL (403), the service URL rule (400 INVALID_LINE_ITEM_ID) and
- * the lineitem scope, never lineitem.readonly (403, AGS §3.2). Read-only: no token request and no outbound call.
- * createLineItem calls it, and the idempotency hook calls it before its lookup (LA-E5-16).
+ * the lineitem scope, never lineitem.readonly, in the launch claim and in the platform grant (403, AGS §3.2,
+ * BD-A2-83). Read-only: no token request and no outbound call. createLineItem calls it, and the idempotency hook
+ * calls it before its lookup (LA-E5-16).
  */
 export function preflightCreateLineItem(ctx: AgsContext): { url: string; scope: string } {
   if (typeof ctx.agsClaim?.lineitems !== 'string') throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS line items URL.');
@@ -229,7 +239,7 @@ export interface AgsClientDeps {
 export function createAgsClient(deps: AgsClientDeps) {
   const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   async function call(ctx: AgsContext, scope: string, url: string, init: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; accept: string; contentType?: string; body?: string }): Promise<OutboundResponse> {
-    const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId);
+    const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId, { deploymentId: ctx.deploymentId });
     let res: OutboundResponse;
     try {
       res = await deps.outbound.request(url, {

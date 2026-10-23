@@ -1,15 +1,12 @@
+import { storeFor } from '../store/index.ts';
 import { sha256Hex } from '@cogniate/shared';
 import type { ApiErrorCode } from '../api-errors.ts';
 import { ApiError } from '../api-errors.ts';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
-import { getAccount } from '../store/accounts.ts';
-import { useApiKey } from '../store/api-keys.ts';
 import type { AuditActor } from '../store/audit.ts';
 import type { LaunchRecord } from '../store/launches.ts';
-import { findLaunchByLtik } from '../store/launches.ts';
 import type { ServiceKeyRecord } from '../store/service-keys.ts';
-import { findServiceKey } from '../store/service-keys.ts';
 import { agsBaseUrl, isAllowedServiceUrl } from '../lti/service-url.ts';
 import type { AgsClient, AgsContext } from '../platform/ags.ts';
 import type { TtlLruCache } from './ttl-lru-cache.ts';
@@ -61,10 +58,10 @@ export type AuthResult = AuthContext & (
  * Resolve the header for an endpoint that accepts `accepted` schemes. Invalid credentials give 401; status and scope refusals give 403.
  * onFail identifies whether the 401 happened before API key validation or in the later credential check (BD-A2-17).
  */
-export function authenticate(
+export async function authenticate(
   db: Db, header: string | undefined, accepted: Scheme[], now: number,
   onFail: (scheme: string, code: string, part: 'api_key' | 'credential') => void,
-): AuthResult {
+): Promise<AuthResult> {
   const reject = (
     scheme: string, code: Extract<ApiErrorCode, `INVALID_${string}AUTHORIZATION_HEADER`>, part: 'api_key' | 'credential', description?: string,
   ): never => {
@@ -80,8 +77,8 @@ export function authenticate(
     return reject(parsed.scheme, parsed.error, 'api_key');
   }
   if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER', 'api_key');
-  const key = useApiKey(db, parsed.apiKey, now);
-  const account = key ? getAccount(db, key.toolAccountId) : null;
+  const key = (await storeFor(db).apiKeys.useApiKey(parsed.apiKey, now));
+  const account = key ? (await storeFor(db).accounts.getAccount(key.toolAccountId)) : null;
   if (!key || !account || account.status === 'closed') {
     // ADR-003: a bad API key on Bearer endpoints uses the LTIK error code.
     return reject(parsed.scheme, parsed.scheme === 'service' ? 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER' : 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER',
@@ -99,11 +96,11 @@ export function authenticate(
   }
   if (parsed.scheme === 'service') {
     // T3a: the service key must belong to the account of the API key and must not be revoked (security §8).
-    const serviceKey = findServiceKey(db, account.id, parsed.credential ?? '');
+    const serviceKey = (await storeFor(db).serviceKeys.findServiceKey(account.id, parsed.credential ?? ''));
     return serviceKey ? statusGate({ scheme: 'service', account, actor, launch: null, serviceKey, serviceKeyHash: sha256Hex(parsed.credential!) })
       : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER', 'credential');
   }
-  const launch = findLaunchByLtik(db, account.id, parsed.credential ?? '', now);
+  const launch = (await storeFor(db).launches.findLaunchByLtik(account.id, parsed.credential ?? '', now));
   return launch ? statusGate({ scheme: 'ltik', account, actor, launch, serviceKey: null }) : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'credential');
 }
 

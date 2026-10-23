@@ -1,22 +1,23 @@
+import { storeFor } from '../../store/index.ts';
+import type { AuditedOperations } from '../../store/audited-operations.ts';
 // Platforms admin API (contract §3.9, Bearer) with the M1 provider profiles (§9.3 to §9.6, §9.15). Every change writes
 // one audit event (LA-ADR-06 D4, contract delta §5): ok in the change transaction, or refused after a 4xx.
-import { canonicalOrigin } from '@cogniate/shared';
+import { canonicalOrigin, originHost } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
-import { BINDING_REF, DEPLOYMENT_ID, checkPlatformUrls, checkProfileSiteUrl, checkRotation } from '../../lti/platform-rules.ts';
+import {
+  BINDING_REF, DEPLOYMENT_ID, checkActiveAudience, checkAnyHttpsPlatform, checkAudienceHost, checkPlatformUrls, checkProfileSiteUrl, checkRotation,
+} from '../../lti/platform-rules.ts';
 import type { ProviderProfile } from '../../profiles/index.ts';
 import {
-  fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
+  allFixedHosts, fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
 } from '../../profiles/index.ts';
-import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
-import { withAudit } from '../../store/audit.ts';
-import type { DeploymentRecord, NewPlatform, Platform, RefCondition } from '../../store/platforms.ts';
-import {
-  BindingRefMismatchError, DeploymentExistsError, PlatformExistsError, SharedPlatformExistsError, SharedPlatformInUseError, UnknownDeploymentError,
-  addDeployment, changeDeployment, createPlatform, deletePlatform, findSharedPlatform, getPlatform, listPlatforms, siteOriginOf, updatePlatform,
-} from '../../store/platforms.ts';
-import { activePublicKeyPem } from '../../store/tool-keys.ts';
+import type { AuditTarget } from '../../store/audit.ts';
+
+import type { DeploymentRecord, NewPlatform, Platform, PlatformPatch as StoredPlatformPatch, RefCondition } from '../../store/platforms.ts';
+import { BindingRefMismatchError, DeploymentExistsError, PlatformExistsError, SharedPlatformExistsError, SharedPlatformInUseError, UnknownDeploymentError, siteOriginOf } from '../../store/platforms.ts';
+
 import type { AuthResult } from '../auth.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
@@ -31,6 +32,8 @@ const PlatformCreateBase = z.object({
   url: url.optional(),
   clientId: z.string().min(1).max(255),
   trustedAudiences: trustedAudiences.optional(),
+  // LA-ADR-02 D2: the stored assertion audience of a {platformValue} profile (contract delta §4.6).
+  clientAssertionAud: z.string().min(1).max(2048).optional(),
   name: z.string().min(1).max(255),
   authenticationEndpoint: url.optional(),
   accesstokenEndpoint: url.optional(),
@@ -77,6 +80,7 @@ const DeploymentPatch = z.object({
 });
 
 const bad = (field: string) => new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`);
+const ADMIN_FIELDS = { url: 'url', authenticationEndpoint: 'authenticationEndpoint', accesstokenEndpoint: 'accesstokenEndpoint', jwksUrl: 'authConfig.key' } as const;
 
 export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteContext, 'db' | 'urls' | 'logger' | 'profiles' | 'now' | 'auth'>): void {
   const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
@@ -85,24 +89,29 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
    * The audit frame of an authenticated tenant change. Authentication supplies the actor and its account.
    * Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
    */
-  const audited = <R>(req: FastifyRequest, caller: AuthResult, action: string, target: AuditTarget, details: Record<string, unknown> | null,
-    body: (audit: AuditedRequest) => Promise<R> | R) => withAudit(ctx.db, ctx.now, {
+  const audited = async <R>(req: FastifyRequest, caller: AuthResult, action: string, target: AuditTarget, details: Record<string, unknown> | null,
+    body: (audit: AuditedOperations) => Promise<R> | R) => (await storeFor(ctx.db).audit.request(ctx.now, {
     actor: caller.actor, toolAccountId: caller.account.id, traceId: req.traceId, clientIp: req.ip, action, target, details,
-  }, body);
+  }, body));
 
   const deploymentView = (p: Platform, d: DeploymentRecord) => ({
     deploymentId: d.deploymentId, siteUrl: siteOriginOf(p, d), active: d.active, bindingGeneration: d.bindingGeneration, bindingRef: d.bindingRef,
   });
-  const view = (p: Platform) => ({
+  const view = async (p: Platform) => ({
     id: p.id, url: p.issuer, clientId: p.clientId, name: p.name, authenticationEndpoint: p.authEndpoint,
     accesstokenEndpoint: p.tokenEndpoint, authConfig: { method: 'JWK_SET', key: p.jwksUrl },
-    publicKey: activePublicKeyPem(ctx.db, p.toolAccountId), active: p.active, deploymentIds: p.deploymentIds,
+    publicKey: (await storeFor(ctx.db).toolKeys.activePublicKeyPem(p.toolAccountId)), active: p.active, deploymentIds: p.deploymentIds,
     productFamilyCode: p.productFamilyCode, trustedAudiences: p.trustedAudiences,
+    // E2 (contract delta §4.6): null for old rows.
+    clientAssertionAud: p.clientAssertionAud, grantedScopes: p.grantedScopes,
     // M1 (§9.4)
     profile: p.profile, siteUrl: p.siteUrl, serviceUrl: p.serviceUrl, bindingRef: p.bindingRef, deployments: p.deployments.map((d) => deploymentView(p, d)),
   });
 
-  /** §3.9 and §2.4 for admin-supplied endpoints, plus the reserved issuers (§9.4). */
+  /**
+   * §3.9 and §2.4 for admin-supplied endpoints, plus the reserved issuers (§9.4). The trait endpointOrigins chooses the
+   * URL rules (LA-ADR-02 D2): `issuer` keeps today's rules; `any-https` takes the rules of contract delta §4.6.1.
+   */
   function planAdmin(raw: CreateBody, profile: ProviderProfile): NewPlatform {
     const parsed = AdminCreate.safeParse(raw);
     if (!parsed.success) throw invalid(parsed.error);
@@ -110,13 +119,23 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     if (raw.serviceUrl !== undefined) throw bad('serviceUrl');
     const b = parsed.data;
     if (b.authConfig.method !== 'JWK_SET') throw new ApiError('UNSUPPORTED_AUTH_METHOD', 'Only authConfig.method JWK_SET is supported.');
-    checkPlatformUrls({ url: b.url, authenticationEndpoint: b.authenticationEndpoint, accesstokenEndpoint: b.accesstokenEndpoint, jwksUrl: b.authConfig.key },
-      { url: 'url', authenticationEndpoint: 'authenticationEndpoint', accesstokenEndpoint: 'accesstokenEndpoint', jwksUrl: 'authConfig.key' });
-    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(b.url).origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+    const urls = { url: b.url, authenticationEndpoint: b.authenticationEndpoint, accesstokenEndpoint: b.accesstokenEndpoint, jwksUrl: b.authConfig.key };
+    const staged = raw.active === false && raw.bindingRef !== undefined;
+    const hosts = { ownHosts: ownOrigins.map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles) };
+    if (profile.endpointOrigins === 'any-https') {
+      checkAnyHttpsPlatform({ ...urls, clientAssertionAud: raw.clientAssertionAud }, staged, hosts, ADMIN_FIELDS);
+    } else {
+      checkPlatformUrls(urls, ADMIN_FIELDS);
+      if (reservedIssuerOrigins(ctx.profiles).includes(new URL(b.url).origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+      // BD-A2-84: the audience of a {platformValue} profile obeys rule 2 too, staged or active.
+      if (raw.clientAssertionAud !== undefined) checkAudienceHost(raw.clientAssertionAud, hosts);
+    }
+    // BD-A1-82 (B-LA-E2-01-01): for every admin profile, whatever its endpoint origin rule.
+    checkActiveAudience({ accesstokenEndpoint: b.accesstokenEndpoint, clientAssertionAud: raw.clientAssertionAud }, staged);
     return {
       issuer: b.url, clientId: b.clientId, name: b.name, authEndpoint: b.authenticationEndpoint, tokenEndpoint: b.accesstokenEndpoint,
       jwksUrl: b.authConfig.key, deploymentIds: b.deploymentIds, active: raw.active ?? true, productFamilyCode: raw.productFamilyCode ?? null,
-      profile: profile.id, bindingRef: raw.bindingRef ?? null, trustedAudiences: raw.trustedAudiences ?? [],
+      profile: profile.id, bindingRef: raw.bindingRef ?? null, trustedAudiences: raw.trustedAudiences ?? [], clientAssertionAud: raw.clientAssertionAud ?? null,
     };
   }
 
@@ -166,17 +185,17 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
   }
 
   app.get('/api/platforms', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     const q = PlatformQuery.safeParse(req.query ?? {});
     if (!q.success) throw invalid(q.error);
     const filter = Object.fromEntries(Object.entries(q.data).filter(([, v]) => v !== undefined)) as { id?: string; url?: string; clientId?: string; profile?: string };
-    return { platforms: listPlatforms(ctx.db, account.id, filter).map(view) };
+    return { platforms: await Promise.all((await storeFor(ctx.db).platforms.listPlatforms(account.id, filter)).map(view)) };
   });
 
   app.post('/api/platforms', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
-    return audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
+    return (await audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, async (audit) => {
       const parsed = PlatformCreateBase.safeParse(req.body ?? {});
       // Keep the §3.9 field error for admin-supplied endpoints (for example a missing url).
       if (!parsed.success) {
@@ -191,40 +210,38 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       const b = parsed.data;
       const profile = findProfile(b.profile ?? 'standard', ctx.profiles);
       if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${b.profile}.`);
+      // Only a {platformValue} profile reads a stored assertion audience (LA-ADR-02 D2).
+      if (b.clientAssertionAud !== undefined && profile.clientAssertionAud.value !== '{platformValue}') throw bad('clientAssertionAud');
       const plan = profile.endpoints === 'admin' ? planAdmin(b, profile) : planProvider(b, profile);
       try {
-        const p = audit.change(() => createPlatform(ctx.db, account.id, plan),
-          (created) => ({ target: { type: 'platform', id: created.id }, details: { profile: created.profile, active: created.active } }));
-        if (profile.endpoints !== 'admin') ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
-        return reply.code(201).send(view(p));
+        const p = (await audit.createPlatform(account.id, plan));
+        // Every profile except the issuer-origin admin plan (`standard`, unchanged) logs the create (contract delta §4.6.1 rule 6).
+        if (profile.endpointOrigins !== 'issuer') ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
+        return reply.code(201).send((await view(p)));
       } catch (err) {
         if (err instanceof SharedPlatformExistsError) throw new ApiError('SHARED_PLATFORM_EXISTS', `This account already has a ${profile.id} platform.`);
         if (err instanceof PlatformExistsError) throw new ApiError('PLATFORM_ALREADY_EXISTS', 'A platform with this issuer and client id exists.');
         throw err;
       }
-    });
+    }));
   });
 
   app.get<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const p = getPlatform(ctx.db, account.id, req.params.id);
+    const { account } = (await ctx.auth(req, ['bearer']));
+    const p = (await storeFor(ctx.db).platforms.getPlatform(account.id, req.params.id));
     if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    return view(p);
+    return (await view(p));
   });
 
   app.delete<{ Params: { id: string }; Querystring: { ifBindingRef?: string } }>('/api/platforms/:id', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
-    return audited(req, caller, 'platform.delete', { type: 'platform', id: req.params.id }, null, (audit) => {
-      const current = getPlatform(ctx.db, account.id, req.params.id);
+    return (await audited(req, caller, 'platform.delete', { type: 'platform', id: req.params.id }, null, async (audit) => {
+      const current = (await storeFor(ctx.db).platforms.getPlatform(account.id, req.params.id));
       if (!current) throw new ApiError('UNREGISTERED_PLATFORM');
       const condition: RefCondition = typeof req.query.ifBindingRef === 'string' ? req.query.ifBindingRef : undefined;
       try {
-        audit.change(() => {
-          if (!deletePlatform(ctx.db, account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile, ctx.profiles)?.sharing === 'shared' })) {
-            throw new ApiError('UNREGISTERED_PLATFORM');
-          }
-        }, () => ({ details: { profile: current.profile } }));
+        (await audit.deletePlatform(account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile, ctx.profiles)?.sharing === 'shared' }, current.profile));
       } catch (err) {
         if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
         if (err instanceof SharedPlatformInUseError) throw new ApiError('SHARED_PLATFORM_IN_USE');
@@ -232,46 +249,42 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       }
       ctx.logger.info('platform_deleted', { trace_id: req.traceId, platform_id: req.params.id });
       return reply.code(204).send();
-    });
+    }));
   });
 
   app.patch<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
-    return audited(req, caller, 'platform.update', { type: 'platform', id: req.params.id }, null, (audit) => {
+    return (await audited(req, caller, 'platform.update', { type: 'platform', id: req.params.id }, null, async (audit) => {
       const parsed = PlatformPatch.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
-      const current = getPlatform(ctx.db, account.id, req.params.id);
+      const current = (await storeFor(ctx.db).platforms.getPlatform(account.id, req.params.id));
       if (!current) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
       if (parsed.data.deploymentIds !== undefined && profileDefinition(current.profile, ctx.profiles)?.sharing === 'shared') {
         throw new ApiError('SHARED_PLATFORM_DEPLOYMENTS');
       }
       checkRotation(parsed.data);
-      const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as Parameters<typeof updatePlatform>[3];
+      const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as StoredPlatformPatch;
       let p: Platform;
       try {
-        p = audit.change(() => {
-          const updated = updatePlatform(ctx.db, account.id, req.params.id, patch);
-          if (!updated) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-          return updated;
-        }, () => ({ details: { fields: Object.keys(patch), ...(patch.active !== undefined ? { active: patch.active } : {}) } }));
+        p = (await audit.updatePlatform(account.id, req.params.id, patch));
       } catch (err) {
         if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
         throw err;
       }
-      return view(p);
-    });
+      return (await view(p));
+    }));
   });
 
   // ---------------------------------------------------------------- deployments (§9.5, §9.6)
   app.post<{ Params: { id: string } }>('/api/platforms/:id/deployments', async (req, reply) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
-    return audited(req, caller, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, (audit) => {
+    return (await audited(req, caller, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, async (audit) => {
       const parsed = DeploymentCreate.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
       const b = parsed.data;
-      const platform = getPlatform(ctx.db, account.id, req.params.id);
+      const platform = (await storeFor(ctx.db).platforms.getPlatform(account.id, req.params.id));
       if (!platform) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
       const def = profileDefinition(platform.profile, ctx.profiles);
       const active = b.active ?? true;
@@ -290,24 +303,20 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       }
       let d: DeploymentRecord;
       try {
-        d = audit.change(() => {
-          const added = addDeployment(ctx.db, account.id, platform.id, { deploymentId: b.deploymentId, siteUrl, active, bindingGeneration: generation, bindingRef: b.bindingRef ?? null });
-          if (!added) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-          return added;
-        }, (added) => ({ target: { type: 'deployment', id: added.deploymentId }, details: { platformId: platform.id, active: added.active } }));
+        d = (await audit.addDeployment(account.id, platform.id, { deploymentId: b.deploymentId, siteUrl, active, bindingGeneration: generation, bindingRef: b.bindingRef ?? null }));
       } catch (err) {
         if (err instanceof DeploymentExistsError) throw new ApiError('DEPLOYMENT_ALREADY_EXISTS');
         throw err;
       }
       ctx.logger.info('deployment_added', { trace_id: req.traceId, platform_id: platform.id, deployment_id: d.deploymentId });
-      return reply.code(201).send(deploymentView(getPlatform(ctx.db, account.id, platform.id)!, d));
-    });
+      return reply.code(201).send(deploymentView((await storeFor(ctx.db).platforms.getPlatform(account.id, platform.id))!, d));
+    }));
   });
 
   app.patch<{ Params: { id: string; deploymentId: string } }>('/api/platforms/:id/deployments/:deploymentId', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
-    return audited(req, caller, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, (audit) => {
+    return (await audited(req, caller, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, async (audit) => {
       const parsed = DeploymentPatch.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
       const b = parsed.data;
@@ -315,8 +324,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       checkRotation(b);
       let d: DeploymentRecord;
       try {
-        d = audit.change(() => {
-          const changed = changeDeployment(ctx.db, account.id, req.params.id, req.params.deploymentId, b.ifBindingRef, (cur, platform) => {
+        d = (await audit.changeDeployment(account.id, req.params.id, req.params.deploymentId, b.ifBindingRef, (cur, platform) => {
             const def = profileDefinition(platform.profile, ctx.profiles);
             const shared = def !== null && isSharedProfile(def);
             const newRef = b.bindingRef !== undefined && b.bindingRef !== cur.bindingRef;
@@ -331,32 +339,30 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
               if (b.siteUrl !== undefined) next.siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
             } else if (b.active === true && !shared) next.active = true;
             return next;
-          });
-          if (!changed) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-          return changed;
-        }, (changed) => ({ details: { platformId: req.params.id, fields: Object.keys(b).filter((k) => b[k as keyof typeof b] !== undefined), active: changed.active } }));
+          }, Object.keys(b).filter((k) => b[k as keyof typeof b] !== undefined)));
       } catch (err) {
         if (err instanceof UnknownDeploymentError) throw new ApiError('UNKNOWN_DEPLOYMENT');
         if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
         throw err;
       }
       ctx.logger.info('deployment_updated', { trace_id: req.traceId, platform_id: req.params.id, deployment_id: d.deploymentId, active: d.active, binding_generation: d.bindingGeneration });
-      return deploymentView(getPlatform(ctx.db, account.id, req.params.id)!, d);
-    });
+      return deploymentView((await storeFor(ctx.db).platforms.getPlatform(account.id, req.params.id))!, d);
+    }));
   });
 
   // ---------------------------------------------------------------- providers (§9.3)
   app.get('/api/providers', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
+    const { account } = (await ctx.auth(req, ['bearer']));
     return {
-      profiles: listProfiles(ctx.profiles).map((p) => {
-        const shared = isSharedProfile(p) ? findSharedPlatform(ctx.db, account.id, p.id) : null;
+      profiles: await Promise.all(listProfiles(ctx.profiles).map(async (p) => {
+        const shared = isSharedProfile(p) ? (await storeFor(ctx.db).platforms.findSharedPlatform(account.id, p.id)) : null;
         return {
-          id: p.id, lms: p.lms, channel: p.channel, label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
+          id: p.id, lms: p.lms, channel: p.channel, endpoints: p.endpoints, issuerKind: p.issuerKind, endpointOrigins: p.endpointOrigins, // E2 traits (contract delta §4.7)
+          label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
           accesstokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.jwksUrl, siteUrlOn: p.siteUrlOn, serviceUrl: p.serviceUrl, simulation: p.simulation,
           sharedPlatform: shared ? { id: shared.id, clientId: shared.clientId, active: shared.active } : null,
         };
-      }),
+      })),
     };
   });
 }

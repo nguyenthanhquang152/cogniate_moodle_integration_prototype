@@ -26,12 +26,15 @@ function fixture() {
   seedBase(db);
   const apiKeyFile = join(dir, 'api-key');
   writeFileSync(apiKeyFile, 'unit-api-key');
+  // LA-E5-22 (A2 BD-A2-91): production takes the app master key only from a file with no group or world access.
+  const masterKeyFile = join(dir, 'app-master-key');
+  writeFileSync(masterKeyFile, key.toString('hex'), { mode: 0o600 });
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH, NODE_OPTIONS: `--import=${preload}`, NODE_NO_WARNINGS: '1',
     PUBLIC_LTI_URL: 'https://127.0.0.1', PUBLIC_APP_URL: 'https://app.test', PUBLIC_CONTENT_URL: 'https://content.test',
-    APP_MASTER_KEY: key.toString('hex'), DATA_DIR: dir, LTI_API_KEY_FILE: apiKeyFile,
+    APP_MASTER_KEY_FILE: masterKeyFile, DATA_DIR: dir, LTI_API_KEY_FILE: apiKeyFile,
     OUTBOUND_PRIVATE_HOST_ALLOWLIST: '127.0.0.1', LOG_DIR: join(dir, 'logs'), STACK_PROFILE: 'production', PORT: '0', CONTENT_PORT: '0',
-    BUILD_QUEUE_DIR: join(dir, 'builds'),
+    BUILD_QUEUE_DIR: join(dir, 'builds'), OPERATOR_PORT: '0',
   };
   function seed(count = 1, nextTryAt = Date.now()) {
     for (let i = 0; i < count; i++) {
@@ -206,4 +209,34 @@ describe('LA-E4-05 process entries', () => {
     expect(f.rows().every((row) => row.tries === 1 && row.lease_owner === null && row.send_started_at === null)).toBe(true);
     for (const child of [a, b]) expect(child.lines()).toContainEqual(expect.objectContaining({ event: 'job_runner_started', role: 'worker' }));
   }, 20_000);
+});
+
+describe('LA-E4-07 operator listener of the web entry', () => {
+  it('AC-LA-E4-07-01: production refuses a non-loopback OPERATOR_HOST with one config_refused line before any port opens', async () => {
+    const f = fixture();
+    const web = f.start('web', { OPERATOR_HOST: '0.0.0.0' });
+    await vi.waitFor(() => expect(web.child.exitCode, web.output()).toBe(1), { timeout: 10_000, interval: 25 });
+    expect(web.lines().filter((line) => line.event === 'config_refused')).toEqual([
+      expect.objectContaining({ level: 'error', reason: 'operator_bind_not_loopback' }),
+    ]);
+    expect(web.lines().some((line) => line.event === 'service_started')).toBe(false);
+    expect(readFileSync(web.logFile, 'utf8')).toContain('"reason":"operator_bind_not_loopback"');
+  });
+
+  it.each([['on', true], ['off', false]])('AC-LA-E4-07-01, AC-LA-E4-07-07: the listener answers on 127.0.0.1; send and job series only with the runner in the process (%s)', async (runner, sends) => {
+    const f = fixture();
+    const web = f.start('web', { APP_JOB_RUNNER: runner, JOB_INSTANCE_ID: `test-metrics-${runner}` });
+    await vi.waitFor(() => expect(web.lines().some((line) => line.event === 'operator_listener_started'), web.output()).toBe(true), { timeout: 10_000, interval: 25 });
+    const bind = String(web.lines().find((line) => line.event === 'operator_listener_started')!.operator_bind);
+    expect(bind).toMatch(/^127\.0\.0\.1:\d+$/);
+    const ready = await fetch(`http://${bind}/readyz`);
+    expect([ready.status, await ready.json()]).toEqual([200, { status: 'ready' }]);
+    const metrics = await (await fetch(`http://${bind}/metrics`)).text();
+    expect(metrics).toContain('# TYPE app_dispatch_sends counter');
+    expect(metrics.includes('app_dispatch_sends_total{reporter="lti-ags",outcome="accepted"} 0')).toBe(sends);
+    if (!sends) expect(metrics).not.toMatch(/^app_(dispatch_sends_total|job_runs_total|job_last_success_timestamp_seconds)/m);
+    // The store-based series stay in both topologies.
+    expect(metrics).toContain('app_grant_redemptions_total{result="committed"} 0');
+    expect(metrics).toContain('app_dispatch_oldest_pending_seconds{reporter="lti-ags"} 0');
+  });
 });

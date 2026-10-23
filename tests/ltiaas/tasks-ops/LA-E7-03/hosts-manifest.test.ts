@@ -228,8 +228,10 @@ describe('LA-E7-03 K1-SIM: simulator host manifest wiring (compose aliases, qa.c
     const report = loadHostReport();
     const def = report.defaultProfile;
     const golden = JSON.parse(fs.readFileSync(GOLDEN_G1_PATH, 'utf8')) as {
-      lti_healthz: Record<string, unknown>;
-      app_healthz: Record<string, unknown>;
+      default: {
+        ltiHealth: Record<string, unknown>;
+        appHealth: Record<string, unknown>;
+      };
     };
 
     // 1. Default profile allowlists have no simulator host (.sim.test or lms-sim.test).
@@ -246,7 +248,7 @@ describe('LA-E7-03 K1-SIM: simulator host manifest wiring (compose aliases, qa.c
     expect(def.activeServices).not.toContain('lms-sim');
 
     // 3. Default profile /healthz of lti-service and cogniate-app equals the golden G1.json.
-    expect(def.ltiHealthz).toEqual(golden.lti_healthz);
-    expect(def.appHealthz).toEqual(golden.app_healthz);
+    expect(def.ltiHealthz).toEqual(golden.default.ltiHealth);
+    expect(def.appHealthz).toEqual(golden.default.appHealth);
   });
 });

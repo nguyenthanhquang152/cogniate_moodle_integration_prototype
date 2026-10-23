@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -57,3 +57,32 @@ Both service type checks, ESLint on the nine changed TypeScript files, and F1/F5
 No Docker or stack runner was used. K1-SIM AC-01/07 and the health golden remain QA gates.
 
 Only this review file was changed for this item. Open findings: **1 MAJOR and 2 MINOR; 0 BLOCKER**.
+
+## Round 2
+
+Verdict: **APPROVE**. Reviewer-B: Codex GPT-6-Astra xhigh. Date: 2026-10-23. Reviewed `68e2d44`, `1f6ddc7`, `fd9b512` and `eb1d415` against the updated task spec, LA-ADR-06 D6/D12, BD-A2-77–80, operability §2 and plan §6.1. Verification used a private `git clone --no-hardlinks` at `7b52c24943e520dbda44abeb15254ca12f1ef4f5`. No other reviewer's report was read; no Docker or stack was run.
+
+Counts: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** All three Round 1 findings are closed.
+
+| Finding | Resolution and evidence |
+| --- | --- |
+| B-LA-E5-21-01 | `readStartupKeys` resolves the ring and the legacy handle once, before opening the database. `loadConfig` no longer requires a redundant master-key source. `main` passes the resolved ring into `loadKeyProvider` and the same handle to its callers. A ring-only production service starts; file-only and ring-plus-matching-file starts still work. |
+| B-LA-E5-21-02 | Every production refusal now includes the fixed recovery message published in operability §2. Seven real entry-point probes each exited 1 with exactly one JSON refusal line, the expected reason and exact message, no stderr, no database and no secret or arbitrary path in the diagnostic. The mode refusal also identifies the setting. |
+| B-LA-E5-21-03 | Master-key reads use the shared `hexKey` option, which validates and normalizes hex before comparison. Both default and acceptance accept upper-case environment hex beside a lower-case file for the same bytes. Generic secrets retain case-sensitive comparison. |
+
+### Startup ownership and changed S2 tests
+
+There is now one startup key reader and one shared secret-file reader. `readSecretFile` opens once, checks the opened descriptor with `fstat`, reads that descriptor and closes it in `finally`. The mode policy is explicit: no group/world bits; production refuses, while default/acceptance warn. Tests cover `0600` and `0400` files, an open-mode refusal/warning and regular-file validation. This is a clear place to maintain a later file policy.
+
+The two changed S2 expectations in `fd9b512` follow **BD-A2-77**, rather than hiding a regression. A master key beside a ring must now equal the ring's `legacy` version instead of being silently overridden. A ring without `legacy` now refuses startup with `key_ring_invalid` instead of returning a provider that later fails readiness. The separate test for another missing in-use version still checks the readiness failure, and the complete-ring test still succeeds. The task spec and D12 explicitly authorize both changes.
+
+A private startup test removed the ring file immediately after the first successful `readStartupKeys` call. The service still started with the expected legacy handle and active `k2` provider; the reader was called exactly once. This checks that startup uses the validated ring, including when the source changes after the read.
+
+### Round 2 verification and scope
+
+- **57 tests in 4 shared/config/key/startup files passed**, plus the one private single-read startup test. UNIT AC-02–06 retain direct assertions. The real-process probes cover all seven refusal messages and three successful key-source arrangements; they use temporary ports and no stack.
+- Restoring the pre-fix config/main behavior in the private clone made the ring-only startup test fail and all six fixed-message tests fail. Removing only hex normalization made its new regression test fail. All mutations were restored; the final combined run, including the rotation review, passed **66 tests in 6 files**.
+- Shared and LTI service type checks, ESLint on all eleven changed TypeScript files, F1 and F5 passed. Evidence: `/tmp/la-review-b-7abb7c35cab7/reviewer-b-startup.log`, `reviewer-b-startup-probes.mjs`/`.log`, `reviewer-b-read-once.log`, `reviewer-b-old-ring-start.log`, `reviewer-b-old-refusals.log`, `reviewer-b-old-hex.log` and `reviewer-b-restored.log`.
+- `1f6ddc7` and `fd9b512` are the explicit RQ-2 changes for the shared export and S2 key configuration. The app config, shared knobs, infrastructure and `tests/**` remain untouched. No new LMS name or behavior outside BD-A2-77–80 was found. K1-SIM AC-01/07 and the health golden remain QA gates.
+
+Only this review file was changed for this item. Nothing remains for Author from Reviewer-B Round 2.

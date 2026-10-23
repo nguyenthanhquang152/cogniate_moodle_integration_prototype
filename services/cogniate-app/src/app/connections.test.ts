@@ -1,8 +1,10 @@
 // LA-E1-01 (step S1): the provider list ignores a profile that no adapter owns (app API delta §2, §8).
+import { createLocalKeyProvider } from '@cogniate/shared';
 import { afterEach, expect, it } from 'vitest';
 import type { LtiProviderProfile } from '../clients/lti-client.ts';
 import type { TestApp } from '../testkit.ts';
-import { THANH, testApp } from '../testkit.ts';
+import { TEST_CHANNELS, TEST_URLS, THANH, testApp } from '../testkit.ts';
+import { REF_COPY_COLUMN, appAad } from './sealing.ts';
 
 let t: TestApp;
 afterEach(async () => {
@@ -16,7 +18,7 @@ const unknownProfile: LtiProviderProfile = {
   siteUrlOn: 'platform', serviceUrl: false, simulation: false, sharedPlatform: null,
 };
 
-it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order; the app logs it once', async () => {
+it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order (every new channel follows: open world); the app logs it once', async () => {
   t = await testApp();
   t.lti.addSharedPlatform('blackboard-sim', 'qa-bb-app');
   const cookie = await t.login(THANH);
@@ -26,7 +28,9 @@ it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep th
     return r.body;
   };
   const baseline = await list();
-  expect((JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+  const ids = (JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms);
+  expect(ids.slice(0, 3)).toEqual(['moodle', 'canvas', 'blackboard']);
+  expect(ids).toEqual(TEST_CHANNELS.channels().filter((m) => m.availability !== 'simulation-only').map((m) => m.id));
   // The unknown row comes between two known rows, so a change of order would show.
   t.lti.providers.splice(1, 0, unknownProfile);
   expect(await list()).toBe(baseline);
@@ -92,4 +96,33 @@ it('LA-IC-17: a strict manual body refuses an unknown key with 422 and details.f
   expect(refused.statusCode).toBe(422);
   expect(refused.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', fields: ['label'] } });
   expect(t.lti.calls).toEqual([]);
+});
+
+it('A-LA-E5-22-02: a ref copy whose key version the app ring lacks leaves only that registration URL out; a moved copy still fails', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const call = (method: 'GET' | 'POST', url: string, payload?: unknown) =>
+    t.app.inject({ method, url, headers: method === 'GET' ? { cookie } : t.writeHeaders(cookie), ...(payload !== undefined ? { payload: payload as Record<string, unknown> } : {}) });
+  const create = async () => (await call('POST', '/app-api/connections', { name: 'School', siteUrl: TEST_URLS.moodle, method: 'dynamic', lms: 'moodle' })).json() as { id: string; registrationUrl: string };
+  const a = await create();
+  const b = await create();
+  const row = (id: string) => t.db.prepare('SELECT library_id, ref_token_hash, ref_token_encrypted FROM connection WHERE id = ?').get(id)!;
+  // A copy sealed with the version k9, which the ring of this process does not have (for example a re-wrap before the restart).
+  const k9 = createLocalKeyProvider({ active: 'k9', keys: new Map([['k9', Buffer.alloc(32, 9)]]) });
+  const ra = row(a.id);
+  t.db.prepare('UPDATE connection SET ref_token_encrypted = ? WHERE id = ?')
+    .run(k9.sealSync(Buffer.from('ref'), appAad(REF_COPY_COLUMN, String(ra.library_id), String(ra.ref_token_hash))).bytes, a.id);
+  const detail = await call('GET', `/app-api/connections/${a.id}`);
+  expect([detail.statusCode, detail.json().registrationUrl, detail.json().registrationUrlExpiresAt, detail.json().status]).toEqual([200, null, null, 'pending']);
+  const list = await call('GET', '/app-api/connections');
+  expect(list.statusCode).toBe(200);
+  const rows = (list.json() as { connections: Array<{ id: string; registrationUrl: string | null }> }).connections;
+  expect(rows.map((c) => [c.id, c.registrationUrl === null])).toEqual(expect.arrayContaining([[a.id, true], [b.id, false]]));
+  // "Get registration URL" makes a new ref with the running ring.
+  const renewed = await call('POST', `/app-api/connections/${a.id}/registration-url`);
+  expect(renewed.statusCode).toBe(200);
+  expect((await call('GET', `/app-api/connections/${a.id}`)).json().registrationUrl).toBe(renewed.json().registrationUrl);
+  // A copy moved from another row opens with no ring version (auth_failed): the answer still fails, as before.
+  t.db.prepare('UPDATE connection SET ref_token_encrypted = ? WHERE id = ?').run(row(b.id).ref_token_encrypted as Uint8Array, a.id);
+  expect((await call('GET', `/app-api/connections/${a.id}`)).statusCode).toBe(500);
 });

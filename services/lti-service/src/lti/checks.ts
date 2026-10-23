@@ -1,3 +1,4 @@
+import { storeFor } from '../store/index.ts';
 /**
  * The launch checks of security §2.2, one small function each (T2a design note). Run order (launch.ts):
  * 1 + 3 (one atomic statement), then 2, then 4 to 12. Each failure is a LaunchCheckError {check, code, detail}; the
@@ -6,16 +7,15 @@
  */
 import type { ProtocolUrls } from './target.ts';
 import { readCookie, safeEqual } from '@cogniate/shared';
-import { MANUAL_SELF_LEGACY_CHANNELS } from '@cogniate/channel-kernel';
+import { familyGuardVerdict } from '@cogniate/channel-kernel';
 import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
 import { channelRegistry } from '../profiles/index.ts';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { DeploymentRecord, Platform } from '../store/platforms.ts';
 import { findDeployment } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';
-import { consumeState } from '../store/states.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import type { PlatformKeys } from './jwks.ts';
 import { PlatformKeyError } from './jwks.ts';
@@ -72,9 +72,9 @@ export function stateCookieName(stateHash: string): string {
 export { readCookie };
 
 /** Checks 1 and 3: the state exists for this account, is unused and not expired; it is marked used at once. */
-export function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): StateRecord {
+export async function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): Promise<StateRecord> {
   if (typeof state !== 'string' || state === '' || stateHash === null) return fail('1', 'INVALID_STATE', 'state_missing');
-  const rec = consumeState(db, accountId, stateHash, now);
+  const rec = (await storeFor(db).states.consumeState(accountId, stateHash, now));
   return rec ?? fail('1', 'INVALID_STATE', 'state_unknown_used_or_expired');
 }
 
@@ -245,19 +245,15 @@ export function check13Origins(claims: Claims, origins: { site: string; service:
 }
 
 /**
- * Check 14: launch guards require the owning channel. Registration guards refuse a mismatch only on the legacy
- * manual-self path. Return any other registration mismatch for the caller to log; unknown families pass.
+ * Check 14 with the kernel verdict in phase `launch` (BD-A1-43, BD-A1-54): launch guards require the owning channel;
+ * registration guards refuse a mismatch only on the legacy manual-self path. Return any other mismatch for the caller
+ * to log; unknown families pass.
  */
 export function check14ProductFamily(claims: Claims, profile: ProviderProfile, opts: ProfileOptions): string | null {
   const tp = claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   const code = tp && typeof tp === 'object' && typeof tp.product_family_code === 'string' ? tp.product_family_code.toLowerCase() : null;
   if (code === null) return null;
-  const channels = channelRegistry(opts);
-  const owner = channels.ownerOfFamily(code);
-  if (owner === null || owner === profile.channel) return null;
-  const guard = channels.channel(owner)?.lti?.guardedFamilies.find((entry) => entry.family === code);
-  if (guard?.level === 'launch' || MANUAL_SELF_LEGACY_CHANNELS.includes(profile.channel)) {
-    fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
-  }
-  return code;
+  const verdict = familyGuardVerdict(channelRegistry(opts), code, profile.channel, 'launch');
+  if (verdict.kind === 'refuse') fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
+  return verdict.kind === 'log' ? code : null;
 }

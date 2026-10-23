@@ -11,8 +11,8 @@ export type ProtocolErrorCode =
   | 'INVALID_REQUEST' | 'INVALID_STATE' | 'STATE_COOKIE_MISSING' | 'INVALID_ID_TOKEN' | 'INVALID_ISSUER_OR_AUDIENCE'
   | 'INVALID_SIGNATURE' | 'TOKEN_EXPIRED' | 'INVALID_NONCE' | 'UNSUPPORTED_MESSAGE_TYPE' | 'MISSING_CLAIM' | 'PLATFORM_ERROR'
   | 'METHOD_NOT_ALLOWED'
-  // Dynamic registration pages (contract §2.4, T3b)
-  | 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'FETCH_FAILED'
+  // Dynamic registration pages (contract §2.4, T3b; E2: a configuration host that no profile allows, LA-ADR-02 D5 item 2)
+  | 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'FETCH_FAILED' | 'PLATFORM_URL_NOT_IN_PROFILE'
   // M1 (contract §9.2)
   | 'DEPLOYMENT_NOT_ACTIVE' | 'PROVIDER_PROFILE_MISMATCH' | 'SERVICE_ORIGIN_MISMATCH' | 'ISSUER_RESERVED'
   // LA (contract delta §1.3)
@@ -40,8 +40,10 @@ export const PROTOCOL_ERRORS: Record<ProtocolErrorCode, { status: number; action
   PLATFORM_ERROR: { status: 400, action: '{LMS} stopped the launch. Start again from {LMS}, or ask your {LMS} admin.' },
   METHOD_NOT_ALLOWED: { status: 405, action: 'Open the activity from {LMS}.' },
   INVALID_OPENID_CONFIGURATION: { status: 400, action: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from {LMS}. If it happens again, give the trace id to your Cogniate admin.' },
-  ISSUER_MISMATCH: { status: 400, action: 'The platform configuration is not from the site that started the registration. Start the registration again from {LMS} (Site administration > Manage tools).' },
+  // BD-A1-68: no menu path here; the registration page shows the manifest sentence (texts.registration.ISSUER_MISMATCH).
+  ISSUER_MISMATCH: { status: 400, action: 'The platform configuration is not from the site that started the registration. Start the registration again from {LMS}.' },
   FETCH_FAILED: { status: 400, action: 'Cogniate could not read the platform configuration. Check that the {LMS} site can be reached, then start the registration again.' },
+  PLATFORM_URL_NOT_IN_PROFILE: { status: 400, action: 'The platform configuration uses an address that Cogniate does not accept for {LMS}. Check the {LMS} site address, then start the registration again. If it happens again, give the trace id to your Cogniate contact.' },
   DEPLOYMENT_NOT_ACTIVE: { status: 403, action: 'The connection to this {LMS} site is switched off. Ask your Cogniate admin to check the connection in the Cogniate portal.' },
   PROVIDER_PROFILE_MISMATCH: { status: 400, action: 'This {LMS} site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as {LMS} in the Cogniate portal.' },
   SERVICE_ORIGIN_MISMATCH: { status: 400, action: 'The {LMS} address in this launch is not the address saved in Cogniate. Ask your Cogniate admin to check the site URL.' },

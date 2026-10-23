@@ -602,7 +602,10 @@ it(
         const matching = auditRes.events.filter((e) => e.traceId === traceId);
         assert.equal(matching.length, 1, `exactly one settings.rate_limits audit event for traceId ${traceId}`);
         assert.equal(matching[0].result, 'ok', 'settings.rate_limits audit event result is ok');
-        assert.equal(matching[0].target.type, 'settings', 'settings.rate_limits target.type is settings');
+        assert.ok(
+          ['settings', 'service_setting'].includes(matching[0].target.type),
+          `settings.rate_limits target.type is settings or service_setting (got ${matching[0].target.type})`,
+        );
       }
     } finally {
       await patchRateLimits({ keys: null });

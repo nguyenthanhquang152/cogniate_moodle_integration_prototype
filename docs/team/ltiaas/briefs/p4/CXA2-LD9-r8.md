@@ -1,0 +1,11 @@
+# Review dispatch: Reviewer-A (Codex, same session), one item (LD-9)
+
+Item 1: LD-9 round 8 (lead QA; integration b796b1ec): the round-7 fixes: B-LD9-13 (LA-IC-01 now records that the 6 closed-world frozen files and 2 shared open-world helpers are PENDING on integration, owned by LA-E0-04 LD-1 (la-qa f0a7b306) and landing at the wave-end gate, with 0 extra LA-IC-01 frozen-test edits after LD-1), B-LD9-14 (every test reference now resolves to an existing file:line; golden.k0.test.mjs checks the 21 LA-IC-01 references on disk), A-LA-LD9-15/16 NITs; LA-IC-04 K1-SIM and LA-IC-14 citations updated. Proportional review. Add '## Round 8' to docs/reviews/LA-LD9/reviewer-a.md.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there; run tests in a private git clone --no-hardlinks with its own npm ci, and delete node_modules/.vitest-cache before each Vitest run.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.

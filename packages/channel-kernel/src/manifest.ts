@@ -24,13 +24,34 @@ export interface GuardedFamily {
   level: 'launch' | 'registration';
 }
 
-/** One form field of the setup steps (D9). No `default` in E1: LA-E2-03 adds it. */
+/** One form field of the setup steps (D9). */
 export interface FieldSpec {
   key: string;
   label: string;
   kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice';
   required: boolean;
   method?: RegistrationMethod;
+  /**
+   * E2-K (LA-ADR-01 D2): a pre-filled value; the only placeholder is `{siteUrl}` (the connection site origin). A posted
+   * value always replaces it, and it is never trusted alone (Reviewer-B B-LAD-05): the grant binds the value.
+   */
+  default?: string;
+}
+
+/**
+ * BD-A1-78: the closed placeholders of a `setup.toolRows` value. The kernel fills them from the tool URLs, the tool
+ * account and the channel scope set; a manifest writes no protocol path.
+ */
+export const TOOL_ROW_PLACEHOLDERS = ['toolName', 'loginUrl', 'launchUrl', 'keysUrl', 'deepLinkingUrl', 'ltiHost', 'scopes'] as const;
+export type ToolRowPlaceholder = (typeof TOOL_ROW_PLACEHOLDERS)[number];
+
+/** One tool configuration row of the manifest (BD-A1-78): literal text plus the closed tool-row placeholders. */
+export interface ToolRowSpec {
+  /** Stable wire key. */
+  key: string;
+  /** Human text of the LMS form field. */
+  label: string;
+  value: string;
 }
 
 export interface ChannelManifest {
@@ -63,6 +84,11 @@ export interface ChannelManifest {
     createFields: readonly FieldSpec[];
     /** `PUT …/platform` body keys (strict), per method. */
     bindingFields: readonly FieldSpec[];
+    /**
+     * BD-A1-78: the tool configuration rows that the kernel admin-value adapter gives, in order. Absent = the generic
+     * row set (app API delta §3.3). A channel with app.ts gives its rows itself.
+     */
+    toolRows?: readonly ToolRowSpec[];
     /** The "Check connection" panel (A2 LA-ADR-08 D4, Could). */
     connectionCheck?: boolean;
   };
@@ -107,6 +133,16 @@ const FIELD_SPEC = z.strictObject({
   kind: z.enum(['origin', 'id', 'grantCode', 'url', 'choice']),
   required: z.boolean(),
   method: METHOD.optional(),
+  default: z.string().min(1).refine((t) => [...t.matchAll(/\{([^{}]*)\}/g)].every((m) => m[1] === 'siteUrl'), 'only the placeholder {siteUrl}').optional(),
+});
+
+const TOOL_ROW = z.strictObject({
+  key: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/, 'a row key: lower case letters, digits and "_"'),
+  label: z.string().min(1),
+  value: z.string().min(1).refine(
+    (t) => [...t.matchAll(/\{([^{}]*)\}/g)].every((m) => (TOOL_ROW_PLACEHOLDERS as readonly string[]).includes(m[1]!)),
+    `only the placeholders ${TOOL_ROW_PLACEHOLDERS.map((p) => `{${p}}`).join(', ')}`,
+  ),
 });
 
 const REGISTRATION = z.strictObject({
@@ -138,6 +174,7 @@ const MANIFEST = z.strictObject({
   setup: z.strictObject({
     createFields: z.array(FIELD_SPEC),
     bindingFields: z.array(FIELD_SPEC),
+    toolRows: z.array(TOOL_ROW).min(1).refine((rows) => unique(rows.map((r) => r.key)), 'one row per key').optional(),
     connectionCheck: z.boolean().optional(),
   }),
   storage: z.strictObject({
@@ -154,6 +191,16 @@ const MANIFEST = z.strictObject({
     registration: z.strictObject(Object.fromEntries(REGISTRATION_TEXT_KEYS.map((key) => [key, TEXT.optional()])) as Record<RegistrationTextKey, z.ZodOptional<typeof TEXT>>).optional(),
   }),
 });
+
+/** A `FieldSpec.default` with `{siteUrl}` filled (LA-ADR-01 D2). The value goes in literally. */
+export function fillFieldDefault(template: string, values: { siteUrl: string }): string {
+  return template.replace(/\{siteUrl\}/g, () => values.siteUrl);
+}
+
+/** A `setup.toolRows` value with its placeholders filled in one pass: an inserted value is never read again. */
+export function fillToolRow(value: string, values: Readonly<Record<ToolRowPlaceholder, string>>): string {
+  return value.replace(/\{([A-Za-z]+)\}/g, (whole, name: string) => ((TOOL_ROW_PLACEHOLDERS as readonly string[]).includes(name) ? values[name as ToolRowPlaceholder] : whole));
+}
 
 /** Validate one manifest against the schema (the shape part of load check 1). */
 export function parseChannelManifest(value: unknown): { ok: true; manifest: ChannelManifest } | { ok: false; problem: CheckProblem } {

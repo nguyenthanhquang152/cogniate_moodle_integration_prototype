@@ -23,6 +23,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATOR_HOST`, `OPERATOR_PORT` | LTI | `127.0.0.1`, `4110` (`acceptance` profile: `0.0.0.0`, for the `e2e` container; never routed by the proxy) | operator listener; `/metrics`, `/readyz` with reasons | LA-ADR-06 D3 |
 | `LTI_KEYRING_FILE` | LTI | `/run/secrets/lti/keyring.json` (host: `infra/.secrets/lti/keyring.json`) | key ring JSON (`active` + `keys`); no file = `LTI_MASTER_KEY` as version `legacy` | LA-ADR-06 D6 |
 | `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE` | LTI, app | unset | file forms of the master keys; required form in `production` | LA-ADR-06 D12 |
+| `APP_KEYRING_FILE` | app | `/run/secrets/app-keys/keyring.json` (host: `infra/.secrets/app-keys/keyring.json`) | app key ring JSON, the same shape and rules as `LTI_KEYRING_FILE` (BD-A2-77: it must hold `legacy`; `APP_MASTER_KEY` next to it must equal it); no file = `APP_MASTER_KEY(_FILE)` as the active version `legacy`. `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`) (BD-A2-91) | LA-ADR-06 D6 |
 | `LTI_RATE_LIMITS` | LTI | built-in table | JSON overrides of the default limits at start; the operator API value (`PATCH /operator/v1/rate-limits`) wins over it | LA-ADR-06 D1 |
 | `TRUSTED_PROXY_CIDRS` | LTI | `proxy` (CIDRs or host names; names resolved every 60 s) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
 | `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start with one line | LA-ADR-06 D7 |
@@ -35,14 +36,24 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
+On the LA compose stack (BD-A2-105): `infra/compose.yaml` gives each service a fixed list of settings and has no `env_file`. A setting that is not in that list does not reach the service, and the service uses its default. So in LA these settings of the table do not reach the services: `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`, `LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `APP_JOB_RUNNER`, `OPERATOR_NAME`, `OPERATORS`, `OPERATORS_FILE`, and, for the app only, `AUDIT_RETENTION_DAYS` and `JOB_INSTANCE_ID`. The two key-ring files work, because their defaults are the mounted paths. `TRUSTED_PROXY_CIDRS` is fixed to `proxy`. On the stack:
+
+- Change a rate limit with the operator API (`PATCH /operator/v1/rate-limits`), not with `LTI_RATE_LIMITS`.
+- Give an app CLI its operator settings for one run: `docker compose exec -e OPERATOR_NAME=… -e OPERATORS=… cogniate-app …`.
+- `npm run stack:restart -- <service> --env` accepts registered test knobs only. It is not a way to set the settings above.
+- `production` does not run. The stack scripts save only `default` or `acceptance`, and compose gives both master keys as environment values, which `production` refuses (`master_key_in_env`, `app_master_key_in_env`). The `production` rules are for a host setup, which milestone LG makes (deferred row "LA-E5-22 note (K)").
+- The separate app worker (`npm run worker`, §3) has no compose service.
+
 Secret files (never in git; mode `0600` or `0400`, no group or world bit; mounted read only). The service checks the mode on the opened file. In `production`, a file with a group or world bit stops the start (`secret_file_mode`); other profiles log `secret_file_mode_open {setting}` (BD-A2-78). A key-ring file alone is enough to start, when it holds the version `legacy` (BD-A2-77):
 
 | File | Holder | Content |
 | --- | --- | --- |
-| `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
+| `infra/.secrets/lti-api-key.<account>` | the host (`npm run seed`, `lti:bootstrap`, the `compat` runner) | tool account API key. `lti:bootstrap` writes it (`0600`). The app does not read this file (BD-A2-105) |
+| `infra/.secrets/app/lti-api-key` | app (`LTI_API_KEY_FILE`; read at each use) | a copy of `infra/.secrets/lti-api-key.cogniate`. `lti:bootstrap` keeps it equal at each run, also when the key does not change (write, then rename; `0600`). The folder `infra/.secrets/app/` (`0700`) is mounted read only at `/run/secrets/app`, so the app container sees only its own key. `stack:reset` deletes the folder (BD-A2-105) |
 | `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
 | `infra/.secrets/lti/lti-operator-key` | LTI service container (CLIs) | a copy of `infra/.secrets/lti-operator-key` that the host wrapper writes atomically at each run (`0600`). A missing original deletes it; `stack:reset` deletes it (BD-A2-34) |
+| `infra/.secrets/app-keys/keyring.json` (and an app master-key file, when used) | app | the app key ring. The folder `infra/.secrets/app-keys/` (`0700`) is mounted read only at `/run/secrets/app-keys` and hidden from the `e2e` container by its own empty tmpfs (BD-A2-91) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
 
 Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
@@ -63,6 +74,7 @@ Production refusals (the message is fixed text and never holds a value):
 | `master_key_in_env` | Production does not allow the master key as an environment value. Remove LTI_MASTER_KEY and use LTI_MASTER_KEY_FILE or the key-ring file. |
 | `no_trusted_proxy` | Production needs TRUSTED_PROXY_CIDRS. Set it to the address or host name of the proxy, then start the service again. |
 | `operator_bind_not_loopback` | Production allows the operator listener on loopback only. Set OPERATOR_HOST to 127.0.0.1 or ::1, then start the service again. |
+| `app_master_key_in_env` (app) | Production does not allow the app master key as an environment value. Remove APP_MASTER_KEY and use APP_MASTER_KEY_FILE or the app key-ring file. |
 | `secret_file_mode` (with `setting`) | A secret file has group or world access. Set the mode of the file named by the setting to 0600, then start the service again. |
 
 ## 3. Deployment topology (pilot)
@@ -104,7 +116,7 @@ Rules:
 - The proxy routes only the four public host names. It has no route to `:4110` or `:4210`.
 - In the `acceptance` profile only, the LTI operator listener binds the stack network, so QA's `e2e` container can call it (LA-ADR-06 D3). The `default` profile keeps loopback; `production` refuses any other bind.
 - In the pilot, a collector reads `/metrics` with `docker compose exec lti-service wget -qO- http://127.0.0.1:4110/metrics` (or a sidecar in the same network namespace). LG exposes it on a private network.
-- One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
+- One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The LA compose stack has no worker service and does not pass these two settings (§2, BD-A2-105). The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
 - Stop timing (BD-A2-31): a stop with no job in flight ends in about 1 s. With a job in flight, the service waits up to the job lease (60 s), and exits by itself at 70 s at the latest (`service_exit_forced`, exit code 1). Docker waits 75 s (`stop_grace_period`) before it kills. So `npm run stack:restart` can take up to about 75 s when a long job runs. Every interval job runs once at each start (BD-A2-32).
 - In-memory state (score clock, platform token cache, JWKS cache, rate-limit buckets) is per process. That is safe with one LTI service process only (LA-ADR-06 D13 item 4).
 
@@ -178,14 +190,20 @@ The app has no `/metrics` today. With E5 it gets `GET /metrics` and `GET /readyz
 | `app_dispatch_sends_total{reporter,outcome}` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) | grade return health (`DispatchFailures`, `PlatformThrottled`) |
 | `app_launch_refusals_total{reason,channel}` | setup problems per channel (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`) |
 | `app_grant_redemptions_total{result}`, `app_grant_compensation_failures_total` | onboarding health |
-| `app_job_runs_total{job,result}`, `app_job_last_success_timestamp_seconds{job}` | `record-dispatch` and `retention` job health (`JobStale`) |
+| `app_job_runs_total{job,result}`, `app_job_last_success_timestamp_seconds{job}` | job health. `JobStale` watches the interval jobs (for example `retention`) only; `record-dispatch` logs one run per row, so an idle outbox has no new success, and `DispatchBacklog` watches the outbox. |
+
+App rules (BD-A2-88; LA-E4-07, lane R):
+
+- Listener: `OPERATOR_HOST` (default `127.0.0.1`) and `OPERATOR_PORT` (default `4210`) in the app process, with the same names and rule as the LTI service. `production` refuses a non-loopback bind (`operator_bind_not_loopback`, the same fixed message). It runs in the web process only.
+- Sources: the dispatch gauges are store queries at scrape time (no pending row = age `0`). `app_dispatch_sends_total` counts at the commit of the recording transaction (`afterCommit`). `app_grant_redemptions_total` is a scrape-time count of ended `binding_attempt` rows, which is a true counter only while no job deletes those rows; a job that deletes them moves this series to a commit observer in the same change. `app_grant_compensation_failures_total` and the job series come from log events. `app_launch_refusals_total` gets one line in the launch page; an unknown channel id becomes `''`, and a reason outside `[a-z][a-z0-9_]{0,63}` becomes `other`.
+- Topology: the send and job series exist only when the web process runs the job runner (`APP_JOB_RUNNER=on`). A standalone worker exposes no listener in LA, so those series are absent, not zero. The store-based series and `DispatchBacklog` work in both topologies.
 
 ### 4.4 Health and readiness
 
 | Endpoint | Where | Answer |
 | --- | --- | --- |
 | `/healthz` | public | liveness; `production`: `{status, service}` only |
-| `/readyz` | public and operator listener | `200` ready, or `503`; the operator answer lists `reasons` (`database`, `migrations`, `key_version_missing`) |
+| `/readyz` | public and operator listener | `200` ready, or `503`; the operator answer lists `reasons` (`database`, `migrations`, `key_version_missing`) The app `/readyz` (operator listener only) checks only the app: the database, the migrations, and the app key provider when it exists. It never checks the LTI service, so an LTI outage does not make the app not ready; the runbooks check both services (BD-A2-88). |
 
 ### 4.5 Service level objectives (recommendation; LA-H8)
 
@@ -216,7 +234,7 @@ Severity: **page** = act now; **ticket** = act within one working day. The pagin
 | `NextKeyWaiting` | a `next` key older than 7 days | ticket | Finish §6.1, or retire the `next` key. |
 | `ApiKeyExpiring`, `OperatorKeyExpiring` | expires within 14 days | ticket | §6.2, §6.4. |
 | `KeyRingNotRewrapped` | `lti_key_provider_sealed_rows` > 0 for a non-active version, 7 days after a key-ring change | ticket | Run the re-wrap (§6.3). |
-| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. Then follow §8a. |
+| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. Then follow §8a. Interval jobs only (not the queue job `record-dispatch`; BD-A2-88). |
 | `BackupMissing` | no verified backup within the RPO | page (pilot) | Run §7.2. |
 | `CertificateExpiry` | TLS certificate expires within 21 days | ticket | Renew (dev: `npm run gen-env`; LG: ingress). |
 | `SharedPlatformQuota` | outbound calls to one shared Blackboard platform > 8,000 per 24 h | ticket | Anthology's default limit is 10,000 REST calls per 24 h per application (R2 §9 item 13; whether AGS calls count is UNVERIFIED). Ask for a raise before the limit. |
@@ -256,11 +274,15 @@ Compromise of the next key (it is published, but it never signed):
 ### 6.2 Tool account API key
 
 1. Issue a second key: `POST /operator/v1/accounts/<id>/api-keys {label, scopes}`. The answer shows the key once.
-2. Put the key into the tool back end. For Cogniate, write it to `infra/.secrets/lti-api-key.cogniate` (mode `0600`). The app reads the file at each use.
+2. Put the key into the tool back end. For Cogniate on the stack (BD-A2-105):
+   1. Write the key to `infra/.secrets/lti-api-key.cogniate` (mode `0600`).
+   2. Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. An active key exists, so it issues no key. It copies the file to `infra/.secrets/app/lti-api-key`.
+
+   The rule: the host keeps `lti-api-key.<account>`; the app reads only its copy (`LTI_API_KEY_FILE=/run/secrets/app/lti-api-key`), at each use. Do not write the copy by hand.
 3. Check that `lastUsedAt` of the new key moves and `lastUsedAt` of the old key stops (`GET …/api-keys`).
 4. Revoke the old key: `POST …/api-keys/<old id>/revoke`.
 
-Emergency (leaked key): `npm run lti:bootstrap -- --account <id> --name <name> --rotate-api-key`. It issues a new key and revokes every other key at once.
+Emergency (leaked key): `npm run lti:bootstrap -w services/lti-service -- --account <id> --name <name> --rotate-api-key`. It issues a new key and revokes every other key at once. It writes the new key to `infra/.secrets/lti-api-key.<id>`, and for `cogniate` also to the app copy.
 
 ### 6.3 Master key (key ring)
 
@@ -273,8 +295,8 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`. Write down the `traceId` and the time of the answer.
    - `202`: a run started.
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 5 again.
-   - `409 JOB_RUNNING`: a run is in progress. Wait one minute, then do step 6.
-6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run).
+   - `409 JOB_RUNNING`: another run holds the job (a timed run or another request). This request started nothing, and its `traceId` does not find the other run. Wait one minute, then do step 5 again. Repeat until the answer is `202` (BD-A2-107).
+6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run). The log line `key_rewrap_failed {trace_id, error}` with that trace id means that the run did not start after the `202`: do step 5 again (BD-A2-107).
    - `complete`: check `GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 7.
    - `partial` (`stopReason` `lease`, `stopping` or `legacy_remains`): the run stopped safely. Do step 5 again until the outcome is `complete`.
    - `failed` with `unreadable` above 0: `unreadableVersions` names a key version that the ring does not have. Put that version back from escrow into the key-ring file, restart the LTI service, and do step 5 again.
@@ -287,7 +309,7 @@ CAUTION: The version `legacy` also derives the existing service keys (LA-ADR-06 
 
 CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0, and only after a complete re-wrap (job end `outcome: complete`; BD-A2-38). The service then refuses to become ready (`key_version_missing`).
 
-The Cogniate app follows the same steps when it uses the key provider (Should).
+The Cogniate app follows the same steps when it uses the key provider (Should; LA-E5-22, BD-A2-91), with its own files and command: the ring is `infra/.secrets/app-keys/keyring.json`; status is `npm run app:keys -- status --operator <name>` (the active version and the `sealedCount` per version); re-wrap is `npm run app:keys -- rewrap --operator <name>`, which prints `{rewrapped, skippedChanged, unreadable}` and writes one app audit event `key_provider.rewrap`. Picker ltiks may stay in an old version until they expire. The app has no legacy refusal in LA. Order (BD-A2-97): write the ring, restart the app, check that the app `/readyz` answers `200` (no `key_version_missing`), then run `app:keys -- rewrap`. A re-wrap before the restart seals blobs with a version that the running app does not have: dispatches then retry until the restart, and the connection list shows no registration URL for those rows.
 
 ### 6.4 Operator key
 
@@ -359,9 +381,9 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
 2. Run one job: `POST /operator/v1/jobs/<name>/run`. Write down the `traceId` and the time of the answer.
    - `202`: the run started. Go to step 3.
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 2 again.
-   - `409 JOB_RUNNING`: a run of that job is in progress. Wait one minute, then do step 3.
+   - `409 JOB_RUNNING`: another run of that job holds it (a timed run or another request). This request started nothing, and its `traceId` does not find the other run. Wait one minute, then do step 2 again. Repeat until the answer is `202` (BD-A2-107).
    - `404 NOT_FOUND`: the job name is wrong. Use a name from step 1.
-3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id`, or `lastResult` in step 1. If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
+3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id` (BD-A2-85: the log line is the source; `GET /operator/v1/jobs` is only the list). If the service could not start the run after the `202`, the log has `job_run_request_failed {job, error}` with that trace id: do step 2 again. (The re-wrap route of §6.3 logs `key_rewrap_failed` instead; BD-A2-107.)
    - `ok`: done. `counts` gives the work of the run.
    - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
    - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).
@@ -379,6 +401,7 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
 | A library reports a foreign course list | audit events of `platform.*` and `binding_*` | a wrong binding | Suspend and release (§8). |
 | Service does not become ready after a key change | `/readyz` reasons | a key version missing from the ring | Put the version back from escrow (§6.3 CAUTION). |
 | All launches of one platform fail at check 5 with `aud_untrusted` | `launch_check_failed {check: 5, code: INVALID_ISSUER_OR_AUDIENCE, detail: aud_untrusted}` | the LMS sends an extra `aud` value besides the client id (BD-A2-73) | Ask the LMS admin which extra audience the LMS sends, and confirm that it is expected. Then the tenant sets it: `PATCH /api/platforms/<id> {"trustedAudiences": ["<exact value>"]}` (it replaces the list; `[]` clears it). `azp_missing` or `azp_mismatch` cannot be fixed with this list: the LMS must send `azp` = the client id. |
+| Platform-storage launches of one account stop after the storage check: the frame stays blank and the tool gets no launch | the browser console (a CSP `form-action` violation); the request line of `POST /lti/launch/{account}/storage-check` shows `303` | the host of the account's `launchUrl` or `deepLinkingUrl` is not a plain DNS name: an IPv6 literal, or characters other than letters, digits, dots and hyphens (for example `_`). The storage-check page then allows `'self'` only (BD-A2-104). Cookie launches of the same account still work. | Set the tool URL to a DNS host name: `PATCH /operator/v1/accounts/<id>` with `launchUrl` or `deepLinkingUrl`. |
 
 ## 10. Open items
 

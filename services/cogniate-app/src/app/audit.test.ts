@@ -41,7 +41,8 @@ describe('migration 015 (AC-LA-E5-11-01, BD-A2-45)', () => {
     db.close();
     db = openDb(path);
     databases.push(db);
-    expect(db.prepare('SELECT * FROM connection').all()).toEqual(before);
+    // Later migrations may add columns (016: artifact_key_kid); every old column keeps its value.
+    expect(db.prepare('SELECT * FROM connection').all().map((row) => Object.fromEntries(Object.keys(before[0]!).map((key) => [key, row[key]])))).toEqual(before);
     expect(count(db)).toBe(0);
     const id = insertAuditEvent(db, event(), 10);
     const original = listAuditEvents(db, { limit: 10 });

@@ -9,9 +9,10 @@ Status: v1 (A1, milestone LA P2, 2026-10-22); P4 build ratification BD-A1-04 in 
 | Cogniate app | `013_channel_kernel.sql` | E1 S4 | A1 ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `connection.channel`, `connection.binding_authority`, `binding_attempt.target_kind`, `binding_grant.bound_values` |
 | Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_instance`, `job_lease`; backfill from `resource_link` and `score_sync` |
 | Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event` |
+| Cogniate app | `017_record_dispatch_pause.sql` | E4 (LA-E4-03, lane R, fix round 2) | A1 (BD-A1-71) | partial index `record_dispatch_pause` on `record_dispatch (partition_key, not_before) WHERE not_before IS NOT NULL` (the `429` partition pause, LA-ADR-03 D7); `016` stays reserved for LA-E6-02 |
 | Cogniate app | `016_connection_health.sql` (first E6 file; number: the Lead, in landing order) | E6 (Could), LA-E6-02 (P, B3) | shape A2 ([LA-ADR-08 D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
 | Cogniate app | second E6 file, `admin_launch_code` (number: the Lead, in landing order; plan LD-12) | E6 (Could), LA-E6-03 (K, B4) | shape A2 ([LA-ADR-08 D3](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `admin_launch_code` |
-| Cogniate app | E3 migration (number: P3) | E3 Must (multi-select) | A1 (table), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
+| Cogniate app | `018_picker_pick.sql` | E3 Must (multi-select) | A1 (table; number BD-A1-98), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
 | LTI service | `005_…` and later (numbers: the Lead, §4.1) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
 
 Each file keeps one epic. Migrations of different lanes must not depend on each other. File name form: `NNN_<content>.sql` (three digits), so the name order is the number order.
@@ -134,6 +135,9 @@ CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partit
 CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
 CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
 CREATE UNIQUE INDEX record_dispatch_seq ON record_dispatch (seq);
+-- 017_record_dispatch_pause.sql (LA-E4-03; BD-A1-71): the 429 pause lookup. A partition is paused while any of its
+-- rows has a future not_before, whatever its status (LA-ADR-03 D7).
+CREATE INDEX record_dispatch_pause ON record_dispatch (partition_key, not_before) WHERE not_before IS NOT NULL;
 
 CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
   instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
@@ -186,6 +190,7 @@ Next numbers: `008` and up. The Lead gives one number at a time, when it briefs 
 | --- | --- | --- | --- |
 | `platform.client_assertion_aud TEXT` | E2-K | A1 [LA-ADR-02 D2](adr/LA-ADR-02-generic-lti-channel.md#decision) | admin value or DR `authorization_server`; `NULL` = the profile default |
 | `platform.granted_scopes TEXT` (JSON) | E2-K | A1 [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) | the DR response `scope`; `NULL` = today's scope set |
+| `registration_session.token_kind TEXT NULL CHECK (token_kind IN ('scope-jwt', 'opaque-bearer'))` (LTI migration `021`) | E2-K (LA-E2-02, lane L) | A1 [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 3; BD-A1-77 | the token kind that the DR start page found; `complete` checks it against the chosen profile; `NULL` = an old row = `scope-jwt` |
 | `oidc_state.storage_target`, `oidc_state.storage_origin`; table `storage_check` | E3 | A2 [LA-ADR-05 D1](adr/LA-ADR-05-lti-advantage-completeness.md) | platform storage launch |
 | `tool_account.status`, `status_changed_at`, `public_base_url`, `limits`, `claim_policy`, `service_key_write_scope` | E5, E3 | A2 [LA-ADR-06 D2](adr/LA-ADR-06-service-operability.md) | tenant model; claim policy |
 | tables `api_key`, `operator_key`, `audit_event`, `idempotency_record` (Should) | E5 | A2 [LA-ADR-06 D3–D5, D9](adr/LA-ADR-06-service-operability.md) | operator API, keys, audit |
@@ -271,7 +276,7 @@ CREATE TABLE admin_launch_code (                      -- verified admin launch (
 
 | Rule | Detail |
 | --- | --- |
-| `connection_event` | At most 100 rows per connection and 30 days (retention job; LA-H4). Every portal read includes `library_id`. |
+| `connection_event` | At most 100 rows per connection and 30 days (LA-H4). The app retention job deletes them (`domain/retention.ts`, lane R's file; LA-E6-02 lands the lines by RQ-2). Every portal read includes `library_id`. The `code` of a `check` row (A2 BD-A2-100): `ok`, or the failed parts in the order `jwks`, then `token`, each as `<part>:<detail>` with a contract delta §2.6 detail value, joined by one space (for example `jwks:invalid_jwks token:invalid_client`). LA writes no `disconnect` or `suspend` rows (deferred: no task owns those call sites). The migration number is the Lead's, in landing order (`016` is reserved for it, §1). |
 | `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
 | `admin_launch_code` | Single use; a newer code of the same connection replaces an unused older one; redemption follows A2's LA-ADR-08 D3 rules. |
 
@@ -279,7 +284,7 @@ CREATE TABLE admin_launch_code (                      -- verified admin launch (
 
 ## 5b. Cogniate app: picker picks (E3)
 
-Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) returns up to 20 publications from one picker session, but `picker_session.publication_id` holds one (`services/cogniate-app/src/domain/migrations/004_launch.sql:37`). One additive table keeps every pick (Reviewer-A A-LAD-10):
+Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) returns up to 20 publications from one picker session, but `picker_session.publication_id` holds one (`services/cogniate-app/src/domain/migrations/004_launch.sql:37`). One additive table keeps every pick (Reviewer-A A-LAD-10). App migration `018_picker_pick.sql` adds it (BD-A1-98, Lead RQ-5 call; `016` stays reserved for LA-E6-02; `017` is `record_dispatch_pause`):
 
 ```sql
 CREATE TABLE picker_pick (
@@ -294,7 +299,7 @@ CREATE TABLE picker_pick (
 | --- | --- |
 | Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). |
 | Stats | `stats.activities` counts picks from `picker_pick` that no launch has matched yet (today it counts one per session, base data model §2.1). |
-| Retention | A picker session with an unmatched pick stays (the base retention exception), now read from `picker_pick`. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
+| Retention | An expired picker session (`expires_at` more than 24 h ago) stays if one of these two is true (BD-A1-98; the built rule in `domain/retention.ts`): (a) the base exception: the session is used, has a `publication_id` and has no `resource_link_id` yet; (b) the session has a `picker_pick` row with `resource_link_id` `NULL` (an unmatched pick of a multi-select). All other expired sessions are deleted. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
 
 ## 6. State machines
 

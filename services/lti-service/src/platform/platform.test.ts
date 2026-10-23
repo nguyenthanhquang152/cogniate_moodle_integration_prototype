@@ -258,6 +258,24 @@ describe('AGS client (contract §3.5, §3.6)', () => {
     expect(s.calls[1]).toMatchObject({ url: AGS_CLAIM.lineitems, req: { method: 'POST', body: JSON.stringify({ label: 'QA', scoreMaximum: 10 }) } });
   });
 
+  it('BD-A2-83: needScope takes the first scope in the launch claim AND the platform grant; fixed refusal texts', async () => {
+    const s = await setup();
+    const both = { ...AGS_CLAIM, scope: [AGS_SCOPES.lineitemReadonly, AGS_SCOPES.lineitem] };
+    const granted = (scopes: string[] | null) => ({ platform: { ...s.platform, grantedScopes: scopes }, agsClaim: both, traceId: 'trace-g' });
+    expect(preflightCreateLineItem(granted([AGS_SCOPES.lineitem]))).toEqual({ url: AGS_CLAIM.lineitems, scope: AGS_SCOPES.lineitem });
+    expect(() => preflightCreateLineItem(granted([AGS_SCOPES.lineitemReadonly]))).toThrow(expect.objectContaining({
+      code: 'SERVICE_NOT_AVAILABLE', status: 403, description: 'The platform did not grant the scope for this call.',
+    }));
+    expect(() => preflightCreateLineItem({ ...granted(null), agsClaim: { ...AGS_CLAIM, scope: [AGS_SCOPES.score] } })).toThrow(expect.objectContaining({
+      code: 'SERVICE_NOT_AVAILABLE', description: 'The launch has no AGS scope for this call.',
+    }));
+    s.answers.push(() => res(200, { id: LINE_ITEM, label: 'QA' }));
+    await s.ags.getLineItem(granted([AGS_SCOPES.lineitem]), LINE_ITEM);
+    expect(new URLSearchParams(String(s.calls[0]!.req.body)).get('scope')).toBe(AGS_SCOPES.lineitem);
+    await expect(s.ags.postScore(granted([AGS_SCOPES.lineitem]), LINE_ITEM, { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded' }))
+      .rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', description: 'The launch has no AGS scope for this call.' });
+  });
+
   it('lists line items with the filter parameters and the paging links; reads one line item', async () => {
     const s = await setup();
     s.answers.push(() => res(200, [{ id: LINE_ITEM, label: 'QA DL', scoreMaximum: 100, resourceLinkId: '3', extra: 'x' }], { link: '<https://moodle.test/mod/lti/services.php/2/lineitems?type_id=1&page=2>; rel="next"' }));

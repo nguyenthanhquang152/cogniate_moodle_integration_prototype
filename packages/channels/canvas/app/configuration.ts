@@ -1,6 +1,7 @@
-// Frozen developer key document (app contract §4.6).
+// Frozen developer key document (app contract §4.6); LA-IC-04 changed only `scopes` (the channel's scope set).
 import { toolName } from '@cogniate/channel-kernel/setup';
 import type { ExtensionRoute, PublicJwk } from '../../../../services/cogniate-app/src/kernel/ports.ts';
+import manifest from '../manifest.ts';
 
 export const configurationRoute: ExtensionRoute = {
   method: 'GET', path: 'canvas-configuration', capability: 'setup.artifacts', legacyCapabilityName: 'canvasConfiguration',
@@ -19,13 +20,8 @@ export const configurationRoute: ExtensionRoute = {
       description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
       oidc_initiation_url: urls.login,
       target_link_uri: urls.launch,
-      scopes: [
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-        'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
-      ],
+      // A2 LA-ADR-05 D4 (LA-IC-04): the channel's scope set, for both jwk forms.
+      scopes: [...manifest.capabilities['registration.scopes']],
       extensions: [{
         domain: new URL(urls.ltiOrigin).host,
         tool_id: ctx.toolAccountId,
@@ -47,6 +43,8 @@ export const configurationRoute: ExtensionRoute = {
       'content-disposition': 'attachment; filename="cogniate-canvas-lti.json"',
       'cache-control': 'no-store',
       ...(key ? { 'x-cogniate-key-id': key.kid } : {}),
-    } };
+    },
+    // LA-E6-05 (LA-ADR-08 D5): the kid of the embedded key snapshot, or null for the key URL; the kernel records it.
+    artifactKeyKid: key ? key.kid : null };
   },
 };

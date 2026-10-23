@@ -6,7 +6,8 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // M1 (§6.1): routing by approval (Canvas, Blackboard) or lti_platform_id (Moodle), the site check, the LMS check, the
 // role sets of ADR-011 §10, the site origin for frames and return links, and the LMS name in every text.
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { canSelectContent, encrypt, isGradedLaunch, randomId, sha256Hex } from '@cogniate/shared';
+import { canSelectContent, isGradedLaunch, randomId, sha256Hex } from '@cogniate/shared';
+import { PICKER_LTIK_COLUMN, SERVICE_KEY_COLUMN, appAad, sealText } from '../app/sealing.ts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { LtiClient, LtiIdToken } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
@@ -17,6 +18,7 @@ import { chooseAttempt, createPlaySession } from '../domain/attempts.ts';
 import { publicationOfConnection, upsertResourceLink, useHandoff } from '../domain/launch.ts';
 import { createPicker, linkPickToResourceLink } from '../domain/pickers.ts';
 import { checkLaunchConnection } from '../kernel/launch-router.ts';
+import { appMetricsFor } from '../app/metrics.ts';
 export { checkLaunchConnection } from '../kernel/launch-router.ts';
 export type { ConnectionCheck } from '../kernel/launch-router.ts';
 import type { ChannelText } from '../kernel/ports.ts';
@@ -82,6 +84,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     // A malformed ltik was never used before, so it fails at step 2 (invalid_ltik) without a handoff row.
     if (typeof ltik !== 'string' || !LTIK.test(ltik)) {
       log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik' });
+      if (event === 'launch_rejected') appMetricsFor(db).launchRefused('invalid_ltik', '');
       return { sent: page(req, reply, 'INVALID_LTIK') };
     }
     if (!useHandoff(db, sha256Hex(ltik), now())) {
@@ -93,10 +96,12 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     } catch (err) {
       if (err instanceof LtiServiceError && err.status === 401) {
         log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik', ...ltiErrorFields(err) });
+        if (event === 'launch_rejected') appMetricsFor(db).launchRefused('invalid_ltik', '');
         return { sent: page(req, reply, 'INVALID_LTIK') };
       }
       if (err instanceof LtiServiceError) {
         log.warn(event, { trace_id: req.traceId, reason: 'lti_service_error', ...ltiErrorFields(err) });
+        if (event === 'launch_rejected') appMetricsFor(db).launchRefused('lti_service_error', '');
         return { sent: page(req, reply, 'LTI_SERVICE_ERROR') };
       }
       throw err;
@@ -110,7 +115,9 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     if ('sent' in h) return h.sent;
     const { token } = h;
     let lms = lmsOfToken(token, channels);
+    let channel = channels.channelOfProfile(token.platform.profile ?? 'standard') ?? '';
     const reject = (code: LaunchErrorCode, reason: string, fields: Record<string, unknown> = {}) => {
+      appMetricsFor(db).launchRefused(reason, channel);
       log.warn('launch_rejected', { trace_id: traceId, reason, ...fields });
       return page(req, reply, code, lms);
     };
@@ -125,6 +132,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     if (!checked.ok) return reject(checked.code, checked.reason, checked.fields);
     const { connection, site } = checked;
     lms = channels.textName(connection.channel);
+    channel = connection.channel;
     // Security §4: the publication comes from the signed target only.
     const publicationId = publicationFromTarget(token.launch.target, urls.lti);
     const publication = publicationId ? publicationOfConnection(db, connection.id, publicationId) : undefined;
@@ -140,7 +148,9 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       const link = upsertResourceLink(db, {
         connectionId: connection.id, publicationId: publication.id, deploymentId: token.platform.deploymentId, contextId,
         resourceLinkId: resourceLink.id, contextTitle: context?.title ?? context?.label ?? '', title: resourceLink.title ?? '',
-        lineItemId: token.services?.assignmentAndGrades?.lineItemId ?? null, serviceKeyEncrypted: serviceKey ? encrypt(masterKey, serviceKey) : null,
+        lineItemId: token.services?.assignmentAndGrades?.lineItemId ?? null,
+        // LA-E5-22: the service key is sealed for its resource link row.
+        sealServiceKey: serviceKey ? (id) => sealText(masterKey, serviceKey, appAad(SERVICE_KEY_COLUMN, connection.libraryId, id)) : null,
       }, t);
       if (link.created || link.rebound) {
         linkPickToResourceLink(db, { connectionId: connection.id, deploymentId: token.platform.deploymentId, contextId, publicationId: publication.id, resourceLinkId: link.id });
@@ -186,7 +196,8 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     const context = token.launch.context;
     const pickerId = transaction(db, () => {
       const id = createPicker(db, {
-        connectionId: connection.id, ltikEncrypted: encrypt(masterKey, ltik), issuerOrigin, siteOrigin: site, deploymentId: token.platform.deploymentId,
+        connectionId: connection.id, sealLtik: (rowKey) => sealText(masterKey, ltik, appAad(PICKER_LTIK_COLUMN, connection.libraryId, rowKey)),
+        issuerOrigin, siteOrigin: site, deploymentId: token.platform.deploymentId,
         contextId: context?.id ?? '', contextTitle: context?.title ?? context?.label ?? '', expiresAt: t + deps.pickerTtlSeconds * 1000,
       }, t);
       markLaunched(db, connection.id, t);

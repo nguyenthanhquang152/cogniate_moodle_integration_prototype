@@ -1,0 +1,104 @@
+{
+  "id": "blackboard",
+  "source": "LA-ADR-01 §D3 channel capability table + §D6 + §D11; LA-ADR-02 §D3/§D7; LA-ADR-05 §D1..D7; LA-ADR-07 §D3; LA-ADR-08 §D4; ADR-011 §5–§6; LA-IC-01; TEST-STRATEGY.md §2.4–§2.6",
+  "simProvider": "blackboard-sim",
+  "simProfile": "blackboard-sim",
+  "capabilities": {
+    "binding.authority": { "manual": "operatorGrant" },
+    "content.multiple": false,
+    "content.ungraded": false,
+    "deployments.multiple": false,
+    "export.packages": [],
+    "launch.topLevelContinue": false,
+    "launch.windowHint": true,
+    "platform.sharing": "shared",
+    "publish.createCourse": false,
+    "records.readBack": true,
+    "records.reporters": ["lti-ags"],
+    "registration.dynamic": false,
+    "registration.scopes": [
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+    ],
+    "setup.artifacts": [],
+    "setup.connectionCheck": false,
+    "site.serviceOrigin": false,
+    "siteApi.token": false
+  },
+  "coveredBy": {},
+  "notBuilt": {
+    "content.ungraded": "LA-ADR-05 §D5 / LA-E3-08 (waiting for LA-H22; TEST-STRATEGY.md §9.2 item 11)"
+  },
+  "expect": {
+    "legacyFlags": {
+      "dynamicRegistration": false,
+      "operatorApproval": true,
+      "webServices": false,
+      "courseShell": false,
+      "addDeployment": false,
+      "canvasConfiguration": false
+    },
+    "toolConfigurationKeys": [
+      "client_id",
+      "login_initiation_url",
+      "tool_redirect_url",
+      "tool_jwks_url",
+      "tool_status",
+      "user_fields",
+      "grade_service",
+      "membership_service",
+      "placement"
+    ]
+  },
+  "sim": {
+    "siteUrl": "https://learn-a.blackboard.sim.test",
+    "serviceUrl": "https://learn-a.blackboard.sim.test",
+    "siteHost": "learn-a.blackboard.sim.test",
+    "pageHost": "learn-a.blackboard.sim.test",
+    "issuer": "https://blackboard.sim.test",
+    "family": "BlackboardLearn",
+    "deployments": ["dep-bb-kit-1", "dep-bb-kit-2"],
+    "authEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+    "tokenEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken",
+    "jwksUrl": "https://developer.blackboard.sim.test/api/v1/management/applications/qa-bb-app/jwks.json",
+    "tokenAudience": [
+      "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken"
+    ],
+    "tokenAudienceKind": "array",
+    "dlDataMode": "claim",
+    "dlRequiresSub": true,
+    "privacyFloor": "allowlist",
+    "supportsCustomClaims": true,
+    "supportsDynamicRegistrationOnSim": false,
+    "supportsStagedRegistrationOnSim": false
+  },
+  "sources": {
+    "id": "LA-ADR-01 §D3 table (column blackboard)",
+    "simProvider": "ADR-011 §5 + tests/sim/README.md (blackboard-sim)",
+    "simProfile": "ADR-011 §5 + LA-IC-01 (profile blackboard-sim)",
+    "capabilities.binding.authority": "LA-ADR-01 §D3 table (manual: operatorGrant)",
+    "capabilities.content.multiple": "LA-ADR-01 §D3 table + LA-ADR-05 §D3 (false)",
+    "capabilities.content.ungraded": "LA-ADR-01 §D3 table + LA-ADR-05 §D5 (false; notBuilt until LA-E3-08)",
+    "capabilities.deployments.multiple": "LA-ADR-01 §D3 table (false)",
+    "capabilities.export.packages": "LA-ADR-01 §D3 table ([])",
+    "capabilities.launch.topLevelContinue": "LA-ADR-01 §D3 table (false)",
+    "capabilities.launch.windowHint": "LA-ADR-01 §D3 table (true)",
+    "capabilities.platform.sharing": "LA-ADR-01 §D3 table (shared)",
+    "capabilities.publish.createCourse": "LA-ADR-01 §D3 table (false)",
+    "capabilities.records.readBack": "LA-ADR-01 §D3 table (true)",
+    "capabilities.records.reporters": "LA-ADR-01 §D3 table ([\"lti-ags\"])",
+    "capabilities.registration.dynamic": "LA-ADR-01 §D3 table (false)",
+    "capabilities.registration.scopes": "LA-ADR-01 §D3 table + LA-ADR-05 §D4 (4 AGS scopes, no NRPS scope)",
+    "capabilities.setup.artifacts": "LA-ADR-01 §D3 table ([])",
+    "capabilities.setup.connectionCheck": "LA-ADR-08 §D4 + cogniate-app-api-delta.md §3.7 (false)",
+    "capabilities.site.serviceOrigin": "LA-ADR-01 §D3 table (false)",
+    "capabilities.siteApi.token": "LA-ADR-01 §D3 table (false)",
+    "coveredBy": "TEST-STRATEGY.md §2.5 (empty; all positive capabilities run on blackboard-sim)",
+    "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
+    "expect.legacyFlags": "LA-ADR-01 §D11 + LA-IC-01",
+    "expect.toolConfigurationKeys": "ADR-011 §6 + cogniate-app-api.md §4.5 + LA-IC-01",
+    "sim": "ADR-011 §5 + LA-ADR-07 §D3 + tests/sim/README.md"
+  }
+}

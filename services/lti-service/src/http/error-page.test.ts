@@ -28,9 +28,9 @@ it('uses a new channel text name in a login error page (AC-LA-E1-10-05)', async 
       profile: 'zz-admin', issuer: 'https://admin.example.edu', clientId: 'unit-client', name: 'Unit', active: false,
       authEndpoint: 'https://admin.example.edu/auth', tokenEndpoint: 'https://admin.example.edu/token', jwksUrl: 'https://admin.example.edu/jwks', deploymentIds: ['1'],
     });
-    const result = initiateLogin(db, createAccountResolver(db, URLS.lti), getAccount(db, 'unit'), {
+    const result = (await initiateLogin(db, createAccountResolver(db, URLS.lti), getAccount(db, 'unit'), {
       iss: 'https://admin.example.edu', client_id: 'unit-client', login_hint: 'learner', target_link_uri: `${URLS.lti}/lti/launch/unit`,
-    }, Date.now(), profiles);
+    }, Date.now(), profiles));
     expect(result).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'your LMS' });
     if (result.ok) throw new Error('Expected a login refusal.');
     const html = renderErrorPage(result.code, 'unit-trace', protocolAction(result.code, result.lms), 'platform detail', undefined, result.lms);

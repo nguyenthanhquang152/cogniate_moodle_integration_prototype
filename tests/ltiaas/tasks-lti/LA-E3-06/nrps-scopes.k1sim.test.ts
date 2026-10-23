@@ -176,14 +176,16 @@ async function startQaPlatformRegistration(
   const kid = `qa-reg-${id}`;
   const { publicKey, privateKey } = await generateKeyPair('RS256', { extractable: true });
   const publicJwk = { ...(await exportJWK(publicKey)), kid, alg: 'RS256', use: 'sig' };
-  fs.mkdirSync(QA_FIXTURE_DIR, { recursive: true });
+  const issuer = `${QA_ISSUER}/${id}`;
+  const configDir = path.join(QA_FIXTURE_DIR, id, 'mod', 'lti');
+  fs.mkdirSync(configDir, { recursive: true });
   const jwksFile = `jwks-${id}.json`;
-  const configFile = `openid-${id}.json`;
+  const configFile = path.join(configDir, 'openid-configuration.php');
   fs.writeFileSync(path.join(QA_FIXTURE_DIR, jwksFile), JSON.stringify({ keys: [publicJwk] }));
   fs.writeFileSync(
-    path.join(QA_FIXTURE_DIR, configFile),
+    configFile,
     JSON.stringify({
-      issuer: QA_ISSUER,
+      issuer,
       authorization_endpoint: `${QA_ISSUER}/auth`,
       token_endpoint: `${QA_ISSUER}/token`,
       jwks_uri: `${QA_ISSUER}/${jwksFile}`,
@@ -205,12 +207,12 @@ async function startQaPlatformRegistration(
   );
 
   const now = Math.floor(Date.now() / 1000);
-  const regToken = await new SignJWT({ sub: '0', scope: 'reg-create', iat: now, exp: now + 600 })
+  const regToken = await new SignJWT({ sub: '0', scope: 'reg', iat: now, exp: now + 600 })
     .setProtectedHeader({ alg: 'RS256', kid, typ: 'JWT' })
     .sign(privateKey);
   recordSecret('id_token', regToken);
 
-  const configUrl = `${QA_ISSUER}/${configFile}`;
+  const configUrl = `${issuer}/mod/lti/openid-configuration.php`;
   const startUrl = `${urls.lti}/lti/register/${ACCOUNT}?openid_configuration=${encodeURIComponent(configUrl)}&registration_token=${encodeURIComponent(regToken)}`;
   const startRes = await httpsRequest(startUrl);
   expect(startRes.status, startRes.body.slice(0, 300)).toBe(303);
@@ -222,7 +224,7 @@ async function startQaPlatformRegistration(
     registrationId,
     cleanup: () => {
       fs.rmSync(path.join(QA_FIXTURE_DIR, jwksFile), { force: true });
-      fs.rmSync(path.join(QA_FIXTURE_DIR, configFile), { force: true });
+      fs.rmSync(path.join(QA_FIXTURE_DIR, id), { recursive: true, force: true });
     },
   };
 }
@@ -236,10 +238,23 @@ describe('LA-E3-06 K1-SIM: NRPS scope complete.scopes and registration.complete 
   let completedPlatformIdForAudit = '';
   let completedTraceIdForAudit = '';
 
-  beforeAll(() => {
+  beforeAll(async () => {
     key = apiKey(ACCOUNT);
     operatorKey = readOperatorKey();
     expect(OPERATOR_KEY_RE.test(operatorKey)).toBe(true);
+    const opBase = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+    const patchRes = await fetch(`${opBase}/operator/v1/rate-limits`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `OPERATOR-AUTH-V1 ${operatorKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        registrationSessionsPerAddress: 50,
+        classes: { registration: { ratePerMinute: 200, burst: 200 } },
+      }),
+    });
+    expect(patchRes.status).toBe(200);
   });
 
   afterAll(async () => {
@@ -255,6 +270,18 @@ describe('LA-E3-06 K1-SIM: NRPS scope complete.scopes and registration.complete 
         authorization: auth.bearer(key),
       }).catch(() => undefined);
     }
+    const opBase = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+    await fetch(`${opBase}/operator/v1/rate-limits`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `OPERATOR-AUTH-V1 ${operatorKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        registrationSessionsPerAddress: null,
+        classes: { registration: null },
+      }),
+    }).catch(() => undefined);
   });
 
   it('AC-LA-E3-06-01: a complete with scopes = the four AGS scopes sends a registration request whose scope has exactly those four (AP-05-21)', async () => {

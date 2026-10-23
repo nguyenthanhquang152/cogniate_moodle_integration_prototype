@@ -157,6 +157,14 @@ export function getConnectionAnyLibrary(db: Db, id: string): Connection | undefi
   return row ? toConnection(row) : undefined;
 }
 
+/**
+ * LA-E6-05 (LA data model §5a): the `kid` of the key snapshot in the last exported setup artifact (today the Canvas
+ * `jwk=inline` JSON); null after an export that names the key URL. The health view compares it with the active key.
+ */
+export function setArtifactKeyKid(db: Db, libraryId: string, id: string, kid: string | null): void {
+  db.prepare('UPDATE connection SET artifact_key_kid = ? WHERE id = ? AND library_id = ?').run(kid, id, libraryId);
+}
+
 /** Newest first. */
 export function listConnections(db: Db, libraryId: string): Connection[] {
   return db.prepare('SELECT * FROM connection WHERE library_id = ? ORDER BY created_at DESC, id').all(libraryId).map(toConnection);
@@ -191,6 +199,22 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
     last_error_at = NULL, updated_at = ? WHERE id = ? AND status = 'pending'`)
     .run(platform.id, JSON.stringify(platform), now, connectionId).changes;
   if (Number(changed) !== 1) throw new PlatformTakenError('connection is not pending');
+}
+
+/**
+ * A staged Dynamic Registration (LA-ADR-02 D5 item 10; A1 BD-A1-90): the configuration broke I-SELF, so the LTI service
+ * made the platform inactive. In ONE statement: the authority changes once from `self` to `operatorGrant`, the frozen
+ * `lms` takes the behaviour class of that authority (LA-ADR-04 D4 rules 1, 2, 5), and the connection keeps the staged
+ * platform (platform_json, target_issuer) for the grant; the registration link stops working. The connection stays
+ * pending. A dynamic method whose authority is already `operatorGrant` (Canvas, LA-ADR-05 D6) keeps it (A1 BD-A1-106).
+ * False when the guard (pending, dynamic, not staged yet, self or operatorGrant) does not hold; then nothing changes.
+ */
+export function stageRegistration(db: Db, connectionId: string, channel: string, platform: PlatformInfo, now: number): boolean {
+  const changed = db.prepare(`UPDATE connection SET binding_authority = 'operatorGrant', lms = ?, platform_json = ?, target_issuer = ?, ref_token_hash = NULL,
+    ref_token_encrypted = NULL, ref_expires_at = NULL, last_error_code = NULL, last_error_lti_code = NULL, last_error_trace_id = NULL, last_error_at = NULL,
+    updated_at = ? WHERE id = ? AND status = 'pending' AND method = 'dynamic' AND platform_json IS NULL AND binding_authority IN ('self', 'operatorGrant')`)
+    .run(connectionBehaviourClass(channel, 'operatorGrant', 'exclusive'), JSON.stringify(platform), platform.issuer, now, connectionId).changes;
+  return Number(changed) === 1;
 }
 
 /**

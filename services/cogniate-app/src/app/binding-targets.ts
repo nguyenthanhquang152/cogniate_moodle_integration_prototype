@@ -1,4 +1,7 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { PublicUrls } from '@cogniate/shared';
+import { canonicalOrigin, hostOf } from '@cogniate/shared';
+import { servedByKernel } from '../kernel/setup.ts';
 import { toolContext } from '../kernel/setup/common.ts';
 // Provider data of a binding (app contract §4.7.1 "Target", §4.7.3; accepted B-M1-03 design). The provider snapshot is
 // taken ONCE, at create, from that request's one GET /api/providers answer. Phase 1 of a redemption builds the target
@@ -6,12 +9,12 @@ import { toolContext } from '../kernel/setup/common.ts';
 // is built from the committed target after the commit. The adapters build the target and the S1 body; the engine adds
 // `active: false` and the write-ahead ref, and owns every other step.
 import { fillTemplateValue } from '../kernel/setup/templates.ts';
-import type { LtiClient, LtiProviderProfile } from '../clients/lti-client.ts';
+import type { LtiClient, LtiPlatform, LtiProviderProfile } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { CompleteSnapshot, Connection, ProviderSnapshot } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import type { BindingTarget, GrantPurpose, PlatformBodyValues, ConnectionSetup, SharedPlatformInfo, StagedCreate } from '../kernel/ports.ts';
+import type { AdminValues, BindingTarget, GrantPurpose, PlatformBodyValues, ConnectionSetup, SharedPlatformInfo, StagedCreate } from '../kernel/ports.ts';
 import { ApiError } from './api-errors.ts';
 
 /** GET /api/providers through the app (502 LTI_SERVICE_ERROR on failure, app contract §4.3). */
@@ -118,10 +121,76 @@ export function stagedCall(deps: { db: Db; lti: LtiClient; urls: PublicUrls }, c
   return async (ref) => {
     if (staged.kind === 'platform') {
       if (!('profile' in staged.body)) throw new Error('operator grant create requires a profile');
-      const p = await deps.lti.createProviderPlatform({ ...staged.body, active: false, bindingRef: ref }, traceId);
+      // An admin-value profile sends its typed endpoints (no site URL); a fixed profile sends its site URL.
+      const p = 'siteUrl' in staged.body
+        ? await deps.lti.createProviderPlatform({ ...staged.body, active: false, bindingRef: ref }, traceId)
+        : await deps.lti.createAdminProfilePlatform({ ...staged.body, active: false, bindingRef: ref }, traceId);
       return { platformId: p.id };
     }
     await deps.lti.addDeployment(staged.platformId, { ...staged.body, active: false, bindingRef: ref }, traceId);
     return { platformId: staged.platformId };
   };
+}
+
+/** The bound values of an admin-value grant, in their fixed order (LA-ADR-02 D6; data model §2 `bound_values`). */
+export const BOUND_FIELDS = ['issuer', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl', 'tokenAudience'] as const satisfies ReadonlyArray<keyof AdminValues>;
+
+/**
+ * One bound value against a sent or a read value (LA-ADR-02 D6; A1 BD-A1-91): the canonical form when both are
+ * origins, else the exact text. An absent value equals only an absent value.
+ */
+export function sameBoundValue(bound: string | undefined, other: string | undefined): boolean {
+  if (bound === undefined || other === undefined) return bound === other;
+  const a = canonicalOrigin(bound);
+  const b = canonicalOrigin(other);
+  return a.ok && b.ok ? a.origin === b.origin : bound === other;
+}
+
+/** The fields whose values differ, in the fixed order. */
+export function differingBoundFields(bound: AdminValues, other: AdminValues): string[] {
+  return BOUND_FIELDS.filter((key) => !sameBoundValue(bound[key], other[key]));
+}
+
+/** The admin values that a platform record holds, or null when it does not hold all of them (a JWKS URL key set). */
+export function platformAdminValues(p: LtiPlatform): AdminValues | null {
+  if (!p.authenticationEndpoint || !p.accesstokenEndpoint || p.authConfig?.method !== 'JWK_SET') return null;
+  return {
+    issuer: p.url, authenticationEndpoint: p.authenticationEndpoint, accessTokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.authConfig.key,
+    ...(p.clientAssertionAud !== null ? { tokenAudience: p.clientAssertionAud } : {}),
+  };
+}
+
+/** The bound values of a grant row as admin values; null for a grant without bound values (or without all of them). */
+export function grantAdminValues(bound: Readonly<Record<string, string>> | null): AdminValues | null {
+  if (bound === null) return null;
+  const { issuer, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience } = bound;
+  if (!issuer || !authenticationEndpoint || !accessTokenEndpoint || !jwksUrl) return null;
+  return { issuer, authenticationEndpoint, accessTokenEndpoint, jwksUrl, ...(tokenAudience !== undefined ? { tokenAudience } : {}) };
+}
+
+/** S2 of an admin-value target: the record holds exactly the bound values (LA-ADR-02 D6; adoption rule A3). */
+export function holdsBoundValues(p: LtiPlatform, bound: AdminValues): boolean {
+  const held = platformAdminValues(p);
+  return held !== null && differingBoundFields(bound, held).length === 0;
+}
+
+/**
+ * A staged Dynamic Registration (LA-ADR-02 D5 item 10): a dynamic connection that switched to operatorGrant and keeps
+ * its staged platform record. Its grant binds the staged values; the redemption adopts the platform (no S1 create).
+ */
+export const stagedRegistration = (c: Pick<Connection, 'method' | 'bindingAuthority' | 'platform'>): boolean =>
+  c.method === 'dynamic' && c.bindingAuthority === 'operatorGrant' && c.platform !== null;
+
+/**
+ * A1 BD-A1-107: a staged registration of an admin-value channel (served by the kernel adapter). Only its grant binds the
+ * staged values (`--accept-staged`). A staged registration of a fixed-endpoint profile (Canvas, LA-ADR-05 D6) binds no
+ * values: the redemption adopts it with the fixed target (snapshot issuer, site and service URL; rule A3).
+ */
+export const adminValueStaged = (channels: ChannelRegistry, c: Pick<Connection, 'method' | 'bindingAuthority' | 'platform' | 'channel'>): boolean =>
+  stagedRegistration(c) && servedByKernel(channels, c.channel);
+
+/** The fields whose host is not the issuer host (LA-ADR-02 D6, Reviewer-A A-LAD-23): the operator confirms them. */
+export function foreignHostFields(values: AdminValues): string[] {
+  const issuerHost = hostOf(values.issuer);
+  return BOUND_FIELDS.filter((key) => key !== 'issuer' && values[key] !== undefined && hostOf(values[key]!) !== issuerHost);
 }

@@ -1,11 +1,41 @@
-Verdict: PASS (host-only K0 + UNIT; K1-SIM and MOODLE-LIVE pending: Docker window)
-Round: 3
+Verdict: PASS (K0 + UNIT + K1-SIM AC-02, AC-03, AC-04, AC-05; MOODLE-LIVE AC-09 owned by QA-E2E)
+Round: 5
 
 # LA-E4-03 The `lti-ags` record reporter, throttling and the read-back guard: QA verification
 
-Tester: QA-3 (Round 1: task `task_bdc23b632bbb` / `ctx_da00a2da9dd0`; Round 2: task `task_241dc471afe8` / `ctx_44be6cfd9586`; Round 3: task `task_ca544d19e96b` / `ctx_fce3d399cb78`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E4-03.md` (with `LA-IC-11`, `LA-IC-15`, `BD-A1-27`, `BD-A1-61`). Suite: `tests/ltiaas/tasks-core/LA-E4-03/` (QA-3 test-first).
+Tester: QA-3 (Round 1: task `task_bdc23b632bbb` / `ctx_da00a2da9dd0`; Round 2: task `task_241dc471afe8` / `ctx_44be6cfd9586`; Round 3: task `task_ca544d19e96b` / `ctx_fce3d399cb78`; Round 4 Slot 4: task `task_e59ce20f8f0f` / `ctx_e6263da242a0`; Round 5 Slot 4b: task `task_b937cc3de6cf` / `ctx_858db780926e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E4-03.md` (with `LA-IC-11`, `LA-IC-15`, `BD-A1-27`, `BD-A1-61`). Suite: `tests/ltiaas/tasks-core/LA-E4-03/` (QA-3 test-first).
 
-Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (except `docs/reviews/LA-E4-03/reviewer-{a,b}.md` in Rounds 2–3 to verify finding closures). QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`d40826d` in Round 1; `836d579` in Round 2; `894406f` in Round 3).
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (except `docs/reviews/LA-E4-03/reviewer-{a,b}.md` in Rounds 2–3 to verify finding closures). QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`d40826d` in Round 1; `836d579` in Round 2; `894406f` in Round 3) and K1-SIM in Slot 4 at `e1e4fab` (`COMPOSE_PROJECT_NAME=qa3-la-sim-r3`) and Slot 4b at `dc2a1b5e` (`COMPOSE_PROJECT_NAME=qa3-la-sim-r1`).
+
+## Round 5 (Slot 4b K1-SIM on `dc2a1b5e`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `dc2a1b5ef06d1446aaa8225bfcff100248ed070a` (`dc2a1b5e`) |
+| Lane and slot | lane R; Slot 4b Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r1`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4b-dc2a1b5e/artifacts/qa3-la-sim-r1-dc2a1b5e-2026-10-23T13-22-06-406Z/` (`cmd/09-test-acceptance-LA-E4-03.log`, `container-LA-E4-03/vitest-results.json`, `reports/LA-E4-03.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E4-03-02 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-02` | All K1-AGS A1–A6 cases pass across Moodle `standard`, Canvas, and Blackboard simulator channels (`22,925.4 ms`). `09-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-03 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-03` | Simulator `429` with `Retry-After: 30` keeps row `pending` (`tries === 0`), logs `dispatch_throttled`, and delays the next POST by `>= 30 s` (`31,796.1 ms`). `09-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-04 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-04` | Fairness with `lti-gate` (`hold_before` on platform A score path): platform B score is sent before release; two held rows of platform A are forwarded one at a time (`1,654.4 ms`). `09-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-05 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-05: app restart while a send is held makes the row uncertain; after release, one confirmation send follows >= 5 s after the first accepted send (T5b P2 rule)` | Live K1-SIM (`22,704.9 ms`): restarting `cogniate-app` (`npm run stack:restart -- cogniate-app`) while the `5/10` score POST is held at `lti-gate` marks the row uncertain; after a newer `9/10` attempt on the same `resourceLinkId` supersedes the held row and the held `5/10` POST is released and accepted by the simulator, exactly one confirmation send of `9/10` follows `>= 5 s` (`not_before = +5 s`) after the first accepted send. `09-test-acceptance-LA-E4-03.log` |
+
+## Round 4 (Slot 4 K1-SIM on `e1e4fab`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `e1e4fabf451276d6b5d2c07cb28024ad8ef6f271` (`e1e4fab`, code `5171f7f`) |
+| Lane and slot | lane R; Slot 4 Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r3`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4-e1e4fab/artifacts/qa3-la-sim-r3-e1e4fabf-2026-10-23T06-35-01-035Z/` (`cmd/11-test-acceptance-LA-E4-03.log`, `container-LA-E4-03/vitest-results.json`, `reports/LA-E4-03.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E4-03-02 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-02: K1-AGS A1-A6 pass on the Moodle-shaped standard, Canvas and Blackboard simulator channels (including LA-IC-15 per-channel 409 text)` | Live K1-SIM (`20,916.7 ms`): K1-AGS A1–A6 pass on Moodle (`standard`), Canvas and Blackboard simulator channels, including assertion `aud` forms, score body, per-channel `409` conflict text `"{LMS} has a grade with a newer time"`, no send for staff preview, no send for a disabled connection, and off-origin service URL refusal. `11-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-03 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-03: simulator score POST 429 with Retry-After: 30 keeps row pending with tries unchanged, logs dispatch_throttled, and delays next POST >= 30 s` | Live K1-SIM (`31,881.3 ms`): simulator `429` with `Retry-After: 30` keeps row `pending` with `tries === 0`, logs `dispatch_throttled {dispatch_id, partition, retry_at}`, and delays the next score POST by `>= 30 s` (`/__sim/records`). `11-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-04 | PASS (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-04: fairness with transport gate (hold_before on score path of platform A): platform B score is sent before release; two held rows of platform A are forwarded one at a time` | Live K1-SIM (`1,612.0 ms`): while platform A's first score POST is held at `lti-gate` (`held_before`), platform B's score completes as `sent` before release, and platform A's two rows are forwarded one at a time. `11-test-acceptance-LA-E4-03.log` |
+| AC-LA-E4-03-05 | pending next slot after 08:05Z | `reporter.k1sim.test.ts > AC-LA-E4-03-05` | Updated `reporter.k1sim.test.ts` to pass the same `{ resourceLinkId: "p2-" + pub.id }` to both `canvasPlay` calls (with `await newVersion(cv, pub)` before the second attempt) so the `9/10` row supersedes the held `5/10` row on the same `placement_id`; ready to run in the post-08:05Z slot. |
 
 ## Round 3
 

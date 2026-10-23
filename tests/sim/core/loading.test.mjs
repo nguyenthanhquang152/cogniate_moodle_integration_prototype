@@ -123,17 +123,17 @@ test('HARNESS ONLY: loadHostManifest and infra/scripts/lib.sh agree on shared ho
         version: 1,
         providers: [{ id: 'browser-sim', aliases: ['page.browser.sim.test'], allowlist: [] }],
       }, true],
-      ['accepts and merges repeated alias and allowlist host inside one entry', {
+      ['accepts empty providers array', { version: 1, providers: [] }, true],
+
+      // Bad cases (refused by both simulator and infra)
+      ['refuses repeated alias and allowlist host inside one entry', {
         version: 1,
         providers: [{
           id: 'dup-in-entry-sim',
           aliases: ['a.dup.sim.test', 'a.dup.sim.test', 'b.dup.sim.test'],
           allowlist: ['a.dup.sim.test', 'a.dup.sim.test'],
         }],
-      }, true],
-      ['accepts empty providers array', { version: 1, providers: [] }, true],
-
-      // Bad cases (refused by both simulator and infra)
+      }, false],
       ['refuses invalid JSON', '{', false],
       ['refuses non-object top-level JSON', '[]', false],
       ['refuses unknown version', { version: 2, providers: [] }, false],
@@ -173,18 +173,31 @@ test('HARNESS ONLY: loadHostManifest and infra/scripts/lib.sh agree on shared ho
       });
     }
 
-    // Verify deduplication on repeated hosts in one entry
+    // Verify loadHostManifest refuses repeated alias or repeated allowlist host inside one entry with a clear error naming the host (BD-A1-53)
     fs.writeFileSync(manifestPath, JSON.stringify({
       version: 1,
       providers: [{
-        id: 'dedup-sim',
-        aliases: ['a.dedup.sim.test', 'a.dedup.sim.test', 'b.dedup.sim.test'],
-        allowlist: ['a.dedup.sim.test', 'a.dedup.sim.test'],
+        id: 'dup-alias-sim',
+        aliases: ['a.dup.sim.test', 'a.dup.sim.test', 'b.dup.sim.test'],
+        allowlist: ['a.dup.sim.test'],
       }],
     }));
-    const parsed = loadHostManifest(manifestPath);
-    assert.deepEqual(parsed.providers[0].aliases, ['a.dedup.sim.test', 'b.dedup.sim.test']);
-    assert.deepEqual(parsed.providers[0].allowlist, ['a.dedup.sim.test']);
+    assert.throws(
+      () => loadHostManifest(manifestPath),
+      /Duplicate simulator alias host a\.dup\.sim\.test in dup-alias-sim/,
+    );
+    fs.writeFileSync(manifestPath, JSON.stringify({
+      version: 1,
+      providers: [{
+        id: 'dup-allow-sim',
+        aliases: ['a.dup.sim.test', 'b.dup.sim.test'],
+        allowlist: ['a.dup.sim.test', 'a.dup.sim.test'],
+      }],
+    }));
+    assert.throws(
+      () => loadHostManifest(manifestPath),
+      /Duplicate simulator allowlist host a\.dup\.sim\.test in dup-allow-sim/,
+    );
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }

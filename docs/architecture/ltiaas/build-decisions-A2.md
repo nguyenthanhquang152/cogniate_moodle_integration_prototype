@@ -464,3 +464,231 @@ Routed in dispatch `ctx_e03f42d6f8fe`. Items 1–4 went to the Lead first (`msg_
 | BD-A2-82 | S1's choices: `account.purge` `details.counts` as a list `[{table, rows}]` (redaction hides object keys that end in `key`); the log line `job_run_request_failed` when `runNow` rejects. | **Ratified.** | LA-ADR-06 D2, D11; contract delta §5, §6; LA-E5-20 notes | A good catch: an object key `api_key` would be redacted. |
 
 Changes for the Lead to route: **S1** (LA-E5-21 fix round): BD-A2-77 to BD-A2-80 with the unit tests in the notes (RQ-2 for the `keys/key-config.ts` lines). **A1 FYI:** the app's `APP_MASTER_KEY_FILE` (LA-E5-22) goes through the same shared `readSecretFile` and `hexKey` rule.
+
+## 38. Round 37: granted scopes before the claim, reserved-host audience, runbook (LA-E2-01/02 lane L, LA-E5-20), 2026-10-23
+
+Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`msg_eaceb1e6109f`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-83 | A-LA-E2-01-02: with `platform.grantedScopes`, a scope that the platform did not grant gives `403` from the token client after the idempotency claim (so it is stored), and `needScope` can pick a scope that was not granted while a granted one would work. | **Yes, before the claim.** `needScope` picks the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). The preflight's step 4 checks both; else `403 SERVICE_NOT_AVAILABLE` with a fixed text for the claim or the grant. The token-client filter stays as a backstop. | LA-ADR-06 D9; contract delta §4.9; LA-E2-01 and LA-E5-16 notes | A refusal of the current grant is never stored, and a call never asks for an ungranted scope. |
+| BD-A2-84 | A-LA-E2-01-01: a staged admin create accepts `clientAssertionAud` on a reserved host, because the staged exception (A1 BD-A1-82) skips the audience check. | **The reserved-host rule applies to the audience always, staged or active:** rule 2 (https, site rules 2 and 3, not a reserved host), else `400 PLATFORM_URL_NOT_IN_PROFILE`. The staged exception covers only the issuer-origin rule (I-SELF, and "audience = token URL" for active platforms). | LA-ADR-07 A6; security-delta §2.4; contract delta §4.6; LA-E2-01 and LA-E2-02 notes | We sign the client assertion with our key. An audience on a hosted LMS host (for example a Canvas token URL with a client id of ours) would let the holder of a staged platform replay our assertion there; a grant does not make that safe. A1's BD-A1-82 stays as is. |
+| BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
+
+Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
+
+## 39. Round 38: the `autoActivate` line of `complete` (A1 BD-A1-93, LA-E2-02), 2026-10-23
+
+Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
+
+Changes for the Lead to route: none (contract text only).
+
+## 40. Round 39: L2's LA-E3-05 local choices (Deep Linking completeness), 2026-10-23
+
+Routed in dispatch `ctx_bf9df1eb1c35`. All five are ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-87 | (Provisional, L2's choices.) (1) `PLACEMENT_NOT_GRADED` = a `/tool/*` error page with status `403`, log `picker_rejected {reason: placement_not_graded}`. (2) The picker GET and POST read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken`. (3) The POST also refuses with `PLACEMENT_NOT_GRADED`, with no Deep Linking call. (4) A duplicate id in a multi-select POST gives `400 PUBLICATION_NOT_AVAILABLE`. (5) Items go in the picker list order. | **All five ratified.** (1) Matches the other picker refusals. (2) The server reads the shaped token and never trusts a form field. (3) The POST re-checks, never relying on the GET page. (4) The page never sends duplicates, so a duplicate is a broken or forged request, with the same code as 21 ids. (5) Is D3b. | LA-ADR-05 D3 "Build notes"; security-delta §5 (page row); LA-E3-05 notes | Process calls checked: app migration `018` = `picker_pick`, and the retention rule (keep a session with an unmatched `picker_pick` row) matches data model §5b. A1 to note the number `018` in §5b (A1's file). A1 FYI: `picker_rejected` reason `placement_not_graded` joins the app log names. |
+
+Changes for the Lead to route: **A1:** the migration number `018` in data model §5b, and the new `picker_rejected` reason in the app log list. Nothing for L2.
+
+## 41. Round 40: app metrics and readiness (LA-E4-07, lane R), 2026-10-23
+
+Lane R's design calls D1–D4, routed in dispatch `ctx_0289fb00215b`. One call changes, so a status message went first (`msg_c7293864d95e`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-88 | D1 listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` default 4210, production loopback rule); D2 sources of each app series and the label guards; D3 readiness (database, migrations, and the LTI service through the guarded client); D4 topology (web process only; send and job series only with `APP_JOB_RUNNER=on`). | **D1 ratified**: 4210 is the design port; the LTI listener is 4110, so there is no clash; same fixed refusal message. **D2 ratified, with three precisions**: (a) the send counter counts at commit (`afterCommit`); (b) the redemption count from `binding_attempt` rows is a counter only while no job deletes them; (c) `JobStale` covers interval jobs only, and the outbox is watched by `DispatchBacklog`. **D3 changed**: app readiness checks only the app (database, migrations, key provider when it exists); no LTI check. **D4 ratified**: series absent (not zero) with a standalone worker. | LA-ADR-06 D10 "Readiness"; operability §4.3 "App rules", §4.4, §5 (`JobStale`) | An LTI readiness check inside the app would make one outage show twice and cascade, while the runbooks already check both services. The `record-dispatch` precision prevents a false `JobStale` on an idle outbox. |
+
+Changes for the Lead to route:
+- **R (LA-E4-07):** drop the `lti_service` readiness check; count sends at commit; `JobStale` only for interval jobs.
+- **A1:** in app API delta §8a, record the listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` 4210, the production loopback refusal), the series list with sources and label guards (unknown channel `''`, reason grammar else `other`), the readiness checks and answer shape (no LTI check), and the topology rule (send and job series only with `APP_JOB_RUNNER=on`; absent, not zero, with a standalone worker). Also the same notes in the LA-E4-07 spec (A1's file).
+
+## 42. Round 41: the Canvas Dynamic Registration origin rule (LA-E3-09, lane L), 2026-10-23
+
+Lane L's question, the Lead's provisional P1, routed in dispatch `ctx_40723308ea61`. One sub-point changes, so a status message went first (`msg_157053e3622d`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-89 | (Provisional: P1.) The start page gets only `?ref`, and `complete` has no `siteUrl` or `serviceUrl`. P1: derive the values from the configuration, check them with the Canvas site rules, store them on the staged platform, and let the operator grant prove them (no app or contract change). Site origin = the configuration URL origin, "or, for `sso.canvaslms.com`, the issuer". | **P1 ratified, with one change.** The grant's adoption rule (`app/redemption.ts:391-397`) already requires issuer, `siteUrl` and `serviceUrl` to equal the connection's granted values, so a derived value never activates the wrong site. **Change:** a configuration URL on a fixed Canvas host (`sso.canvaslms.com`, beta, test) is refused at `complete` (the AP-05-30 page; nothing stored or sent) until the CANVAS-HOSTED live row. The site origin is never taken from the issuer. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5; LA-E3-09 notes | For hosted Canvas the issuer is the shared `https://canvas.instructure.com`, not the school's site, so "site = issuer" would stage a platform that can never be adopted. P2's URL parameters are unsigned and add no proof. |
+
+Changes for the Lead to route: **L (LA-E3-09):** one refusal branch for a configuration on a fixed Canvas host, with one unit test. The rest of P1 as built.
+
+## 43. Round 42: the Canvas Dynamic Registration portal path (new task LA-E3-16, lane P), 2026-10-23
+
+Scope gap found by A1 (BD-A1-104), routed in dispatch `ctx_b02542566462`. The answer is not "API only", so no status message was needed.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-90 | Lane P's `CanvasWizard` creates only `manual`, always shows the developer key JSON and an empty binding form, so Canvas Dynamic Registration has no portal path, while LA-ADR-05 D6 promises "no JSON paste and no typed client id". Keep the promise with a P companion task, or say "API only"? | **Keep the promise: new task LA-E3-16** (lane P, Should, B3, size M, cut group F3.6 with LA-E3-09 and LA-E3-15). The scope: a method choice at create (manifest-driven; `manual` default and byte-identical); the registration URL step instead of the JSON for `dynamic` (reuse the shell's registration-URL part); a staged binding form pre-filled from `platform.clientId` and `platform.deploymentIds[0]`. Five ACs: four UNIT, one K1-SIM, plus the M2 Canvas e2e regression. No LD-9 entry. | LA-ADR-05 D6 new row "Portal"; `tasks/LA-E3-16.md`; LA-E3-09 and LA-E3-15 notes | "API only" would lose the D6 promise and leave AP-05-29 without a user path. The operator grant still proves every value, so the pre-fill only saves typing. |
+
+Changes for the Lead to route: **P** builds LA-E3-16. **A1** adds the `epics.md` row: `| LA-E3-16 | Canvas DR in the portal (Canvas wizard) | Should (cut with LA-E3-09, LA-E3-15) | P | B3 | LA-E3-15, LA-E2-04 (K1-SIM also LA-E3-09) | packages/channels/canvas/portal/**; apps/portal/src/sdk/** (export only) | SIM (QA), M2 e2e (QA-E2E) |`, plus the matching lines in the ownership matrix and the F3.6 cut group.
+
+## 44. Round 43: the app key provider (LA-E5-22, lane K) and an audit target type (LA-E5-03), 2026-10-23
+
+Routed in dispatch `ctx_32214d415ccf`. Point 1 changes, so a status message went first (`msg_9d984c765137`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-91 | K's LA-E5-22 points 1–4 (provisional: accepted as written): (1) settings, `APP_KEYRING_FILE` default `/run/secrets/app/keyring.json`, no production refusal of `APP_MASTER_KEY` in the environment; (2) the AAD rows and the runtime token; (3) bound Buffer handles, no app legacy refusal; (4) re-wrap and status by the CLI `app:keys`. | **2, 3, 4 ratified** (point 4 with the operator policy `evidenceRequired: false` and authenticated metadata, BD-A2-38). **Point 1 changed:** (a) the app key ring lives in a new folder `infra/.secrets/app-keys/`, hidden from `e2e` by its own tmpfs (default `/run/secrets/app-keys/keyring.json`); (b) `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`, a fixed message). | LA-ADR-06 D6 "Scope in LA", D12; operability §2 (new `APP_KEYRING_FILE` row, secret files, refusals), §6.3; security-delta §10; LA-E5-22 notes | (a) `infra/.secrets/app/` is readable by the `e2e` container, and BD-A2-03 names the LA-E5-22 app ring as key material that must be hidden. (b) D12 says every secret has a file form in production; the LTI service already refuses its master key in the environment. A1 FYI: `PortContext.seal(value, column)` changes the LA-ADR-01 D5 sketch. |
+| BD-A2-92 | QA-2 (LA-E5-03): `settings.rate_limits` events have target type `service_setting` in the code, but the contract delta §5 says `settings`. | **The code is right**: target type `service_setting`, target id `rate_limits`, which names the stored object like the other target types. **A doc fix** in contract delta §5; no code change. | contract delta §5 | — |
+
+Changes for the Lead to route:
+- **K (LA-E5-22):** the default path `/run/secrets/app-keys/keyring.json`, and the `app_master_key_in_env` refusal.
+- **The owners of `infra/compose.yaml` (cogniate-app mount, e2e tmpfs), `infra/scripts/stack-up.sh`, `infra/scripts/lib.sh` (`prepare_e2e`) and `infra/scripts/compose-e2e-secrets.test.mjs`:** the `app-keys` folder lines (your process call).
+- **A1:** the `seal(value, column)` port sketch in LA-ADR-01 D5.
+
+## 45. Round 44: the pre-fetch rule of Dynamic Registration start (LA-E3-09 AC-05, lane L), 2026-10-23
+
+Codex Reviewer-B's boundary question, routed in dispatch `ctx_4f2f8f46f7ea`. A small code change follows, so a status message went first (`msg_530dc8645c8d`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-93 | AC-05 and BD-A2-89 say the Canvas site rules run before the fetch, but with the real mixed registry the route fetches every URL for the loosest loaded rule (LA-ADR-02 D5), so a reviewer's probe fetched `https://canvas.instructure.com/api/lti/security/openid-configuration`. Keep the union rule and narrow AC-05, or refuse hosts that every loaded rule excludes? | **Both:** keep the union start rule, plus **one pre-fetch floor for every profile**: a configuration URL that is not https, fails site rules 1–3, or is on a reserved host (a fixed host of any loaded profile) gives `PLATFORM_URL_NOT_IN_PROFILE` before any fetch. AC-05 is rewritten to test this with the real mixed registry. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 (start bullet); LA-E3-09 AC-05 and notes | The floor is exact: no loaded profile can complete such a configuration (any-https rules refuse reserved hosts; the Moodle path is on the Moodle site; BD-A2-89 refuses fixed Canvas hosts). So the fetch could only be an outbound request for an unauthenticated caller. |
+
+Changes for the Lead to route: **L (LA-E3-09, before merge):** the floor check in the start route of `registration.ts` before the fetch, and the AC-05 test with the real registry. **A1 FYI:** one line in LA-ADR-02 D5: "start uses the loosest rule of any loaded profile, above the reserved-host floor (BD-A2-93)".
+
+## 46. Round 45: the exact pre-fetch floor (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option A) on L's conflict between BD-A2-93 and the frozen Moodle baseline, routed in dispatch `ctx_9a98516847e4`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-94 | (Provisional: option A.) The BD-A2-93 floor as written would (1) break the frozen T3b AC-T3-05 (it waits for the guarded client's `outbound_blocked` on an http URL and on `169.254.169.254`), and (2) refuse a Moodle on a public IP literal, which completes DR today. Option A: the floor refuses before any fetch only host names that fail site rule 2, own hosts (rule 3) and reserved hosts; http and IP literals go on to the guarded client as today. | **Ratified (option A).** It makes BD-A2-93 exact. Every forbidden target still gets no request: http and private IPs are refused by the guarded client before it connects (`outbound_blocked`, `FETCH_FAILED`), and the reserved and own hosts by the floor (`PLATFORM_URL_NOT_IN_PROFILE`). A public-IP Moodle keeps Dynamic Registration. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Option B would change a frozen baseline (an LA-IC and a QA change) and drop a working case, for a property (no request to a forbidden target) that option A already keeps. |
+
+Changes for the Lead to route: none beyond L's build of option A (already in progress).
+
+## 47. Round 46: the floor keeps the M1 `ISSUER_RESERVED` start page (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option Y), routed in dispatch `ctx_e7307e62e227`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-95 | (Provisional: option Y.) Every reserved issuer host is a reserved host, so the BD-A2-93 floor would answer `PLATFORM_URL_NOT_IN_PROFILE` first, and the M1 start page `ISSUER_RESERVED` (base contract §9.2, pinned by `lti/codes.test.ts`) could never show again. Y: a reserved **issuer** host gets the M1 `ISSUER_RESERVED` page byte for byte; any other reserved host, an own host or a failing host name gets `PLATFORM_URL_NOT_IN_PROFILE`. The AC-05 example becomes `sso.canvaslms.com` for `PLATFORM_URL_NOT_IN_PROFILE`, and `canvas.instructure.com` shows `ISSUER_RESERVED`. | **Ratified (option Y).** | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Both options refuse before any fetch. Y keeps a frozen M1 page and its action line ("Connect it as Canvas or Blackboard in the Cogniate portal"), which tells the admin the right fix. X would need a contract note and would drop that help. |
+
+Changes for the Lead to route: none beyond L's build of option Y (in progress).
+
+## 48. Round 47: the async store port (LA-E5-23, lane S2), 2026-10-23
+
+The Lead's provisional calls on S2's three questions, routed in dispatch `ctx_4d5054a2f4d8`. Ratified without change (one addition), so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-96 | (Provisional.) (1) The synchronous SQL stays private to the SQLite adapter; async per-area `LtiStore` methods; each compound audited transaction becomes one atomic store operation (no thenable inside `transaction`/`audit.change`); structural call-site changes are in scope. (2) Production SQL moves verbatim into `store/**`; the boundary probe excludes `*.test.ts` and testkit fixtures. (3) The probe is S2's `store/port-boundary.test.ts`, with no F5 rule change. | **All three ratified, with precisions and one addition.** The audited store method also holds the BD-A2-29 action rule and the `afterCommit` callbacks, and a later `4xx` writes its `refused` event through a store method. The probe has a planted-call negative case. **Addition:** the audit-retention `DELETE` gets its own store module (D4 rule 2 keeps `store/audit.ts` insert and list only), and lane P moves the F5 `audit-event-delete` `ALLOWED` path to it in the same merge; otherwise F5 fails. | LA-ADR-06 D13 item 3 "Build rules"; LA-E5-23 AC-01 (exact text) and notes | Atomicity and the commit-time counters stay inside one synchronous transaction, so D4 T0–T2 hold behind an async port, and an LG Postgres adapter can implement the same methods. |
+
+Changes for the Lead to route: **S2 (LA-E5-23):** as provisionally called, plus the audit-retention module and the planted-call test case. **P:** move `ALLOWED` in `infra/scripts/fitness/rules/audit-event-delete.mjs` from `jobs/audit-retention.ts` to S2's new store module, in the same merge.
+
+## 49. Round 48: a missing key version in the app (LA-E5-22 fix round 1, lane K), 2026-10-23
+
+The Lead's provisional calls on Claude Reviewer-A A-LA-E5-22-02 (MINOR), routed in dispatch `ctx_5c2694ba9004`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-97 | (Provisional.) (1) A score dispatch with "version missing / ring not bound" maps to `{kind: 'retryable', uncertain: false}`; an authentication failure stays `local_failure`. (2) The connection list and detail degrade only that row (`registrationUrl` and its expiry `null`, the `key_open_failed` line, `200`); an authentication failure stays `500`; no new code. (3) The `app:keys rewrap` output and help: "write the ring, restart the app and check /readyz = 200, then rewrap". | **All three ratified.** | LA-ADR-06 D6 "Scope in LA" (app part); operability §6.3 (the app order); LA-E5-22 notes | A missing version is an operator state that a restart with the right ring fixes, so retrying is right; a failed GCM tag means a moved or damaged blob, which must stay loud. The app `/readyz` (`key_version_missing`, BD-A2-88) shows the cause. The order is the same as the LTI runbook (§6.3 steps 3–5). |
+
+Changes for the Lead to route: none beyond K's fix round.
+
+## 50. Round 49: the connection check's local choices (LA-E6-01, lane P), 2026-10-23
+
+P's five provisional choices, routed in dispatch `ctx_b9f02fbfab80`. Two change, so a status message went first (`msg_e44b3e7910a9`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-98 | (a) No granted AGS scope: no token request, `token.detail: invalid_scope`. (b) A bad JWKS: `invalid_jwks`, `http_<status>` or the outbound reason. (c) No `deploymentId` = the first active deployment; an unknown or inactive `deploymentId` gives `403 DEPLOYMENT_NOT_ACTIVE`. (d) One "Check connection" panel on the connection page only. (e) Another token failure: "{LMS} did not give Cogniate an access token." with the code. Staged records refused before any call. | **(b), (d), (e) and the staged refusals ratified.** **(a) changed:** `token.detail: no_granted_scope`, with its own portal text. **(c) changed for one case:** an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`; a known inactive one, or no active deployment, keeps `403 DEPLOYMENT_NOT_ACTIVE`. | LA-ADR-08 D4 ("Work", "Portal"); contract delta §2.6 (detail values, unknown deployment); LA-E6-01 notes | `invalid_scope` is an OAuth answer of the platform; reusing it for our own decision would send an operator to look for a platform refusal that never happened. `UNKNOWN_DEPLOYMENT` is the base code for an unknown id (as for `PATCH …/deployments/:deploymentId`). |
+
+Changes for the Lead to route: **P (LA-E6-01):** the `no_granted_scope` detail and its portal text; `404 UNKNOWN_DEPLOYMENT` for an unknown `deploymentId`. The RQ-2 grants are your process calls.
+
+## 51. Round 50: the log name of the token result (LA-E6-01, lane P), 2026-10-23
+
+The Lead's provisional naming call, routed in dispatch `ctx_3638d89e08e6`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-99 | (Provisional.) The shared redaction replaces every field named or ending with `token`, so the contract's log field `token` would always read `[redacted]`. The log field becomes `token_result` (LTI `platform_check`, app `connection_check`), and the audit details key `tokenResult`, with the same value `{ ok, scope?, detail? }`. `jwks` keeps its name; the HTTP answers keep `token`. No change to the redaction rule. | **Ratified.** `token_result` and `tokenResult` end in "result", so the redaction (`SECRET_KEYS`, `SECRET_SUFFIXES`) does not touch them; the value holds no secret. | contract delta §6 (`platform_check` row), §5 (`platform.check` details), §2.6 (a naming sentence); LA-ADR-08 D4 "Logs"; LA-E6-01 notes | Widening an exception for `token` in the shared rule would weaken redaction for every other log line. HTTP answers are not redacted, so their field name stays as in the contract. |
+
+Changes for the Lead to route: none beyond P's build.
+
+## 52. Round 51: the connection health view (LA-E6-02, lane P), 2026-10-23
+
+P's seven provisional design points, routed in dispatch `ctx_6cc6b1801618`. Ratified without change, so no status message was needed.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-100 | (a) `nextKid` = `null` (the public JWKS has no status). (b) `artifactKeyCurrent` = `null` when not knowable, else the equality; warn only on `false`. (c) The `check` event code: `ok`, or `jwks:<detail>` and/or `token:<detail>`; `lastCheck` derived from the newest check row. (d) `lastError.code` = the parsed `CODE` of the stored text, else `null`. (e) Events: the kept rows, newest first. (f) No disconnect or suspend events (no call site assigned). (g) A collapsed health section; no `role="alert"`; M2 and T6 selectors unaffected. | **All seven ratified.** Precisions: (c) the order is `jwks` then `token`, with §2.6 detail values; (d) `CODE` must match `[A-Z][A-Z0-9_]*`. **D5 operator use updated:** the operator reads the next kid from `GET /operator/v1/accounts/<id>/signing-keys`, and the Could CLI takes `--next-kid <kid>`. (f) is a deferral. | LA-ADR-08 D5 "Build notes" and "Operator use"; LA-E6-02 notes | D5 assumed that the JWKS order shows the next key, but after a rotation the second key is a retired one. Only ids and codes reach the portal, never free text. |
+
+Changes for the Lead to route: **A1** (A1's files): app API delta §3.7, the health answer rules (`nextKid` null in LA; `artifactKeyCurrent` null rule; `lastError.code` parse rule; the `check` code format); data model §5a, the `connection_event.code` format for `check` rows. **Lead:** a `deferred.md` row for disconnect and suspend events (K call sites, Could). Nothing new for P.
+
+## 53. Round 52: the stale-key help names a real action (LA-E6-02, lane P), 2026-10-23
+
+P's text point, routed in dispatch `ctx_d010bb937f43`. Nobody waited.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-101 | The stale-key help says "Download the JSON again and paste it into {LMS}", but the Canvas portal shows the key JSON only for a pending manual connection, while a stale key happens on a registered one. (a) Change the text to an action that exists, (b) add a key JSON panel for registered Canvas connections, or (c) another rule? | **(b), the smallest honest option.** The route already exists for every status (`packages/channels/canvas/app/configuration.ts`: inline or key URL, and it records the exported kid); only the portal hides it. P reuses `CanvasConfiguration` as a collapsed "Key JSON" panel on registered Canvas connections. New help text: "{LMS} still has an old Cogniate key in its developer key. Open Key JSON on this page. Choose the key URL (it never needs a new paste), or download the JSON again. Then paste it into the Cogniate developer key in {LMS}." Size S, no API change, no LD-9 entry if the M2 and T6 selectors do not change. | LA-ADR-08 D5 "Build notes"; LA-E6-02 notes | A text-only fix (a) would have to name an action that does not exist: there is no operator export path, and "make a new connection" is a heavy and wrong remedy for a key paste. The key URL form ends the problem for that connection. |
+
+Changes for the Lead to route: **P (LA-E6-02, next round, Could):** the collapsed panel on registered Canvas connections, the new `staleKeyHelp` text, and the unit test, with a check that the M2 and T6 selectors do not change.
+
+## 54. Round 53: the BD-A2-101 build (LA-E6-02 fix round 2, lane P), 2026-10-23
+
+Two choices and one limit, routed in dispatch `ctx_1e24611f6bbc`. Code changes (P only), so a status message went first (`msg_e20f53e47f09`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-102 | P's choices: (1) "registered" means `registered` or `connected`; (2) the stale-key warning is hidden on `pending` and `disabled` connections. The limit: opening Key JSON exports the key URL form at once and clears the recorded kid, so the warning goes away without a paste. | **(1) and (2) ratified.** **The limit is not accepted; the fix is in P only:** in the registered panel, opening or switching the form fetches and records nothing, and only "Download JSON" or "Copy JSON" fetches, and so records, the export. The pending wizard step does not change. | LA-ADR-08 D5 "Build notes"; LA-E6-02 and LA-E6-05 notes | A warning that disappears because someone looked at the page hides a real stale key in the LMS. Download and Copy are explicit acts of taking the artifact, which is what LA-E6-05 records. No K route change is needed. Known limit, kept and documented: the warning reflects the last artifact taken, not what the LMS holds. |
+
+Changes for the Lead to route: **P (LA-E6-02, next round):** fetch only on Download or Copy in the registered panel, and the unit test.
+
+## 55. Round 54 (urgent): the storage-check page CSP blocks its own redirect (LA-E3-02, lane L), 2026-10-23
+
+QA-E2E's live K2 finding P3 (LA-E7-07 Round 2), routed in dispatch `ctx_86012806ad25`. The rule went to the Lead first (`msg_26600a7ab15a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-103 | The storage-check page has `form-action 'self'`. Its form posts to our LTI origin, and the answer is a `303` to the tool launch URL on another origin; Chromium blocks that redirect, because CSP3 `form-action` also covers the redirect chain. So the cookieless Platform Storage launch never reaches the tool. | **`form-action 'self' <T>`**, with `<T>` = the origin of the account's tool URL that this check redirects to (`launchUrl` for a resource link, `deepLinkingUrl` for Deep Linking), computed per request from the stored prepared launch; one origin, never a wildcard. The rest stays: the other directives, `frame-ancestors https:`, `Referrer-Policy: same-origin`. No other LTI service page changes (the login page uses `form-action 'none'` and navigates by script; error pages have no form). | LA-ADR-05 D1 rule 7; security-delta §5 (storage-check row); LA-E3-02 notes | The security intent stays: the form posts only to our origin, and the only added origin is the account's own operator-set https tool URL (never our LTI or content host, LA-ADR-06 D2), where the launch goes anyway. A trampoline page would add a script and a step for no extra safety. No LD-9 change: the page is new in LA. |
+
+Changes for the Lead to route: **L (LA-E3-02):** the per-request `<T>` in the storage-check CSP, and a unit test in three cases (resource link, Deep Linking, an account whose `launchUrl` is on another origin). **QA-E2E:** rerun `U4.platform-storage.positive` live (AC-LA-E7-07-05, AC-LA-E3-02-08).
+
+## 56. Round 55: the storage-check origin guard (LA-E3-02, lane L), 2026-10-23
+
+Lane L's local choice in the BD-A2-103 fix (merged `02f5d420`), routed in dispatch `ctx_aab657f2de56`. No code change, so no status message first.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-104 | L: "`URL.origin` keeps characters such as `;`, `,` and `"`", so `formActionSources` adds `<T>` only for a plain https origin (letters, digits, dots, hyphens, an optional port); else `'self'` only (fail closed). Must a refused origin also be refused at account write time, or logged? | **Ratified as built.** The guard is the CSP3 host-source form (`host-char` = letter, digit, `-`; dot-separated; optional port), with the scheme fixed to `https` like the write rule. `URL` lower-cases the host and gives punycode for an IDN, and drops port 443, so normal tool URLs pass. Other origins (an IPv6 literal, which CSP cannot name; `_`; `;`, `,`, `"`, `'`, `*` and similar) give `form-action 'self'` only. **No write-time refusal and no log line in LA.** An operability §9 row gives the diagnosis. | LA-ADR-05 D1 rule 7; security-delta §5 (row and the guard note); operability §9 (new row); LA-E3-02 notes | Checked in Node: `https://a;b,c"d.example` keeps its host in `origin`; `https://a_b.example` and `https://[2001:db8::1]:8443` fail the guard; `https://Tool.Example:443` gives `https://tool.example`. Why not refuse at write time: the only write path is the loopback operator API (`toolUrlSchema`); every LA value passes (`app.cogniate.test`, the QA accounts); a write rule would also stop cookie launches, which work for such hosts today; and the runtime guard must stay in any case, because it is the control on the header and stored rows are not re-checked. Why no log line: no LA value can reach the case, and the server sees a normal `303`. LG option: add the same host rule to `toolUrlSchema` for `launchUrl` and `deepLinkingUrl`, with the `URL_RULE` text and the contract §3 rule. Lane L's guard table test (`;`, `,`, `"`, `http:`, IPv6 literal, not a URL) is enough. |
+
+Changes for the Lead to route: none. No code, contract or test change; QA-E2E's live rerun of `U4.platform-storage.positive` (BD-A2-103) does not change.
+
+## 57. Round 56: operability §6.2 key path and the compose settings (Docs lane LA-E8-04), 2026-10-23
+
+Two points from the Docs lane's operator runbook (merged `b207706d`), routed in dispatch `ctx_d0f85f82a296`. Docs only, so no status message first.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-105 | (1) Operability §6.2 step 2 said that the app reads `infra/.secrets/lti-api-key.cogniate`. On the stack the app reads `infra/.secrets/app/lti-api-key`, a copy that `lti-bootstrap.sh` keeps. (2) FYI: `infra/compose.yaml` passes a fixed list of settings, `production` cannot run on the LA stack, and the app worker has no compose service. Does operability need a sentence? | **(1) The stack is the rule.** The host keeps `lti-api-key.<account>` (seed, `lti:bootstrap`, the `compat` runner and the demo scripts read it). The app reads only its copy, `LTI_API_KEY_FILE=/run/secrets/app/lti-api-key` (default in `services/cogniate-app/src/config.ts`), at each use. `lti:bootstrap` keeps the copy equal at each run. §6.2 step 2 is now: write the key file, then run `lti:bootstrap` (an active key exists, so it issues no key), which refreshes the copy. The §2 secret-file table had the same error: it now has a row for each file. **(2) Yes, one note.** §2 now says which table settings do not reach the services on the LA stack, what to use instead (operator API for rate limits; `docker compose exec -e` for app CLI operator settings), that `stack:restart --env` takes test knobs only, that `production` does not run on the stack (a host setup in LG; deferred row "LA-E5-22 note (K)"), and that the worker has no compose service. §3 refers to it. | operability §2 (stack note; secret-file rows), §3 (worker bullet), §6.2 (step 2; emergency line) | Checked: `compose.yaml` has no `env_file`; the LTI service list has `AUDIT_RETENTION_DAYS`, `JOB_INSTANCE_ID`, `TRUSTED_PROXY_CIDRS: proxy`; the app list has none of the job, retention or operator settings; `saved_profile` in `lib.sh` returns only `acceptance` or `default`. I also fixed the npm form in §6.2: the root `package.json` has no `lti:bootstrap`, so the command is `npm run lti:bootstrap -w services/lti-service -- …` (as in the runbook). The short form in LA-ADR-06 AP-06-12 and AC-LA-E5-05-01 means the command run in `services/lti-service`; no change there. No code, compose or test change: the settings gap is the LG host setup, and AC-LA-E4-05-05 stays with its owner. |
+
+Changes for the Lead to route: none. The runbook (LA-E8-04) already gives the stack form in its API key rotation steps and its secret-file table, so the Docs lane has nothing to change.
+
+## 58. Round 57: hosted Canvas and the Dynamic Registration choice in the wizard (Docs lane LA-E8-03), 2026-10-23
+
+A product point from the Docs lane's admin guides (merged `985f8f6f`), routed in dispatch `ctx_ff9fed7e90f6`. Code changes, so the rule went to the Lead first (`msg_2ed5806a8eab`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-106 | Canvas Dynamic Registration works in LA only when the Canvas configuration URL is on the school's own Canvas host. A configuration URL on `canvas.instructure.com` or `sso.canvaslms.com` is refused before any fetch (BD-A2-89, BD-A2-95; SIM AC-LA-E3-09-05). The wizard still offers Dynamic Registration for every Canvas type; only the guide warns. Keep, or hide or explain it for the hosted types? | **Explain, do not hide (lane P, LA-E3-16).** Both methods stay for every Canvas type. The help of the Dynamic Registration choice (`canvas-steps.json`, `dynamic.methods.dynamic.help`) becomes: "Copy one registration URL into {LMS}. Cogniate gets the Client ID and the Deployment ID. For Instructure-hosted {LMS}, use Developer key. Cogniate does not support this method there yet." AC-LA-E3-16-01 asserts the new string. No manifest, service or refusal-page change. **LD-9: none.** | LA-ADR-05 D6 "Portal" row; LA-E3-16 design notes | Why not "keep as is": the user sees the limit only in the guide. The refusal page in Canvas (`PLATFORM_URL_NOT_IN_PROFILE`) says "check the address, then start again", which loops for a hosted site. `ISSUER_RESERVED` is M1 bytes, so it cannot change. Why not a filter: the hosted case is not proven to fail (a configuration and token endpoint on the school's `*.instructure.com` host would pass; the token endpoint host is UNVERIFIED, D6 "Dependency"). A filter would also need a list of hosted types in the wizard or a manifest change (K, A1), and the CANVAS-HOSTED live row would undo it. Why LD-9 holds: the text is inside the method fieldset, which the AC-LA-E3-16-05 snapshot removes before it compares with the manual DOM; a manual-only manifest shows no fieldset; the manual request body and the pending steps do not change. The string is only in `canvas-steps.json` and `canvas.test.tsx` (Moodle has its own copy). |
+
+Changes for the Lead to route: **P (LA-E3-16, small fix):** the new help string in `canvas-steps.json` and in the AC-LA-E3-16-01 assertion. **Docs (FYI, optional):** baseline-admin-changes §2.1 already states the limit; step A.3 may quote the new help text. **QA-3:** no new criterion; the LA-E3-16 unit suite covers it.
+
+## 59. Round 58: runbook FYIs, the 409 trace id, the re-wrap failure line and the jobs 503 test (Docs lane LA-E8-04), 2026-10-23
+
+Three FYI points from the Docs lane's runbook fix round (merged `c2326c9b`), routed in dispatch `ctx_ccb3ab734112`. No code change, so no status message first.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-107 | (1) Operability §6.3 step 5 and §8a step 2 send a `409 JOB_RUNNING` reader to read the outcome by the refused request's trace id (B-LA-E8-04-01). (2) When `runNow` rejects, the re-wrap route logs `key_rewrap_failed` (`http/operator/key-provider.ts:21`), but operability §8a, contract delta §6 and BD-A2-82 name `job_run_request_failed` for it too. (3) The jobs route `503 NOT_READY` seems to have no author unit test. | **(1) Aligned, as the runbook says:** a `409` started nothing, and its trace id does not find the other run; wait one minute, send the request again, and repeat until `202`. **(2) The code is right; the docs change.** The re-wrap route logs `key_rewrap_failed {trace_id, error}`; the jobs route logs `job_run_request_failed {job, trace_id, error}`, also when it starts `key-rewrap`. BD-A2-82 ratified the name for the jobs route only; the words "or the re-wrap route" in contract §6 were my error. **(3) No new test:** it exists. | operability §6.3 steps 5 and 6, §8a steps 2 and 3; contract delta §6 (the `job_run_request_failed` row, a new `key_rewrap_failed` row) | (1) Repeating is safe: the jobs are idempotent, and a re-wrap after a complete run ends `complete` with zero work. With its own `202`, the operator reads an outcome by a known trace id. (2) Why not rename in code (S2): the re-wrap route had the name first (LA-E5-09), both lines carry the trace id that the operator searches, and no alert uses either name; a rename adds a code and test change for no operator gain. Both lines also carry `error` (the error class name), now in the contract. (3) `services/lti-service/src/http/operator/jobs.test.ts:83`, "a %s runner gives 503 NOT_READY with Retry-After and no event (BD-A2-69)", from the LA-E5-20 commit `14287ee4`: for an `idle` and a missing runner it asserts `503`, `details` `{reasons: ['job_runner_not_active'], retryAfter: 30}`, the `Retry-After: 30` header, no audit event, and no `runNow` call. The route uses the same `state() !== 'active'` check as the re-wrap route, whose test covers all five states. The test name has no AC id, so the runbook can cite it as `[UNIT E5-20]` with this name. |
+
+Changes for the Lead to route: none (no code or test change). **Docs (FYI):** the runbook can drop "pending verification" from the jobs-route `503` row and cite `jobs.test.ts:83`. Both failure lines stay "pending verification": no unit test makes `runNow` reject. That test is optional and not needed in LA.

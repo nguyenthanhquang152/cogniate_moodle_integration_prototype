@@ -7,6 +7,7 @@ import { defineConfig } from 'vitest/config';
 const k0 = (process.env.LA_LEVEL ?? '').toLowerCase() === 'k0';
 
 export default defineConfig({
+  server: { fs: { strict: false } },
   test: k0
     ? {
         root: fileURLToPath(new URL('../../..', import.meta.url)),

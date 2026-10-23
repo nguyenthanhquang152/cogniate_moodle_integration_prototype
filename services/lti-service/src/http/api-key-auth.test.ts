@@ -58,15 +58,15 @@ describe('API key authentication', () => {
       const now = h.clock.now; const headers = credentials(h.db, 'cogniate', now);
       const issued = issueApiKey(h.db, 'cogniate', { label: 'expiry', scopes: ['launch', 'admin'], createdBy: 'operator:unit', expiresAt: now + HOUR }, now);
       for (const [scheme, header] of headers(issued.apiKey)) {
-        expect(authenticate(h.db, header, [scheme], now + HOUR - 1000, onFail)).toMatchObject({ account: { id: 'cogniate' }, actor: { type: 'api_key', id: issued.record.id } });
+        expect((await authenticate(h.db, header, [scheme], now + HOUR - 1000, onFail))).toMatchObject({ account: { id: 'cogniate' }, actor: { type: 'api_key', id: issued.record.id } });
       }
       for (const [scheme, header] of headers(issued.apiKey)) {
         const code = scheme === 'service' ? 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER' : 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER';
-        expect(() => authenticate(h.db, header, [scheme], now + HOUR + 1000, () => {})).toThrow(expect.objectContaining({ status: 401, code }));
+        await expect(authenticate(h.db, header, [scheme], now + HOUR + 1000, () => {})).rejects.toThrow(expect.objectContaining({ status: 401, code }));
       }
       revokeApiKey(h.db, 'cogniate', issued.record.id, now + 1);
       for (const [scheme, header] of headers(issued.apiKey)) {
-        expect(() => authenticate(h.db, header, [scheme], now + 2, () => {})).toThrow(expect.objectContaining({ status: 401 }));
+        await expect(authenticate(h.db, header, [scheme], now + 2, () => {})).rejects.toThrow(expect.objectContaining({ status: 401 }));
       }
     } finally { await h.app.close(); h.db.close(); }
   });
@@ -80,15 +80,15 @@ describe('API key authentication', () => {
         const issued = issueApiKey(h.db, 'cogniate', { label: scope, scopes: [scope], createdBy: 'operator:unit' }, now);
         for (const [scheme, header] of headers(issued.apiKey)) {
           const needed = scheme === 'bearer' ? 'admin' : 'launch';
-          if (scope === needed) expect(authenticate(h.db, header, [scheme], now, onFail).actor.id).toBe(issued.record.id);
-          else expect(() => authenticate(h.db, header, [scheme], now, onFail))
+          if (scope === needed) expect((await authenticate(h.db, header, [scheme], now, onFail)).actor.id).toBe(issued.record.id);
+          else await expect(authenticate(h.db, header, [scheme], now, onFail)).rejects
             .toThrow(expect.objectContaining({ status: 403, code: 'API_KEY_SCOPE_MISSING', description: expect.stringContaining(needed) }));
         }
       }
     } finally { await h.app.close(); h.db.close(); }
   });
 
-  it('AC-LA-E5-07-09: migration backfills every old hash; the unchanged keys pass all schemes after the frozen column changes', () => {
+  it('AC-LA-E5-07-09: migration backfills every old hash; the unchanged keys pass all schemes after the frozen column changes', async () => {
     const root = mkdtempSync(join(tmpdir(), 'api-key-migration-')); temps.push(root);
     const old = join(root, 'migrations'); mkdirSync(old);
     // M1 has migrations 001–004. Populate its legacy account hashes before applying every LA migration.
@@ -106,7 +106,7 @@ describe('API key authentication', () => {
           createdAt: T0, createdBy: 'system:bootstrap', expiresAt: null, lastUsedAt: null, revokedAt: null });
         db.prepare('UPDATE tool_account SET api_key_hash = ? WHERE id = ?').run(sha256Hex(`unusable-${id}`), id);
         for (const [scheme, header] of credentials(db, id, T0)(key)) {
-          expect(authenticate(db, header, [scheme], T0, onFail)).toMatchObject({ account: { id }, actor: { type: 'api_key', id: records[0]!.id } });
+          expect((await authenticate(db, header, [scheme], T0, onFail))).toMatchObject({ account: { id }, actor: { type: 'api_key', id: records[0]!.id } });
         }
       }
       applyMigrations(db, MIGRATIONS);
