@@ -1,6 +1,6 @@
 # Guide: add a new LTI channel (kind A LMS)
 
-Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **draft for review**. Reviews: pending (LA-E8-01 done rule). QA checks pending: QA follows this guide on a scratch branch (AC-LA-E8-01-02), and the kit simulator rows of LA-E7-06 are pending a Docker window.
+Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **draft for review**, fix round 1 for the round-1 reviews ([Reviewer-A](../../reviews/LA-E8-01/reviewer-a.md), [Reviewer-B](../../reviews/LA-E8-01/reviewer-b.md)). QA checks pending: QA follows this guide on a scratch branch (AC-LA-E8-01-02), and the kit simulator rows of LA-E7-06 are pending a Docker window.
 
 This guide is for a developer or an agent who is new to the repository. It adds one LMS of kind A as a named channel. The work is one channel folder, one simulator module, one host manifest entry and one kit fixture. No core file changes. The target time is less than one working day (plan §4 measure 5; LA-E8-02 measures it).
 
@@ -67,7 +67,7 @@ flowchart TD
   C --> S[Step 7: simulator module<br/>tests/sim/&lt;id&gt;/index.mjs]
   S --> H[Step 8: host manifest entry<br/>tests/sim/hosts.json]
   H --> K[Step 9: kit fixture<br/>tests/ltiaas/kit/channels/&lt;id&gt;.json]
-  K --> X[Step 10: checks<br/>npm run check, F2, K0, kit, K1, K2]
+  K --> X[Step 10: commit, then checks<br/>npm run check, F2, K0, kit, K1]
 ```
 
 Every file that you make or change (AC-LA-E8-01-01):
@@ -78,12 +78,12 @@ Every file that you make or change (AC-LA-E8-01-01):
 | 3 | `packages/channels/<id>/lti-profiles.ts` | `packages/channels/brightspace/lti-profiles.ts` |
 | 6 | `packages/channels/<id>/README.md` | `packages/channels/brightspace/README.md` |
 | 6 | `packages/channels/<id>/channel.test.ts` | `packages/channels/brightspace/channel.test.ts` |
-| 7 | `tests/sim/<id>/index.mjs` (and its `protocol.test.mjs`) | `tests/sim/brightspace/index.mjs` |
+| 7 | `tests/sim/<id>/index.mjs` (one provider), and optional `tests/sim/<id>/protocol.test.mjs` | `tests/sim/brightspace/index.mjs` |
 | 8 | `tests/sim/hosts.json` (one new entry) | the `brightspace-sim` entry |
 | 9 | `tests/ltiaas/kit/channels/<id>.json` | `tests/ltiaas/kit/channels/brightspace.json` |
 | 11 | docs only, for example an admin guide | [D2L Brightspace admin guide](brightspace-admin.md) |
 
-Do not edit any other file. A change in core, in a shared build file or in another channel folder fails F2 (step 10).
+Do not edit any other file. A change in core, in a shared build file or in another channel folder fails F2 (step 10). Browser cases are not in this table: QA-E2E owns them (step 10).
 
 ## Step 1: Make the channel folder
 
@@ -203,25 +203,47 @@ Rules:
 
 ## Step 5: Move Moodle `standard` connections first (only when you guard a family)
 
-After the channel ships, a launch of the family on a Moodle `standard` platform is refused [SIM E2-05-05]. So find those platforms first, and move them. The order is: **move first, then guard.**
+After the channel ships, a launch of the family on an active Moodle `standard` platform is refused [SIM E2-05-05]. So find those platforms first, and move them. The order is: **move first, then guard.**
 
-1. List the Moodle-type platforms of the tool account with its admin API key. With the operator shell helpers of the [runbook §1](operator-runbook.md#1-set-up-your-shell), for the account `cogniate`:
+The rule that the list uses (design and code):
+
+- The guard compares the signed `product_family_code` in lower case ([LA-ADR-01 D6](../../architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d6-lti-profiles-in-the-lti-service); `services/lti-service/src/lti/checks.ts`). The LTI service stores the code as the LMS signs it (`services/lti-service/src/lti/launch.ts`). So the list compares in lower case too, and finds `desire2learn`, `DESIRE2LEARN` and `Desire2Learn`.
+- Only an **active** platform can launch. An inactive platform gets `PLATFORM_NOT_ACTIVE` [SIM E2-02-03]. So inactive rows are history: the list does not show them.
+- A platform with no family has had no accepted launch with a family yet. Its next launch can be your family. So you check it by hand.
+
+Procedure:
+
+1. List the active Moodle-type platforms of the tool account. Use the operator helpers of the [runbook §1](operator-runbook.md#1-set-up-your-shell) (the `tenant` helper uses the API key of the account `cogniate`):
 
    ```sh
    tenant GET '/api/platforms?profile=standard' | node -e '
+   const [family, ...checked] = process.argv.slice(1);
    const t = require("node:fs").readFileSync(0, "utf8");
-   for (const p of JSON.parse(t.slice(t.indexOf(" ") + 1)).platforms)
-     if (p.productFamilyCode === process.argv[1] || !p.productFamilyCode) console.log(p.id, p.url, p.productFamilyCode || "(no family yet)");
+   for (const p of JSON.parse(t.slice(t.indexOf(" ") + 1)).platforms) {
+     if (p.active !== true || checked.includes(p.id)) continue;
+     const f = typeof p.productFamilyCode === "string" ? p.productFamilyCode.toLowerCase() : "";
+     if (f === family.toLowerCase()) console.log("AFFECTED", p.id, p.url, p.productFamilyCode);
+     else if (f === "") console.log("CHECK", p.id, p.url, "(no family yet)");
+   }
    ' '<family code>'
    ```
 
-2. Keep the platforms whose `productFamilyCode` is your family code. Each one is a non-Moodle LMS that uses the Moodle card.
-3. Check each platform with no family by hand: ask its library which LMS it is. The LTI service stores the family at an accepted launch (LA-E8-01 design note; pending verification), so a platform with no accepted launch has no family yet.
-4. For each affected connection, ask the library to connect the LMS again with the card **LTI 1.3** ([LTI 1.3 admin guide](lti-generic-admin.md)). Then the library disconnects the old Moodle connection.
-5. Run the list of step 1 again. It must show no platform of your family.
+   - `AFFECTED`: an active platform of your family. It uses the Moodle card for a non-Moodle LMS.
+   - `CHECK`: an active platform with no family yet.
+2. For each `CHECK` line, ask its library which LMS it is.
+   - If it is your LMS, treat it as `AFFECTED`.
+   - If it is not, write down its platform id. You pass it to the list later as an extra argument.
+3. For each `AFFECTED` platform:
+   1. Ask the library to connect the LMS again with the card **LTI 1.3** ([LTI 1.3 admin guide](lti-generic-admin.md)).
+   2. Check that the new connection works: its status is `connected` after a launch.
+   3. Ask the library to disconnect the old Moodle connection in the portal. The disconnect switches its platform off (`active: false`; `services/cogniate-app/src/kernel/authority/self.ts`).
+   4. Check that the old platform is inactive: `tenant GET /api/platforms/<platform id>` shows `"active":false`.
+4. Run the command of item 1 again. Put the ids of the platforms that you checked by hand, and that are not your LMS, after the family code. The last line of the command, `' '<family code>'`, then is `' '<family code>' '<checked id 1>' '<checked id 2>'`.
+
+5. The move is complete when the list prints no line. Do not delete platform rows to empty the list.
 6. Then ship the channel with the guard.
 
-The `GET /api/platforms` answer holds `profile` and `productFamilyCode` for each platform (`services/lti-service/src/http/routes/platforms.ts`). The `tenant` helper itself is pending verification on a stack ([runbook §1](operator-runbook.md#1-set-up-your-shell)).
+The list command and the move steps are pending verification: QA checks them on the simulator at the LA-E8-01 check (AC-LA-E8-01-03). Docs tested the filter only with sample answers: three case variants of one family, an inactive platform of that family, a platform with no family and an unrelated family.
 
 ## Step 6: Write the README and the unit test
 
@@ -230,17 +252,54 @@ The `GET /api/platforms` answer holds `profile` and `productFamilyCode` for each
 
 ## Step 7: Add the simulator module (`tests/sim/<id>/index.mjs`)
 
-Follow [`tests/sim/README.md`](../../../tests/sim/README.md#add-a-simulator-lms-one-module--one-manifest-entry):
+Follow [`tests/sim/README.md`](../../../tests/sim/README.md#add-a-simulator-lms-one-module--one-manifest-entry), with one rule: the module returns **one** provider. Do not copy `tests/sim/generic/index.mjs`: it also returns the Moodle-shaped provider `moodle-sim`, so a copy registers `moodle-sim` twice and the simulator does not start (`Duplicate simulator provider moodle-sim`).
 
-1. Copy `tests/sim/generic/index.mjs` to `tests/sim/<id>/index.mjs`.
-2. Set the `config` values from your facts: `id` (`<id>-sim`), `issuer`, `family`, `deployments` (and `deploymentFormat: 'uuid'` if the LMS uses UUIDs), `auth`, `jwks`, `token` (`hosts`, `path`, `audience`), `dr` if the LMS supports Dynamic Registration, `sites`, `dlData`, `dlSubject`, `dlWindowHint`, `documentTarget`.
+1. Make `tests/sim/<id>/index.mjs` from this template. It has the shape of `tests/sim/brightspace/index.mjs`:
+
+   ```js
+   import { createProvider } from '../core/provider.mjs';
+
+   // One provider only. Values from the facts of the new LMS (the README of the channel).
+   export const newlms = {
+     id: '<id>-sim',
+     issuer: 'https://<id>.sim.test',
+     family: '<family code>',
+     deployments: ['deploy-<id>-1', 'deploy-<id>-2'],
+     auth: { host: '<id>.sim.test', path: '/lti/auth', methods: ['GET', 'POST'] },
+     jwks: { host: '<id>.sim.test', path: '/lti/jwks.json' },
+     token: { hosts: ['<id>.sim.test'], path: '/lti/token', audience: 'string' },
+     sites: [{ host: '<id>.sim.test', lineitems: '/lti/courses/course-1/lineitems', nrps: '/lti/courses/course-1/memberships', dlReturn: '/lti/deep-link/return' }],
+     pageHosts: [],
+     dlData: 'claim',
+     dlSubject: false,
+     dlWindowHint: true,
+     documentTarget: 'iframe',
+   };
+
+   export function createProviders(runtime) {
+     return [createProvider(runtime, newlms)];
+   }
+   ```
+
+2. Change the values to your facts: a token host off the issuer host, a fixed token audience, UUID deployments (`deploymentFormat: 'uuid'`) and Dynamic Registration (`dr`) where your LMS has them. The fields are in the [simulator README](../../../tests/sim/README.md#config-fields-createproviderruntime-config). Example (`brightspace-sim`): token host `auth.brightspace.sim.test`, an audience that is not the token URL, family `desire2learn`, three UUID deployments.
 3. Use only lower-case host names that end in `.sim.test`.
-4. Add `tests/sim/<id>/protocol.test.mjs` (copy `tests/sim/brightspace/protocol.test.mjs`).
-5. Run `node --test 'tests/sim/core/*.test.mjs' 'tests/sim/*/protocol.test.mjs'`.
+4. Optional: add `tests/sim/<id>/protocol.test.mjs`. If you copy `tests/sim/brightspace/protocol.test.mjs`, change its import (`brightspace`, `BRIGHTSPACE_TOKEN_AUDIENCE`, `BRIGHTSPACE_DEPLOYMENTS`) to the exports of your module, and change every Brightspace host, path and value in it.
+5. After step 8, run this host-only check from the repository root. It loads every simulator module and the host manifest, and starts no server:
 
-Example (`brightspace-sim`): token host `auth.brightspace.sim.test`, an audience that is not the token URL, family `desire2learn`, three UUID deployments.
+   ```sh
+   node --input-type=module -e "
+   import { createRuntime } from './tests/sim/core/runtime.mjs';
+   import { loadProviders } from './tests/sim/server.mjs';
+   const runtime = createRuntime({ publicLtiUrl: 'https://tool.test', fetchJwks: async () => { throw new Error('no key fetch in this check'); } });
+   console.log((await loadProviders(runtime)).map((p) => p.id).sort().join(' '));
+   "
+   ```
 
-Evidence: one module folder and one `hosts.json` entry add a simulator LMS with no edit of `tests/sim/server.mjs` [UNIT E7-02-02] (host-only); on a stack: pending QA SIM (AC-LA-E7-02-02). The D2L provider served a full launch, Deep Linking and score flow [SIM E2-05-04].
+   Expected: the ids of the existing providers and **one** new id, `<id>-sim`, for example `blackboard-sim brightspace-sim canvas-sim-cloud canvas-sim-self generic-sim moodle-sim <id>-sim`. An error names the problem, for example a duplicate provider, a duplicate host, or a host that is missing in `hosts.json`.
+
+Evidence: one module folder and one `hosts.json` entry add a simulator LMS with no edit of `tests/sim/server.mjs` [UNIT E7-02-02] (host-only); on a stack: pending QA SIM (AC-LA-E7-02-02). The D2L provider served a full launch, Deep Linking and score flow [SIM E2-05-04]. Docs ran the template and the check above in a scratch copy of `tests/sim`: seven providers, one of them new.
+
+NOTE: The simulator self-test `tests/sim/core/loading.test.mjs` compares the committed host manifest with a fixed list of six providers. With a seventh provider that one test fails. It is a QA-owned test (reported to the Lead); it does not change the check above.
 
 ## Step 8: Add the host manifest entry (`tests/sim/hosts.json`)
 
@@ -266,26 +325,38 @@ QA then starts the stack with `STACK_PROFILE=acceptance npm run stack:up` in a b
 
 The kit computes the list of expected cases from the fixture before a run. A missing case or an extra case fails the run [UNIT E7-06-02].
 
-Known kit item (reported to the Lead and QA): the kit's host check `kit.k0.test.ts` compares the fixture folder with a fixed list of five channels (`ALL_KIT_CHANNEL_IDS` in `tests/ltiaas/kit/lib/fixtures.ts`). A sixth fixture makes that host check fail until QA changes the list. The simulator run selects channels with `QA_KIT_CHANNELS=<id>` and is not affected; `QA_KIT_CHANNELS=all` means the five known channels only.
+The kit finds every fixture in `tests/ltiaas/kit/channels/` by discovery, and a K0 canary proves that a new fixture is found. You edit no other kit file. Pending QA (LA-E7-06 round 2).
 
 ## Step 10: Run the checks
+
+### 10.1 Commit your files first
+
+F2 compares two commits: the merge base of `--base` and `HEAD` (`infra/scripts/fitness/channel-diff.mjs`). It does not see files that are not committed.
+
+1. Write down the SHA that your branch started from: `git rev-parse HEAD` before your first change, or the branch that you started from (for example `quang/ltiaas-milestone`).
+2. Commit every file of the §1 table on your branch.
+3. Run `git status --short`. It must print nothing.
+
+If you run F2 before the commit, it prints `F2 PASS: core = 0, paths = 0`. That result proves nothing about the new channel. A report for a new channel always lists your files.
+
+### 10.2 The checks
 
 | Check | Command | Expected result | Evidence |
 | --- | --- | --- | --- |
 | Repository check (lint, typecheck, unit, infra, K0, F1, F5) | `npm run check` | exit 0 | `[UNIT E2-06-01]` |
-| F2 add-channel gate | `npm run fitness:channel-diff -- --base <the branch or SHA you started from> --channel <id>` | each line is `channel:<id>`, `sim`, `tests` or `docs`; the last line is `F2 PASS: core = 0, paths = <n>` | `[UNIT E2-05-01]`, `[UNIT E2-06-01]` |
+| F2 add-channel gate (after 10.1) | `npm run fitness:channel-diff -- --base <the SHA or branch of 10.1 step 1> --channel <id>` | one line per committed file: `channel:<id>` for the channel folder, `sim` for `tests/sim/**`, `tests` for the kit fixture, `docs` for docs; the last line is `F2 PASS: core = 0, paths = <n>`, with `<n>` equal to the number of files that you committed | `[UNIT E2-05-01]`, `[UNIT E2-06-01]` |
 | K0 contract suite | `npm run test:k0` | pass, with your channel loaded and no kernel edit | `[UNIT E2-05-03]` |
-| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass (see the known kit item of step 9) | `[UNIT E7-06-02]`, `[UNIT E7-06-07]` |
+| Simulator discovery (host only) | the command of step 7, item 5 | the existing provider ids and one new id `<id>-sim` | pending verification (Docs ran it in a scratch copy only) |
+| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass, with your fixture discovered | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; the new fixture: pending QA (LA-E7-06 round 2) |
 | K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | `QA_TASK=K1 QA_KIT_CHANNELS=<id> npm run acceptance:api` | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | pending QA SIM (AC-LA-E7-06-01, AC-LA-E7-06-03, AC-LA-E7-06-04). The full kit passed for `brightspace` on the D2L simulator [SIM E2-05-10]. |
-| K2 browser flow (QA) | QA adds the channel to the U3 cases | the card, the wizard with the defaults, a Deep Linking pick and a learner score pass | for `lti-generic` and `brightspace` [K2 E7-07-03]; for a new channel: pending QA |
 
 F2 notes:
 
-- F2 compares your branch with the merge base of `--base` and `HEAD` (`infra/scripts/fitness/channel-diff.mjs`).
 - A path in core, in a shared build file or in another channel folder makes F2 fail [UNIT E7-04-04].
 - A new channel id in a core file also fails F1 inside `npm run check` [UNIT E7-04-02].
+- The F2 result of the D2L channel: `F2 PASS: core = 0, paths = 4` for its four channel files [UNIT E2-06-01].
 
-The F2 result of the D2L channel: `F2 PASS: core = 0, paths = 4` for its four channel files [UNIT E2-06-01].
+Browser check (K2): not a step of this path. QA-E2E owns the browser cases in its own folder `tests/e2e/ltiaas/` (charter-LA §1, QA-E2E row; LA-E7-07). A browser case for a new channel is a separate QA task, outside the files of §1. The U3 browser flows passed for `lti-generic` and `brightspace` [K2 E7-07-03]; for a new channel: pending QA.
 
 ## Step 11: Write the docs (optional)
 
@@ -294,9 +365,11 @@ Write an admin guide for the new LMS under `docs/guides/`. Copy the form of the 
 ## Done checklist
 
 - [ ] The LMS is kind A, and a named channel is needed (§0).
-- [ ] If you guard a family, the Moodle `standard` list of step 5 is empty.
+- [ ] If you guard a family, the list of step 5 prints no line (with the ids that you checked by hand as arguments), and each moved library has a working LTI 1.3 connection.
 - [ ] The changed files are only those of the table in §1.
+- [ ] The simulator discovery check of step 7 shows one new provider id.
+- [ ] All files are committed, and `git status --short` prints nothing.
 - [ ] `npm run check` passes.
-- [ ] F2 prints `F2 PASS: core = 0`.
+- [ ] F2 lists your committed files and prints `F2 PASS: core = 0`.
 - [ ] `npm run test:k0` passes.
 - [ ] QA ran the K1 kit for the channel (pending QA SIM for the kit).
