@@ -542,3 +542,13 @@ Changes for the Lead to route:
 - **K (LA-E5-22):** the default path `/run/secrets/app-keys/keyring.json`, and the `app_master_key_in_env` refusal.
 - **The owners of `infra/compose.yaml` (cogniate-app mount, e2e tmpfs), `infra/scripts/stack-up.sh`, `infra/scripts/lib.sh` (`prepare_e2e`) and `infra/scripts/compose-e2e-secrets.test.mjs`:** the `app-keys` folder lines (your process call).
 - **A1:** the `seal(value, column)` port sketch in LA-ADR-01 D5.
+
+## 45. Round 44: the pre-fetch rule of Dynamic Registration start (LA-E3-09 AC-05, lane L), 2026-10-23
+
+Codex Reviewer-B's boundary question, routed in dispatch `ctx_4f2f8f46f7ea`. A small code change follows, so a status message went first (`msg_530dc8645c8d`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-93 | AC-05 and BD-A2-89 say the Canvas site rules run before the fetch, but with the real mixed registry the route fetches every URL for the loosest loaded rule (LA-ADR-02 D5), so a reviewer's probe fetched `https://canvas.instructure.com/api/lti/security/openid-configuration`. Keep the union rule and narrow AC-05, or refuse hosts that every loaded rule excludes? | **Both:** keep the union start rule, plus **one pre-fetch floor for every profile**: a configuration URL that is not https, fails site rules 1–3, or is on a reserved host (a fixed host of any loaded profile) gives `PLATFORM_URL_NOT_IN_PROFILE` before any fetch. AC-05 is rewritten to test this with the real mixed registry. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 (start bullet); LA-E3-09 AC-05 and notes | The floor is exact: no loaded profile can complete such a configuration (any-https rules refuse reserved hosts; the Moodle path is on the Moodle site; BD-A2-89 refuses fixed Canvas hosts). So the fetch could only be an outbound request for an unauthenticated caller. |
+
+Changes for the Lead to route: **L (LA-E3-09, before merge):** the floor check in the start route of `registration.ts` before the fetch, and the AC-05 test with the real registry. **A1 FYI:** one line in LA-ADR-02 D5: "start uses the loosest rule of any loaded profile, above the reserved-host floor (BD-A2-93)".
