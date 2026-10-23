@@ -65,7 +65,7 @@ Example (`lti-generic`, registered by an operator grant):
 | Moodle | unchanged (base §4) |
 | Canvas, Blackboard | unchanged (base §4.2) |
 
-The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)).
+The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)). Every `method: dynamic` create issues a registration ref, whatever the method's authority, so the answer has `registrationUrl` (BD-A1-106; before: only the `self` branch, so a Canvas `dynamic` create answered `registrationUrl: null`).
 
 ### 3.2 `POST /app-api/connections/:id/registration-url`
 
@@ -140,7 +140,7 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 | LMS check | the profile's channel must equal the connection's channel; a signed family guarded at the `launch` level must belong to the connection's channel (Canvas and Blackboard, as M1); a `registration`-level guard refuses a launch only on a platform of a `MANUAL_SELF_LEGACY_CHANNELS` channel (Moodle `standard`; A-LAD-19), else it only logs `family_guard_mismatch` ([LA-ADR-01 D6](../adr/LA-ADR-01-channel-kernel.md#decision)); log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
 | Content item `window` | when `launch.windowHint` is true and the platform accepts `window` (base: every non-Moodle LMS) |
 | Embedded page script | when `launch.topLevelContinue` is true (base: Canvas) |
-| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant` |
+| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant`. A connection whose `dynamic` method has authority `operatorGrant` (Canvas) keeps it from the create; only a staged answer is accepted, and an active answer gives `REGISTRATION_FAILED` (the new platform is switched off when no connection owns it; the connection stays `pending`), so the register page never gives launch authority to an `operatorGrant` connection (BD-A1-106) |
 | Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
 | Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
 | Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
