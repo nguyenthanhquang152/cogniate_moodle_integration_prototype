@@ -23,7 +23,7 @@ import {
   writeEvidence,
   teacherHint,
 } from './lib/e2e';
-import { addCogniateActivity, checkLaunch, learnerRun } from './lib/flows';
+import { addCogniateActivity, checkLaunch, learnerRun, viewportShot } from './lib/flows';
 import {
   addActivityFromChooser,
   cancelActivityForm,
@@ -196,7 +196,7 @@ test('B5 AC-T7-08 cg_teacher in COGNIATE-DEV-101 opens "Select content" of "Cogn
     await addActivityFromChooser(page, TOOL_A);
     const picker = await openSelectContent(page);
     saveState({ pickers: { B5: picker.titles } });
-    await shot(page, 'B5-picker-thanh', testInfo);
+    await viewportShot(page, 'B5-picker-thanh', testInfo);
     await cancelActivityForm(page);
     await cap.stop();
     expect(picker.titles, 'AC-T7-08: the B5 picker does not list the library B course').not.toContain(COURSE_B_HTML);
