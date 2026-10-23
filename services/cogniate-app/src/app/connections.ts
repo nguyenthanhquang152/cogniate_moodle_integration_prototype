@@ -16,6 +16,7 @@ import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
 import { ownedProfiles, servedByKernel, setupOf } from '../kernel/setup.ts';
+import { usableProfileRow } from '../kernel/setup/admin-value.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
 import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
@@ -119,7 +120,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
   // M1 (§4.3): LMS types, methods, capabilities and profiles, built from GET /api/providers. LA S1: only the rows that
   // an adapter owns (app API delta §2).
   api.get('/lms-providers', async (req) => {
-    const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId, channels);
+    const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId, channels).filter((p) => usableProfileRow(channels, p, logger, req.traceId));
     return {
       lms: channels.channels().filter((m) => m.availability !== 'simulation-only' || rows.some((p) => channels.channelOfProfile(p.id) === m.id)).map((m) => {
         const adapter = setupOf(channels, m.id);
@@ -164,6 +165,9 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
         const r = checkSiteUrl(b.siteUrl, { ownHosts, profileFixedHosts: [] });
         if (!r.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: siteUrl breaks rule ${r.rule} of the site rules.`, { details: { rule: r.rule, field: 'siteUrl' } });
         siteUrl = r.origin;
+        // BD-A1-79: the profile must be reported, and as an admin profile.
+        const row = (await providerProfiles(lti, req.traceId)).find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel);
+        if (!row || !usableProfileRow(channels, row, logger, req.traceId)) return invalid('profile');
       }
       const checked = adapter.checkCreate({ siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
       if (!checked.ok) return invalid(checked.field);
@@ -172,7 +176,8 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       return reply.code(201).send(dto(req, c));
     }
     const rows = await providerProfiles(lti, req.traceId);
-    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profiles[p.id] !== undefined);
+    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profiles[p.id] !== undefined
+      && usableProfileRow(channels, p, logger, req.traceId));
     if (!profile) return invalid('profile');
     if (b.serviceUrl !== undefined && !adapter.profiles[profileId]?.serviceUrl) return invalid('serviceUrl');
     const suffixes = adapter.profiles[profile.id]?.refusedHostSuffixes;

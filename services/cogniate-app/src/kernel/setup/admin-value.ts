@@ -2,7 +2,9 @@
 // that has no app.ts, because all its profiles have `endpoints: admin` (lti-generic; later brightspace). It is pure: no
 // database, no LTI call. Everything comes from the manifest and the capability set. The LTI service checks the values
 // again against the profile traits, and the operator grant binds every admin value (LA-ADR-02 D2a, D6).
-import type { CapabilitySet, ChannelManifest } from '@cogniate/channel-kernel';
+import type { CapabilitySet, ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
+import type { Logger } from '@cogniate/shared';
+import type { LtiProviderProfile } from '../../clients/lti-client.ts';
 import { fillFieldDefault } from '@cogniate/channel-kernel';
 import { GRANT_CODE, PRINTABLE_ID, toolName } from '@cogniate/channel-kernel/setup';
 import type { AdminValues, BindingTarget, ConnectionSetup, PlatformBodyResult, StagedCreate, ToolRow } from '../ports.ts';
@@ -122,4 +124,20 @@ export function adminValueSetup(manifest: ChannelManifest, capabilities: Capabil
       throw new Error('an admin-value channel has no shared deployment');
     },
   };
+}
+
+const fixedRowsLogged = new Set<string>();
+/**
+ * A1 BD-A1-79, the first-use check: this adapter serves only admin profiles. When `GET /api/providers` reports
+ * `endpoints: fixed` for a profile of a channel without app.ts, that profile (so its method) is unavailable, as load
+ * check 5 would refuse it; the app logs it once per process. Rows of other channels pass unchanged.
+ */
+export function usableProfileRow(channels: ChannelRegistry, row: Pick<LtiProviderProfile, 'id' | 'endpoints'>, logger: Logger, traceId: string): boolean {
+  const channel = channels.channelOfProfile(row.id);
+  if (channel === null || channels.appAdapter(channel) !== null || row.endpoints !== 'fixed') return true;
+  if (!fixedRowsLogged.has(row.id)) {
+    fixedRowsLogged.add(row.id);
+    logger.warn('channel_profile_unknown', { trace_id: traceId, profile: row.id, reason: 'endpoints_fixed' });
+  }
+  return false;
 }

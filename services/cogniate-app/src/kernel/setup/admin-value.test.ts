@@ -137,8 +137,12 @@ describe('create rules of a kernel-served channel (app API delta §3.1)', () => 
   let t: TestApp;
   afterEach(async () => { await t?.app.close(); });
 
+  const zzRow = { id: 'zz-admin', lms: 'zz-admin', label: 'ZZ admin platform', sharing: 'exclusive' as const, issuer: null, authenticationEndpoint: null, accesstokenEndpoint: null,
+    jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null };
+
   it('a dynamic create passes site rules 1–4: an IP literal, localhost or one of our hosts gives 422 INVALID_SITE_URL', async () => {
     t = await testApp({ channels: registry });
+    t.lti.providers.push({ ...zzRow, endpoints: 'admin' });
     const cookie = await t.login(THANH);
     const create = (siteUrl: string) => t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
       payload: { name: 'School', siteUrl, method: 'dynamic', lms: 'zz-admin' } });
@@ -152,5 +156,24 @@ describe('create rules of a kernel-served channel (app API delta §3.1)', () => 
     // Moodle keeps its M1 rule (no site rules in the self path).
     const moodle = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie), payload: { name: 'M', siteUrl: TEST_URLS.moodle, method: 'dynamic' } });
     expect(moodle.statusCode).toBe(201);
+  });
+
+  it('BD-A1-79: a profile that the LTI service reports as endpoints: fixed makes the method unavailable; one log line', async () => {
+    t = await testApp({ channels: registry });
+    t.lti.providers.push({ ...zzRow, endpoints: 'fixed' });
+    const cookie = await t.login(THANH);
+    const create = (method: 'dynamic' | 'manual') => t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+      payload: { name: 'School', siteUrl: SITE, method, lms: 'zz-admin' } });
+    for (const method of ['dynamic', 'manual'] as const) {
+      const r = await create(method);
+      expect([method, r.statusCode, r.json().details]).toEqual([method, 400, expect.objectContaining({ message: 'INVALID_REQUEST', field: 'profile' })]);
+    }
+    const list = (await t.app.inject({ method: 'GET', url: '/app-api/lms-providers', headers: { cookie } })).json().lms as Array<{ lms: string; profiles: unknown[] }>;
+    expect(list.find((e) => e.lms === 'zz-admin')!.profiles).toEqual([]);
+    expect(list.find((e) => e.lms === 'canvas')!.profiles.length).toBeGreaterThan(0);
+    expect(t.logs.filter((l) => l.event === 'channel_profile_unknown' && l.profile === 'zz-admin')).toEqual([expect.objectContaining({ level: 'warn', reason: 'endpoints_fixed' })]);
+    // A reported admin row is usable again.
+    t.lti.providers.at(-1)!.endpoints = 'admin';
+    expect((await create('manual')).statusCode).toBe(201);
   });
 });
