@@ -380,3 +380,275 @@ export function makeHtmlCourseZipBuffer(title = 'LA-E5-24 Drill Course') {
     },
   ]);
 }
+
+export const RUNNER_ENTRY_POINT = 'tests/e2e/ltiaas/run-la-e5-24.mjs';
+
+/**
+ * B-LA-E5-24-02: Accurate usage text pointing to the real entry point `tests/e2e/ltiaas/run-la-e5-24.mjs`
+ * (and distinguishing live K1-SIM execution from host-only `--dry-run` / selftest execution).
+ */
+export function buildRunnerHelpText({ defaultProject = 'qa-e2e-la-drill-r1' } = {}) {
+  return `Usage (live K1-SIM stack drill during a granted DOCKER-YES window):
+  COMPOSE_PROJECT_NAME=${defaultProject} PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \\
+    node ${RUNNER_ENTRY_POINT} --sha <commit> [options]
+
+Usage (host-only dry-run and self-test; zero Docker calls):
+  node ${RUNNER_ENTRY_POINT} --dry-run [--sha <commit>] [--source <path>] [--artifacts-dir <dir>]
+  node --test tests/e2e/ltiaas/la-e5-24-drill.selftest.mjs
+
+Options:
+  --sha <commit>               Commit to verify (from the Lead). Required in live mode unless --checkout.
+  --source <path>              Repo to clone from (default: the repo that holds this script).
+  --workdir <path>             Clone folder (default: ~/cogniate-qa-runs/<project>-<sha8>-<time>).
+  --checkout <path>            Use an existing clone (no clean-clone guarantee).
+  --tests-from <path>          tests/ folder to copy into the clone (default: this tests/).
+  --replace-tests              Replace the clone's tests/ with --tests-from (QA test fixes after the SHA).
+  --dry-run                    Run host-only selftests and dry-run simulation (no Docker calls).
+  --artifacts-dir <path>       Output folder for --dry-run summary and selftest logs.
+  --help                       Show this usage information.
+`;
+}
+
+/**
+ * B-LA-E5-24-01 & A-LA-E5-24-03: Sanitizes URLs before placing them in timeout or diagnostic error messages
+ * so bearer-bearing paths (`/rt/<runtimeToken>`, `/play/<playId>`) and query strings never leak into logs.
+ */
+export function sanitizeUrlForError(urlOrString) {
+  try {
+    const u = urlOrString instanceof URL ? urlOrString : new URL(String(urlOrString));
+    const safePath = u.pathname
+      .replace(/\/rt\/[^/?#]+/g, '/rt/[REDACTED]')
+      .replace(/\/play\/[^/?#]+/g, '/play/[REDACTED]');
+    return `${u.origin}${safePath}`;
+  } catch {
+    return String(urlOrString)
+      .split(/[?#]/)[0]
+      .replace(/\/rt\/[^/?#\s]+/g, '/rt/[REDACTED]')
+      .replace(/\/play\/[^/?#\s]+/g, '/play/[REDACTED]');
+  }
+}
+
+/**
+ * A-LA-E5-24-03: Returns a redacted representation and 12-hex SHA-256 prefix for a `playId` capability
+ * so raw `ply_...` capabilities are never written to logs, shared artifacts, or `qa.md`.
+ */
+export function redactPlayId(playId) {
+  const raw = String(playId ?? '');
+  const prefix = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 12);
+  return {
+    playIdRedacted: 'ply_[REDACTED]',
+    playIdSha256Prefix: prefix,
+  };
+}
+
+function collectJsonSecrets(node, out, keyHint = '') {
+  if (Array.isArray(node)) {
+    for (const item of node) collectJsonSecrets(item, out, keyHint);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    for (const [k, v] of Object.entries(node)) {
+      collectJsonSecrets(v, out, k);
+    }
+    return;
+  }
+  if (typeof node === 'string' && node.trim().length >= 8 && /pass|password|token|secret|key|cookie/i.test(keyHint)) {
+    out.push(node.trim());
+  }
+}
+
+function parseDotEnvFile(envFilePath) {
+  if (!fs.existsSync(envFilePath)) return {};
+  const out = {};
+  for (const rawLine of fs.readFileSync(envFilePath, 'utf8').split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const k = line.slice(0, eq).trim();
+    const v = line.slice(eq + 1).trim().replace(/^['"]|['"]$/g, '');
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * A-LA-E5-24-02 & B-LA-E5-24-01: Collects all secret candidates from a drill clone:
+ * - `tests/acceptance/artifacts/captured-secrets.jsonl` (runtime tokens, playId, ltik, operator key, session cookies)
+ * - `.env` and `env` object values whose key matches `/KEY|SECRET|PASS|PASSWORD|TOKEN/i` (including `DB_PASS`)
+ * - `infra/.secrets/*` raw files AND `.json` files (`seed.json` passwords and Moodle WS tokens `productToken`, `oracleToken`)
+ */
+export function collectCloneSecretCandidates({ cloneDir, env = null, minLen = 8 } = {}) {
+  const values = [];
+  const addVal = (v) => {
+    if (typeof v === 'string' && v.trim().length >= minLen) {
+      values.push(v.trim());
+    }
+  };
+
+  if (cloneDir) {
+    const capturedFile = path.join(cloneDir, 'tests', 'acceptance', 'artifacts', 'captured-secrets.jsonl');
+    if (fs.existsSync(capturedFile)) {
+      for (const line of fs.readFileSync(capturedFile, 'utf8').split('\n').filter(Boolean)) {
+        try {
+          const parsed = JSON.parse(line);
+          addVal(typeof parsed === 'string' ? parsed : parsed?.value);
+        } catch {
+          // ignore malformed partial line
+        }
+      }
+    }
+  }
+
+  const mergedEnv = {
+    ...(cloneDir ? parseDotEnvFile(path.join(cloneDir, '.env')) : {}),
+    ...(env && typeof env === 'object' ? env : {}),
+  };
+  for (const [k, v] of Object.entries(mergedEnv)) {
+    if (/KEY|SECRET|PASS|PASSWORD|TOKEN/i.test(k)) {
+      addVal(v);
+    }
+  }
+
+  if (cloneDir) {
+    const secretsDir = path.join(cloneDir, 'infra', '.secrets');
+    if (fs.existsSync(secretsDir)) {
+      for (const f of listFilesRecursive(secretsDir)) {
+        if (f.endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(fs.readFileSync(f, 'utf8'));
+            collectJsonSecrets(parsed, values);
+          } catch {
+            // ignore unreadable json
+          }
+        } else {
+          addVal(fs.readFileSync(f, 'utf8'));
+        }
+      }
+    }
+  }
+
+  return [...new Set(values)];
+}
+
+/**
+ * Scrubs all text/JSON/log files under `dirPath` using `redact.apply(text)`, skipping `captured-secrets.jsonl`.
+ */
+export function scrubDirectoryFiles(dirPath, redact, { skipNames = new Set(['captured-secrets.jsonl']) } = {}) {
+  if (!dirPath || !fs.existsSync(dirPath) || !redact || typeof redact.apply !== 'function') return 0;
+  let scrubbedCount = 0;
+  for (const f of listFilesRecursive(dirPath)) {
+    if (skipNames.has(path.basename(f))) continue;
+    if (!/\.(log|json|txt|jsonl|md|html)$/.test(f)) continue;
+    const text = fs.readFileSync(f, 'utf8');
+    const clean = redact.apply(text);
+    if (clean !== text) {
+      fs.writeFileSync(f, clean, { mode: 0o600 });
+      scrubbedCount++;
+    }
+  }
+  return scrubbedCount;
+}
+
+/**
+ * B-LA-E5-24-01: Installs live secret synchronization onto a host runner's `Redactor` instance so that:
+ * 1. Every call to `redact.apply(text)` (including `core.mjs` `saveText`, `log`, `record`, and `finalRedaction`)
+ *    automatically loads any newly captured secrets from `captured-secrets.jsonl`, `.env`, and `infra/.secrets`
+ *    BEFORE formatting text for logs, artifacts, or the terminal.
+ * 2. `runStepWithRedaction(fn)` and `finalizeDrillRun({ drillBackupRoot })` run `syncSecrets()` in `finally`
+ *    across every path (success, non-zero exit, timeout, or thrown exception) while preserving backup cleanup.
+ */
+export function installLiveSecretRedaction({ redact, cloneDir, getEnv = () => null, artDir = null }) {
+  assert.ok(redact && typeof redact.add === 'function' && typeof redact.apply === 'function', 'Valid Redactor required');
+  const originalApply = redact.apply.bind(redact);
+  let syncing = false;
+
+  function syncSecrets({ scrubDisk = false } = {}) {
+    let candidates = [];
+    if (!syncing) {
+      syncing = true;
+      try {
+        candidates = collectCloneSecretCandidates({ cloneDir, env: getEnv ? getEnv() : null });
+        for (const s of candidates) redact.add(s);
+      } catch {
+        // never let secret loading abort redaction or cleanup
+      } finally {
+        syncing = false;
+      }
+    }
+    if (scrubDisk) {
+      try {
+        if (artDir) scrubDirectoryFiles(artDir, { apply: originalApply });
+        if (cloneDir) {
+          scrubDirectoryFiles(path.join(cloneDir, 'tests', 'acceptance', 'artifacts'), { apply: originalApply });
+        }
+      } catch {
+        // ignore scrub errors
+      }
+    }
+    return candidates;
+  }
+
+  redact.apply = (text) => {
+    syncSecrets({ scrubDisk: false });
+    return originalApply(text);
+  };
+
+  async function runStepWithRedaction(stepFn) {
+    try {
+      return await stepFn();
+    } finally {
+      syncSecrets({ scrubDisk: true });
+    }
+  }
+
+  function finalizeDrillRun({ drillBackupRoot } = {}) {
+    try {
+      syncSecrets({ scrubDisk: true });
+    } finally {
+      if (drillBackupRoot) {
+        fs.rmSync(drillBackupRoot, { recursive: true, force: true });
+      }
+    }
+  }
+
+  syncSecrets({ scrubDisk: false });
+  return {
+    syncSecrets,
+    runStepWithRedaction,
+    finalizeDrillRun,
+  };
+}
+
+/**
+ * A-LA-E5-24-01: Stages the drill helper files into `cloneDir/tests/e2e/ltiaas/` and records the SHA-256
+ * of every helper file so `summary.json` and `staged-helpers.json` prove the exact code that ran.
+ */
+export function stageDrillHelpers({
+  helperDir,
+  cloneDir,
+  helperFiles = ['la-e5-24-drill.mjs', 'la-e5-24-container-step.mjs'],
+  allFiles = ['run-la-e5-24.mjs', 'la-e5-24-drill.mjs', 'la-e5-24-container-step.mjs', 'la-e5-24-drill.selftest.mjs'],
+  runnerHeadSha = null,
+  runnerDirty = null,
+}) {
+  const cloneE2eDir = path.join(cloneDir, 'tests', 'e2e', 'ltiaas');
+  fs.mkdirSync(cloneE2eDir, { recursive: true });
+  for (const file of helperFiles) {
+    fs.copyFileSync(path.join(helperDir, file), path.join(cloneE2eDir, file));
+  }
+  const hashes = {};
+  for (const file of allFiles) {
+    const srcPath = path.join(helperDir, file);
+    if (fs.existsSync(srcPath)) {
+      hashes[file] = sha256File(srcPath);
+    }
+  }
+  return {
+    runnerHeadSha,
+    runnerDirty,
+    stagedIntoClone: helperFiles,
+    sha256: hashes,
+  };
+}
+

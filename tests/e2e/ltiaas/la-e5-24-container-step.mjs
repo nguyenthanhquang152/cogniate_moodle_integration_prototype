@@ -17,6 +17,8 @@ import {
   OPERATOR_KEY_RE,
   buildDrillMarkerAccount,
   makeHtmlCourseZipBuffer,
+  redactPlayId,
+  sanitizeUrlForError,
   verifyDrillMarkerAbsent,
 } from './la-e5-24-drill.mjs';
 
@@ -60,10 +62,22 @@ function readOperatorKey() {
   return key;
 }
 
+const rememberedSecrets = new Set();
+
 function rememberSecret(label, value) {
   if (typeof value !== 'string' || value.length < 8) return;
-  fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+  rememberedSecrets.add(value);
+  fs.mkdirSync(ARTIFACTS_DIR, { recursive: true, mode: 0o700 });
   fs.appendFileSync(SECRETS_FILE, `${JSON.stringify({ label, value })}\n`, { mode: 0o600 });
+}
+
+function scrubRememberedSecrets(text) {
+  let out = String(text ?? '');
+  const sorted = [...rememberedSecrets].sort((a, b) => b.length - a.length);
+  for (const s of sorted) {
+    out = out.replaceAll(s, '[REDACTED]');
+  }
+  return out;
 }
 
 function portalUser(email) {
@@ -138,7 +152,7 @@ function rawRequest(urlStr, { method = 'GET', headers = {}, body, timeoutMs = 20
       });
       res.on('error', reject);
     });
-    req.on('timeout', () => req.destroy(new Error(`Timeout after ${timeoutMs} ms: ${u.origin}${u.pathname}`)));
+    req.on('timeout', () => req.destroy(new Error(`Timeout after ${timeoutMs} ms: ${sanitizeUrlForError(u)}`)));
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
     req.end();
@@ -320,8 +334,8 @@ async function stepPreBackup(runId) {
     preBackupAccounts,
     readiness,
   };
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-  process.stdout.write(`${JSON.stringify({ ok: true, step: 'pre-backup', state })}\n`);
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), { mode: 0o600 });
+  process.stdout.write(`${scrubRememberedSecrets(JSON.stringify({ ok: true, step: 'pre-backup', state }))}\n`);
 }
 
 async function stepPostBackupWrite(runId) {
@@ -347,8 +361,8 @@ async function stepPostBackupWrite(runId) {
     createdAccount: createRes.json,
     accountIdsBeforeRestore: accountIds,
   };
-  fs.writeFileSync(POST_BACKUP_FILE, JSON.stringify(out, null, 2));
-  process.stdout.write(`${JSON.stringify(out)}\n`);
+  fs.writeFileSync(POST_BACKUP_FILE, JSON.stringify(out, null, 2), { mode: 0o600 });
+  process.stdout.write(`${scrubRememberedSecrets(JSON.stringify(out))}\n`);
 }
 
 async function stepPostRestoreVerify(runId) {
@@ -437,9 +451,10 @@ async function stepPostRestoreVerify(runId) {
   const playUrl = new URL(String(handoffRes.headers.location ?? ''), PUBLIC_APP_URL);
   assert.match(playUrl.pathname, /^\/play\/ply_/, 'Handoff redirects to /play/ply_<id>');
   const playId = playUrl.pathname.split('/')[2];
+  rememberSecret('play_id', playId);
 
   const shellRes = await rawRequest(`${PUBLIC_APP_URL}/play/${playId}`);
-  assert.equal(shellRes.status, 200, `GET /play/${playId} status ${shellRes.status}`);
+  assert.equal(shellRes.status, 200, `GET /play/:playId status ${shellRes.status}`);
   const runtimeUrl = shellRes.body.match(/src="(https:[^"]+\/rt\/[^"]+)"/)?.[1]?.replaceAll('&amp;', '&');
   assert.ok(runtimeUrl, 'Player shell contains runtime iframe URL');
   const runtimeToken = new URL(runtimeUrl).pathname.split('/')[2];
@@ -529,7 +544,7 @@ async function stepPostRestoreVerify(runId) {
     directGetDrillAccountStatus: directGet.status,
     launchAndScore: {
       scenarioId,
-      playId,
+      ...redactPlayId(playId),
       packageHtmlStatus: packageHtmlRes.status,
       commitStatus: commitRes.status,
       simulatorScore: {
@@ -541,18 +556,23 @@ async function stepPostRestoreVerify(runId) {
       portalSyncStatus: syncStatus,
     },
   };
-  fs.writeFileSync(POST_RESTORE_FILE, JSON.stringify(out, null, 2));
-  process.stdout.write(`${JSON.stringify(out)}\n`);
+  fs.writeFileSync(POST_RESTORE_FILE, JSON.stringify(out, null, 2), { mode: 0o600 });
+  process.stdout.write(`${scrubRememberedSecrets(JSON.stringify(out))}\n`);
 }
 
-if (opt.step === 'pre-backup') {
-  assert.ok(opt['run-id'], '--run-id is required for --step pre-backup');
-  await stepPreBackup(opt['run-id']);
-} else if (opt.step === 'post-backup-write') {
-  await stepPostBackupWrite(opt['run-id']);
-} else if (opt.step === 'post-restore-verify') {
-  await stepPostRestoreVerify(opt['run-id']);
-} else {
-  console.error('Usage: node la-e5-24-container-step.mjs --step <pre-backup|post-backup-write|post-restore-verify> [--run-id <id>]');
-  process.exit(2);
+try {
+  if (opt.step === 'pre-backup') {
+    assert.ok(opt['run-id'], '--run-id is required for --step pre-backup');
+    await stepPreBackup(opt['run-id']);
+  } else if (opt.step === 'post-backup-write') {
+    await stepPostBackupWrite(opt['run-id']);
+  } else if (opt.step === 'post-restore-verify') {
+    await stepPostRestoreVerify(opt['run-id']);
+  } else {
+    console.error('Usage: node la-e5-24-container-step.mjs --step <pre-backup|post-backup-write|post-restore-verify> [--run-id <id>]');
+    process.exit(2);
+  }
+} catch (err) {
+  process.stderr.write(`${scrubRememberedSecrets(err?.stack ?? String(err))}\n`);
+  process.exit(1);
 }
