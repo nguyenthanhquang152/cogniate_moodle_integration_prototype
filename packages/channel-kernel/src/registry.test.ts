@@ -101,7 +101,7 @@ describe('load checks (each failing case throws RegistryError with its check num
     [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'verifiedAdminLaunch', profiles: ['zz-test'], defaultProfile: 'zz-test' }] }), 'registration.0.authority'],
     [1, 'manifest_schema', testManifest({ family: 'xapi' }), 'family'],
     [1, 'manifest_schema', testManifest({ setup: { createFields: [], bindingFields: [], verify: 'x' } }), 'setup'],
-    [1, 'manifest_schema', testManifest({ setup: { createFields: [{ key: 'siteUrl', label: 'Site', kind: 'origin', required: true, default: '{siteUrl}' }], bindingFields: [] } }), 'setup.createFields.0'],
+    [1, 'manifest_schema', testManifest({ setup: { createFields: [], bindingFields: [{ key: 'issuer', label: 'Issuer', kind: 'url', required: true, default: '{LMS}/x' }] } }), 'setup.bindingFields.0.default'],
     [1, 'manifest_schema', testManifest({ texts: { adminSteps: ['Open {library}.'], teacherSteps: [], disconnect: 'x', notReady: null } }), 'texts.adminSteps.0'],
     [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['zz-test'], defaultProfile: 'zz-other' }] }), 'registration.0.defaultProfile'],
     [1, 'manifest_id_not_folder', testManifest({ id: 'zz-other' })],
