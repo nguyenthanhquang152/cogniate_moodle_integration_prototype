@@ -2,7 +2,19 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 08:04 UTC
+## Current checkpoint — 2026-10-23, 12:10 UTC
+
+The user resumed work. LA supplied its actual handoff at 11:58 (`msg_b032782139a5`) and explained that its coordinator was down from about 06:47 to 11:57. This explains the missed earlier handoff.
+The retained Gemini session is READY FOR PREFLIGHT under `task_d59003f88ba1` / `ctx_4df8a8c1c7d6`. All 84 original and six repaired-tool bindings match, report prefixes are preserved, and all new runtime paths remain absent (`msg_dc754e02d52e`). LTI has made zero Docker calls in this resumed attempt.
+
+Savoy confirms ownership of the new `sto-*` containers and their anonymous volumes. Its owner will not pause Docker or supply per-window resource lists (`msg_987ebb0a6be7`, `msg_293cd9f61de2`). It reports that it uses only its fresh containers, anonymous volumes and `sto-*` networks and never mutates the 32 protected volumes. An exclusive window is therefore unavailable. The Lead returned LA's unused reservation at 12:07; LA acknowledged and resumed its own work. No runtime clock or grant started.
+
+The retained Claude Architect is active on one bounded technical decision, `task_5eeaa543c47b` / `ctx_8e0b8f913da4`. Its actual model is `claude-opus-5-5`; the existing xhigh setting is not observable in-session. It will assess a concrete safe T7 route against the frozen tools and report the required evidence. This planning task grants no Docker activity, tool edit or change to acceptance criteria. Gemini holds under `msg_5f5caf07dee5`.
+
+T7 remains NOT RUN/PENDING. M1, M2 and legacy results remain accepted and need no repeat. After accepted T7: final Architect conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 08:04 UTC
 
 The planned 07:45–08:05 UTC slot was unused. LA did not deliver the actual host handoff. No preflight or runtime grant was issued, and LTI made zero Docker calls.
 The retained Gemini session passed all 84 original and six repaired-tool binding checks and verified unused T7 output paths. T7 remains NOT RUN/PENDING; this is an external scheduling block, not a failed T7 test.

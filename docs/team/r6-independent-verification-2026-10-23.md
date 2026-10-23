@@ -242,3 +242,18 @@ The same Gemini session completed the host-only precision follow-up `task_194347
 The correction limits the unread-message observation to the actual cutoff, limits C8/C9 equivalence to the verified T7/M2 dependencies, and identifies `5def6e4b` as the preparation checkout rather than the earlier report commit.
 Final `docs/reviews/T7/qa.md`: 55,995 bytes, SHA-256 `2d6fcf7e219d58d1f1a52ce383ad4dae8693da9fdedae3f30549bb108a3517e7`. The Lead verified the complete 51,252-byte committed prefix and 54,700-byte first-appendix prefix unchanged. M3's QA report is unchanged.
 The Lead retained `ctx_00abe98b28d2` with no process action. Await a newly confirmed 20-minute window and actual handoff; then reuse the same QA session with a new authoritative runtime Dispatch. No preflight path, T7 runtime path or BASE32 file was created.
+
+## Resumed preparation; third-owner constraint — 2026-10-23, 12:10 UTC
+
+LA's actual handoff `msg_b032782139a5` arrived at 11:58:37. It reports that its coordinator was down from about 06:47 to 11:57, explaining the earlier missing response. LA's last stack was down at 07:26:14; it offered a new 20-minute window starting only on Lead confirmation.
+Its text inventories list a new Savoy container and anonymous volume. They are not full inspection records and cannot replace the qualified boundary checks.
+
+The same-terminal retry `ctx_8f9a83d05cb6` failed at readiness before prompt injection, with no residual resource. The retained Gemini terminal remained live. The Lead used a context-only Dispatch `ctx_4df8a8c1c7d6` on new bounded task `task_d59003f88ba1`; its exact preamble was accepted under terminal request `a72dbb13-7574-460f-88fc-bd054f7079ec`. This does not give Orca ownership of the existing process.
+QA `msg_dc754e02d52e` confirms Gemini 4 Argon High, all 84 original and six repaired-tool bindings, C8 identity, the frozen v2 wrapper and detached launcher, preserved report prefixes and absent runtime paths. It has made zero Docker calls. New external preflight path `t7-external-preflight-1200` remains absent; the older preflight and unused `-0745` path remain untouched.
+
+Savoy `msg_987ebb0a6be7` confirms ownership of all `sto-*` containers and their anonymous volumes, including `sto-proj-f8d792b4885a` / `a4754f3bab03` and volume `235243e9c3a00335ec8740818ce6774b34a8d70f04cb9795bc03f630abd0693e` seen at handoff. Its owner will not pause Docker.
+Its follow-up `msg_293cd9f61de2` states that it uses fresh `--rm` containers on loopback ports, their own anonymous volumes, default networks and short-lived `sto-*` networks. It states that it never touches pre-existing volumes or other projects' resources, and never prunes. It will not provide per-window resource lists. These are owner scope statements, not complete runtime evidence.
+The Lead returned LA's unused reservation in `msg_53948031e836`. LA acknowledged in `msg_1f1c33111d07` and resumed its own slots. No T7 window or preflight/start grant began.
+
+Lead `msg_5f5caf07dee5` keeps Gemini on a zero-Docker hold. The same Claude Architect now owns the bounded host-only route assessment `task_5eeaa543c47b` / `ctx_8e0b8f913da4`. A terminal-send attempt was rejected because this retained handle is a structured agent session. The exact new preamble was delivered through orchestration message `msg_b5c3d4fde3c4`; heartbeat `msg_0c5d6146a1ff` confirms active investigation on `claude-opus-5-5`. The existing xhigh configuration is not observable in-session.
+This assessment authorizes no runtime, executable edit or evidence-policy exception. E-R6 remains in force and E-R5 remains invalidated. No accepted M1, M2 or legacy check needs repeating. T7 and final conformance remain pending.
