@@ -17,13 +17,12 @@ const manifest = {
     { method: 'manual', authority: 'operatorGrant', profiles: ['blackboard', 'blackboard-sim'], defaultProfile: 'blackboard' },
   ],
   capabilities: {
-    // ADR-009: the services that the tool asks for today (LA-E3-07 changes this list, LA-IC-04).
+    // A2 LA-ADR-05 D4 (LA-E3-07, LA-IC-04): the four AGS scopes, no NRPS scope. The LTI service keeps the NRPS client.
     'registration.scopes': [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     'content.multiple': false,
     'launch.windowHint': true,
@@ -44,6 +43,12 @@ const manifest = {
     ],
   },
   texts: {
+    // The portal error texts (BD-A1-63; before: apps/portal/src/connect/provider-errors.tsx). Other keys: the generic text.
+    errors: {
+      SITE_RULE_1: 'Enter only the address, for example https://school.instructure.com. No path.',
+      DEPLOYMENT_IN_USE: 'This {LMS} site is already connected to Cogniate.',
+      DEPLOYMENT_FIXED: 'This connection already reserved another {LMS} deployment. Disconnect it, then make a new connection.',
+    },
     // The administrator steps of the portal (apps/portal/src/connect/blackboard/blackboard-steps.json).
     adminSteps: [
       'You need a {LMS} Learn administrator to complete the connection.',

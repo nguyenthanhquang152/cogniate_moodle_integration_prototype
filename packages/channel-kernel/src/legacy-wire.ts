@@ -38,6 +38,14 @@ export const PUBLICATION_OPTION = 'createMoodleCourse';
 export const PUBLICATION_EXTENSION_FIELDS: readonly string[] = Object.freeze(['moodleCourse', 'shellStatus', 'shellError']);
 export const EMPTY_PUBLICATION_EXTENSION_FIELDS: Readonly<Record<string, unknown>> = Object.freeze({ moodleCourse: null, shellStatus: null, shellError: null });
 
+/** The frozen extension fields of the publication DTO (app contract §4.7; BD-A1-64), the names of `PUBLICATION_EXTENSION_FIELDS`. */
+export interface LegacyPublicationFields {
+  moodleCourse: { id: number; idnumber: string; url: string } | null;
+  shellStatus: 'created' | 'exists' | 'failed' | null;
+  /** Plain text when `shellStatus` is `failed`, else `null`. */
+  shellError: string | null;
+}
+
 /** Error text and legacy capability names stay byte for byte for the baseline routes. */
 export const EXTENSION_GUARDS = {
   'canvas-configuration': { capability: 'canvasConfiguration', description: 'This connection has no Canvas configuration.' },
@@ -86,11 +94,21 @@ export const LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)';
 /** Frozen learner label fallback (BD-A1-27); per-channel copy moves in LA-IC-15. */
 export const LEGACY_LEARNER_HOST = 'Moodle';
 
+/** Frozen M1 default texts of three app error codes (app contract §4.4; M2 pins the two reservation texts). */
+export const LEGACY_APP_ERROR_TEXT = {
+  PLATFORM_IN_USE: 'This Moodle tool is already registered with Cogniate.',
+  DEPLOYMENT_IN_USE: 'This Blackboard site is already connected to Cogniate.',
+  DEPLOYMENT_FIXED: 'This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.',
+} as const;
+
 /** Frozen manual binding errors (security §2.6, app contract §4). */
 export const LEGACY_SELF_BINDING_TEXT = {
   collision: 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.',
   reserved: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.',
 } as const;
+
+/** Frozen register page code (LA-ADR-04 D2): the LTI service does not know if the platform saved the tool. */
+export const TOOL_MAY_EXIST_CODE = 'MOODLE_TOOL_MAY_EXIST' as const;
 
 /** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
 export function pendingToolText(toolName: string): string {
@@ -102,3 +120,6 @@ export const EXTENSION_CAPABILITY_MEMBERS: Readonly<Record<string, string>> = Ob
 
 /** Frozen recovery text (LA-E4-02); keep the pre-migration wire value byte for byte. */
 export const LEGACY_SCORE_INTERRUPTED = 'The score send was interrupted. Moodle may have received it.';
+
+/** Frozen hook attribute of the player shell link "Back to {LMS}" (M1 HTML; LA-E1-09 keeps the page bytes). */
+export const BACK_LINK_ATTRIBUTE = 'data-back-to-moodle';

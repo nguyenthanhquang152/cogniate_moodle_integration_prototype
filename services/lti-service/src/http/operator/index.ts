@@ -2,11 +2,12 @@
 // (default 127.0.0.1:4110). The proxy has no route to it. Every /operator/v1/* route needs
 // `Authorization: OPERATOR-AUTH-V1 <operator key>`. A tenant API key is an unknown credential here.
 // Mount list (LD-10): one line per endpoint group module. S2 delivers its modules as new files; S1 adds the line (RQ-1).
-import type { JobRunner, KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
+import type { KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
 import type { Db } from '../../db/index.ts';
+import type { LtiJobRunner } from '../../jobs/index.ts';
 import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
 import { withAudit } from '../../store/audit.ts';
 import { findActiveOperatorKey } from '../../store/operator-keys.ts';
@@ -22,7 +23,9 @@ import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-l
 import { registerRateLimitRoutes } from './rate-limits.ts';
 import { registerKeyProviderRoutes } from './key-provider.ts';
 import { registerOperatorServiceKeyRoutes } from './service-keys.ts';
+import { metricsFor, OPENMETRICS_TYPE, registerReadiness } from '../metrics.ts';
 import { registerOperatorPlatformRoutes } from './platforms.ts';
+import { registerJobRoutes } from './jobs.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -40,8 +43,8 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
-  /** Only the re-wrap route needs jobs; without it that route gives 503 NOT_READY. */
-  jobs?: JobRunner;
+  /** The re-wrap and jobs routes need the runner; without it they give 503 NOT_READY and the job list is empty. */
+  jobs?: LtiJobRunner;
   urls: PublicUrls;
   simulationProfiles: boolean;
   logger: Logger;
@@ -67,8 +70,8 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
-  /** Only re-wrap needs the LTI runner with key-rewrap registered; absent means 503 NOT_READY on that route. */
-  jobs?: JobRunner;
+  /** The LTI runner (key-rewrap and the jobs routes); absent means 503 NOT_READY on those routes. */
+  jobs?: LtiJobRunner;
   urls: PublicUrls;
   simulationProfiles?: boolean;
   logger: Logger;
@@ -86,6 +89,7 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerKeyProviderRoutes,
   registerOperatorServiceKeyRoutes,
   registerOperatorPlatformRoutes,
+  registerJobRoutes,
 ];
 
 /**
@@ -99,11 +103,15 @@ export function parseOperatorAuthorization(header: string | undefined): string |
 
 export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const log = deps.logger;
+  const metrics = metricsFor(deps.db, now);
+  const log = metrics.logger(deps.logger);
   const limiter = rateLimiterFor(deps.db, log, now);
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
-  installApiBasics(app, log);
+  metrics.install(app);
+  installApiBasics(app, log, metrics);
+  registerReadiness(app, deps.db, deps.keys, true);
+  app.get('/metrics', async (_req, reply) => reply.type(OPENMETRICS_TYPE).header('cache-control', 'no-store').send(await metrics.render(deps.keys)));
   app.addHook('onClose', async () => proxy.close());
   // A POST without a body (for example …/revoke) may still send Content-Type: application/json.
   const json = app.getDefaultJsonParser('error', 'error');

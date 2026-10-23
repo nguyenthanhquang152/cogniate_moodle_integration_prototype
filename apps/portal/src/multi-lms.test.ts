@@ -9,6 +9,7 @@ import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { DisconnectDialog } from "./connect/DisconnectDialog.tsx";
 const BLACKBOARD_NOT_READY = "Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.";
 import type { Connection, Course, Lms, LmsProvidersResponse, Publication, Session } from "./types.ts";
+import { channelRegistry, visibleChannels } from "./channels/registry.ts";
 
 const session: Session = { user: { id: "usr_a", name: "Author", email: "author@example.test", role: "owner" }, library: { id: "lib_a", name: "Library A" } };
 function connection(lms: Lms, id: string = lms, status: Connection["status"] = "registered"): Connection {
@@ -69,7 +70,11 @@ it("isolates newest card status by LMS with equal names/times and a stable id ti
     expect(card.getByText(status!)).toBeTruthy();
   }
   fireEvent.click(screen.getByRole("tab", { name: "LMS Publishing" }));
-  expect(screen.getAllByRole("article")).toHaveLength(4);
+  // Open world (plan LD-1): Kajabi and one card per visible registry channel (baseline: four). A new channel adds one.
+  const channelCards = visibleChannels(channelRegistry, providers.lms).map((manifest) => manifest.card.title);
+  expect(channelCards).toEqual(expect.arrayContaining(["Moodle", "Canvas", "Blackboard"]));
+  for (const name of ["Kajabi", ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+  expect(screen.getAllByRole("article")).toHaveLength(1 + channelCards.length);
 });
 
 it("disables Blackboard creation with the operator readiness explanation", async () => {

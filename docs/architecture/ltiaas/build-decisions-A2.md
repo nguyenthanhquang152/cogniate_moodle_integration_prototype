@@ -353,3 +353,222 @@ Routed in dispatch `ctx_4f9a4b12cd5a`. Decisions sent to the Lead first (`msg_8b
 | BD-A2-55 | LA-E5-11 Reviewer-B2: the AC-LA-E5-11-06 text ("above 4 KB is refused") is stale against BD-A2-45. | **The text changes; the code does not.** `app/audit.ts:71-75` already stores `{"truncated": true}` above 4 KB after `redact()`. The AC now says so, and that the write succeeds. | LA-E5-11 AC-06 | — |
 
 Changes for the Lead to route: **L (LA-E5-17 RQ-1):** per-waiter events and the `lastSuccessAt` getter. **S1 (LA-E5-17):** the scrape-time age join over stored platforms. No code change for LA-E5-11.
+
+## 29. Round 28: the idempotency target and non-final answers (LA-E5-16 review A, lane S1), 2026-10-23
+
+Reviewer-A A-LA-E5-16-01 (BLOCKER) and -02 (MAJOR), routed in dispatch `ctx_651cae9b6f98`. Decisions sent to the Lead first (`msg_f1ab529ed702`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-56 | A-LA-E5-16-01: on `POST /api/lineitems` the fingerprint has no target (the route takes it from the credential), so the same key and body from two courses replay the first course's line item. The replay also runs before the binding checks. | **The fingerprint carries the resolved target**, by scheme: Bearer = the decoded path parameters; LTIK-AUTH-V2 and SERVICE-AUTH-V1 = `{ platformId, deploymentId, contextId, lineItemsUrl }`. **The lookup runs after the read-only target checks** (account status, platform exists and is active, deployment active, binding generation). A failed check gives its normal refusal, never stored or replayed. | LA-ADR-06 D9 "Build rules"; contract delta §4.9; LA-E5-16 design notes | This makes the BD-A2-51 promise true for credential-scoped routes. A replay must never give a stale success after a platform or deployment was switched off. |
+| BD-A2-57 | A-LA-E5-16-02: a platform `429` is stored and replayed for 24 h with its old `Retry-After`, so a retry never reaches the platform. | **Final = `2xx`, or `4xx` other than `429`.** Every `5xx`, every `429`, and any answer with `Retry-After` is not final: the claim is abandoned, and the replay `Retry-After` branch goes. Checked: the idempotency `409`/`422` come from the hook; `JOB_RUNNING` is operator-only; `401`/`403`/`404` of the target come before the lookup; `PLATFORM_ALREADY_EXISTS`, `DEPLOYMENT_ALREADY_EXISTS`, `INVALID_REQUEST` and `PLATFORM_REJECTED_REQUEST` are final. | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | My BD-A2-51 text said "4xx" and missed that `429` asks for a retry. Stored `429` records from `6ae0ebe` exist only on test volumes and expire within 24 h. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 fix round):** the target in the fingerprint, the new lookup order, the non-final rule, removing the replay `Retry-After` branch, and the three unit tests in the design notes.
+
+## 30. Round 29: idempotency refusal texts and the app CLI refusal line (LA-E5-16, LA-E5-11, LA-E5-12), 2026-10-23
+
+Reviewer-B B-LA-E5-16-01 and B-LA-E5-11-01 (MINOR), routed in dispatch `ctx_3e116c8ff5b3`. Decisions sent to the Lead first (`msg_e0def9256a7c`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-58 | The idempotency `409` and `422` do not say what to do next. (Provisional: Reviewer-B's texts, with the target in the `422` text.) | **Ratified.** `409 IDEMPOTENCY_IN_PROGRESS` gets `details.retryAfter` (seconds until the 60 s claim ends, at least 1), so `Retry-After` is sent, and the description "A request with this Idempotency-Key is still running. Retry after the time in Retry-After." The `422` description names "another route, path id, target (platform, deployment or course) or body" and "Use a new key for a new request." | contract delta §1.3 (both rows); LA-E5-16 design notes | No conflict with BD-A2-57: the hook produces the `409` and never stores it. |
+| BD-A2-59 | The app CLI refusal lines give only a code; production with no operator list gives `operator_unknown`, which points at the wrong cause. (Provisional: `{reason, message}`, `operators_not_configured`, LA-E5-12 prints the line as it gets it.) | **Ratified.** The existing line keeps `event` and `reason` and adds `message`: one fixed sentence per code, never echoing input. New code `operators_not_configured` (production; no list, or an empty one). The ten codes and their messages are in LA-ADR-07 D4. `app:audit` uses the same shape. LA-E5-12 prints the line unchanged (stderr, exit 1). | LA-ADR-07 D4 "Refusal line of the app CLIs"; LA-E5-11 and LA-E5-12 design notes | Fixed messages keep the line safe to log and easy to test. Every code now names its own fix. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 and LA-E5-11 fix rounds):** the two descriptions and `retryAfter`; the `message` field, the new code and its unit tests. **K (LA-E5-12):** print the policy line unchanged.
+
+## 31. Round 30: audit counted at commit, and the request path in logs (LA-E5-17 review, lane S1), 2026-10-23
+
+Review findings A-/B-LA-E5-17-01 (MAJOR) and A-LA-E5-17-02 (BLOCKER), routed in dispatch `ctx_6769e4895e4c`. Decisions sent to the Lead first (`msg_0080b75fdb6a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-60 | A committed audit insert inside a caller-owned transaction is never counted. My BD-A2-52 accepted that ("no such route today"), but the `key-rewrap` end event does it. (Provisional: a per-transaction buffer, publish after the outermost commit, discard on rollback.) | **Ratified; my BD-A2-52 exception is removed.** A commit hook `afterCommit(db, fn)` in the shared transaction helper (S1 holds `migrations.ts` by RQ-2): per-scope buffers (merge at `RELEASE`; drop at `ROLLBACK TO` and `ROLLBACK`; run once after the outermost `COMMIT`; at once in autocommit); synchronous callbacks that never throw into the commit path. `insertAuditEvent` registers the count at every insert. | LA-ADR-06 D4 T0, D10 "Metrics"; operability §4.2 "Sources"; LA-E5-17 design notes | I was wrong in BD-A2-52: a product path already commits an event in its own transaction. One hook at the insert counts every path the same way. The app shares the helper (A1 FYI); with no callbacks nothing changes. |
+| BD-A2-61 | `http_request` logs the raw `req.url` path (after `redactPath`, which masks only long segments), so `/lti/login/alice@example.test` reaches the log. (Provisional: the route template, `<unmatched>` for no match.) | **Ratified.** `path` = the matched route template with no ids filled in; `<unmatched>` when no route matches; no query; the tenant stays in `tool_account_id`. Readers checked: base contract §5 says "path (no query)"; the M1 oracle does not read `path`; T1 H7 matches by trace id (the service sends `x-trace-id`). `redactPath` stays in `packages/shared` for the app. | operability §4.1; LA-ADR-06 D10 "Tenant id in logs"; contract delta §6; LA-E5-17 design notes | A template is bounded and holds no personal data; filled-in ids would add nothing that `tool_account_id` does not already hold. A1 FYI: the app's unmatched requests still log `redactPath(raw url)` (`server.ts:107`, `content-host/server.ts:122`); the same rule is recommended there (app contract, A1's call). |
+
+Changes for the Lead to route: **S1 (LA-E5-17 fix round):** the commit hook and its four tests; the route-template path and its two tests. **A1 FYI:** the shared commit hook; the app's unmatched-path log line.
+
+## 32. Round 31: the `app:audit` refusal line (LA-E5-11 fix round, lane S1), 2026-10-23
+
+Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
+
+Changes for the Lead to route: none beyond S1's fix round.
+
+## 33. Round 32: evidence for revoke, and refused events of the app CLIs (LA-E5-12 lane K, LA-E5-11 lane S1), 2026-10-23
+
+K's question and three provisional points, routed in dispatch `ctx_8749e4ef993f`. Decisions sent to the Lead first (`msg_a9aa80ad17c2`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-63 | Q1: `app:grant revoke` takes only `--operator`, but the policy requires evidence for every production command, so a production revoke always fails. (a) A policy input flag (S1), or (b) revoke also takes the evidence flags. (Provisional: (b).) | **Changed to (a).** `OperatorPolicyInput.evidenceRequired?: boolean`, default `true` (fail closed); `false` only for revoke, which skips only the two "missing" checks. Revoke does not parse evidence flags; K drops its interim parse. | LA-ADR-07 D5; LA-E5-11 and LA-E5-12 design notes | D5 lists evidence only for issue, suspend and release. A revoke only removes access (the BD-A2-12 principle), and an emergency revoke must not wait for a ticket reference. |
+| BD-A2-64 | (Provisional.) One `refused` event per refusal after the target is resolved, also for a format error on a known target; none for an unknown target, a usage error or an LTI outage. A stable snake_case `code` per refusal, with the CLI line text unchanged. The policy line printed as given and logged with its event and reason. | **Ratified, with one precision:** a policy refusal never writes an event, even after the target was read (BD-A2-45). | LA-ADR-07 D4 "Audit events of refused CLI runs"; LA-E5-12 design notes | The code list belongs in the app API delta §7 table (A1's file); until A1 adds it, the LA-E5-12 notes hold it. |
+
+Changes for the Lead to route: **S1 (LA-E5-11 fix round):** the `evidenceRequired` input and its two unit tests. **K (LA-E5-12):** revoke with `evidenceRequired: false`, dropping the interim evidence flags. **A1:** the refusal-code list in the app API delta §7.
+
+## 34. Round 33: LA-E5-20 spec gaps (lane S1), 2026-10-23
+
+Six questions from S1, routed in dispatch `ctx_a41d37871369` (provisional: "ok to all six"). Decisions sent to the Lead first (`msg_232fe65ebc42`).
+
+| Id | Question | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-65 | Q1 `autoRotate`: the environment list `SIGNING_KEY_AUTO_ROTATE_ACCOUNTS`, or a stored field? | **Changed to a stored field:** LTI migration `019` `tool_account.auto_rotate` (default `0`); `PATCH /operator/v1/accounts/:id {autoRotate}`; `Account.autoRotate`; an `account.update` event; `409 ACCOUNT_CLOSED` on a closed account. | LA-ADR-06 D2 (column table), D7; contract delta §1.1, §3; operability §2; LA-E5-20 notes | D7 makes it an account setting, like `limits` and `claimPolicy`: changed through the API, audited, no restart. S1 owns the account files in B3. |
+| BD-A2-66 | Q2 `closedRetentionDays`: `CLOSED_ACCOUNT_RETENTION_DAYS`? | **Ratified:** default 30, a whole number ≥ 1, a bad value stops the start, counted from `status_changed_at`. | LA-ADR-06 D2; operability §2 | — |
+| BD-A2-67 | Q3 the purge scope (delete the tenant rows of ten tables; keep the tombstone and the audit rows; a log line; no audit event). | **Scope ratified; changed: one `account.purge` audit event** per purged account (actor `system:account-purge`, `details` = counts by table), in the same transaction. | LA-ADR-06 D2; contract delta §5; security-delta §8; LA-E5-20 notes | The deletion of a tenant's data is the evidence of the LA-H4 retention promise, and audit rows survive the purge. The account lifecycle lives in LA-ADR-06 D2, not LA-ADR-07. |
+| BD-A2-68 | Q4 the rotation job (the route events with actor `system:signing-key-rotation`; `SIGNING_KEY_ROTATE_DAYS` ≥ 8; never forces; respects the lead time). | **Ratified, plus:** it skips accounts that are not `active`. | LA-ADR-06 D7; contract delta §5; operability §2 | Nothing signs for a suspended or closed account. |
+| BD-A2-69 | Q5 `POST /operator/v1/jobs/:name/run` answers (as BD-A2-50; `404` for an unknown name; `key-rewrap` allowed; ISO `lastRunAt`). | **Ratified.** | LA-ADR-06 D11 "On-demand runs"; contract delta §3 | — |
+| BD-A2-70 | Q6 `api-key-expiry`: `api_key_expiring` warn lines and `job_run` counts `{expiring}`; the gauge stays the scrape query. | **Ratified.** | LA-ADR-06 D11 (job row) | Ids only, never a key. |
+
+Changes for the Lead to route: **S1 (LA-E5-20)**: the stored `autoRotate` field (migration `019`, the account PATCH and view), the `account.purge` event, and skipping accounts that are not active; the rest as S1 planned.
+
+## 35. Round 34: the AGS preflight before the claim, the exact session cap, `trustedAudiences` docs, 2026-10-23
+
+Routed in dispatch `ctx_1ecaed288113`. The item 1 answer went to the Lead first (`msg_4e1ef7efc041`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-71 | A-LA-E5-16-03 (MAJOR): the idempotency target resolution checks platform and binding but not the AGS permission, so a credential that lost the `lineitem` scope gets an old `201`, and a `403 SERVICE_NOT_AVAILABLE` is stored. (Provisional: L exports one read-only preflight; S1 calls it before the claim.) | **Ratified.** `preflightCreateLineItem(ctx)` in `platform/ags.ts` (L, RQ-1), also used by `createLineItem`. Checks in order: the `lineitems` claim is a string; the base URL exists (both `403 SERVICE_NOT_AVAILABLE`); the URL rule (`400 INVALID_LINE_ITEM_ID`); the scope `lineitem` (`403`). No I/O. It runs after `agsContext` and before the claim; its refusals are never stored. Not the scope in the fingerprint. | LA-ADR-06 D9 "Order"; contract delta §4.9; LA-E5-16 design notes | This is one of the BD-A2-56 read-only target checks. One function for the route and the hook keeps the two from drifting apart. |
+| BD-A2-72 | The BD-A2-20 text ("a small overshoot is accepted") is stale: LA-E5-06's fix round re-checks the cap and inserts in one transaction after the last `await`. S1's comment at `http/rate-limit.ts:201` is stale too. | **Text updated: the cap is exact.** S1 changes the comment in its next commit (a NIT). | LA-ADR-06 D1 (cap paragraph); LA-E5-03 and LA-E5-06 design notes | — |
+| BD-A2-73 | B-LA-E3-12-01: the check-5 refusal `aud_untrusted` and its repair are not documented for operators or tenant developers. Where does it go? | **Three places.** The contract delta `trustedAudiences` row (A2): exact rules (the client id is always allowed; exact case-sensitive match; with more than one `aud`, `azp` = the client id; `PATCH` replaces the list; `[]` clears it) and a `PATCH` example. Operability §9 (A2): a new symptom row with the steps. The tenant-developer guide `docs/guides/troubleshooting.md` (Docs lane, E8): one entry from these two texts. New bound for L: each entry 1–2,048 characters, at most 20 entries, else `400 INVALID_REQUEST`. | contract delta §4.6 (`trustedAudiences` row); operability §9 | The route accepts any list of strings today (`z.array(z.string())`), so the bound is a small follow-up for L (LA-E3-12), not a gate. |
+
+Changes for the Lead to route:
+- **L:** the `preflightCreateLineItem` export (RQ-1 for LA-E5-16); the `trustedAudiences` bound (LA-E3-12 follow-up).
+- **S1:** the preflight call before the claim, with the two unit tests; the stale cap comment.
+- **Docs:** the troubleshooting guide entry.
+
+## 36. Round 35: raw outer transactions, the no-context fingerprint, revoke by empty context, 2026-10-23
+
+Routed in dispatch `ctx_448b587c3245`. The item 1 answer went to the Lead first (`msg_48ebe238e32a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-74 | A-LA-E5-17-03 (MAJOR): the commit hook treats an empty helper scope as autocommit even when `db.isTransaction` is true, so an audit count inside a raw outer transaction publishes at once and survives the outer rollback. | **Rule (a): a loud error.** Transactions open only through `transaction()`. With `db.isTransaction` true and no helper scope, `afterCommit()` and the nested `transaction()` path throw a `TypeError` before any write; both "run now" branches for that case go. Autocommit still runs at once. Four tests for S1. Optional Should: an F5 rule (lane P) against raw transaction statements outside `migrations.ts`. | LA-ADR-06 D4 T0; LA-E5-17 design notes | Checked: no product file opens a raw transaction (only `migrations.ts`; the app hits are comments, and `worker-main.ts` uses the helper). So production does not change, and the app (same helper) is not affected. As with the T2 guard, misuse becomes a failing test, not a silently wrong counter. |
+| BD-A2-75 | (Provisional.) The fingerprint target uses `contextId: ""` for a launch without a context, in both schemes. | **Ratified.** | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | One activity, one fingerprint (LA-ADR-05 D2: no context = `""`). |
+| BD-A2-76 | L2 (LA-E3-03): the service-key revoke body has `contextId` `min(1)`, so no revoke by the empty context. Acceptable, or accept `""`? | **Changed (a later small S2 item, not a gate):** `contextId: ""` = only the keys of launches without a context; absent = no context filter. Until then, the workaround is to revoke by `resourceLinkId`. | LA-ADR-06 D8 "Revoke"; contract delta (both revoke rows); LA-E5-15 design notes | `""` is a real context value in the data model, and BD-A2-47 made `contextId` a filter. |
+
+Changes for the Lead to route: **S1** (next LA-E5-17 round): the guard and its four tests; the `""` target (LA-E5-16). **S2** (later): `contextId: ""` in the revoke schema. **P** (optional): the F5 raw-transaction rule.
+
+## 37. Round 36: LA-E5-21 key and secret rules, the job runbook, LA-E5-20 choices (lane S1), 2026-10-23
+
+Routed in dispatch `ctx_e03f42d6f8fe`. Items 1–4 went to the Lead first (`msg_5bc1f924ba16`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-77 | A-LA-E5-21-02 = B-LA-E5-21-01 (MAJOR): startup always needs the master key, so a production stack with only a complete key-ring file does not start. | **Ring-only start is allowed.** One reader `readStartupKeys(env)` in `keys/key-config.ts` (S1 with RQ-2) gives the ring and the handle. The ring must hold `legacy`; handle = its bytes; a master-key setting next to a ring must equal it; `config.ts` drops the master-key read; `loadKeyProvider` reuses the ring. No ring: the legacy fallback stays. | LA-ADR-06 D6, D12; operability §2; LA-E5-21 notes | Every service key derives with `legacy` (D6), and the store callers use its bytes as the handle, so the ring must hold it. |
+| BD-A2-78 | A-LA-E5-21-01 (MAJOR): a secret file of any mode passes. | **No group or world bit** (`mode & 0o077 === 0`; `0600`, `0400` pass), regular file, checked with `fstat` on the opened descriptor, read from the same descriptor; no owner check. `production`: `config_refused {reason: secret_file_mode, setting}`; other profiles: a `secret_file_mode_open {setting}` warning. One shared reader for `*_FILE` and the ring. | LA-ADR-06 D12; operability §2; contract delta §6; LA-E5-21 notes | Checking the descriptor avoids a race. A readable file with no group or world bit belongs to the service user (or root), so an owner check adds nothing. |
+| BD-A2-79 | B-LA-E5-21-02: the refusal lines give only a code. | One fixed message per code (seven, with `secret_file_mode`), naming the setting and the change, never a value. | operability §2 "Production refusals"; LA-ADR-06 D12 | Same style as LA-ADR-07 D4. |
+| BD-A2-80 | B-LA-E5-21-03: upper- and lower-case hex of one master key count as different values. | **Hex keys compare case-insensitively** (as bytes): `readSecretSetting(..., { hexKey: true })` for every master-key read; other secrets compare exactly. | LA-ADR-06 D12 | One rule in one reader. |
+| BD-A2-81 | B-LA-E5-20-01: no general on-demand job procedure. | **Written:** operability §8a (list, run, keep the trace id, read `job_run`, handle `503`/`409`/`404`/`failed`/`skipped_lease`, re-wrap pointer, purge evidence and the tombstone); `JobStale` links to it. | operability §8a, §5 | — |
+| BD-A2-82 | S1's choices: `account.purge` `details.counts` as a list `[{table, rows}]` (redaction hides object keys that end in `key`); the log line `job_run_request_failed` when `runNow` rejects. | **Ratified.** | LA-ADR-06 D2, D11; contract delta §5, §6; LA-E5-20 notes | A good catch: an object key `api_key` would be redacted. |
+
+Changes for the Lead to route: **S1** (LA-E5-21 fix round): BD-A2-77 to BD-A2-80 with the unit tests in the notes (RQ-2 for the `keys/key-config.ts` lines). **A1 FYI:** the app's `APP_MASTER_KEY_FILE` (LA-E5-22) goes through the same shared `readSecretFile` and `hexKey` rule.
+
+## 38. Round 37: granted scopes before the claim, reserved-host audience, runbook (LA-E2-01/02 lane L, LA-E5-20), 2026-10-23
+
+Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`msg_eaceb1e6109f`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-83 | A-LA-E2-01-02: with `platform.grantedScopes`, a scope that the platform did not grant gives `403` from the token client after the idempotency claim (so it is stored), and `needScope` can pick a scope that was not granted while a granted one would work. | **Yes, before the claim.** `needScope` picks the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). The preflight's step 4 checks both; else `403 SERVICE_NOT_AVAILABLE` with a fixed text for the claim or the grant. The token-client filter stays as a backstop. | LA-ADR-06 D9; contract delta §4.9; LA-E2-01 and LA-E5-16 notes | A refusal of the current grant is never stored, and a call never asks for an ungranted scope. |
+| BD-A2-84 | A-LA-E2-01-01: a staged admin create accepts `clientAssertionAud` on a reserved host, because the staged exception (A1 BD-A1-82) skips the audience check. | **The reserved-host rule applies to the audience always, staged or active:** rule 2 (https, site rules 2 and 3, not a reserved host), else `400 PLATFORM_URL_NOT_IN_PROFILE`. The staged exception covers only the issuer-origin rule (I-SELF, and "audience = token URL" for active platforms). | LA-ADR-07 A6; security-delta §2.4; contract delta §4.6; LA-E2-01 and LA-E2-02 notes | We sign the client assertion with our key. An audience on a hosted LMS host (for example a Canvas token URL with a client id of ours) would let the holder of a staged platform replay our assertion there; a grant does not make that safe. A1's BD-A1-82 stays as is. |
+| BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
+
+Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
+
+## 39. Round 38: the `autoActivate` line of `complete` (A1 BD-A1-93, LA-E2-02), 2026-10-23
+
+Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
+
+Changes for the Lead to route: none (contract text only).
+
+## 40. Round 39: L2's LA-E3-05 local choices (Deep Linking completeness), 2026-10-23
+
+Routed in dispatch `ctx_bf9df1eb1c35`. All five are ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-87 | (Provisional, L2's choices.) (1) `PLACEMENT_NOT_GRADED` = a `/tool/*` error page with status `403`, log `picker_rejected {reason: placement_not_graded}`. (2) The picker GET and POST read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken`. (3) The POST also refuses with `PLACEMENT_NOT_GRADED`, with no Deep Linking call. (4) A duplicate id in a multi-select POST gives `400 PUBLICATION_NOT_AVAILABLE`. (5) Items go in the picker list order. | **All five ratified.** (1) Matches the other picker refusals. (2) The server reads the shaped token and never trusts a form field. (3) The POST re-checks, never relying on the GET page. (4) The page never sends duplicates, so a duplicate is a broken or forged request, with the same code as 21 ids. (5) Is D3b. | LA-ADR-05 D3 "Build notes"; security-delta §5 (page row); LA-E3-05 notes | Process calls checked: app migration `018` = `picker_pick`, and the retention rule (keep a session with an unmatched `picker_pick` row) matches data model §5b. A1 to note the number `018` in §5b (A1's file). A1 FYI: `picker_rejected` reason `placement_not_graded` joins the app log names. |
+
+Changes for the Lead to route: **A1:** the migration number `018` in data model §5b, and the new `picker_rejected` reason in the app log list. Nothing for L2.
+
+## 41. Round 40: app metrics and readiness (LA-E4-07, lane R), 2026-10-23
+
+Lane R's design calls D1–D4, routed in dispatch `ctx_0289fb00215b`. One call changes, so a status message went first (`msg_c7293864d95e`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-88 | D1 listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` default 4210, production loopback rule); D2 sources of each app series and the label guards; D3 readiness (database, migrations, and the LTI service through the guarded client); D4 topology (web process only; send and job series only with `APP_JOB_RUNNER=on`). | **D1 ratified**: 4210 is the design port; the LTI listener is 4110, so there is no clash; same fixed refusal message. **D2 ratified, with three precisions**: (a) the send counter counts at commit (`afterCommit`); (b) the redemption count from `binding_attempt` rows is a counter only while no job deletes them; (c) `JobStale` covers interval jobs only, and the outbox is watched by `DispatchBacklog`. **D3 changed**: app readiness checks only the app (database, migrations, key provider when it exists); no LTI check. **D4 ratified**: series absent (not zero) with a standalone worker. | LA-ADR-06 D10 "Readiness"; operability §4.3 "App rules", §4.4, §5 (`JobStale`) | An LTI readiness check inside the app would make one outage show twice and cascade, while the runbooks already check both services. The `record-dispatch` precision prevents a false `JobStale` on an idle outbox. |
+
+Changes for the Lead to route:
+- **R (LA-E4-07):** drop the `lti_service` readiness check; count sends at commit; `JobStale` only for interval jobs.
+- **A1:** in app API delta §8a, record the listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` 4210, the production loopback refusal), the series list with sources and label guards (unknown channel `''`, reason grammar else `other`), the readiness checks and answer shape (no LTI check), and the topology rule (send and job series only with `APP_JOB_RUNNER=on`; absent, not zero, with a standalone worker). Also the same notes in the LA-E4-07 spec (A1's file).
+
+## 42. Round 41: the Canvas Dynamic Registration origin rule (LA-E3-09, lane L), 2026-10-23
+
+Lane L's question, the Lead's provisional P1, routed in dispatch `ctx_40723308ea61`. One sub-point changes, so a status message went first (`msg_157053e3622d`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-89 | (Provisional: P1.) The start page gets only `?ref`, and `complete` has no `siteUrl` or `serviceUrl`. P1: derive the values from the configuration, check them with the Canvas site rules, store them on the staged platform, and let the operator grant prove them (no app or contract change). Site origin = the configuration URL origin, "or, for `sso.canvaslms.com`, the issuer". | **P1 ratified, with one change.** The grant's adoption rule (`app/redemption.ts:391-397`) already requires issuer, `siteUrl` and `serviceUrl` to equal the connection's granted values, so a derived value never activates the wrong site. **Change:** a configuration URL on a fixed Canvas host (`sso.canvaslms.com`, beta, test) is refused at `complete` (the AP-05-30 page; nothing stored or sent) until the CANVAS-HOSTED live row. The site origin is never taken from the issuer. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5; LA-E3-09 notes | For hosted Canvas the issuer is the shared `https://canvas.instructure.com`, not the school's site, so "site = issuer" would stage a platform that can never be adopted. P2's URL parameters are unsigned and add no proof. |
+
+Changes for the Lead to route: **L (LA-E3-09):** one refusal branch for a configuration on a fixed Canvas host, with one unit test. The rest of P1 as built.
+
+## 43. Round 42: the Canvas Dynamic Registration portal path (new task LA-E3-16, lane P), 2026-10-23
+
+Scope gap found by A1 (BD-A1-104), routed in dispatch `ctx_b02542566462`. The answer is not "API only", so no status message was needed.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-90 | Lane P's `CanvasWizard` creates only `manual`, always shows the developer key JSON and an empty binding form, so Canvas Dynamic Registration has no portal path, while LA-ADR-05 D6 promises "no JSON paste and no typed client id". Keep the promise with a P companion task, or say "API only"? | **Keep the promise: new task LA-E3-16** (lane P, Should, B3, size M, cut group F3.6 with LA-E3-09 and LA-E3-15). The scope: a method choice at create (manifest-driven; `manual` default and byte-identical); the registration URL step instead of the JSON for `dynamic` (reuse the shell's registration-URL part); a staged binding form pre-filled from `platform.clientId` and `platform.deploymentIds[0]`. Five ACs: four UNIT, one K1-SIM, plus the M2 Canvas e2e regression. No LD-9 entry. | LA-ADR-05 D6 new row "Portal"; `tasks/LA-E3-16.md`; LA-E3-09 and LA-E3-15 notes | "API only" would lose the D6 promise and leave AP-05-29 without a user path. The operator grant still proves every value, so the pre-fill only saves typing. |
+
+Changes for the Lead to route: **P** builds LA-E3-16. **A1** adds the `epics.md` row: `| LA-E3-16 | Canvas DR in the portal (Canvas wizard) | Should (cut with LA-E3-09, LA-E3-15) | P | B3 | LA-E3-15, LA-E2-04 (K1-SIM also LA-E3-09) | packages/channels/canvas/portal/**; apps/portal/src/sdk/** (export only) | SIM (QA), M2 e2e (QA-E2E) |`, plus the matching lines in the ownership matrix and the F3.6 cut group.
+
+## 44. Round 43: the app key provider (LA-E5-22, lane K) and an audit target type (LA-E5-03), 2026-10-23
+
+Routed in dispatch `ctx_32214d415ccf`. Point 1 changes, so a status message went first (`msg_9d984c765137`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-91 | K's LA-E5-22 points 1–4 (provisional: accepted as written): (1) settings, `APP_KEYRING_FILE` default `/run/secrets/app/keyring.json`, no production refusal of `APP_MASTER_KEY` in the environment; (2) the AAD rows and the runtime token; (3) bound Buffer handles, no app legacy refusal; (4) re-wrap and status by the CLI `app:keys`. | **2, 3, 4 ratified** (point 4 with the operator policy `evidenceRequired: false` and authenticated metadata, BD-A2-38). **Point 1 changed:** (a) the app key ring lives in a new folder `infra/.secrets/app-keys/`, hidden from `e2e` by its own tmpfs (default `/run/secrets/app-keys/keyring.json`); (b) `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`, a fixed message). | LA-ADR-06 D6 "Scope in LA", D12; operability §2 (new `APP_KEYRING_FILE` row, secret files, refusals), §6.3; security-delta §10; LA-E5-22 notes | (a) `infra/.secrets/app/` is readable by the `e2e` container, and BD-A2-03 names the LA-E5-22 app ring as key material that must be hidden. (b) D12 says every secret has a file form in production; the LTI service already refuses its master key in the environment. A1 FYI: `PortContext.seal(value, column)` changes the LA-ADR-01 D5 sketch. |
+| BD-A2-92 | QA-2 (LA-E5-03): `settings.rate_limits` events have target type `service_setting` in the code, but the contract delta §5 says `settings`. | **The code is right**: target type `service_setting`, target id `rate_limits`, which names the stored object like the other target types. **A doc fix** in contract delta §5; no code change. | contract delta §5 | — |
+
+Changes for the Lead to route:
+- **K (LA-E5-22):** the default path `/run/secrets/app-keys/keyring.json`, and the `app_master_key_in_env` refusal.
+- **The owners of `infra/compose.yaml` (cogniate-app mount, e2e tmpfs), `infra/scripts/stack-up.sh`, `infra/scripts/lib.sh` (`prepare_e2e`) and `infra/scripts/compose-e2e-secrets.test.mjs`:** the `app-keys` folder lines (your process call).
+- **A1:** the `seal(value, column)` port sketch in LA-ADR-01 D5.
+
+## 45. Round 44: the pre-fetch rule of Dynamic Registration start (LA-E3-09 AC-05, lane L), 2026-10-23
+
+Codex Reviewer-B's boundary question, routed in dispatch `ctx_4f2f8f46f7ea`. A small code change follows, so a status message went first (`msg_530dc8645c8d`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-93 | AC-05 and BD-A2-89 say the Canvas site rules run before the fetch, but with the real mixed registry the route fetches every URL for the loosest loaded rule (LA-ADR-02 D5), so a reviewer's probe fetched `https://canvas.instructure.com/api/lti/security/openid-configuration`. Keep the union rule and narrow AC-05, or refuse hosts that every loaded rule excludes? | **Both:** keep the union start rule, plus **one pre-fetch floor for every profile**: a configuration URL that is not https, fails site rules 1–3, or is on a reserved host (a fixed host of any loaded profile) gives `PLATFORM_URL_NOT_IN_PROFILE` before any fetch. AC-05 is rewritten to test this with the real mixed registry. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 (start bullet); LA-E3-09 AC-05 and notes | The floor is exact: no loaded profile can complete such a configuration (any-https rules refuse reserved hosts; the Moodle path is on the Moodle site; BD-A2-89 refuses fixed Canvas hosts). So the fetch could only be an outbound request for an unauthenticated caller. |
+
+Changes for the Lead to route: **L (LA-E3-09, before merge):** the floor check in the start route of `registration.ts` before the fetch, and the AC-05 test with the real registry. **A1 FYI:** one line in LA-ADR-02 D5: "start uses the loosest rule of any loaded profile, above the reserved-host floor (BD-A2-93)".
+
+## 46. Round 45: the exact pre-fetch floor (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option A) on L's conflict between BD-A2-93 and the frozen Moodle baseline, routed in dispatch `ctx_9a98516847e4`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-94 | (Provisional: option A.) The BD-A2-93 floor as written would (1) break the frozen T3b AC-T3-05 (it waits for the guarded client's `outbound_blocked` on an http URL and on `169.254.169.254`), and (2) refuse a Moodle on a public IP literal, which completes DR today. Option A: the floor refuses before any fetch only host names that fail site rule 2, own hosts (rule 3) and reserved hosts; http and IP literals go on to the guarded client as today. | **Ratified (option A).** It makes BD-A2-93 exact. Every forbidden target still gets no request: http and private IPs are refused by the guarded client before it connects (`outbound_blocked`, `FETCH_FAILED`), and the reserved and own hosts by the floor (`PLATFORM_URL_NOT_IN_PROFILE`). A public-IP Moodle keeps Dynamic Registration. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Option B would change a frozen baseline (an LA-IC and a QA change) and drop a working case, for a property (no request to a forbidden target) that option A already keeps. |
+
+Changes for the Lead to route: none beyond L's build of option A (already in progress).
+
+## 47. Round 46: the floor keeps the M1 `ISSUER_RESERVED` start page (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option Y), routed in dispatch `ctx_e7307e62e227`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-95 | (Provisional: option Y.) Every reserved issuer host is a reserved host, so the BD-A2-93 floor would answer `PLATFORM_URL_NOT_IN_PROFILE` first, and the M1 start page `ISSUER_RESERVED` (base contract §9.2, pinned by `lti/codes.test.ts`) could never show again. Y: a reserved **issuer** host gets the M1 `ISSUER_RESERVED` page byte for byte; any other reserved host, an own host or a failing host name gets `PLATFORM_URL_NOT_IN_PROFILE`. The AC-05 example becomes `sso.canvaslms.com` for `PLATFORM_URL_NOT_IN_PROFILE`, and `canvas.instructure.com` shows `ISSUER_RESERVED`. | **Ratified (option Y).** | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Both options refuse before any fetch. Y keeps a frozen M1 page and its action line ("Connect it as Canvas or Blackboard in the Cogniate portal"), which tells the admin the right fix. X would need a contract note and would drop that help. |
+
+Changes for the Lead to route: none beyond L's build of option Y (in progress).

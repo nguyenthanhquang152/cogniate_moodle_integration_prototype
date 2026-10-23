@@ -160,3 +160,40 @@ describe('A-M1-04: binding reads are one five-second wire attempt', () => {
     expect(requests).toHaveLength(2);
   });
 });
+
+it('LA-E2-04: complete sends profile, scopes and bindingRef and reads active; platforms and providers carry the E2 fields', async () => {
+  const sent: Array<{ url: string; body: unknown }> = [];
+  const answers: Record<string, unknown> = {
+    complete: { platformId: 'plt_1', html: '', active: false },
+    platform: { id: 'plt_1', url: 'https://lms.school.edu/sakai', clientId: 'c1', name: 'Cogniate', active: false, deploymentIds: ['d1'], profile: 'lti-generic',
+      authenticationEndpoint: 'https://lms.school.edu/auth', accesstokenEndpoint: 'https://token.provider.test/token', authConfig: { method: 'JWK_SET', key: 'https://lms.school.edu/jwks' },
+      clientAssertionAud: 'https://token.provider.test/aud', bindingRef: 'ref_1' },
+    providers: { profiles: [{ ...fakeProviders().find((p) => p.id === 'lti-generic'), endpoints: 'admin' }, { ...fakeProviders()[0] }] },
+  };
+  const client = createLtiClient({
+    ltiUrl: 'https://lti.test', apiKeyFile: 'unused', readKey: () => 'test-key',
+    outbound: {
+      allowlist: ['lti.test'],
+      async request(url, req = {}) {
+        sent.push({ url, body: req.body === undefined ? undefined : JSON.parse(String(req.body)) });
+        const json = url.endsWith('/complete') ? answers.complete : url.endsWith('/api/providers') ? answers.providers : answers.platform;
+        const body = Buffer.from(JSON.stringify(json));
+        return { status: 200, headers: {}, body, text: () => body.toString(), json: () => json };
+      },
+    },
+  });
+  const scopes = ['https://purl.imsglobal.org/spec/lti-ags/scope/score'];
+  expect(await client.completeRegistration('reg_1', { platformName: 'Cogniate', privacyLevel: 'anonymous', autoActivate: true, profile: 'lti-generic', scopes, bindingRef: 'ref_1' }, 'trace'))
+    .toEqual({ platformId: 'plt_1', html: '', active: false });
+  expect(sent[0]!.body).toEqual({ platformName: 'Cogniate', privacyLevel: 'anonymous', autoActivate: true, profile: 'lti-generic', scopes, bindingRef: 'ref_1' });
+  expect(await client.getPlatform('plt_1', 'trace')).toMatchObject({
+    authenticationEndpoint: 'https://lms.school.edu/auth', accesstokenEndpoint: 'https://token.provider.test/token', authConfig: { method: 'JWK_SET', key: 'https://lms.school.edu/jwks' },
+    clientAssertionAud: 'https://token.provider.test/aud', bindingRef: 'ref_1',
+  });
+  const admin = { profile: 'lti-generic', url: 'https://lms.school.edu/sakai', clientId: 'c1', name: 'Cogniate', authenticationEndpoint: 'https://lms.school.edu/auth',
+    accesstokenEndpoint: 'https://token.provider.test/token', authConfig: { method: 'JWK_SET' as const, key: 'https://lms.school.edu/jwks' }, deploymentIds: ['d1'], active: false, bindingRef: 'ref_2' };
+  await client.createAdminProfilePlatform(admin, 'trace');
+  expect(sent.at(-1)).toEqual({ url: 'https://lti.test/api/platforms', body: admin });
+  const rows = await client.getProviders('trace');
+  expect(rows.map((r) => [r.id, r.endpoints])).toEqual([['lti-generic', 'admin'], ['standard', undefined]]);
+});

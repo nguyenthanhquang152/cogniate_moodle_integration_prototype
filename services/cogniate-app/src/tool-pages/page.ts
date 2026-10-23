@@ -1,12 +1,16 @@
 // Server-rendered tool pages (app contract §6): layout with the portal CSS tokens (ADR-008 "Look"), escaping of all
 // untrusted text (security §7), and the page headers of security §5. No page sets a cookie or X-Frame-Options.
 import { randomBytes } from 'node:crypto';
+import { fillText } from '@cogniate/channel-kernel';
 import { escapeHtml } from '@cogniate/shared';
 
 export { escapeHtml };
 
-/** Fill `{LMS}` in a text template (one text table per page group, with the LMS name as a parameter). */
-export const withLms = (text: string, lms: string): string => text.replaceAll('{LMS}', lms);
+/**
+ * Fill `{LMS}` in a text template (one text table per page group, with the LMS name as a parameter). The kernel text
+ * fill inserts the name literally: `$&` or `$$` in a manifest name stays as it is (B-LA-E1-09-01).
+ */
+export const withLms = (text: string, lms: string): string => fillText(text, { LMS: lms });
 
 /** A fresh nonce for one response (script-src 'nonce-…'). */
 export const newNonce = (): string => randomBytes(18).toString('base64');

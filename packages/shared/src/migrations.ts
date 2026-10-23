@@ -19,6 +19,60 @@ const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8
 
 let savepoints = 0;
 
+/**
+ * Commit buffers of the open transaction() scopes of each connection: [outermost, ...savepoints] (BD-A2-60). A
+ * connection with no open scope has no entry.
+ */
+const commitScopes = new WeakMap<Db, Array<Array<() => void>>>();
+
+/** Each callback runs once. A failing callback never changes the transaction result or stops the next callback. */
+function runCallbacks(callbacks: Array<() => void>): void {
+  for (const callback of callbacks) {
+    try { callback(); } catch { /* The callback owner reports its own failure (for example metrics_observer_failed). */ }
+  }
+}
+
+/**
+ * BD-A2-74 (LA-ADR-06 D4 T0): product code opens every transaction through transaction(). The helper cannot see the
+ * COMMIT or ROLLBACK of a transaction that it did not open, so it refuses to work inside one.
+ */
+function refuseUnmanagedTransaction(db: Db): void {
+  if (db.isTransaction && !commitScopes.get(db)?.length) throw new TypeError('transaction opened outside transaction()');
+}
+
+/**
+ * Run fn once after the outermost COMMIT of the current transaction() scope (BD-A2-60; LA-ADR-06 D4 T0). In a
+ * SAVEPOINT scope, fn waits in the buffer of that scope: RELEASE moves it to the parent scope, ROLLBACK TO drops it.
+ * ROLLBACK drops every buffer. In autocommit (no open transaction), fn runs at once. Inside a transaction that
+ * transaction() did not open, it throws a TypeError and registers nothing (BD-A2-74). fn must be synchronous; an error
+ * in fn is caught.
+ */
+export function afterCommit(db: Db, fn: () => void): void {
+  refuseUnmanagedTransaction(db);
+  const scopes = commitScopes.get(db);
+  if (scopes && scopes.length > 0) scopes[scopes.length - 1]!.push(fn);
+  else runCallbacks([fn]);
+}
+
+function openScope(db: Db): Array<() => void> {
+  const buffer: Array<() => void> = [];
+  const scopes = commitScopes.get(db);
+  if (scopes) scopes.push(buffer);
+  else commitScopes.set(db, [buffer]);
+  return buffer;
+}
+
+/** Remove the innermost scope. Gives the parent buffer, or null when it was the outermost scope. */
+function closeScope(db: Db): Array<() => void> | null {
+  const scopes = commitScopes.get(db) ?? [];
+  scopes.pop();
+  if (scopes.length === 0) {
+    commitScopes.delete(db);
+    return null;
+  }
+  return scopes[scopes.length - 1]!;
+}
+
 function assertSynchronous(result: unknown): void {
   if (result !== null && (typeof result === 'object' || typeof result === 'function') &&
     'then' in result && typeof result.then === 'function') {
@@ -31,15 +85,22 @@ function assertSynchronous(result: unknown): void {
  * transaction of an audited change, LA-ADR-06 D4), fn runs in a SAVEPOINT instead: RELEASE on success; on error,
  * ROLLBACK TO and RELEASE, then the error goes to the outer transaction. A thenable result is an error (D4 T2).
  * Do async work before this call: the guard cannot stop work that the callback already started.
+ * afterCommit() callbacks of a scope follow the scope: they run after the outermost COMMIT, or are dropped on rollback.
+ * Every enclosing transaction must come from this helper: inside a transaction opened with raw SQL it throws a
+ * TypeError before any write (BD-A2-74).
  */
 export function transaction<T>(db: Db, fn: () => T): T {
   if (db.isTransaction) {
+    refuseUnmanagedTransaction(db);
     const name = `nested_${++savepoints}`;
     db.exec(`SAVEPOINT ${name}`);
+    const buffer = openScope(db);
+    let released = false;
     try {
       const result = fn();
       assertSynchronous(result);
       db.exec(`RELEASE ${name}`);
+      released = true;
       return result;
     } catch (err) {
       try {
@@ -49,19 +110,29 @@ export function transaction<T>(db: Db, fn: () => T): T {
         }
       } catch { /* Keep the first error if rollback or release fails (D4 T5). */ }
       throw err;
+    } finally {
+      // A released savepoint commits nothing yet: its callbacks wait for the parent scope, which always exists here.
+      const parent = closeScope(db);
+      if (released) parent?.push(...buffer);
     }
   }
   db.exec('BEGIN IMMEDIATE');
+  const buffer = openScope(db);
+  let committed = false;
   try {
     const result = fn();
     assertSynchronous(result);
     db.exec('COMMIT');
+    committed = true;
     return result;
   } catch (err) {
     try {
       if (db.isTransaction) db.exec('ROLLBACK');
     } catch { /* Keep the first error if rollback fails (D4 T5). */ }
     throw err;
+  } finally {
+    closeScope(db);
+    if (committed) runCallbacks(buffer);
   }
 }
 

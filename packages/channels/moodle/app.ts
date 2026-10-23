@@ -1,13 +1,13 @@
+import { toolName } from '@cogniate/channel-kernel/setup';
 import { mbzExporter } from './app/exporter.ts';
 import { webServicesRoute } from './app/web-services.ts';
 import { courseShellHook } from './app/course-shell.ts';
-import type { ConnectionSetup, ToolRow } from '../../../services/cogniate-app/src/kernel/ports.ts';
+import type { ConnectionSetup, ToolRow, ToolUrls } from '../../../services/cogniate-app/src/kernel/ports.ts';
 // Moodle (`standard` profile): unchanged behaviour (app contract §4, §4.1). Dynamic registration and the six-value
 // manual connect stay in app/connections.ts and tool-pages/register.ts; this adapter gives the rows and the data.
 
 /** App contract §4.1: exactly these 16 rows, in this order (stable keys; labels are the Moodle 5.2.4 form labels). */
-export function moodleToolRows(urls: Parameters<typeof toolUrls>[0], libraryName: string): ToolRow[] {
-  const t = toolUrls(urls);
+export function moodleToolRows(t: ToolUrls, libraryName: string): ToolRow[] {
   return [
     { key: 'tool_name', label: 'Tool name', value: toolName(libraryName) },
     { key: 'tool_url', label: 'Tool URL', value: t.launch },
@@ -21,7 +21,8 @@ export function moodleToolRows(urls: Parameters<typeof toolUrls>[0], libraryName
     { key: 'tool_configuration_usage', label: 'Tool configuration usage', value: 'Show in activity chooser and as a preconfigured tool' },
     { key: 'launch_container', label: 'Default launch container', value: 'New window' },
     { key: 'ags', label: 'IMS LTI Assignment and Grade Services', value: 'Use this service for grade sync and column management' },
-    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: "Use this service to retrieve members' information as per privacy settings" },
+    // A2 LA-ADR-05 D4 (LA-IC-04): the tool asks for no NRPS scope. The Moodle 5.2.4 option label; QA confirms the text.
+    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: 'Do not use this service' },
     { key: 'share_name', label: "Share launcher's name with tool", value: 'Never' },
     { key: 'share_email', label: "Share launcher's email with tool", value: 'Never' },
     // Q-T7-01 (contract §4.1 row 16): the exact Moodle 5.2.4 option text of the tool form.
@@ -43,7 +44,7 @@ const setup: ConnectionSetup = {
     if (serviceUrl !== undefined) return { ok: false, field: 'serviceUrl' };
     return { ok: true, siteUrl, serviceUrl: siteUrl };
   },
-  toolConfiguration: (ctx) => moodleToolRows(ctx.urls, ctx.libraryName),
+  toolConfiguration: (ctx) => moodleToolRows(ctx.toolUrls, ctx.libraryName),
   parseBindingBody: (body, ctx) => {
     if (body !== null && body !== undefined && (typeof body !== 'object' || Array.isArray(body))) return { ok: false, fields: ['body'] };
     const obj = body !== null && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
@@ -88,28 +89,5 @@ export function badPlatformFields(siteUrl: string, v: Record<(typeof PLATFORM_FI
   }
   return [...bad];
 }
-
-
-// Small pieces that every provider adapter and the connection routes share (no I/O).
-type PublicUrls = Parameters<ConnectionSetup['toolConfiguration']>[0]['urls'];
-
-/** The tool account of the app in the LTI service (contract §4.1). */
-export const TOOL_ACCOUNT = 'cogniate';
-
-/** Tool name in the LMS: `Cogniate (<library name>)`, ASCII only (flows §6a). */
-export function toolName(libraryName: string): string {
-  const ascii = libraryName.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim();
-  return `Cogniate (${ascii || 'Library'})`;
-}
-
-/** The protocol URLs of the tool account (all from PUBLIC_LTI_URL). */
-export function toolUrls(urls: PublicUrls): { launch: string; login: string; keys: string } {
-  return {
-    launch: `${urls.lti}/lti/launch/${TOOL_ACCOUNT}`,
-    login: `${urls.lti}/lti/login/${TOOL_ACCOUNT}`,
-    keys: `${urls.lti}/lti/keys/${TOOL_ACCOUNT}`,
-  };
-}
-
 
 export default setup;

@@ -6,7 +6,7 @@
  */
 import type { ProtocolUrls } from './target.ts';
 import { readCookie, safeEqual } from '@cogniate/shared';
-import { MANUAL_SELF_LEGACY_CHANNELS } from '@cogniate/channel-kernel';
+import { familyGuardVerdict } from '@cogniate/channel-kernel';
 import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
 import { channelRegistry } from '../profiles/index.ts';
 import type { ProtectedHeaderParameters } from 'jose';
@@ -125,6 +125,9 @@ export function check5IssuerAudience(claims: Claims, platform: Platform): void {
   if (!list || !list.includes(platform.clientId)) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_mismatch');
   if (list!.length > 1 && claims.azp === undefined) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_missing');
   if (claims.azp !== undefined && claims.azp !== platform.clientId) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_mismatch');
+  if (list!.some((audience) => audience !== platform.clientId && !platform.trustedAudiences.includes(audience))) {
+    fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_untrusted');
+  }
 }
 
 /** Check 6: the signature is valid with a key of the platform JWKS (refresh, fallback and refetch rules in jwks.ts). */
@@ -242,19 +245,15 @@ export function check13Origins(claims: Claims, origins: { site: string; service:
 }
 
 /**
- * Check 14: launch guards require the owning channel. Registration guards refuse a mismatch only on the legacy
- * manual-self path. Return any other registration mismatch for the caller to log; unknown families pass.
+ * Check 14 with the kernel verdict in phase `launch` (BD-A1-43, BD-A1-54): launch guards require the owning channel;
+ * registration guards refuse a mismatch only on the legacy manual-self path. Return any other mismatch for the caller
+ * to log; unknown families pass.
  */
 export function check14ProductFamily(claims: Claims, profile: ProviderProfile, opts: ProfileOptions): string | null {
   const tp = claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   const code = tp && typeof tp === 'object' && typeof tp.product_family_code === 'string' ? tp.product_family_code.toLowerCase() : null;
   if (code === null) return null;
-  const channels = channelRegistry(opts);
-  const owner = channels.ownerOfFamily(code);
-  if (owner === null || owner === profile.channel) return null;
-  const guard = channels.channel(owner)?.lti?.guardedFamilies.find((entry) => entry.family === code);
-  if (guard?.level === 'launch' || MANUAL_SELF_LEGACY_CHANNELS.includes(profile.channel)) {
-    fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
-  }
-  return code;
+  const verdict = familyGuardVerdict(channelRegistry(opts), code, profile.channel, 'launch');
+  if (verdict.kind === 'refuse') fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
+  return verdict.kind === 'log' ? code : null;
 }

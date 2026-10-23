@@ -162,7 +162,7 @@ async function ensureSimulatorDeployment() {
 
 async function launchLearnerWithScopes(label: string, scopes: string[]) {
   const resource = `qa2-e509-rl-${label}-${runId}`;
-  const lineitems = `${SITE_URL}/learn/api/public/v1/lti/courses/course-1/lineItems`;
+  const lineitems = `${SITE_URL}/learn/api/v1/lti/courses/course-1/lineItems`;
   const lineitem = `${lineitems}/${encodeURIComponent(resource)}`;
   const launched = await launch({
     deploymentId: DEPLOYMENT_ID,
@@ -186,7 +186,7 @@ async function launchLearnerWithScopes(label: string, scopes: string[]) {
 }
 
 async function signAndReturnDeepLink(label: string) {
-  const resource = `qa2-e509-dl-${label}-${runId}`;
+  const resource = `pub_qa2_e509_dl_${label}_${runId}`;
   const dlLaunch = await launch({
     deploymentId: DEPLOYMENT_ID,
     siteHost: SITE_HOST,
@@ -205,6 +205,8 @@ async function signAndReturnDeepLink(label: string) {
           type: 'ltiResourceLink',
           title: `QA2 E509 DL ${label}`,
           url: `${urls.lti}/lti/launch/${ACCOUNT}?resource=${encodeURIComponent(resource)}`,
+          lineItem: { scoreMaximum: 100, label: `QA2 E509 DL ${label}` },
+          window: { targetName: '_blank' },
         },
       ],
     },
@@ -278,7 +280,7 @@ it('AC-LA-E5-09-01 on a stack with only LTI_MASTER_KEY, GET /operator/v1/key-pro
 
 it('AC-LA-E5-09-02 after QA writes infra/.secrets/lti/keyring.json = {active: "k2", keys: {legacy: <LTI_MASTER_KEY>, k2: <new>}} and restarts the LTI service, activeVersion is k2; after POST .../signing-keys, sealedCount of k2 grows by 1 (AP-06-24)', async () => {
   const act = await hostAction(
-    { action: 'qa2-e509-write-keyring-and-restart' } as KeyringAction,
+    'qa2-e509-write-keyring-and-restart' as HostAction,
     180_000,
   );
   assert.equal(act.code, 0, 'host action qa2-e509-write-keyring-and-restart succeeded');
@@ -469,6 +471,24 @@ it('AC-LA-E5-09-05 the re-wrap writes one job_run {job: "key-rewrap"} line and t
   assert.ok(requestEvent, 'one key_provider.rewrap audit event records the operator request');
   assert.ok(jobEndEvent, 'one key_provider.rewrap audit event records the job end with outcome and counts (BD-A2-36/42)');
   assert.notEqual(requestEvent.id, jobEndEvent.id, 'request and job-end audit events are distinct rows');
+
+  // BD-A2-50: the 202 traceId is the traceId of both the request audit event, the job-end audit event, and the job_run log line.
+  assert.equal(requestEvent.traceId, rewrapRequestTraceId, 'request audit event traceId equals 202 traceId (BD-A2-50)');
+  assert.equal(jobEndEvent.traceId, rewrapRequestTraceId, 'job-end audit event traceId equals 202 traceId (BD-A2-50)');
+  assert.equal(
+    runLine.trace_id ?? runLine.traceId,
+    rewrapRequestTraceId,
+    'job_run log line trace_id equals 202 traceId (BD-A2-50)',
+  );
+
+  // Runbook §6.3 step 6: GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId> returns both events.
+  const byTrace = await listAudit(operatorKey, {
+    action: 'key_provider.rewrap',
+    traceId: rewrapRequestTraceId,
+    limit: 10,
+  });
+  assert.equal(byTrace.res.status, 200, 'GET /operator/v1/audit?action=key_provider.rewrap&traceId=... returns 200');
+  assert.equal(byTrace.events.length, 2, 'traceId filter returns both the request and job-end key_provider.rewrap events');
 
   // BD-A2-36/42/43: job-end event has result: "ok", code: null, details: { outcome: "complete", rewrapped, skippedChanged, notReached, unreadable, legacyBlobsRefused: true }.
   assert.equal(jobEndEvent.result, 'ok', 'job-end event result is ok (BD-A2-42)');

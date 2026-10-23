@@ -5,6 +5,16 @@ const SCORE = { userId: '5', activityProgress: 'Completed', gradingProgress: 'Fu
 const EXTENSION = 'https://platform.test/submission';
 
 describe('AGS score extras (LA-E3-11)', () => {
+  it('treats a null scoreGiven as absent, with or without scoreMaximum (LA-E3-12)', () => {
+    for (const maximum of [{}, { scoreMaximum: 100 }]) {
+      const absent = parseScore({ ...SCORE, ...maximum });
+      const ungraded = parseScore({ ...SCORE, ...maximum, scoreGiven: null });
+      expect(ungraded).toEqual(absent);
+      expect(ungraded).not.toHaveProperty('scoreGiven');
+    }
+    expect(parseScore({ ...SCORE, scoreGiven: 0, scoreMaximum: 100 }).scoreGiven).toBe(0);
+  });
+
   it('accepts optional submission times and scoring user IDs without changing their values', () => {
     const submission = { startedAt: '2026-10-23T01:02:03.123456+07:00', submittedAt: '2026-10-23T02:03:04Z' };
     expect(parseScore({ ...SCORE, submission, scoringUserId: 'grader-7' }))
@@ -35,6 +45,15 @@ describe('AGS score extras (LA-E3-11)', () => {
       expect(parseScore({ ...SCORE, [EXTENSION]: value })[EXTENSION]).toBe(value);
       expect(() => parseScore({ ...SCORE, [EXTENSION]: `${value}a` })).toThrow(/INVALID_REQUEST/);
     }
+  });
+
+  it('B-LA-E3-11-01: the refusal states the byte limit; 2048 "é" serialize to 4098 bytes', () => {
+    const value = 'é'.repeat(2048);
+    expect(Buffer.byteLength(JSON.stringify(value))).toBe(4098);
+    expect(() => parseScore({ ...SCORE, [EXTENSION]: value })).toThrow(expect.objectContaining({
+      code: 'INVALID_REQUEST',
+      description: `Invalid field: ${EXTENSION} must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes.`,
+    }));
   });
 
   it.each([null, false, 17, { nested: ['a', null, true] }])('keeps each JSON extension value: %j', (value) => {

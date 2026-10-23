@@ -42,7 +42,9 @@ it('migration 017 preserves existing accounts and adds an empty table', () => {
   ensureAccount(before, { id: 'cogniate', appUrl: URLS.app });
   const rows = before.prepare('SELECT * FROM tool_account').all(); before.close();
   const db = openDb(path); databases.push(db);
-  expect(db.prepare('SELECT * FROM tool_account').all()).toEqual(rows);
+  // Later migrations may add columns (019: auto_rotate); the existing columns keep their values.
+  expect(db.prepare('SELECT * FROM tool_account').all().map((row) => Object.fromEntries(Object.keys(rows[0]!).map((key) => [key, row[key]]))))
+    .toEqual(rows);
   expect(db.prepare('SELECT * FROM idempotency_record').all()).toEqual([]);
   expect(db.prepare("SELECT name FROM schema_migration WHERE name = '017_idempotency_record.sql'").get()).toBeDefined();
 });
@@ -51,7 +53,7 @@ it('AC-04: arbitrates claims across independent SQLite connections, then replays
   const file = join(temp(), 'lti.db'); const first = fixture(file);
   const second = openDb(file); databases.push(second);
   const owner = claim(first);
-  expect(claimIdempotency(second, input, 1001)).toEqual({ kind: 'running' });
+  expect(claimIdempotency(second, input, 1001)).toEqual({ kind: 'running', endsAt: 1000 + IDEMPOTENCY_RUNNING_MS });
   expect(completeIdempotency(first, owner, answer)).toBe(true);
   expect(claimIdempotency(second, input, 1002)).toEqual({ kind: 'replay', answer });
   expect(second.prepare('SELECT COUNT(*) AS n FROM idempotency_record').get()!.n).toBe(1);
@@ -96,9 +98,9 @@ it('abandons running claims older than 60 seconds and fences a late old owner', 
   expect(claimIdempotency(db, input, 1003 + IDEMPOTENCY_RUNNING_MS)).toEqual({ kind: 'replay', answer });
 });
 
-it('frees failed claims and never stores a 5xx or redirect', () => {
+it('frees failed claims and never stores a 5xx, a 429 or a redirect (BD-A2-57)', () => {
   const db = fixture(); const owner = claim(db);
-  for (const status of [302, 500, 502]) expect(() => completeIdempotency(db, owner, { ...answer, status })).toThrow(RangeError);
+  for (const status of [302, 429, 500, 502]) expect(() => completeIdempotency(db, owner, { ...answer, status })).toThrow(RangeError);
   abandonIdempotency(db, owner);
   expect(db.prepare('SELECT * FROM idempotency_record').all()).toEqual([]);
   expect(claim(db, 1001).owner).not.toBe(owner.owner);

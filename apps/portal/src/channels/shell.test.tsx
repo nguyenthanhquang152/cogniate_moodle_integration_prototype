@@ -26,7 +26,13 @@ const canary: ChannelManifest = {
 };
 const self: ChannelManifest = { ...canary, registration: [{ ...canary.registration[0]!, method: "dynamic", authority: "self" }] };
 const simulation: ChannelManifest = { ...canary, id: "shell-simulation", availability: "simulation-only", card: { ...canary.card, title: "Simulation learning site", order: 101 }, registration: [{ ...canary.registration[0]!, profiles: ["shell-sim"], defaultProfile: "shell-sim" }] };
-const registry = buildChannelRegistry([...discoveredChannels, ...[canary, simulation].map((manifest) => ({ folder: `/channels/${manifest.id}`, manifest }))], { simulations: true });
+// A data-only channel with its own error text (BD-A1-63).
+const ownTexts: ChannelManifest = {
+  ...canary, id: "shell-own-texts", names: { text: "Own texts site", label: "Own texts site" }, card: { ...canary.card, title: "Own texts site", order: 102 },
+  registration: [{ ...canary.registration[0]!, profiles: ["shell-own"], defaultProfile: "shell-own" }],
+  texts: { ...canary.texts, errors: { PLATFORM_IN_USE: "This {LMS} key is in use. Make a new key for this library." } },
+};
+const registry = buildChannelRegistry([...discoveredChannels, ...[canary, simulation, ownTexts].map((manifest) => ({ folder: `/channels/${manifest.id}`, manifest }))], { simulations: true });
 function provider(manifest: ChannelManifest): LmsProvider {
   return {
     lms: manifest.id, channel: manifest.id, label: manifest.names.label,
@@ -158,6 +164,7 @@ describe("manifest portal shell", () => {
     app(`/integrations/${id}/connect`);
     expect(await screen.findByLabelText("Connection name")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByLabelText("Connection name")).toBeTruthy();
     failed = false;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     const notReady = (manifest.texts.notReady ?? "{LMS} is not set up for this Cogniate service yet. Ask your Cogniate operator.").replaceAll("{LMS}", manifest.names.text);
@@ -178,6 +185,7 @@ describe("manifest portal shell", () => {
     app(`/integrations/${manifest.id}/${current.id}`);
     expect(await screen.findByText("The first launch from Moodle changes the status to Connected.")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByText("The first launch from Moodle changes the status to Connected.")).toBeTruthy();
   });
   it("uses profile readiness for the standard channel too", async () => {
     listed = listed.map((entry) => ({ ...entry, profiles: entry.profiles.map((profile) => ({ ...profile, ready: false })) }));
@@ -252,6 +260,90 @@ describe("manifest portal shell", () => {
       expect(await screen.findByLabelText("Approval code")).toBeTruthy();
       expect(screen.queryByText(/The first launch/)).toBeNull();
     }
+  });
+  // BD-A1-63, LA-IC-20: the connect routes set the channel scope; a channel without its own text gets the generic text.
+  const refusal = (status: number, details: object) => new Response(JSON.stringify({ details }), { status, headers: { "Content-Type": "application/json" } });
+  it.each([
+    ["canvas", "Canvas URL", "This is an Instructure-hosted address. Choose an Instructure-hosted Canvas type."],
+    ["blackboard", "Learn URL", "This is the address of a hosted LMS. Choose a hosted type."],
+  ])("shows the %s create route's own error text, else the generic text", async (id, siteLabel, text) => {
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => options?.method === "POST"
+      ? refusal(422, { message: "INVALID_SITE_URL", rule: 5, field: "siteUrl" }) : answer(url, options));
+    app(`/integrations/${id}/connect`);
+    fireEvent.change(await screen.findByLabelText("Connection name"), { target: { value: "School" } });
+    fireEvent.change(screen.getByLabelText(siteLabel), { target: { value: "https://school.instructure.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
+  it.each([
+    ["blackboard", "This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection."],
+    ["canvas", "This connection already reserved another deployment. Disconnect it, then make a new connection."],
+  ])("shows the %s connection's own error text on its manage route, else the generic text", async (id, text) => {
+    current = connection(channelRegistry.channel(id)!, { bindingAuthority: "operatorGrant" });
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => options?.method === "PUT"
+      ? refusal(409, { message: "DEPLOYMENT_FIXED" }) : answer(url, options));
+    app(`/integrations/${id}/${current.id}`);
+    fireEvent.change(await screen.findByLabelText("Deployment ID"), { target: { value: "deployment-2" } });
+    fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "A".repeat(43) } });
+    const clientId = screen.queryByLabelText("Client ID");
+    if (clientId) fireEvent.change(clientId, { target: { value: "client-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
+  // A-LA-E1-12-01: the default wizard and the Moodle forms show the channel text only for the texts.errors codes.
+  const genericInUse = "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library.";
+  function refuseWrites(...replies: Array<[number, object]>) {
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => options?.method === "PUT"
+      ? refusal(...replies.shift()!) : answer(url, options));
+  }
+  it.each([
+    [ownTexts.id, "This Own texts site key is in use. Make a new key for this library."],
+    [canary.id, genericInUse],
+  ])("the default wizard of %s shows its own error text, else the generic text, and keeps other server texts", async (id, text) => {
+    current = connection(registry.channel(id)!, { bindingAuthority: "operatorGrant" });
+    refuseWrites([409, { message: "PLATFORM_IN_USE", description: "This Moodle tool is already registered with Cogniate." }],
+      [422, { message: "INVALID_PLATFORM_VALUES", description: "The server refused the Deployment ID." }]);
+    const { container } = app(`/integrations/${id}/${current.id}`);
+    fireEvent.change(await screen.findByLabelText("Deployment ID"), { target: { value: "deployment-2" } });
+    fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "A".repeat(43) } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(text)).toBeTruthy();
+    expect(container.querySelector("[data-channel-step]")).toBeTruthy();
+    expect(screen.queryByText(/already registered/)).toBeNull();
+    fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "A".repeat(43) } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("The server refused the Deployment ID.")).toBeTruthy();
+  });
+  it("the Moodle manual form shows the Moodle PLATFORM_IN_USE text (BD-A1-81) and keeps the server text of other errors", async () => {
+    current = connection(channelRegistry.channel("moodle")!, { method: "manual", bindingAuthority: "self" });
+    const collision = "This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.";
+    const reserved = "This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.";
+    refuseWrites([409, { message: "PLATFORM_IN_USE", description: collision }],
+      [422, { message: "INVALID_PLATFORM_VALUES", description: reserved, fields: ["issuer"] }]);
+    app(`/integrations/moodle/${current.id}`);
+    const values = {
+      "Platform ID (issuer)": current.siteUrl, "Client ID": "client-2", "Deployment ID": "7",
+      "Authentication request URL": `${current.siteUrl}/mod/lti/auth.php`, "Access token URL": `${current.siteUrl}/mod/lti/token.php`,
+      "Public keyset URL": `${current.siteUrl}/mod/lti/certs.php`,
+    };
+    for (const [label, value] of Object.entries(values)) fireEvent.change(await screen.findByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Connect Moodle" }));
+    expect(await screen.findByText(collision)).toBeTruthy();
+    expect(screen.queryByText(genericInUse)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Connect Moodle" }));
+    expect(await screen.findByText(reserved)).toBeTruthy();
+  });
+  it("the Moodle approval form shows the generic DEPLOYMENT_FIXED text instead of the Blackboard default", async () => {
+    current = connection(channelRegistry.channel("moodle")!, { bindingAuthority: "operatorGrant" });
+    refuseWrites([409, { message: "DEPLOYMENT_FIXED", description: "This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection." }]);
+    app(`/integrations/moodle/${current.id}`);
+    fireEvent.change(await screen.findByLabelText("Approval code"), { target: { value: "A".repeat(43) } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("This connection already reserved another deployment. Disconnect it, then make a new connection.")).toBeTruthy();
+    expect(screen.queryByText(/Blackboard/)).toBeNull();
   });
   it("merges a renewed URL into the existing connection", async () => {
     const existing = connection(self);

@@ -1,12 +1,17 @@
 // The typed list of Cogniate app API codes (contract cogniate-app-api) and the ApiError class bound to it
 // (B-T2b-02). The mechanism is generic in @cogniate/shared; the table is the app's own.
+import { LEGACY_APP_ERROR_TEXT } from '@cogniate/channel-kernel';
 import type { ApiErrorOptions } from '@cogniate/shared';
 import { ApiErrorBase, defineErrorTable } from '@cogniate/shared';
 
 export { apiErrorBody } from '@cogniate/shared';
 export type { ApiErrorBody } from '@cogniate/shared';
 
-/** API codes of the app contract (T4a uses the first part; later tasks use the rest). */
+/**
+ * API codes of the app contract (T4a uses the first part; later tasks use the rest). The codes of a channel extension
+ * route (P5–P7, for example the web services and package export codes) live in the channel's own error table; the
+ * kernel extension routes send them (LA-E1-08). A default text that names an LMS is a frozen M1 value (LA-E1-09).
+ */
 export const APP_API_ERRORS = defineErrorTable({
   INVALID_REQUEST: { status: 400, description: 'The request is not valid.' },
   MASTERY_SCORE_NOT_ALLOWED: { status: 400, description: 'SCORM packages use the mastery score of their manifest.' },
@@ -22,16 +27,12 @@ export const APP_API_ERRORS = defineErrorTable({
   PUBLICATION_NOT_AVAILABLE: { status: 400, description: 'The publication is not available.' },
   CONNECTION_NOT_READY: { status: 409, description: 'The connection is not ready.' },
   CONNECTION_NOT_PENDING: { status: 409, description: 'The connection is not pending.' },
-  PLATFORM_IN_USE: { status: 409, description: 'This Moodle tool is already registered with Cogniate.' },
+  PLATFORM_IN_USE: { status: 409, description: LEGACY_APP_ERROR_TEXT.PLATFORM_IN_USE },
   VERSION_NOT_READY: { status: 409, description: 'The course version is not ready.' },
   STALE_SEQUENCE: { status: 409, description: 'The sequence number is not newer than the last one.' },
   SYNC_NOT_RESENDABLE: { status: 409, description: 'Only a failed or conflict score sync can be sent again.' },
   RUNTIME_EXPIRED: { status: 410, description: 'The runtime session expired.' },
   INVALID_PLATFORM_VALUES: { status: 422, description: 'The platform values are not valid.' },
-  WS_TOKEN_INVALID: { status: 422, description: 'The web services token is not valid.' },
-  WS_FUNCTIONS_MISSING: { status: 422, description: 'The web services token cannot use every function that Cogniate needs.' },
-  MBZ_NOT_SUPPORTED: { status: 422, description: 'Only a SCORM 1.2 version can be built as a Moodle backup.' },
-  MBZ_BUILD_LIMIT: { status: 409, description: 'This library already has the most builds that may wait or run at the same time.' },
   // M1 (app contract §4.2–§4.9): LMS types, approval grants and capabilities.
   CAPABILITY_NOT_SUPPORTED: { status: 409, alsoStatus: [422], description: 'This connection does not support this feature.' },
   INVALID_SITE_URL: { status: 422, description: 'The site URL is not valid.' },
@@ -39,10 +40,9 @@ export const APP_API_ERRORS = defineErrorTable({
   GRANT_INVALID: { status: 403, description: 'The approval code is not valid, was used, or expired.' },
   GRANT_MISMATCH: { status: 422, description: 'The values do not match the approval.' },
   GRANT_IN_USE: { status: 409, description: 'Cogniate is already saving this connection.' },
-  DEPLOYMENT_IN_USE: { status: 409, description: 'This Blackboard site is already connected to Cogniate.' },
-  DEPLOYMENT_FIXED: { status: 409, description: 'This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.' },
+  DEPLOYMENT_IN_USE: { status: 409, description: LEGACY_APP_ERROR_TEXT.DEPLOYMENT_IN_USE },
+  DEPLOYMENT_FIXED: { status: 409, description: LEGACY_APP_ERROR_TEXT.DEPLOYMENT_FIXED },
   LTI_SERVICE_ERROR: { status: 502, description: 'The LTI service answered with an error.' },
-  MOODLE_WS_ERROR: { status: 502, description: 'Moodle web services did not answer as expected.' },
 });
 
 export type AppApiErrorCode = keyof typeof APP_API_ERRORS;

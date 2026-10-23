@@ -8,19 +8,45 @@ import type { AuditFilter } from '../app/audit.ts';
 
 interface CommandResult { exitCode: 0 | 1; lines: string[] }
 
+const USAGE = 'app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]';
+export const AUDIT_HELP = [
+  `Usage: ${USAGE}`,
+  'Prints the app audit events, newest first, one JSON line for each event. The command only reads.',
+  '  --connection <id>  only the events of this connection',
+  '  --action <action>  only the events with this action, for example grant.issue',
+  '  --since <time>     only the events at or after this ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z',
+  '  --limit <n>        at most n events, from 1 to 500 (default 100)',
+  'The database is cogniate.db in DATA_DIR (default /data/cogniate.db).',
+];
+
+/** BD-A2-62 (LA-ADR-07 D4): one fixed sentence with the fix for each code, copied from the ADR. A message never echoes input. */
+export const AUDIT_REFUSALS = {
+  arguments_invalid: `Usage: ${USAGE}. Run app:audit --help for the options.`,
+  connection_invalid: 'Give --connection a connection id that is not empty.',
+  action_invalid: 'Give --action an audit action name that is not empty, for example grant.issue.',
+  limit_invalid: 'Give --limit a whole number from 1 to 500 (default 100).',
+  since_invalid: 'Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z.',
+  audit_read_failed: 'The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR).',
+} as const;
+type AuditRefusalCode = keyof typeof AUDIT_REFUSALS;
+
 /** Read only: no migrations, operator runtime, key files or audit insert for this command. */
 export function runAuditCli(argv: string[], env: NodeJS.ProcessEnv = process.env): CommandResult {
   const traceId = randomBytes(16).toString('hex');
-  const refuse = (reason: string): CommandResult => ({
-    exitCode: 1, lines: [JSON.stringify({ event: 'audit_list_refused', reason, traceId })],
+  const refuse = (reason: AuditRefusalCode): CommandResult => ({
+    exitCode: 1, lines: [JSON.stringify({ event: 'audit_list_refused', reason, message: AUDIT_REFUSALS[reason], traceId })],
   });
   let filter: AuditFilter;
   try {
     const { positionals, values } = parseArgs({
       args: argv, allowPositionals: true, strict: true,
-      options: { connection: { type: 'string' }, action: { type: 'string' }, since: { type: 'string' }, limit: { type: 'string' } },
+      options: {
+        connection: { type: 'string' }, action: { type: 'string' }, since: { type: 'string' }, limit: { type: 'string' },
+        help: { type: 'boolean', short: 'h' },
+      },
     });
-    if (positionals.length !== 1 || positionals[0] !== 'list') return refuse('usage: app:audit list [--connection <id>] [--action <a>] [--since <ISO>] [--limit <1..500>]');
+    if (values.help) return { exitCode: 0, lines: AUDIT_HELP };
+    if (positionals.length !== 1 || positionals[0] !== 'list') return refuse('arguments_invalid');
     if (values.connection !== undefined && values.connection.trim() === '') return refuse('connection_invalid');
     if (values.action !== undefined && values.action.trim() === '') return refuse('action_invalid');
     const limit = values.limit ?? '100';

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E1-11 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -104,3 +104,18 @@ Round: 2
 | SDK named exports | The `export *` lines are replaced by named lists. The API part is `ApiError`, `api`, `idPath`, `extension`, `configurationSnapshot` and `uploadPackage`. `configurationSnapshot(path, …)` takes an `/app-api` path, and Canvas passes the same encoded path as before (`/connections/${idPath(id)}/canvas-configuration`). The SDK already exports `api`, which reaches any `/app-api` path with the session, so this adds no new reach. |
 | Step texts | The Blackboard and Canvas step instructions and the Moodle dynamic steps now come only from the manifest through `channelText`. The JSON files keep only layout metadata. The texts still go into React text nodes. |
 | Ownership | The kernel schema line, its test and the Moodle manifest line are K files, in the RQ-2 commits `d2beb17` and `0e6678d` (BD-A1-49 allows RQ-2). `f1-baseline.json` only lowers the counts of P's own files (`api.ts`, `types.ts`), as RQ-3 allows (`b14863f`). Note for the Lead (no finding): the `fileURLToPath` line in `vitest.config.ts` (a K file, epics §5) is in the P commit `6894c86`, not in a named RQ-2 commit as `b47f54c` was in round 1. Please record it in the board row (RQ-2) or confirm it. No app or LTI service file changes. |
+
+## Round 3
+
+- Reviewer: Codex, Reviewer-A, same lens A. Date: 2026-10-23.
+- Diffs: `git show 02fb3bf` and `git show 463f350` (merge `5b5b3a2`). References: task LA-E1-11, the two round-2 findings above, the fix-round-2 brief and plan §6.1.
+- **Verdict: APPROVE. A-LA-E1-11-04 and A-LA-E1-11-06 are closed. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E1-11-06 — MINOR | Closed | Both tests assert the wizard content after waiting for the failed request's "Try again" button. In a private clone, restoring `if (error)` in `ProviderSetup` fails exactly the four new-connection cases and the existing self-connection case. The fixed code passes all five. |
+| A-LA-E1-11-04 — NIT | Closed | `extension()` checks the browser-normalized URL path against the connection extension prefix, including its trailing slash. The old decode guard stays. All three tab/LF/CR traversal probes throw before fetch; removing the new prefix check fails exactly those three cases. The valid escaped filename test still passes and preserves the encoded connection id and same-origin credentials. The checked URL and fetch input use the same path. |
+
+Validation at `9c87853`: the full portal project passes **8 files, 114 tests**, including the shell UNIT AC-01–03 tests. Both portal TypeScript projects pass, and F1 passes. Both mutants fail at the expected assertions; all scratch files were restored. The diff changes only P-owned portal files and adds no LMS-specific production branch or visible wizard change. The earlier `vitest.config.ts` ownership note is acknowledged as RQ-2 in the Lead's fix brief.
+
+This was a blind review in a private `git clone --no-hardlinks`. No Docker, stack, build-server start, commit, or other reviewer's file. K2 and M1/M2/T7 remain QA gates; this small fix does not claim to rerun them.

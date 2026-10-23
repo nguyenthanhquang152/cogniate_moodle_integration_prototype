@@ -7,8 +7,9 @@ import { api, idPath } from "../api.ts";
 import { Card } from "../ui/card.tsx";
 import { Button } from "../ui/button.tsx";
 import { Input, Select } from "../ui/input.tsx";
-import { CopyButton, ErrorNotice } from "../ui.tsx";
+import { CopyButton } from "../ui.tsx";
 import { ToolConfiguration } from "../connect/ToolConfiguration.tsx";
+import { ChannelErrorNotice } from "../connect/provider-errors.tsx";
 import { channelText } from "./registry.ts";
 
 import { verificationAuthority, VerificationInstructions } from "./verification.tsx";
@@ -67,12 +68,24 @@ function useWizard(props: WizardProps) {
     if (!connection) return;
     setBusy(true); setError(null);
     try {
-      const updated = await api<{ registrationUrl: string; expiresAt: string }>(`/connections/${idPath(connection.id)}/registration-url`, { method: "POST" });
-      if (alive.current) props.onChanged({ ...connection, registrationUrl: updated.registrationUrl, registrationUrlExpiresAt: updated.expiresAt });
+      const updated = await renewRegistrationUrl(connection);
+      if (alive.current) props.onChanged(updated);
     } catch (reason) { if (alive.current) setError(reason); }
     finally { if (alive.current) setBusy(false); }
   }
   return { manifest, connection, method, setMethod, error, busy, fields, text, ready, finished, hasBinding, authority, field, submit, renew };
+}
+/** Asks the app for a new registration URL of a pending `dynamic` connection; gives the connection with the new URL and expiry. */
+export async function renewRegistrationUrl(connection: Connection): Promise<Connection> {
+  const updated = await api<{ registrationUrl: string; expiresAt: string }>(`/connections/${idPath(connection.id)}/registration-url`, { method: "POST" });
+  return { ...connection, registrationUrl: updated.registrationUrl, registrationUrlExpiresAt: updated.expiresAt };
+}
+/** The registration URL part: the copy button of the URL, and "Get registration URL" for a pending `dynamic` connection. */
+export function RegistrationUrl({ connection, method, busy, onRenew }: { connection: Connection; method: Connection["method"]; busy: boolean; onRenew(): void }) {
+  return <>
+    {connection.registrationUrl && <CopyButton label="Registration URL" value={connection.registrationUrl} />}
+    {connection.status === "pending" && method === "dynamic" && <Button type="button" disabled={busy} onClick={onRenew}>Get registration URL</Button>}
+  </>;
 }
 type WizardState = ReturnType<typeof useWizard>;
 const WizardContext = createContext<WizardState | null>(null);
@@ -89,8 +102,7 @@ export function ShowStep() {
       <h2>Tool settings</h2>
       <ol className="list-decimal space-y-3 pl-5">{manifest.texts.adminSteps.map((step, index) => <li key={index}>{text(step)}</li>)}</ol>
       {connection && manifest.lti?.toolConfiguration === "channel" && <ToolConfiguration id={connection.id} lmsName={manifest.names.text} />}
-      {connection?.registrationUrl && <CopyButton label="Registration URL" value={connection.registrationUrl} />}
-      {connection && connection.status === "pending" && method === "dynamic" && <Button type="button" disabled={busy} onClick={renew}>Get registration URL</Button>}
+      {connection && <RegistrationUrl connection={connection} method={method} busy={busy} onRenew={renew} />}
     </>;
 }
 /** Create fields or the pending platform fields. Use inside a shell step override to reuse the default. */
@@ -138,7 +150,7 @@ const defaultSteps: Record<WizardStep, React.ComponentType> = {
 export function ManifestBinding(props: WizardProps) {
   const state = useWizard(props);
   return <WizardContext.Provider value={state}><form className="flex flex-col gap-5" onSubmit={state.submit}>
-    <CollectStep /><VerifyStep /><ErrorNotice error={state.error} />
+    <CollectStep /><VerifyStep /><ChannelErrorNotice error={state.error} />
   </form></WizardContext.Provider>;
 }
 export function ManifestWizard({ module, ...props }: WizardProps & { module?: ChannelUiModule }) {
@@ -149,6 +161,6 @@ export function ManifestWizard({ module, ...props }: WizardProps & { module?: Ch
       const Default = defaultSteps[step];
       return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : <Default />}</Card>;
     })}
-    <ErrorNotice error={state.error} />
+    <ChannelErrorNotice error={state.error} />
   </form></WizardContext.Provider>;
 }

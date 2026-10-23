@@ -1,13 +1,20 @@
 import { LEGACY_SCORE_INTERRUPTED } from '@cogniate/channel-kernel';
-import type { QueueJob, RecoveryScope } from '@cogniate/shared';
+import { afterCommit, type QueueJob, type RecoveryScope } from '@cogniate/shared';
 import { dispatchResult, nextRetryAt, type SyncStatus } from '@cogniate/tracking';
 import type { Db } from '../../domain/db.ts';
 import { transaction } from '../../domain/db.ts';
-import { beginSend, failDisabledSync, isCurrentSync, ownsDispatch, recordSend } from './dispatch-store.ts';
+import { beginSend, failDisabledDispatch, isCurrentDispatch, ownsDispatch, partitionPaused, recordSend } from './dispatch-store.ts';
 import type { DeliveryOutcome, DispatchView, RecordReporter } from './types.ts';
 
 export interface DispatchItem { id: string; partitionKey: string }
 const WINDOW_MS = 86_400_000;
+
+/** Called once for each delivery outcome that the lease owner records, after that commit (app metrics; LA-E4-07, BD-A2-88). */
+export type DispatchSendObserver = (reporter: string, outcome: DeliveryOutcome['kind']) => void;
+const sendObservers = new WeakMap<Db, DispatchSendObserver[]>();
+export function observeDispatchSends(db: Db, observer: DispatchSendObserver): void {
+  sendObservers.set(db, [...sendObservers.get(db) ?? [], observer]);
+}
 
 /** Only startup may take back a live lease of this instance's previous boot. */
 export function recoverDispatches(db: Db, scope: RecoveryScope): number {
@@ -54,11 +61,17 @@ function result(outcome: DeliveryOutcome, tries: number, from: number, now: numb
     uncertain: outcome.kind === 'retryable' && outcome.uncertain };
 }
 
+/** The outbox queue job. Refuses a reporter policy other than bestResult (AC-LA-E4-03-08). Services use registerRecordReporters. */
 export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]): QueueJob<DispatchItem> {
   for (const reporter of reporters) {
     if (reporter.policy !== 'bestResult') throw new Error(`Unsupported record reporter policy: ${reporter.id}/${reporter.policy}`);
   }
   const registry = new Map(reporters.map((r) => [r.id, r]));
+  /** The send result log line: the reporter's own names, else the neutral `record_dispatch` names. */
+  const resultLog = (reporter: string, id: string) => {
+    const names = registry.get(reporter)?.logNames;
+    return { event: names?.event ?? 'record_dispatch', idFields: names ? { [names.idField]: id } : { dispatch_id: id, reporter } };
+  };
   return {
     name: 'record-dispatch', id: (r) => r.id, partition: (r) => r.partitionKey,
     due(now, limit) {
@@ -67,7 +80,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           (PARTITION BY partition_key ORDER BY next_try_at, created_at, seq) AS turn FROM record_dispatch dispatch
         WHERE status = 'pending' AND next_try_at <= ? AND (not_before IS NULL OR not_before <= ?)
           AND send_started_at IS NULL AND (lease_until IS NULL OR lease_until <= ?)
-          AND NOT EXISTS (SELECT 1 FROM record_dispatch paused WHERE paused.partition_key = dispatch.partition_key AND paused.not_before > ?)
+          AND NOT ${partitionPaused('dispatch')}
           AND NOT EXISTS (SELECT 1 FROM attempt a WHERE a.resource_link_id = dispatch.placement_id AND a.user_sub = dispatch.learner_subject
             AND a.preview = 0 AND a.outcome IN ('completed', 'passed', 'failed')
             AND CAST(a.score_given AS REAL) / a.score_maximum > dispatch.score_given / dispatch.score_maximum))
@@ -78,7 +91,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
       return db.prepare(`UPDATE record_dispatch SET lease_owner = ?, lease_until = ? WHERE id = ? AND status = 'pending'
         AND next_try_at <= ? AND (not_before IS NULL OR not_before <= ?) AND send_started_at IS NULL
         AND (lease_until IS NULL OR lease_until <= ?)
-        AND NOT EXISTS (SELECT 1 FROM record_dispatch paused WHERE paused.partition_key = record_dispatch.partition_key AND paused.not_before > ?)
+        AND NOT ${partitionPaused('record_dispatch')}
         AND NOT EXISTS (SELECT 1 FROM record_dispatch other
           WHERE other.id <> record_dispatch.id AND other.placement_id = record_dispatch.placement_id
           AND other.learner_subject = record_dispatch.learner_subject AND other.reporter = record_dispatch.reporter
@@ -92,7 +105,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
       let posted = false;
       try {
         if (!ownsDispatch(db, item.id, ctx.leaseOwner) || ctx.signal.aborted) return;
-        if (!isCurrentSync(db, item.id)) {
+        if (!isCurrentDispatch(db, item.id)) {
           // Supersede only for a higher dispatch. An attempt without a dispatch leaves the lower row unchanged.
           db.prepare(`UPDATE record_dispatch SET status = 'superseded', next_try_at = NULL, updated_at = ?
             WHERE id = ? AND status = 'pending' AND lease_owner = ? AND EXISTS (SELECT 1 FROM record_dispatch other
@@ -103,11 +116,12 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           return;
         }
         const raw = read(db, item.id)!;
-        const log = (status: SyncStatus, tries: number, sendResult?: SyncStatus) => ctx.logger.info(raw.reporter === 'lti-ags' ? 'score_sync' : 'record_dispatch', {
-          trace_id: ctx.traceId, ...(raw.reporter === 'lti-ags' ? { sync_id: item.id } : { dispatch_id: item.id, reporter: String(raw.reporter) }), status, tries, phase: raw.confirmation_after === null ? 'send' : 'confirmation',
+        const names = resultLog(String(raw.reporter), item.id);
+        const log = (status: SyncStatus, tries: number, sendResult?: SyncStatus) => ctx.logger.info(names.event, {
+          trace_id: ctx.traceId, ...names.idFields, status, tries, phase: raw.confirmation_after === null ? 'send' : 'confirmation',
           ...(sendResult && sendResult !== status ? { send_result: sendResult } : {}),
         });
-        if (failDisabledSync(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', Number(raw.tries)); return; }
+        if (failDisabledDispatch(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', Number(raw.tries)); return; }
         const row = view(raw);
         if (ctx.now() > row.retryFrom + WINDOW_MS) {
           recordSend(db, row, { status: 'failed', nextTryAt: null, uncertain: false, lastError: 'The score retry window has ended.' }, ctx.now(), ctx.leaseOwner);
@@ -125,22 +139,30 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           if (started === 'connection_disabled') log('failed', row.tries);
           return started;
         } });
-        if (!outcome || !ownsDispatch(db, item.id, ctx.leaseOwner)) return;
-        if (!posted && failDisabledSync(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', row.tries); return; }
+        // Every later write checks the lease owner itself (a lost lease changes nothing).
+        if (!outcome) return;
+        if (!posted && failDisabledDispatch(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', row.tries); return; }
         // A completed POST still records its result after stop. Only an unstarted next step is stopped.
         if (!posted && ctx.signal.aborted) return;
         const throttled = outcome.kind === 'throttled';
         const tries = row.tries + (posted && !throttled ? 1 : 0);
         const r = result(outcome, tries, row.retryFrom, ctx.now());
-        const status = transaction(db, () => {
+        const status = transaction(db, (): SyncStatus | null => {
+          // Only the lease owner records a result, also the throttle steps (another instance may own the row now).
+          if (!ownsDispatch(db, row.id, ctx.leaseOwner)) return null;
           if (outcome.kind === 'throttled') {
             // Undo only this attempt. Earlier uncertainty and the confirmation phase stay intact.
             if (posted) db.prepare('UPDATE record_dispatch SET tries = tries - 1 WHERE id = ?').run(row.id);
+            // Pause this row and every pending row of the partition. This row keeps the pause whatever its status
+            // becomes (failed at its window end, or superseded during the POST): partitionPaused reads every row.
             db.prepare(`UPDATE record_dispatch SET not_before = MAX(COALESCE(not_before, 0), ?)
-              WHERE partition_key = ? AND (status = 'pending' OR id = ?)`).run(outcome.retryAt, row.partitionKey, row.id);
+              WHERE id = ? OR (status = 'pending' AND partition_key = ?)`).run(outcome.retryAt, row.id, row.partitionKey);
           }
-          return recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
+          const recorded = recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
+          afterCommit(db, () => { for (const observe of sendObservers.get(db) ?? []) observe(row.reporter, outcome.kind); });
+          return recorded;
         });
+        if (status === null) return;
         if (outcome.kind === 'throttled') ctx.logger.warn('dispatch_throttled', {
           dispatch_id: row.id, partition: row.partitionKey, retry_at: outcome.retryAt,
         });
@@ -156,7 +178,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           const row = view({ ...raw, payload: '{}' });
           const r = result({ kind: 'retryable', text: `Internal error (${name}).`, uncertain: posted }, tries, row.retryFrom, ctx.now());
           recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
-          ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: 'score_sync', error: name });
+          ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: resultLog(row.reporter, row.id).event, error: name });
         });
       }
     },

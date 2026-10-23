@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-08 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -67,3 +67,40 @@ Round: 1
 - The kernel ties build ids to `mbz_build` (`EXPORT_BUILD_SCOPE_SQL` in `legacy-wire.ts`). A second exporter needs its own binding. This is fine for LA, which has one exporter.
 - Inline Canvas JSON: an unexpected error from `getToolKeys` now gives `502 LTI_SERVICE_ERROR` instead of `500`. One malformed retired key in the JWKS also makes the inline form fail. Both are on the safe side.
 - AC-01, AC-02, AC-07 and AC-08 are K1-SIM or MOODLE-LIVE and wait for QA. The unit tests and the comparisons above cover their logic.
+
+
+## Round 2
+
+Verdict: APPROVE
+Round: 2
+
+Reviewer: Reviewer-A (Codex GPT-6-Astra xhigh). Date: 2026-10-23.
+Scope: `ebc5e7d`, `1225080`, `5b4b39c` and the P5 context change in `b6ec001`, as merged by `6270d43`. References: the task spec, LA-ADR-01 D5 P5–P7, BD-A1-37/40/42/45/47/52, BD-A2-39/46 and plan §6.1. I did not open Reviewer-B's files.
+
+**Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** All three Round 1 findings are closed. No new finding.
+
+### Round 1 closure
+
+| Finding | Result |
+| --- | --- |
+| A-LA-E1-08-01 | Closed by `1225080`. The developer key title calls the shared pure `toolName`. Six tests cover URL and inline keys with Vietnamese accents, repeated spaces, only non-ASCII characters and the golden ASCII name. Restoring the raw title fails four assertions. |
+| A-LA-E1-08-02 | Closed by `5b4b39c`. F5 now scans `REPLACE` and `VALUES`, and scans both `app.ts` and `app/**`. Nine rule tests pass. Removing the replacement-SQL support fails four tests; restoring the old path filter fails three. |
+| A-LA-E1-08-03 | Closed by `ebc5e7d`. A failed status with `step: ''` is accepted and normalized to `null`, so the runner stop reason is visible. Restoring the old enum fails the status test. The strict schema still rejects unknown fields and invalid steps. |
+
+### Correctness and safety checks
+
+- **P5 URLs:** Canvas configuration reads `ctx.toolUrls` and `ctx.toolAccountId`; it builds no protocol account path. Its domain comes from the supplied `ltiOrigin`. The injected-URL test and exact URL/inline document tests pass. Public-key filtering and per-call key reads are unchanged.
+- **Extension paths:** startup accepts only own keys of `EXTENSION_GUARDS` or `x/<name>` with the restricted name grammar. Core bare paths, prototype names, traversal, encoded traversal, queries, fragments, extra segments, route parameters, wildcards and backslashes are refused. Eleven extra path probes pass. Restoring the former arbitrary-bare-path rule fails four shipped tests.
+- **Connection isolation:** the kernel loads the connection with the authenticated library before capability checks or the handler. It selects the handler from that connection's channel and creates its context with the checked id. A private request probe used two connections in one library and a third in another library: the foreign connection returned 404 without invoking the handler; each own request retained its path connection even when body, query and SQL parameter values named the foreign one. The shipped Canvas tests also check ownership before query parsing or key reads. Current Moodle SQL scopes its connection reads and writes by both bound keys.
+- **Named refusals and guidance:** SQL scope, parameter, DTO-field, extension-path and build-queue errors have distinct names. The added tests pin those names. `ports.ts` describes the extension procedure and states that the current queue serves `.mbz` only. Expected route refusals still use the standard error result and frozen wire names.
+- **Queue and SQL compatibility:** the library/build binding, id grammar, fixed queue folders, no-follow file opens, bounded status reads, atomic request writes and kernel-owned test controls are unchanged by this round. The three exact `rowid` exceptions and the moved Moodle statements are unchanged. The status fix restores the one missing runner case. Native-feature, export concurrency, Canvas deployment and configuration tests pass in the focused run; F5 passes with zero hits.
+- **UNIT ACs and ownership:** AC-03 has negative scope tests plus two-library reads/writes; AC-05 rejects extra DTO fields and retains the three legacy fields; AC-06 checks the frozen route table and the native-feature responses. The changed tests fail on the corresponding old behavior. The commits stay in lane K extension, context and fitness files; no R file, LTI service, portal app or QA test file changed. F1 passes.
+
+### Verification and limits
+
+The same private `--no-hardlinks` clone at `6270d43` was used for both reviews. No Docker, stack, host runner, external network call or commit was used. I changed only my two review files in the integration worktree.
+
+- Focused unit run: **890 passed, 2 skipped**; shared K0: **121 passed**; SQL-rule tests: **9 passed**. The extra launch/router/isolation run passed **20 tests**, of which 12 cover the added extension scope and path probes.
+- All five LA-E1-08 regression mutations failed on assertions, not imports: bare-path acceptance, raw Canvas title, empty-step refusal, unchecked replacement SQL and unchecked root `app.ts` SQL.
+- Root typecheck, changed-file ESLint, F1 and F5 pass. Scratch changes were restored; logs and probe sources are under `/tmp/la-review-a-r2.Y9zbMj/`.
+- I did not run `npm run check` or the task-specific QA wrapper. K1-SIM and MOODLE-LIVE remain pending with QA under the Docker hold. Source comparison and host tests support this approval; they do not replace R1 or R2-lite.

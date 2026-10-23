@@ -1,16 +1,14 @@
-// Frozen developer key document (app contract §4.6).
+// Frozen developer key document (app contract §4.6); LA-IC-04 changed only `scopes` (the channel's scope set).
+import { toolName } from '@cogniate/channel-kernel/setup';
 import type { ExtensionRoute, PublicJwk } from '../../../../services/cogniate-app/src/kernel/ports.ts';
+import manifest from '../manifest.ts';
 
 export const configurationRoute: ExtensionRoute = {
   method: 'GET', path: 'canvas-configuration', capability: 'setup.artifacts', legacyCapabilityName: 'canvasConfiguration',
   async handle(input, ctx) {
     const mode = input.query.jwk ?? 'url';
     if (mode !== 'url' && mode !== 'inline') return { error: { status: 400, code: 'INVALID_REQUEST', message: 'The jwk option must be url or inline.' } };
-    const urls = {
-      login: `${ctx.urls.lti}/lti/login/${ctx.toolAccountId}`,
-      launch: `${ctx.urls.lti}/lti/launch/${ctx.toolAccountId}`,
-      keys: `${ctx.urls.lti}/lti/keys/${ctx.toolAccountId}`,
-    };
+    const urls = ctx.toolUrls;
     let key: PublicJwk | undefined;
     if (mode === 'inline') {
       const result = await ctx.publicToolKeys();
@@ -18,19 +16,14 @@ export const configurationRoute: ExtensionRoute = {
       if (!key) return { error: { status: 502, code: 'LTI_SERVICE_ERROR', message: `The current public key is unavailable. Trace id: ${ctx.traceId}` } };
     }
     const document = {
-      title: `Cogniate (${ctx.libraryName})`,
+      title: toolName(ctx.libraryName),
       description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
       oidc_initiation_url: urls.login,
       target_link_uri: urls.launch,
-      scopes: [
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
-        'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-        'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
-      ],
+      // A2 LA-ADR-05 D4 (LA-IC-04): the channel's scope set, for both jwk forms.
+      scopes: [...manifest.capabilities['registration.scopes']],
       extensions: [{
-        domain: new URL(ctx.urls.lti).host,
+        domain: new URL(urls.ltiOrigin).host,
         tool_id: ctx.toolAccountId,
         platform: 'canvas.instructure.com',
         privacy_level: 'anonymous',

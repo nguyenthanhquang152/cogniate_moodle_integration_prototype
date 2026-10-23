@@ -5,7 +5,19 @@ Date: 2026-10-22. Orca Run: `run_06d07dc77faf`. Worktree: `ltiaas-milestone` (br
 The base charter `docs/team/charter.md` applies to milestone LA. This file adds rules for LA. When the two files conflict on LA work, this file wins.
 
 
-## 0. Model change (product owner, 2026-10-22 ~14:10 +07)
+## 0. Model change (product owner, 2026-10-22 ~14:10 +07; changed again 2026-10-22 18:25Z)
+
+**Current plan (product owner, 2026-10-22 18:25Z), for the remaining tasks:**
+
+| Work | Agent and model |
+| --- | --- |
+| Review and verification (Reviewer-A, Reviewer-B: task reviews, round checks, LD-9 list approvals) | Codex, GPT-6-Astra, xhigh (`--agent codex --model gpt-6-astra --effort xhigh`) |
+| QA and testing (lead QA, QA-2, QA-3, QA-4, QA-E2E) | Antigravity, Gemini 4 Argon, high |
+| Default: every other role (Lead planning, Architects A1 and A2, Author lanes K, P, R, S1, S2, L, L2, Docs) | Claude Code, Opus 5.5, xhigh |
+
+Transition: a dispatch that was already running when the plan changed finishes on its model. Every new dispatch (new task, fix round, review round) uses the current plan. A new Claude Author continues a lane from the files, commits and review files that the Codex Author left. Cross-model review stays: Claude Author work gets Codex reviewers; Codex Author work that is still open gets Codex reviewers for its next rounds (the Lead names the earlier Claude rounds in the brief).
+
+Earlier plan (2026-10-22 ~14:10 +07), kept for the record:
 
 The product owner changed the model plan for the rest of LA:
 
@@ -17,7 +29,7 @@ The product owner changed the model plan for the rest of LA:
 
 Routing rule (product owner, 2026-10-22): during the build, every spec, interface or design question from an Author or QA goes to the Architects (A1 for its files, A2 for its files) through the Lead; the Lead decides only process items (lanes, Docker slots, merge order, ownership requests that change no design). A Lead call made to keep a lane moving is provisional until the Architect ratifies it.
 
-New agents continue the work of the paused Claude workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Codex Author work always gets a cross-model review (Claude reviewers), and QA is independent of both. Docker: LA stays host-only until the Blackboard and Canvas run hands back Docker (incident record on the board); any LA Docker command before the handoff is a stop-the-line violation.
+New agents continue the work of the paused workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Review is always cross-model where the plan allows it, and QA is independent of both. Docker: the Blackboard and Canvas run released its host-only hold on LA at 2026-10-22 20:13Z (board incident record). From then, LA uses Docker only by an explicit Lead grant (DOCKER-YES) to one QA session at a time: one LA stack at a time, its own compose project prefix, port and subnet; never touch, stop or remove a container, network or volume that the grant did not create (the 32 volume records that existed at the release stay unchanged); remove only its own stack at the end. Authors stay host-only. A Docker command without a grant is a stop-the-line violation.
 
 ## 1. Agents and roles
 

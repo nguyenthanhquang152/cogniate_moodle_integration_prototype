@@ -17,6 +17,12 @@ export interface Platform {
   toolAccountId: string;
   issuer: string;
   clientId: string;
+  /** Extra launch audiences allowed by check 5; an empty list permits only the client id. */
+  trustedAudiences: string[];
+  /** The client assertion `aud` of a `{platformValue}` profile (LA-ADR-02 D2); null = the token URL. */
+  clientAssertionAud: string | null;
+  /** The scopes that the platform granted at Dynamic Registration; null = every requested scope (old rows). */
+  grantedScopes: string[] | null;
   name: string;
   authEndpoint: string;
   tokenEndpoint: string;
@@ -40,6 +46,7 @@ interface PlatformRow {
   id: string; tool_account_id: string; issuer: string; client_id: string; name: string; auth_endpoint: string;
   token_endpoint: string; jwks_url: string; product_family_code: string | null; active: number;
   profile: string; site_url: string | null; service_url: string | null; binding_ref: string | null;
+  trusted_audiences: string; client_assertion_aud: string | null; granted_scopes: string | null;
 }
 
 interface DeploymentRow { deployment_id: string; site_url: string | null; active: number; binding_generation: number; binding_ref: string | null; created_at: number | null }
@@ -58,6 +65,8 @@ function toPlatform(db: Db, r: PlatformRow): Platform {
   const deployments = deploymentsOf(db, r.id);
   return {
     id: r.id, toolAccountId: r.tool_account_id, issuer: r.issuer, clientId: r.client_id, name: r.name,
+    trustedAudiences: JSON.parse(r.trusted_audiences) as string[],
+    clientAssertionAud: r.client_assertion_aud, grantedScopes: r.granted_scopes === null ? null : JSON.parse(r.granted_scopes) as string[],
     authEndpoint: r.auth_endpoint, tokenEndpoint: r.token_endpoint, jwksUrl: r.jwks_url,
     productFamilyCode: r.product_family_code, active: r.active === 1, profile: r.profile, siteUrl: r.site_url, serviceUrl: r.service_url,
     bindingRef: r.binding_ref, deployments, deploymentIds: deployments.filter((d) => d.active).map((d) => d.deploymentId),
@@ -82,6 +91,9 @@ export interface NewPlatform {
   issuer: string; clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string;
   deploymentIds: string[]; active: boolean; productFamilyCode?: string | null;
   profile?: string; siteUrl?: string | null; serviceUrl?: string | null; bindingRef?: string | null;
+  trustedAudiences?: string[];
+  clientAssertionAud?: string | null;
+  grantedScopes?: string[] | null;
   /** A shared profile: at most one platform per (tool account, profile), checked in the same transaction. */
   shared?: boolean;
 }
@@ -104,9 +116,11 @@ export function createPlatform(db: Db, accountId: string, input: NewPlatform): P
     const id = `plt_${randomBytes(12).toString('base64url')}`;
     const now = Date.now();
     db.prepare(`INSERT INTO platform (id, tool_account_id, issuer, client_id, name, auth_endpoint, token_endpoint, jwks_url,
-                product_family_code, active, created_at, updated_at, profile, site_url, service_url, binding_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+                product_family_code, active, created_at, updated_at, profile, site_url, service_url, binding_ref, trusted_audiences,
+                client_assertion_aud, granted_scopes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(id, accountId, input.issuer, input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl,
-        input.productFamilyCode ?? null, input.active ? 1 : 0, now, now, profile, input.siteUrl ?? null, input.serviceUrl ?? null, input.bindingRef ?? null);
+        input.productFamilyCode ?? null, input.active ? 1 : 0, now, now, profile, input.siteUrl ?? null, input.serviceUrl ?? null, input.bindingRef ?? null,
+        JSON.stringify(input.trustedAudiences ?? []), input.clientAssertionAud ?? null, input.grantedScopes ? JSON.stringify(input.grantedScopes) : null);
     const add = db.prepare('INSERT OR IGNORE INTO deployment (platform_id, deployment_id, created_at) VALUES (?, ?, ?)');
     for (const d of input.deploymentIds) add.run(id, d, now);
     return getPlatform(db, accountId, id)!;
@@ -143,6 +157,7 @@ const refMatches = (stored: string | null, expected: RefCondition): boolean => e
 export interface PlatformPatch {
   name?: string;
   active?: boolean;
+  trustedAudiences?: string[];
   deploymentIds?: string[];
   bindingRef?: string;
   ifBindingRef?: RefCondition;
@@ -160,8 +175,9 @@ export function updatePlatform(db: Db, accountId: string, id: string, patch: Pla
     if (!current) return null;
     if (!refMatches(current.bindingRef, patch.ifBindingRef)) throw new BindingRefMismatchError('binding ref mismatch');
     const now = Date.now();
-    db.prepare('UPDATE platform SET name = ?, active = ?, binding_ref = ?, updated_at = ? WHERE id = ?')
-      .run(patch.name ?? current.name, (patch.active ?? current.active) ? 1 : 0, patch.bindingRef ?? current.bindingRef, now, id);
+    db.prepare('UPDATE platform SET name = ?, active = ?, binding_ref = ?, trusted_audiences = ?, updated_at = ? WHERE id = ?')
+      .run(patch.name ?? current.name, (patch.active ?? current.active) ? 1 : 0, patch.bindingRef ?? current.bindingRef,
+        JSON.stringify(patch.trustedAudiences ?? current.trustedAudiences), now, id);
     if (patch.deploymentIds) {
       const wanted = new Set(patch.deploymentIds);
       for (const d of current.deployments) {
@@ -202,13 +218,26 @@ export function applyRegistrationUpdate(
   db: Db,
   accountId: string,
   id: string,
-  input: { clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string; active: boolean; productFamilyCode: string | null; deploymentId: string },
+  input: {
+    clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string; active: boolean; productFamilyCode: string | null; deploymentId: string;
+    /** BD-A1-89: the credential set is written as one: the audience and the granted scopes too (null clears them). */
+    clientAssertionAud: string | null;
+    grantedScopes: string[] | null;
+    /** LA-ADR-05 D6: the site and service origins that a profile rule derived (null for an admin-value platform). */
+    siteUrl: string | null;
+    serviceUrl: string | null;
+    /** D5 item 10: the binding ref of a staged registration; null keeps the stored value. */
+    bindingRef?: string | null;
+  },
 ): Platform | null {
   return transaction(db, () => {
     if (!getPlatform(db, accountId, id)) return null;
     db.prepare(`UPDATE platform SET client_id = ?, name = ?, auth_endpoint = ?, token_endpoint = ?, jwks_url = ?, active = ?,
-      product_family_code = COALESCE(?, product_family_code), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
-      .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode, Date.now(), id, accountId);
+      product_family_code = COALESCE(?, product_family_code), client_assertion_aud = ?, granted_scopes = ?, site_url = ?, service_url = ?,
+      binding_ref = COALESCE(?, binding_ref), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
+      .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode,
+        input.clientAssertionAud, input.grantedScopes ? JSON.stringify(input.grantedScopes) : null, input.siteUrl, input.serviceUrl, input.bindingRef ?? null,
+        Date.now(), id, accountId);
     db.prepare('INSERT OR IGNORE INTO deployment (platform_id, deployment_id, created_at) VALUES (?, ?, ?)').run(id, input.deploymentId, Date.now());
     return getPlatform(db, accountId, id);
   });

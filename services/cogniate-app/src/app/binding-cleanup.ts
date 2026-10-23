@@ -15,6 +15,8 @@ import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 
 export type CleanupResult = 'fenced' | 'absent' | 'not_owned' | 'failed' | 'deleted' | 'kept_inactive';
+/** A refused release: the binding is still active, or a redemption may still run (stable audit codes). */
+export type ReleaseRefusal = 'binding_active' | 'redemption_running';
 
 export interface CleanupLine {
   platformId: string | null;
@@ -189,26 +191,30 @@ export function createBindingCleanup(deps: CleanupDeps) {
    * OWNED active record. Then per record: absent / not_owned / Moodle DELETE / Canvas conditional DELETE (`deleted`) /
    * Blackboard `kept_inactive`. Only when no line failed: delete ONLY this connection's reservation and approvals.
    */
-  async function release(c: Connection, traceId: string): Promise<{ ok: false; message: string } | { ok: true; lines: CleanupLine[]; failed: boolean }> {
-    if (c.status !== 'disabled') return { ok: false, message: 'binding still active; run suspend first' };
+  /**
+   * `code` names a refusal (the binding or a redemption still runs); null is an LTI read failure, not a refusal.
+   * `record` runs inside the transaction that deletes the local rows (the audit event of the command).
+   */
+  async function release(c: Connection, traceId: string, record?: () => void): Promise<{ ok: false; code: ReleaseRefusal | null; message: string } | { ok: true; lines: CleanupLine[]; failed: boolean }> {
+    if (c.status !== 'disabled') return { ok: false, code: 'binding_active', message: 'binding still active; run suspend first' };
     if (leaseLive(c, now())) {
       const wait = Math.ceil((c.redeemingSince! + 60_000 - now()) / 1000);
-      return { ok: false, message: `a redemption may still run; retry after ${wait} s` };
+      return { ok: false, code: 'redemption_running', message: `a redemption may still run; retry after ${wait} s` };
     }
     const records: RecordKey[] = c.bindingAuthority === 'self'
       ? (c.ltiPlatformId ? [{ kind: 'platform', platformId: c.ltiPlatformId, deploymentId: null }] : [])
       : fenceRecords(db, c);
-    const moodleOwned = (): boolean => true; // a Moodle connection owns its lti_platform_id (no refs)
-    const isOwned = (s: ReadState) => (c.bindingAuthority === 'self' ? moodleOwned() : owned(c, s.ref));
+    // A `self` connection owns its lti_platform_id (no refs).
+    const isOwned = (s: ReadState) => (c.bindingAuthority === 'self' ? true : owned(c, s.ref));
     const reads = new Map<string, ReadState | null>();
     for (const r of records) {
       let s: ReadState | null;
       try {
         s = await readRecord(r, traceId);
       } catch {
-        return { ok: false, message: 'the LTI service did not answer; run release again' };
+        return { ok: false, code: null, message: 'the LTI service did not answer; run release again' };
       }
-      if (s && isOwned(s) && s.active) return { ok: false, message: 'binding still active; run suspend first' };
+      if (s && isOwned(s) && s.active) return { ok: false, code: 'binding_active', message: 'binding still active; run suspend first' };
       reads.set(keyOf(r), s);
     }
     const lines: CleanupLine[] = [];
@@ -223,7 +229,7 @@ export function createBindingCleanup(deps: CleanupDeps) {
       log.warn('binding_released', { trace_id: traceId, connection_id: c.id, platform_id: line.platformId, deployment_id: line.deploymentId, result: line.result });
     }
     const failed = lines.some((l) => l.result === 'failed');
-    if (!failed) transaction(db, () => { deleteReservationOfConnection(db, c.id); deleteApprovalsOfConnection(db, c.id); });
+    if (!failed) transaction(db, () => { deleteReservationOfConnection(db, c.id); deleteApprovalsOfConnection(db, c.id); record?.(); });
     return { ok: true, lines, failed };
   }
 

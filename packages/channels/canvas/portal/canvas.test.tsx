@@ -11,6 +11,7 @@ import { CanvasBinding } from "./CanvasBinding.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
 import steps from "./steps.ts";
+import manifest from "../manifest.ts";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -182,11 +183,16 @@ it("keeps configuration actions unavailable when fetching fails and permits a re
 
 it("maps every specified provider repair code and site rule without exposing a submitted code", () => {
   const codes = ["INVALID_PLATFORM_VALUES", "GRANT_INVALID", "GRANT_MISMATCH", "GRANT_IN_USE", "PLATFORM_IN_USE", "DEPLOYMENT_IN_USE", "DEPLOYMENT_FIXED", "CONNECTION_NOT_PENDING", "PROVIDER_NOT_READY", "LTI_SERVICE_ERROR"];
-  for (const message of codes) expect(providerErrorMessage(new ApiError(422, { message }, "trace-123"))).toBeTruthy();
-  for (let rule = 1; rule <= 5; rule++) expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule }))).toBeTruthy();
+  for (const message of codes) expect(providerErrorMessage(new ApiError(422, { message }, "trace-123"), manifest)).toBeTruthy();
+  for (let rule = 1; rule <= 5; rule++) expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule }), manifest)).toBeTruthy();
   expect(providerErrorFields(new ApiError(422, { field: "siteUrl", fields: { deploymentId: "invalid" } }))).toEqual(["deploymentId", "siteUrl"]);
-  expect(providerErrorMessage(new ApiError(502, { message: "LTI_SERVICE_ERROR" }, "trace-123"))).toBe("Cogniate could not save the connection. Try again. Trace id: trace-123");
-  expect(providerErrorMessage(new ApiError(409, { message: "DEPLOYMENT_FIXED" }))).toBe("This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.");
+  expect(providerErrorMessage(new ApiError(502, { message: "LTI_SERVICE_ERROR" }, "trace-123"), manifest)).toBe("Cogniate could not save the connection. Try again. Trace id: trace-123");
+  // The Canvas texts come from its manifest texts.errors, byte for byte (BD-A1-63).
+  expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule: 1 }), manifest)).toBe("Enter only the address, for example https://school.instructure.com. No path.");
+  expect(providerErrorMessage(new ApiError(422, { message: "INVALID_SITE_URL", rule: 5 }), manifest)).toBe("This is an Instructure-hosted address. Choose an Instructure-hosted Canvas type.");
+  expect(providerErrorMessage(new ApiError(409, { message: "PLATFORM_IN_USE" }), manifest)).toBe("This Canvas developer key is already connected to Cogniate. Make a new developer key for this library.");
+  // Canvas has no own DEPLOYMENT_FIXED text: the generic text, not the Blackboard text (LA-IC-20).
+  expect(providerErrorMessage(new ApiError(409, { message: "DEPLOYMENT_FIXED" }), manifest)).toBe("This connection already reserved another deployment. Disconnect it, then make a new connection.");
 });
 
 it("keeps all pre-move instruction bytes from the manifest", () => {
@@ -206,4 +212,119 @@ it("keeps all pre-move instruction bytes from the manifest", () => {
   "Select Save & Publish. The assignment gets 100 points. Learners see it only when the course and the assignment are published.",
   "A learner must open the activity from Canvas. Learners are anonymous: Cogniate gets no names or emails."
 ]);
+});
+
+// LA-E3-16: Canvas Dynamic Registration in the portal. The developer key (manual) path does not change.
+const both: LmsProvider = { ...provider, methods: ["manual", "dynamic"] };
+const wizardProps = (overrides: object) => ({ provider: both, connection: null, libraryName: "School", opener: "canvas-connect", onCreated: vi.fn(), onChanged: vi.fn(), sdk: createPortalSdk(() => undefined), ...overrides });
+const staged = (fields: Partial<Connection> = {}): Connection => ({ ...connection, id: "con_dr", method: "dynamic", bindingAuthority: "operatorGrant", ...fields });
+const sha256 = async (text: string) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+// SHA-256 of the manual create step and of the pending manual steps (JSON and approval form), taken at 83d97aa,
+// before LA-E3-16 changed the Canvas portal files.
+const MANUAL_CREATE_DOM = "f76f793a7d692782446ed3573abaec4d4448b6bb17537cda0ac56986a5c4d776";
+const MANUAL_PENDING_DOM = "2126a87763a95a925671d3889a84350f2be7e4a81eb39d6fe666f307326fc8ac";
+
+it("AC-LA-E3-16-05: keeps the manual create and pending steps byte for byte (DOM snapshot before LA-E3-16)", async () => {
+  const create = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ provider }))));
+  expect(await sha256(create.container.innerHTML)).toBe(MANUAL_CREATE_DOM);
+  create.unmount();
+  // With both methods, the create step is the same DOM plus the method choice only.
+  const choice = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({}))));
+  choice.container.querySelector("fieldset")!.remove();
+  expect(await sha256(choice.container.innerHTML)).toBe(MANUAL_CREATE_DOM);
+  choice.unmount();
+  fetchMock.mockImplementation((url: string) => Promise.resolve(url.endsWith("/tool-configuration") ? json([{ key: "title", label: "Title", value: "Cogniate" }]) : new Response('{\n  "title": "Cogniate"\n}\n', { headers: { "x-cogniate-key-id": "key-1" } })));
+  const pending = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ provider, connection, opener: "canvas-manage" }))));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Download JSON" }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() => expect(document.querySelector('tr[data-key="title"]')).toBeTruthy());
+  expect(await sha256(pending.container.innerHTML)).toBe(MANUAL_PENDING_DOM);
+});
+
+it("AC-LA-E3-16-01: offers the manifest methods at create with the developer key selected, and sends the chosen method", async () => {
+  fetchMock.mockResolvedValue(json(connection));
+  const onCreated = vi.fn();
+  render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ onCreated }))));
+  const group = within(screen.getByRole("group", { name: "Connection method" }));
+  expect(group.getAllByRole("radio").map((radio) => [(radio as HTMLInputElement).value, (radio as HTMLInputElement).checked])).toEqual([["manual", true], ["dynamic", false]]);
+  expect(group.getByRole("radio", { name: /^Developer key/ })).toBeTruthy();
+  expect(group.getByText("Copy one registration URL into Canvas. Cogniate gets the Client ID and the Deployment ID.")).toBeTruthy();
+  field("Connection name", "School");
+  field("Canvas URL", "https://canvas.school.edu");
+  field("Canvas type", "canvas-sim-cloud");
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+  // The default sends today's body, byte for byte.
+  expect(fetchMock.mock.calls[0]![1].body).toBe(JSON.stringify({ lms: "canvas", method: "manual", name: "School", siteUrl: "https://canvas.school.edu", profile: "canvas-sim-cloud" }));
+  fireEvent.click(group.getByRole("radio", { name: /^Dynamic Registration/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(2));
+  expect(fetchMock.mock.calls[1]![1].body).toBe(JSON.stringify({ lms: "canvas", method: "dynamic", name: "School", siteUrl: "https://canvas.school.edu", profile: "canvas-sim-cloud" }));
+  cleanup();
+  // A manifest with only the developer key: no choice.
+  render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ provider }))));
+  expect(screen.queryByRole("group", { name: "Connection method" })).toBeNull();
+  expect(screen.queryByRole("radio")).toBeNull();
+});
+
+it("AC-LA-E3-16-02: shows the registration URL step instead of the developer key JSON for a pending dynamic connection", async () => {
+  const onChanged = vi.fn();
+  fetchMock.mockResolvedValue(json({ registrationUrl: "https://lti.test/register?ref=abc", expiresAt: "2026-10-24T05:00:00Z" }));
+  const view = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform: null }), onChanged }))));
+  expect(screen.getByRole("heading", { name: "Register Cogniate in Canvas" })).toBeTruthy();
+  expect([...document.querySelectorAll('[data-step-id="canvas-registration"] li')].map((item) => item.textContent)).toEqual([
+    "Copy the registration URL. If there is no URL, or the URL expired, select Get registration URL.",
+    "In Canvas, open Admin, select your account, then open Developer Keys.",
+    "Select + Developer Key, then + LTI Registration. Paste the registration URL and complete the steps in Canvas.",
+    "Come back to this page. When Canvas sends the registration, the next step shows the Client ID and the Deployment ID.",
+  ]);
+  expect(screen.queryByRole("heading", { name: "Make a developer key in Canvas" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Copy Registration URL" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Get registration URL" }));
+  await waitFor(() => expect(onChanged).toHaveBeenCalledWith({ ...staged({ platform: null }), registrationUrl: "https://lti.test/register?ref=abc", registrationUrlExpiresAt: "2026-10-24T05:00:00Z" }));
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(fetchMock.mock.calls[0]![0]).toBe("/app-api/connections/con_dr/registration-url");
+  expect(fetchMock.mock.calls[0]![1]).toMatchObject({ method: "POST" });
+  view.rerender(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: onChanged.mock.calls[0]![0], onChanged }))));
+  expect(screen.getByRole("button", { name: "Copy Registration URL" })).toBeTruthy();
+  expect(screen.getByText(`This URL expires ${new Date("2026-10-24T05:00:00Z").toLocaleString()}.`)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Get registration URL" })).toBeTruthy();
+  // No developer key JSON request at any time.
+  expect(fetchMock.mock.calls.some(([url]) => String(url).includes("canvas-configuration"))).toBe(false);
+});
+
+it("AC-LA-E3-16-02: shows the URL and its expiry at once when the create answer has the URL (BD-A1-106)", () => {
+  render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform: null, registrationUrl: "https://lti.test/register?ref=new", registrationUrlExpiresAt: "2026-10-24T06:00:00Z" }) }))));
+  expect(screen.getByRole("button", { name: "Copy Registration URL" })).toBeTruthy();
+  expect(screen.getByText(`This URL expires ${new Date("2026-10-24T06:00:00Z").toLocaleString()}.`)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Get registration URL" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Copy JSON" })).toBeNull();
+});
+
+it("AC-LA-E3-16-03: pre-fills the staged ids, keeps them editable, and waits without inputs before the platform is staged", async () => {
+  const waiting = render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform: null }) }))));
+  const step3 = () => document.querySelector('[data-step-id="canvas-approval"]')!;
+  expect(step3().textContent).toContain("Finish the registration in Canvas. Then this page shows the values to check.");
+  expect(step3().querySelectorAll("input")).toHaveLength(0);
+  waiting.unmount();
+  const platform = { id: "plt_dr", issuer: "https://canvas.instructure.com", clientId: "10000000000042", deploymentIds: ["42:abc", "43:def"], productFamilyCode: null, siteUrl: "https://canvas.school.edu", serviceUrl: "https://school.instructure.com" };
+  fetchMock.mockResolvedValue(json({ ...staged({ platform }), status: "registered" }));
+  const onChanged = vi.fn();
+  render(h(MemoryRouter, null, h(CanvasWizard, wizardProps({ connection: staged({ platform }), onChanged }))));
+  // B-LA-E3-16-01: a staged registration offers no renewal, and step 2 says what comes next.
+  const step2 = document.querySelector('[data-step-id="canvas-registration"]')!;
+  expect(screen.queryByRole("button", { name: "Get registration URL" })).toBeNull();
+  expect(step2.querySelector("ol")).toBeNull();
+  expect(step2.textContent).toContain("Canvas sent the registration. The registration URL is not necessary now. In the next step, check the Client ID and the Deployment ID. Then enter the approval code from your Cogniate operator and select Save.");
+  expect((screen.getByLabelText("Client ID") as HTMLInputElement).value).toBe("10000000000042");
+  expect((screen.getByLabelText("Deployment ID") as HTMLInputElement).value).toBe("42:abc");
+  expect((screen.getByLabelText("Approval code") as HTMLInputElement).value).toBe("");
+  field("Deployment ID", "43:def");
+  field("Approval code", "one-use-code");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  const [url, init] = fetchMock.mock.calls[0]!;
+  expect(url).toBe("/app-api/connections/con_dr/platform");
+  expect(init).toMatchObject({ method: "PUT" });
+  expect(JSON.parse(init.body as string)).toEqual({ clientId: "10000000000042", deploymentId: "43:def", grantCode: "one-use-code" });
 });

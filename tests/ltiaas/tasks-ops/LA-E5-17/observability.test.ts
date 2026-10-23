@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, it } from 'vitest';
@@ -36,6 +37,20 @@ const G1_GOLDEN_FILE = path.join(
 let cogniateKey = '';
 let qaPlatform: QaPlatform | null = null;
 
+function httpGet(url: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout: 15_000 }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString('utf8') });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error(`Timeout GET ${url}`)));
+    req.on('error', reject);
+  });
+}
+
 beforeAll(async () => {
   cogniateKey = apiKey(ACCOUNT);
   assert.ok(TENANT_KEY_RE.test(cogniateKey), 'cogniate API key format');
@@ -63,7 +78,7 @@ it('AC-LA-E5-17-01 GET http://lti-service:4110/metrics from the e2e container (a
   const launch = await postLaunch({ id_token: idToken, state: login.state }, login.cookie);
   assert.equal(launch.status, 303, 'LTI launch redirect');
 
-  const res = await httpsRequest(`${OPERATOR_URL}/metrics`);
+  const res = await httpGet(`${OPERATOR_URL}/metrics`);
   assert.equal(res.status, 200, 'GET http://lti-service:4110/metrics status is 200');
   const contentType = String(res.headers['content-type'] ?? '');
   assert.match(
@@ -77,6 +92,8 @@ it('AC-LA-E5-17-01 GET http://lti-service:4110/metrics from the e2e container (a
     'lti_rate_limited_total',
     'lti_launch_total',
     'lti_ready',
+    'lti_audit_events_total',
+    'lti_jwks_cache_age_seconds',
   ];
   for (const metricName of requiredMetrics) {
     assert.match(
@@ -86,6 +103,11 @@ it('AC-LA-E5-17-01 GET http://lti-service:4110/metrics from the e2e container (a
     );
   }
   assert.match(res.body, /(^|\n)lti_ready(?:\{[^}]*\})?\s+1(\.0+)?(\s|$)/, 'lti_ready gauge is 1');
+  assert.match(
+    res.body,
+    new RegExp(`(^|\\n)lti_jwks_cache_age_seconds\\{[^}]*platform_id="${qaPlatform.platformId}"[^}]*\\}`),
+    'BD-A2-54: lti_jwks_cache_age_seconds series present for active stored platform after JWKS fetch',
+  );
 });
 
 it('AC-LA-E5-17-02 GET https://lti.cogniate.test/metrics through the proxy gives 404', async () => {
@@ -101,7 +123,7 @@ it('AC-LA-E5-17-03 Public GET /readyz gives 200 {"status":"ready"} with no reaso
   assert.equal(Object.hasOwn(pubJson, 'reasons'), false, 'public GET /readyz has no reasons field');
 
   // Also check operator listener GET /readyz returns 200 with status: "ready".
-  const opRes = await httpsRequest(`${OPERATOR_URL}/readyz`);
+  const opRes = await httpGet(`${OPERATOR_URL}/readyz`);
   assert.equal(opRes.status, 200, 'operator GET http://lti-service:4110/readyz returns 200');
   const opJson = JSON.parse(opRes.body) as Record<string, unknown>;
   assert.equal(opJson.status, 'ready', 'operator GET /readyz status is ready');
@@ -184,6 +206,14 @@ it('AC-LA-E5-17-07 An http_request line for /lti/login/cogniate has tool_account
   const launch = await postLaunch({ id_token: token, state: login.state }, login.cookie);
   assert.equal(launch.status, 303, 'POST /lti/launch/cogniate returns 303');
 
+  // BD-A2-61: also send a request to an unknown path containing personal values; path must log as "<unmatched>"
+  // and the personal values in the raw URL must never reach the log.
+  const unmatchedRes = await httpsRequest(
+    `${urls.lti}/unknown-route/${enc(subMarker)}/${enc(emailMarker)}?name=${enc(nameMarker)}`,
+  );
+  assert.equal(unmatchedRes.status, 404, 'unknown route returns 404');
+  const unmatchedTraceId = String(unmatchedRes.headers['x-trace-id'] ?? '');
+
   // Wait briefly for JSONL log flush.
   await new Promise((r) => setTimeout(r, 600));
 
@@ -192,7 +222,9 @@ it('AC-LA-E5-17-07 An http_request line for /lti/login/cogniate has tool_account
     since,
     (e) =>
       e.event === 'http_request' &&
-      (e.trace_id === login.traceId || String(e.path ?? '').startsWith(`/lti/login/${ACCOUNT}`)),
+      (e.trace_id === login.traceId ||
+        e.path === '/lti/login/:account' ||
+        String(e.path ?? '').startsWith(`/lti/login/${ACCOUNT}`)),
   );
   assert.ok(loginLogs.length >= 1, 'found http_request log line for /lti/login/cogniate');
   const exactLoginLog = loginLogs.find((e) => e.trace_id === login.traceId) ?? loginLogs[0];
@@ -201,6 +233,21 @@ it('AC-LA-E5-17-07 An http_request line for /lti/login/cogniate has tool_account
     ACCOUNT,
     'http_request line for /lti/login/cogniate has tool_account_id: "cogniate"',
   );
+  assert.equal(
+    exactLoginLog.path,
+    '/lti/login/:account',
+    'BD-A2-61: http_request.path is the Fastify route template (/lti/login/:account), not the raw URL',
+  );
+
+  if (unmatchedTraceId) {
+    const unmatchedLog = eventsSince(
+      'lti-service',
+      since,
+      (e) => e.event === 'http_request' && e.trace_id === unmatchedTraceId,
+    )[0];
+    assert.ok(unmatchedLog, 'found http_request log line for unmatched 404 request');
+    assert.equal(unmatchedLog.path, '<unmatched>', 'BD-A2-61: unmatched 404 http_request.path is "<unmatched>"');
+  }
 
   // Check all recent lti-service log entries: no log field or value holds name, email, or sub.
   const recentLogs = eventsSince('lti-service', since);
@@ -215,7 +262,7 @@ it('AC-LA-E5-17-07 An http_request line for /lti/login/cogniate has tool_account
   }
 
   // Check /metrics: no metric label or value holds a name, e-mail or sub.
-  const metricsRes = await httpsRequest(`${OPERATOR_URL}/metrics`);
+  const metricsRes = await httpGet(`${OPERATOR_URL}/metrics`);
   assert.equal(metricsRes.status, 200, 'GET /metrics returns 200');
   assert.equal(metricsRes.body.includes(subMarker), false, '/metrics never contains learner sub value');
   assert.equal(metricsRes.body.includes(nameMarker), false, '/metrics never contains learner name value');

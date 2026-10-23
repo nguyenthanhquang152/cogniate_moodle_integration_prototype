@@ -50,6 +50,8 @@ async function executeProductionKnobRefusal() {
     'run',
     '--rm',
     '--no-deps',
+    '-u',
+    `${process.getuid()}:${process.getgid()}`,
     '-e',
     'STACK_PROFILE=production',
     '-e',
@@ -134,19 +136,21 @@ await r.main(async () => {
   const started = Date.now();
   if (!(await setup())) return;
   const passStart = Date.now();
-  const ctl = createHostControl({
-    controlDir: CONTROL,
-    handlers: {
-      'qa2-e521-production-knob': async (req) => {
-        if (!/^[\w-]{1,64}$/.test(String(req.id))) return { code: 2, configRefusedCount: 0, configRefusedEvents: [] };
-        return executeProductionKnobRefusal();
-      },
+  const ctl = createHostControl(r, {
+    'qa2-e521-production-knob': async (req) => {
+      if (!/^[\w-]{1,64}$/.test(String(req.id))) return { code: 2 };
+      const res = await executeProductionKnobRefusal();
+      const out = `out-qa2-e521-${req.id}.json`;
+      fs.writeFileSync(path.join(CONTROL(), out), JSON.stringify(res));
+      return { code: 0, out };
     },
   });
+  const stop = ctl.start();
   try {
     await r.containerSuite(TASK, { env: { QA_TASK: TASK } });
   } finally {
-    await ctl.stop();
+    const log = stop();
+    r.record('HOSTCTL', 'Host actions asked for by LA-E5-21 tests (qa2-e521-production-knob = QA form (f))', 'PASS', log.length ? log : ['none']);
   }
   r.timings.inContainerPassMs = Date.now() - passStart;
   recordRows(r, TASK, path.join(r.ART, `container-${TASK}`), EXPECT);

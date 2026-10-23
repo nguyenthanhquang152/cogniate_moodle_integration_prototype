@@ -5,19 +5,20 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LogLine } from '@cogniate/shared';
 import type * as Shared from '@cogniate/shared';
-import { PUBLIC_URL_ENV, createLogger, createOutboundClient, startService } from '@cogniate/shared';
+import { PUBLIC_URL_ENV, createLogger, createOutboundClient, legacyKeyRing, startService } from '@cogniate/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as kernel from '@cogniate/channel-kernel';
 import type { AppConfig } from '../config.ts';
 import type * as PackageStore from '../domain/package-store.ts';
-import { TEST_URLS } from '../testkit.ts';
+import { TEST_CHANNELS, TEST_URLS } from '../testkit.ts';
 import { CHANNEL_ROOT, buildAppChannelRegistry } from './registry.ts';
 
 // Execute main.ts and its real listener builder. Only the external resources are replaced.
 // Stop after the entire app builder returns, before a socket opens. Registry checks do not depend on
 // the order of client/worker construction in that builder, and all config fields have valid values.
 vi.mock('../config.ts', () => ({ loadConfig: () => config }));
-vi.mock('../domain/db.ts', () => ({ openDb: vi.fn(() => ({})) }));
+// An empty database: the start-time key check of LA-E5-22 (loadAppKeyProvider) finds no sealed value.
+vi.mock('../domain/db.ts', () => ({ openDb: vi.fn(() => ({ prepare: () => ({ iterate: () => [].values(), all: () => [] }) })) }));
 vi.mock('../domain/package-store.ts', async (importOriginal) => {
   const original = await importOriginal<typeof PackageStore>();
   return { ...original, prepareStore: vi.fn(async (dir: string) => original.storePaths(dir)) };
@@ -46,11 +47,14 @@ vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
   return { ...original, loadChannelFolders: vi.fn(original.loadChannelFolders) };
 });
 
+/** The product channel ids in registry order (the testkit registry loads the same constant root). */
+const PRODUCT_IDS = TEST_CHANNELS.channels().map((m) => m.id);
+
 const tempRoots: string[] = [];
 const startLines: LogLine[] = [];
 const config: AppConfig = {
   jobInstanceId: 'app-1', jobRunner: true,
-  urls: TEST_URLS, dataDir: tmpdir(), profile: 'default', masterKey: Buffer.alloc(32, 5),
+  urls: TEST_URLS, dataDir: tmpdir(), profile: 'default', masterKey: Buffer.alloc(32, 5), keyRing: legacyKeyRing(Buffer.alloc(32, 5)),
   ltiApiKeyFile: join(tmpdir(), 'app-registry-test-key'), ltiApiUrl: null,
   playerDir: join(tmpdir(), 'app-registry-test-player'), buildQueueDir: join(tmpdir(), 'app-registry-test-builds'),
 };
@@ -130,7 +134,11 @@ describe('AC-LA-E1-02-05: a failing load check stops the app start with one chan
   it('a valid extra root loads next to the product channels, and nothing is logged', async () => {
     const sink = logSink();
     const registry = await buildAppChannelRegistry([CHANNEL_ROOT, testRoot(testManifest())], createLogger({ service: 'cogniate-app', write: sink.write }));
-    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'zz-test']);
+    // Open world: the product channels (any number) in registry order, and the extra channel.
+    const ids = registry.channels().map((m) => m.id);
+    expect(ids.slice(0, 3)).toEqual(['moodle', 'canvas', 'blackboard']);
+    expect(ids.filter((id) => id !== 'zz-test')).toEqual(PRODUCT_IDS);
+    expect(ids).toContain('zz-test');
     expect(sink.lines).toEqual([]);
   });
 });
@@ -147,5 +155,7 @@ it('AC-LA-E1-02-06: the app start loads one constant root; no environment variab
   expect(createOutboundClient).toHaveBeenCalledOnce();
   expect(vi.mocked(kernel.loadChannelFolders).mock.calls).toEqual([[[CHANNEL_ROOT], 'app']]);
   const loaded = await vi.mocked(kernel.loadChannelFolders).mock.results[0]!.value;
-  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+  // Only the product channels (an open world list), never the channel of the extra root.
+  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(PRODUCT_IDS);
+  expect(PRODUCT_IDS).not.toContain('zz-test');
 });

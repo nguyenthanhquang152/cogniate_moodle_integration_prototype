@@ -161,8 +161,12 @@ test('LA-IC-16 (BD-A1-36): acceptance.ltiHealth.outbound_allowlist compares .sim
   assert.ok(repoSimHosts.length >= 8 && repoSimHosts.every((h) => h.endsWith('.sim.test')));
   const ic16Delta = loadExpectedDelta('LA-IC-16');
   assert.equal(ic16Delta.id, 'LA-IC-16');
+  assert.ok(Array.isArray(ic16Delta.ld9.scanChecked) && ic16Delta.ld9.scanChecked.length >= 6, 'LA-IC-16 scanChecked');
+  assert.equal(typeof ic16Delta.ld9.scanResult, 'string');
 
-  // 1. Candidate matching repo tests/sim/hosts.json (even with reversed .sim.test order) passes compareCaptures and diff.
+  // 1. Candidate matching repo tests/sim/hosts.json (even with reversed .sim.test order):
+  //    - fails compareCaptures when LA-IC-16 is NOT in expected (opt-in semantics: A-LA-LD9-01 / B-LD9-01);
+  //    - passes compareCaptures when [ic16Delta] IS in expected, and passes diff() directly.
   const cloneWithAllowlist = (allowlist) => {
     const c = structuredClone(base);
     c.G1.acceptance.ltiHealth.outbound_allowlist = allowlist;
@@ -171,12 +175,15 @@ test('LA-IC-16 (BD-A1-36): acceptance.ltiHealth.outbound_allowlist compares .sim
   const candRepoHosts = cloneWithAllowlist([...baseNonSim, ...[...repoSimHosts].reverse()]);
   assert.equal(checkAcceptanceOutboundAllowlist(baseAllowlist, candRepoHosts.G1.acceptance.ltiHealth.outbound_allowlist).ok, true);
   assert.deepEqual(diff(base.G1.acceptance.ltiHealth, candRepoHosts.G1.acceptance.ltiHealth, 'acceptance.ltiHealth'), []);
-  const resAuto = compareCaptures(base, candRepoHosts);
-  assert.equal(resAuto.ok, true);
-  assert.equal(resAuto.differences.length, 1);
-  assert.equal(resAuto.differences[0].explainedBy, 'LA-IC-16');
+  const resWithoutExpected = compareCaptures(base, candRepoHosts);
+  assert.equal(resWithoutExpected.ok, false, 'Without LA-IC-16 in expected, allowlist diff must not be auto-explained');
+  assert.equal(resWithoutExpected.differences.length, 1);
+  assert.equal(resWithoutExpected.differences[0].explainedBy, null);
+  assert.match(report(resWithoutExpected)[0], /^DIFF G1 acceptance\.ltiHealth\.outbound_allowlist \(changed\):/);
   const resExplicit = compareCaptures(base, candRepoHosts, [ic16Delta]);
   assert.equal(resExplicit.ok, true);
+  assert.equal(resExplicit.differences.length, 1);
+  assert.equal(resExplicit.differences[0].explainedBy, 'LA-IC-16');
   assert.deepEqual(resExplicit.missing, []);
 
   // 2. Adding a new .sim.test host in hosts.json and in acceptance.ltiHealth.outbound_allowlist passes (library + CLI).
@@ -258,24 +265,214 @@ test('LA-IC-16 (BD-A1-36): acceptance.ltiHealth.outbound_allowlist compares .sim
   }
 });
 
-test('LA-IC-12 (LA-E3-04 service part) and LA-IC-17 (BD-A1-41): expected-delta LD-9 records load cleanly with 0 golden and 0 frozen-test changes', () => {
+test('LA-IC-15 (LA-E4-03): G3 B-conflict score 409 lastError names the connection channel (Blackboard / Canvas) and fails without --expected LA-IC-15 or with wrong LMS text', () => {
   const base = load(baseDir);
-  for (const id of ['LA-IC-12', 'LA-IC-17']) {
+  const ic15Delta = loadExpectedDelta('LA-IC-15');
+  assert.equal(ic15Delta.id, 'LA-IC-15');
+  assert.equal(ic15Delta.changes.length, 2);
+  assert.deepEqual(ic15Delta.ld9.frozenTestsTouched, []);
+  assert.ok(Array.isArray(ic15Delta.ld9.scanChecked) && ic15Delta.ld9.scanChecked.length >= 8, 'LA-IC-15 scanChecked');
+
+  const cand = structuredClone(base);
+  cand.G3.blackboard.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Blackboard has a grade with a newer time)';
+  cand.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Canvas has a grade with a newer time)';
+
+  // Without LA-IC-15 in expected, compareCaptures fails on both G3 paths.
+  const resWithout = compareCaptures(base, cand);
+  assert.equal(resWithout.ok, false);
+  assert.equal(resWithout.differences.length, 2);
+  assert.ok(resWithout.differences.every((d) => d.explainedBy === null));
+
+  // With LA-IC-15 in expected, both G3 differences are explained and 0 expected changes are missing.
+  const resWith = compareCaptures(base, cand, [ic15Delta]);
+  assert.equal(resWith.ok, true);
+  assert.equal(resWith.differences.length, 2);
+  assert.ok(resWith.differences.every((d) => d.explainedBy === 'LA-IC-15'));
+  assert.deepEqual(resWith.missing, []);
+
+  // If one channel keeps the old Moodle text or uses the wrong channel name, LA-IC-15 fails.
+  const candPartial = structuredClone(cand);
+  candPartial.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    base.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError;
+  const resPartial = compareCaptures(base, candPartial, [ic15Delta]);
+  assert.equal(resPartial.ok, false);
+  assert.equal(resPartial.missing.length, 1);
+
+  const candWrongLms = structuredClone(cand);
+  candWrongLms.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Blackboard has a grade with a newer time)';
+  const resWrongLms = compareCaptures(base, candWrongLms, [ic15Delta]);
+  assert.equal(resWrongLms.ok, false);
+  assert.ok(resWrongLms.differences.some((d) => d.path.startsWith('canvas.') && d.explainedBy === null));
+
+  // CLI check with --expected LA-IC-15.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'golden-ic15-'));
+  try {
+    for (const f of FILES) fs.copyFileSync(path.join(baseDir, `${f}.json`), path.join(dir, `${f}.json`));
+    fs.writeFileSync(path.join(dir, 'G3.json'), JSON.stringify(cand.G3, null, 2));
+    const cliPass = spawnSync(
+      process.execPath,
+      [path.join(here, 'compare.mjs'), '--base', baseDir, '--candidate', dir, '--expected', 'LA-IC-15'],
+      { encoding: 'utf8' },
+    );
+    assert.equal(cliPass.status, 0, cliPass.stdout + cliPass.stderr);
+    assert.match(cliPass.stdout, /^EXPECTED G3 blackboard\.publications\.B-conflict\.results\[0\]\.scoreSyncs\[0\]\.lastError \(changed\): .* \[LA-IC-15\]$/m);
+    assert.match(cliPass.stdout, /^EXPECTED G3 canvas\.publications\.B-conflict\.results\[0\]\.scoreSyncs\[0\]\.lastError \(changed\): .* \[LA-IC-15\]$/m);
+    assert.match(cliPass.stdout, /^EQUAL: 2 differences \(0 not explained\), 0 expected changes missing; expected-delta files: LA-IC-15;/m);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12 (LA-E3-04), LA-IC-13 (LA-E3-12), LA-IC-14 (LA-E3-09/15), LA-IC-17 (BD-A1-41), LA-IC-18 (BD-A1-50), LA-IC-19 (BD-A1-57), LA-IC-20 (BD-A1-63/81), and LA-IC-21 (BD-A1-93): expected-delta LD-9 records load cleanly and explain their golden and frozen-test changes', () => {
+  const base = load(baseDir);
+  for (const id of ['LA-IC-03', 'LA-IC-13', 'LA-IC-17', 'LA-IC-18', 'LA-IC-19', 'LA-IC-20', 'LA-IC-21']) {
     const delta = loadExpectedDelta(id);
     assert.equal(delta.id, id);
     assert.deepEqual(delta.changes, []);
     assert.deepEqual(delta.ld9.goldenFields, []);
     assert.deepEqual(delta.ld9.frozenTestsTouched, []);
     assert.ok(Array.isArray(delta.ld9.scanChecked) && delta.ld9.scanChecked.length > 0, `${id} scanChecked`);
+    assert.equal(typeof delta.ld9.scanResult, 'string');
     const res = compareCaptures(base, base, [delta]);
     assert.equal(res.ok, true);
     assert.deepEqual(res.differences, []);
     assert.deepEqual(res.missing, []);
   }
+  const ic03 = loadExpectedDelta('LA-IC-03');
+  assert.equal(ic03.ld9.authorUnitTestChanges.length, 5);
+  assert.ok(ic03.ld9.scanChecked.length >= 10);
+  assert.ok(
+    ic03.ld9.qaTaskTestChanges.some((s) => s.includes('tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts')),
+  );
+  assert.ok(ic03.ld9.scanChecked.some((s) => s.includes('tests/acceptance/T3b/3-negative.spec.ts:32-70')));
   const ic12 = loadExpectedDelta('LA-IC-12');
   assert.equal(ic12.ld9.authorUnitTestChanges.length, 3);
-  assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
-    'G4.blackboard.pages.picker.text',
-    'G4.canvas.pages.picker.text',
-  ]);
+  if (ic12.changes.length === 0) {
+    assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
+      'G4.blackboard.pages.picker.text',
+      'G4.canvas.pages.picker.text',
+    ]);
+  } else {
+    assert.equal(ic12.changes.length, 2);
+    assert.deepEqual(ic12.ld9.goldenFields, [
+      'G4.blackboard.pages.picker.text',
+      'G4.canvas.pages.picker.text',
+    ]);
+  }
+  const ic13 = loadExpectedDelta('LA-IC-13');
+  assert.equal(ic13.ld9.authorUnitTestChanges.length, 6);
+  assert.ok(ic13.ld9.scanChecked.length >= 14);
+  assert.ok(ic13.ld9.scanChecked.some((s) => s.includes('T2b/qa-platform.test.ts:82-90') && s.includes('azp removed')));
+  const ic15 = loadExpectedDelta('LA-IC-15');
+  assert.ok(ic15.ld9.design.some((d) => d.includes('BD-A1-27')));
+  assert.ok(ic15.ld9.scanChecked.some((s) => s.includes('G3.json:363,1076')));
+  assert.ok(ic15.ld9.scanChecked.some((s) => s.includes('G4.json:121-136,312-327')));
+  assert.ok(ic15.ld9.scanChecked.some((s) => s.includes('05-publish-results.m2.ts:34-57')));
+  const ic17 = loadExpectedDelta('LA-IC-17');
+  assert.ok(ic17.ld9.scanChecked.some((s) => s.startsWith('tests/ltiaas/golden/capture.golden.ts:194-200')));
+  assert.ok(ic17.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/lib/qa-platform.ts:43')));
+  const ic18 = loadExpectedDelta('LA-IC-18');
+  assert.ok(ic18.ld9.scanChecked.includes('tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-35'));
+  assert.ok(ic18.ld9.scanChecked.includes('tests/e2e/M2/03-blackboard-wizard.m2.ts:37-110'));
+  const ic19 = loadExpectedDelta('LA-IC-19');
+  assert.equal(ic19.ld9.authorUnitTestChanges.length, 1);
+  assert.ok(ic19.ld9.scanChecked.length >= 10);
+  assert.ok(ic19.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/T5a/6-negative.spec.ts:75-84')));
+  const ic20 = loadExpectedDelta('LA-IC-20');
+  assert.equal(ic20.ld9.authorUnitTestChanges.length, 7);
+  assert.ok(ic20.ld9.scanChecked.length >= 10);
+  assert.ok(ic20.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/lib/portal.ts:176-181')));
+  assert.ok(ic20.ld9.scanResult.includes('ChannelErrorNotice'));
+  assert.ok(ic20.ld9.scanResult.includes('PLATFORM_IN_USE in moodle'));
+  const ic21 = loadExpectedDelta('LA-IC-21');
+  assert.equal(ic21.ld9.authorUnitTestChanges.length, 1);
+  assert.ok(ic21.ld9.scanChecked.length >= 10);
+  assert.ok(ic21.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/T3b/2-update.spec.ts:61-77')));
+
+  const ic04 = loadExpectedDelta('LA-IC-04');
+  assert.equal(ic04.id, 'LA-IC-04');
+  assert.equal(ic04.changes.length, 3);
+  assert.equal(ic04.ld9.goldenFields.length, 3);
+  assert.equal(ic04.ld9.frozenTestsTouched.length, 3);
+  assert.equal(ic04.ld9.authorUnitTestChanges.length, 4);
+  assert.ok(ic04.ld9.scanChecked.length >= 10);
+  assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120,154-163')));
+  assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/M1/common/00-profiles.test.ts:93-108')));
+  assert.ok(ic04.ld9.frozenTestsTouched.some((s) => s.includes('tests/acceptance/T4b1/1-connect.spec.ts:96-124')));
+  const cand04 = structuredClone(base);
+  cand04.G1.canvasConfiguration['jwk=inline'].scopes.pop();
+  cand04.G1.canvasConfiguration['jwk=url'].scopes.pop();
+  cand04.G1.toolConfiguration.moodle[12].value = 'Do not use this service';
+  const res04 = compareCaptures(base, cand04, [ic04]);
+  assert.equal(res04.ok, true);
+  assert.equal(res04.differences.length, 3);
+  assert.deepEqual(res04.missing, []);
+
+  const ic14 = loadExpectedDelta('LA-IC-14');
+  assert.equal(ic14.id, 'LA-IC-14');
+  assert.equal(ic14.changes.length, 13);
+  assert.equal(ic14.ld9.goldenFields.length, 13);
+  assert.equal(ic14.ld9.frozenTestsTouched.length, 3);
+  assert.equal(ic14.ld9.authorUnitTestChanges.length, 7);
+  assert.ok(ic14.ld9.scanChecked.length >= 9);
+  assert.ok(ic14.ld9.frozenTestsTouched.every((s) => s.includes('tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:')));
+  assert.ok(ic14.ld9.qaTaskTestChanges.some((s) => s.includes('tests/ltiaas/k0/contract.test.ts:596-605')));
+  const cand14 = structuredClone(base);
+  cand14.G1.acceptance.lmsProviders.lms[1].capabilities.dynamicRegistration = true;
+  cand14.G1.acceptance.lmsProviders.lms[1].methods.push('dynamic');
+  cand14.G1.default.lmsProviders.lms[1].capabilities.dynamicRegistration = true;
+  cand14.G1.default.lmsProviders.lms[1].methods.push('dynamic');
+  cand14.G1.lmsProvidersAfter.lms[1].capabilities.dynamicRegistration = true;
+  cand14.G1.lmsProvidersAfter.lms[1].methods.push('dynamic');
+  cand14.G1.connectionList.connections[0].capabilities.dynamicRegistration = true;
+  cand14.G1.connectionList.connections[1].capabilities.dynamicRegistration = true;
+  cand14.G1.connections['canvas-connected'].capabilities.dynamicRegistration = true;
+  cand14.G1.connections['canvas-disabled'].capabilities.dynamicRegistration = true;
+  cand14.G1.connections['canvas-pending'].capabilities.dynamicRegistration = true;
+  cand14.G1.connections['canvas-registered'].capabilities.dynamicRegistration = true;
+  cand14.G3.canvas.connection.capabilities.dynamicRegistration = true;
+  const res14 = compareCaptures(base, cand14, [ic14]);
+  assert.equal(res14.ok, true);
+  assert.equal(res14.differences.length, 13);
+  assert.deepEqual(res14.missing, []);
+
+  // Combined compare of all reviewed LD-9 expected deltas (LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21).
+  const allDeltas = ['LA-IC-03', 'LA-IC-04', 'LA-IC-12', 'LA-IC-13', 'LA-IC-14', 'LA-IC-15', 'LA-IC-16', 'LA-IC-17', 'LA-IC-18', 'LA-IC-19', 'LA-IC-20', 'LA-IC-21'].map((id) => loadExpectedDelta(id));
+  const candAll = structuredClone(base);
+  const baseNonSim = base.G1.acceptance.ltiHealth.outbound_allowlist.filter((h) => !h.endsWith('.sim.test'));
+  candAll.G1.acceptance.ltiHealth.outbound_allowlist = [...baseNonSim, ...loadSimAllowlist()];
+  candAll.G1.canvasConfiguration['jwk=inline'].scopes.pop();
+  candAll.G1.canvasConfiguration['jwk=url'].scopes.pop();
+  candAll.G1.toolConfiguration.moodle[12].value = 'Do not use this service';
+  candAll.G1.acceptance.lmsProviders.lms[1].capabilities.dynamicRegistration = true;
+  candAll.G1.acceptance.lmsProviders.lms[1].methods.push('dynamic');
+  candAll.G1.default.lmsProviders.lms[1].capabilities.dynamicRegistration = true;
+  candAll.G1.default.lmsProviders.lms[1].methods.push('dynamic');
+  candAll.G1.lmsProvidersAfter.lms[1].capabilities.dynamicRegistration = true;
+  candAll.G1.lmsProvidersAfter.lms[1].methods.push('dynamic');
+  candAll.G1.connectionList.connections[0].capabilities.dynamicRegistration = true;
+  candAll.G1.connectionList.connections[1].capabilities.dynamicRegistration = true;
+  candAll.G1.connections['canvas-connected'].capabilities.dynamicRegistration = true;
+  candAll.G1.connections['canvas-disabled'].capabilities.dynamicRegistration = true;
+  candAll.G1.connections['canvas-pending'].capabilities.dynamicRegistration = true;
+  candAll.G1.connections['canvas-registered'].capabilities.dynamicRegistration = true;
+  candAll.G3.canvas.connection.capabilities.dynamicRegistration = true;
+  candAll.G3.blackboard.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Blackboard has a grade with a newer time)';
+  candAll.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
+    '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Canvas has a grade with a newer time)';
+  for (const ch of ic12.changes) {
+    if (ch.file === 'G4' && ch.path === 'blackboard.pages.picker.text') {
+      candAll.G4.blackboard.pages.picker.text = ch.value;
+    } else if (ch.file === 'G4' && ch.path === 'canvas.pages.picker.text') {
+      candAll.G4.canvas.pages.picker.text = ch.value;
+    }
+  }
+  const resAll = compareCaptures(base, candAll, allDeltas);
+  assert.equal(resAll.ok, true);
+  assert.equal(resAll.differences.length, 19 + ic12.changes.length);
+  assert.deepEqual(resAll.missing, []);
 });

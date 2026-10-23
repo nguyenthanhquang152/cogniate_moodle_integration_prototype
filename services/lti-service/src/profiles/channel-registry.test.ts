@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import type { ChannelManifest, LoadedChannel } from '@cogniate/channel-kernel';
 import { PRIVACY_FLOOR_NONE_PROFILES, loadChannelFolders } from '@cogniate/channel-kernel';
 import { describe, expect, it } from 'vitest';
+import { createAccountResolver } from '../accounts/resolver.ts';
 import { CLAIM, check14ProductFamily } from '../lti/checks.ts';
 import { createPlatformKeys } from '../lti/jwks.ts';
 import { handleLaunch } from '../lti/launch.ts';
 import { initiateLogin } from '../lti/login.ts';
+import { getAccount } from '../store/accounts.ts';
 import { createPlatform, updatePlatform } from '../store/platforms.ts';
 import { CLIENT_ID, ISSUER, LAUNCH, URLS, capturingLogger, doLogin, harness, moodleClaims, sign } from '../testkit.ts';
 import { CHANNEL_ROOT, buildProfileRegistry, findProfile, listProfiles, lmsNameOf, lmsNameOfFamily, loadProfileRegistry, profileDefinition, profileEndpoints, profileOfFixedIssuer } from './index.ts';
@@ -18,11 +20,13 @@ const baselineCopy = () => structuredClone(baseline);
 const manifestOf = (entry: LoadedChannel) => entry.manifest as ChannelManifest;
 const standardEntry = (entries: LoadedChannel[]) => entries.find((entry) => manifestOf(entry).registration.some((method) => method.profiles.includes('standard')))!;
 const firstProfile = (entry: LoadedChannel) => entry.ltiProfiles![0] as Record<string, unknown>;
+const E2_TRAITS = ['issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'];
 
 function extraChannel(id: string): LoadedChannel {
   const entry = standardEntry(baselineCopy());
   const profile = { ...firstProfile(entry), id: `${id}-platform`, privacyFloor: 'allowlist', listOrder: 100 };
-  delete (profile as Record<string, unknown>).wireLms;
+  // A new channel: no frozen wire value, and the registry defaults for the E2 traits of the Moodle copy.
+  for (const field of ['wireLms', ...E2_TRAITS]) delete (profile as Record<string, unknown>)[field];
   return {
     folder: `/unit/${id}`,
     manifest: {
@@ -114,12 +118,20 @@ describe('profile load checks (AC-05 and load check 5)', () => {
   });
 });
 
-it('keeps every frozen provider-list lms value, including the explicit null', () => {
-  expect(listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms])).toEqual([
+const BASELINE_CHANNELS = ['moodle', 'canvas', 'blackboard'];
+
+it('keeps every frozen provider-list lms value, including the explicit null; a new profile shows its channel id', () => {
+  const rows = listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms]);
+  // Open world: the frozen baseline rows keep their values and order; the new profiles may be anywhere after them.
+  const channelOf = new Map(baseline.flatMap((entry) => entry.ltiProfiles!.map((p) => [(p as { id: string }).id, manifestOf(entry).id] as const)));
+  expect(rows.filter(([id]) => BASELINE_CHANNELS.includes(channelOf.get(id!)!))).toEqual([
     ['standard', null],
     ['canvas-cloud-production', 'canvas'], ['canvas-cloud-beta', 'canvas'], ['canvas-cloud-test', 'canvas'], ['canvas-self-hosted', 'canvas'],
     ['blackboard', 'blackboard'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
   ]);
+  const added = rows.filter(([id]) => !BASELINE_CHANNELS.includes(channelOf.get(id!)!));
+  expect(added).toContainEqual(['lti-generic', 'lti-generic']);
+  for (const [id, lms] of added) expect(lms, id!).toBe(channelOf.get(id!));
 });
 
 describe('new profile listOrder', () => {
@@ -134,18 +146,32 @@ describe('new profile listOrder', () => {
   it('orders new real profiles after the baseline, by listOrder and id, before every simulation', () => {
     const a = extraChannel('aa');
     const z = extraChannel('zz');
+    // A normal channel with a simulation profile, and a simulation-only channel (open world, N10).
     const simulation = extraChannel('xx');
     firstProfile(simulation).simulation = true;
-    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, a]);
-    expect(listProfiles({ registry, simulation: true }).map((p) => p.id)).toEqual([
-      'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
-      'aa-platform', 'zz-platform', 'blackboard-sim', 'canvas-sim-cloud', 'xx-platform',
-    ]);
+    const simulationOnly = extraChannel('yy');
+    (simulationOnly.manifest as { availability: string }).availability = 'simulation-only';
+    Object.assign(firstProfile(simulationOnly), { simulation: true, listOrder: 90 });
+    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, simulationOnly, a]);
+    const list = listProfiles({ registry, simulation: true });
+    const ids = list.map((p) => p.id);
+    // Open world: the product root may hold more new channels; the rule is checked, not a written-out list.
+    expect(ids.slice(0, 6)).toEqual(['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard']);
+    const added = list.slice(6).filter((p) => !p.simulation);
+    const byListOrder = [...added].sort((x, y) => x.listOrder - y.listOrder || (x.id < y.id ? -1 : 1));
+    expect(added.map((p) => p.id)).toEqual(byListOrder.map((p) => p.id));
+    expect(added.map((p) => p.id)).toEqual(expect.arrayContaining(['lti-generic', 'aa-platform', 'zz-platform']));
+    expect(list.slice(6 + added.length).every((p) => p.simulation)).toBe(true);
+    expect(ids.filter((id) => ['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform']);
     expect(findProfile('xx-platform', { registry, simulation: false })).toBeNull();
+    expect(findProfile('yy-platform', { registry, simulation: false })).toBeNull();
+    expect(listProfiles({ registry, simulation: false }).map((p) => p.id)).not.toContain('yy-platform');
   });
 
   it('derives the boundary from loaded baseline data', () => {
-    const entries = baselineCopy();
+    // A loaded new channel (lti-generic, ...) is not baseline data; keep only the baseline channels, so the raised
+    // boundary checks zz.
+    const entries = baselineCopy().filter((entry) => BASELINE_CHANNELS.includes(manifestOf(entry).id));
     firstProfile(standardEntry(entries)).listOrder = 200;
     const extra = extraChannel('zz');
     firstProfile(extra).listOrder = 200;
@@ -172,25 +198,26 @@ it('uses one registry context for profile lookups and login/launch text', async 
   expect(lmsNameOf(null, opts)).toBe('Test default');
   const h = await harness();
   try {
+    const resolver = createAccountResolver(h.db, URLS.lti);
     const params = { iss: 'https://zz.example.test', login_hint: '1', target_link_uri: LAUNCH, client_id: CLIENT_ID };
-    expect(initiateLogin(h.db, URLS, 'absent', params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
+    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
     for (const iss of [undefined, 'unreadable', 'https://unknown.example.test']) {
-      expect(initiateLogin(h.db, URLS, 'absent', { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
+      expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
     }
     const values = profileEndpoints(profile, {});
     const platform = createPlatform(h.db, 'cogniate', {
       issuer: values.issuer, authEndpoint: values.authenticationEndpoint, tokenEndpoint: values.accesstokenEndpoint, jwksUrl: values.jwksUrl,
       clientId: CLIENT_ID, name: 'Unit platform', active: false, deploymentIds: ['1'], profile: profile.id,
     });
-    expect(initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
+    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
     updatePlatform(h.db, 'cogniate', platform.id, { active: true });
-    const login = initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts);
+    const login = initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts);
     expect(login.ok).toBe(true);
     if (!login.ok) throw new Error('login must succeed');
     const result = await handleLaunch({
-      db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+      db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
       profiles: opts, logger: capturingLogger().logger,
-    }, 'cogniate', { state: new URL(login.location).searchParams.get('state'), error: 'access_denied' }, undefined, 'registry-unit');
+    }, getAccount(h.db, 'cogniate'), { state: new URL(login.location).searchParams.get('state'), error: 'access_denied' }, undefined, 'registry-unit');
     expect(result).toMatchObject({ ok: false, check: 'oidc_error', lms: 'ZZ' });
   } finally {
     await h.app.close();
@@ -223,9 +250,9 @@ describe('launch privacy floor (BD-A2-21)', () => {
         [CLAIM.toolPlatform]: { product_family_code: profile.productFamily ?? 'moodle' },
       }, Math.floor(h.clock.now / 1000));
       const result = await handleLaunch({
-        db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+        db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
         profiles: { simulation: true, registry }, logger: capturingLogger().logger,
-      }, 'cogniate', { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'privacy-unit');
+      }, getAccount(h.db, 'cogniate'), { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'privacy-unit');
       expect(result.ok).toBe(true);
       const stored = h.db.prepare('SELECT claims FROM launch').get() as { claims: string };
       const kept = JSON.parse(stored.claims) as Record<string, unknown>;
@@ -274,9 +301,9 @@ describe('manifest family guards (AC-03 and AC-04)', () => {
       const login = await doLogin(h, { iss: otherProfile ? platform.issuer : ISSUER });
       const claims = moodleClaims({ iss: platform.issuer, nonce: login.nonce, [CLAIM.toolPlatform]: { product_family_code: 'ZZ' } }, Math.floor(h.clock.now / 1000));
       const result = await handleLaunch({
-        db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+        db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
         profiles: { simulation: true, registry }, logger,
-      }, 'cogniate', { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'guard-unit');
+      }, getAccount(h.db, 'cogniate'), { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'guard-unit');
       const stored = h.db.prepare('SELECT claims FROM launch').all();
       if (otherProfile) {
         expect(result.ok).toBe(true);

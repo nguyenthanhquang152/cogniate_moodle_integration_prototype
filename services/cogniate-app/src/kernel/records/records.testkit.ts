@@ -8,6 +8,12 @@ import { createAppJobStore } from './job-store.ts';
 import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { createDispatchQueue, type DispatchItem } from './outbox.ts';
 import { upsertPlacement } from './placements.ts';
+import type { RecordReporter } from './types.ts';
+
+/** A reporter with the lti-ags policy and log names, one fixed partition and the given transport. */
+export function testReporter(deliver: RecordReporter['deliver'], partition = 'fixture-platform'): RecordReporter {
+  return { ...ltiAgsPolicy, partitionKey: () => partition, deliver };
+}
 
 export function seedBase(db: Db): void {
   db.exec(`INSERT INTO library (id, name, created_at) VALUES ('lib', 'Library', 0);
@@ -60,11 +66,11 @@ export function recordsFixture(): QueueStoreFixture & { db: Db } {
   return {
     db, confirmationDelayMs: 5000,
     store: () => createAppJobStore(open()),
-    queueJob: (send) => createDispatchQueue(open(), [{ ...ltiAgsPolicy, async deliver(row, ctx) {
+    queueJob: (send) => createDispatchQueue(open(), [testReporter(async (row, ctx) => {
       if (ctx.beginSend() !== 'started') return null;
       await send(row.id);
       return { kind: 'accepted' };
-    } }]) as QueueJob<unknown>,
+    })]) as QueueJob<unknown>,
     itemId: (item) => (item as DispatchItem).id,
     addRow(row) {
       if (!keys.has(row.key)) {

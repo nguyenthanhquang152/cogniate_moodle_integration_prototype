@@ -4,8 +4,8 @@ import type { LtiToolKey } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import { createConnection } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
-import type { ChannelId as LmsType } from '../kernel/ports.ts';
-import { testSetupOf as providerOf } from '../testkit.ts';
+import type { ChannelId } from '../kernel/ports.ts';
+import { testSetupOf } from '../testkit.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, testApp } from '../testkit.ts';
 
@@ -14,12 +14,12 @@ let cookie: string;
 beforeEach(async () => { t = await testApp(); cookie = await t.login(THANH); });
 afterEach(async () => { vi.restoreAllMocks(); await t?.app.close(); });
 
-function connection(lms: LmsType = 'canvas', libraryName = THANH.library, profile = 'canvas-cloud-production') {
+function connection(lms: ChannelId = 'canvas', libraryName = THANH.library, profile = 'canvas-cloud-production') {
   const library = ensureLibrary(t.db, libraryName, t.clock.now);
   return createConnection(t.db, library.id, {
     name: 'School', siteUrl: 'https://school.example.test', serviceUrl: 'https://school.instructure.com',
     method: 'manual', channel: lms, profile: lms === 'canvas' ? profile : lms === 'moodle' ? 'standard' : 'blackboard',
-  }, null, t.clock.now, TEST_CHANNELS, providerOf(lms)!.sharingOf);
+  }, null, t.clock.now, TEST_CHANNELS, testSetupOf(lms)!.sharingOf);
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/canvas-configuration`;
 const get = (path: string) => t.app.inject({ method: 'GET', url: path, headers: { cookie, 'x-trace-id': 'canvas-export-trace-123' } });
@@ -31,12 +31,12 @@ function expectedExport() {
     description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
     oidc_initiation_url: `${TEST_URLS.lti}/lti/login/cogniate`,
     target_link_uri: launch,
+    // LA-E3-07 (LA-IC-04): the four AGS scopes, no NRPS scope.
     scopes: [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     extensions: [{
       domain: 'lti.cogniate.test', tool_id: 'cogniate', platform: 'canvas.instructure.com', privacy_level: 'anonymous',

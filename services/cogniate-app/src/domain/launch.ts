@@ -43,7 +43,8 @@ export interface ResourceLinkInput {
   contextTitle: string;
   title: string;
   lineItemId: string | null;
-  serviceKeyEncrypted: Uint8Array | null;
+  /** LA-E5-22: seals the LTI service key for the row id (associated data binds it to the row); null = no new key. */
+  sealServiceKey: ((resourceLinkId: string) => Uint8Array) | null;
 }
 
 export interface ResourceLinkResult {
@@ -67,7 +68,7 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
       db.prepare(`INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title,
         line_item_id, service_key_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, input.connectionId, input.publicationId, input.deploymentId, input.contextId, input.resourceLinkId, input.contextTitle, input.title,
-          input.lineItemId, input.serviceKeyEncrypted, now, now);
+          input.lineItemId, input.sealServiceKey?.(id) ?? null, now, now);
       upsertPlacement(db, id);
       return { id, created: true, rebound: null };
     }
@@ -75,7 +76,7 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
     const from = String(existing.publication_id);
     db.prepare(`UPDATE resource_link SET publication_id = ?, context_title = ?, title = ?, line_item_id = COALESCE(?, line_item_id),
       service_key_encrypted = COALESCE(?, service_key_encrypted), updated_at = ? WHERE id = ?`)
-      .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.serviceKeyEncrypted, now, id);
+      .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.sealServiceKey?.(id) ?? null, now, id);
     upsertPlacement(db, id);
     return { id, created: false, rebound: from === input.publicationId ? null : { from, to: input.publicationId } };
   });
@@ -83,12 +84,13 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
 
 /**
  * Publication stats that T4b2 can count (app contract §5): activities = resource links bound to the publication plus
- * picks not yet seen in a launch; learners = distinct non-preview users with an attempt on this course through this
- * connection. Outcome counts and lastScoreSync come with T5a.
+ * picks not yet seen in a launch (picker_pick, one row per picked publication: LA-ADR-05 D3b, data model §5b);
+ * learners = distinct non-preview users with an attempt on this course through this connection. Outcome counts and
+ * lastScoreSync come with T5a.
  */
 export function launchStats(db: Db, p: { id: string; connectionId: string; courseId: string }): { activities: number; learners: number } {
   const links = Number(db.prepare('SELECT COUNT(*) AS n FROM resource_link WHERE publication_id = ?').get(p.id)?.n ?? 0);
-  const picks = Number(db.prepare('SELECT COUNT(*) AS n FROM picker_session WHERE publication_id = ? AND used_at IS NOT NULL AND resource_link_id IS NULL').get(p.id)?.n ?? 0);
+  const picks = Number(db.prepare('SELECT COUNT(*) AS n FROM picker_pick WHERE publication_id = ? AND resource_link_id IS NULL').get(p.id)?.n ?? 0);
   const learners = Number(db.prepare(`SELECT COUNT(DISTINCT a.user_sub) AS n FROM attempt a JOIN course_version v ON v.id = a.course_version_id
     JOIN resource_link rl ON rl.id = a.resource_link_id WHERE rl.connection_id = ? AND v.course_id = ? AND a.preview = 0`).get(p.connectionId, p.courseId)?.n ?? 0);
   return { activities: links + picks, learners };

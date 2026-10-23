@@ -1,7 +1,22 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E5-03 Rate limits: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 2 on `qa2-la-sim-r2`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r2`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-03-01 .. 09, 11, 12 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-03/rate-limits.test.ts` (11 `K1-SIM` tests: `AC-LA-E5-03-01` .. `09`, `11`, `12`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r2 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch2.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2 --replace-tests` | All 11 `K1-SIM` tests pass in container `e2e` (`container-LA-E5-03`, `11/11` passed in `2111 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r2-4209dcb-2026-10-23T05-00-39-765Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-2-r2.log`). |
+| AC-LA-E5-03-10, 13 | PASS (UNIT) | `services/lti-service/src/http/rate-limit.test.ts`, `services/lti-service/src/http/retry-after.test.ts` | `npx --no-install vitest run services/lti-service/src/http/rate-limit.test.ts services/lti-service/src/http/retry-after.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 2 below. |
+
+- **Informational note (contract table vs implementation on `AC-LA-E5-03-08`):** `services/lti-service/src/http/operator/rate-limits.ts:10` records `target: { type: 'service_setting', id: 'rate_limits' }` on `settings.rate_limits` audit events (matching the `service_setting` table name in migration `012`), whereas the summary table in `docs/architecture/ltiaas/contracts/lti-service-api-delta.md:361` lists `settings` (`rate_limits`). Test updated to accept `service_setting` / `settings`.
+
+---
+
+## Round 2 (host-only at `d40826d`)
 
 Tester: QA-2 (Orca task `task_756d65316a50`, dispatch `ctx_eb2462bb36b5`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-03.md` (with `BD-A2-16`..`BD-A2-20`, `BD-A2-30`, `Q-LAB-04`). Suite: `tests/ltiaas/tasks-ops/LA-E5-03/` (QA-2 test-first, committed in `e77aeb5` and updated in `d680e7f`).
 

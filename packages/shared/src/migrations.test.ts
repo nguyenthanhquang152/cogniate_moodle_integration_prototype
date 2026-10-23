@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it, vi } from 'vitest';
-import { MigrationChangedError, openSqlite, transaction } from './migrations.ts';
+import { MigrationChangedError, afterCommit, openSqlite, transaction } from './migrations.ts';
 
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
 
@@ -190,5 +190,97 @@ describe('transaction (nested calls use a SAVEPOINT)', () => {
     })).toThrow('outer');
     expect(values(db)).toEqual([]);
     expect(db.isTransaction).toBe(false);
+  });
+});
+
+describe('afterCommit (BD-A2-60: run after the outermost COMMIT, drop on rollback)', () => {
+  const values = (db: DatabaseSync) => db.prepare('SELECT v FROM t ORDER BY v').all().map((r) => r.v);
+  const table = () => {
+    const db = openSqlite(':memory:', tmp('mig-'));
+    db.exec('CREATE TABLE t (v INTEGER)');
+    return db;
+  };
+
+  it('runs at once in autocommit, and after COMMIT (not before) inside a transaction', () => {
+    const db = table();
+    const seen: string[] = [];
+    afterCommit(db, () => seen.push('autocommit'));
+    transaction(db, () => {
+      afterCommit(db, () => seen.push(`committed ${db.isTransaction}`));
+      seen.push('in transaction');
+    });
+    expect(seen).toEqual(['autocommit', 'in transaction', 'committed false']);
+    db.close();
+  });
+
+  it('keeps a released savepoint callback for the outer COMMIT, and drops a rolled-back savepoint callback', () => {
+    const db = table();
+    const seen: string[] = [];
+    transaction(db, () => {
+      transaction(db, () => { afterCommit(db, () => seen.push('released')); });
+      expect(() => transaction(db, () => { afterCommit(db, () => seen.push('rolled back')); throw new Error('inner'); })).toThrow('inner');
+      expect(seen).toEqual([]);
+    });
+    expect(seen).toEqual(['released']);
+    db.close();
+  });
+
+  it('drops every callback when the outer transaction rolls back, also one of a released savepoint', () => {
+    const db = table();
+    const seen: string[] = [];
+    expect(() => transaction(db, () => {
+      afterCommit(db, () => seen.push('outer'));
+      transaction(db, () => { afterCommit(db, () => seen.push('released')); });
+      throw new Error('outer');
+    })).toThrow('outer');
+    transaction(db, () => {});
+    expect(seen).toEqual([]);
+    db.close();
+  });
+
+  it('drops the callbacks when COMMIT itself fails', () => {
+    const db = table();
+    const seen: string[] = [];
+    const exec = db.exec.bind(db);
+    const spy = vi.spyOn(db, 'exec').mockImplementation((sql) => { if (sql === 'COMMIT') throw new Error('commit failed'); exec(sql); });
+    try {
+      expect(() => transaction(db, () => { afterCommit(db, () => seen.push('lost')); })).toThrow('commit failed');
+    } finally { spy.mockRestore(); }
+    expect(seen).toEqual([]);
+    expect(db.isTransaction).toBe(false);
+    db.close();
+  });
+
+  it('BD-A2-74: inside a transaction opened with raw SQL, transaction() and afterCommit() throw before any write', () => {
+    const db = table();
+    const seen: string[] = [];
+    let ran = false;
+    for (const end of ['ROLLBACK', 'COMMIT']) {
+      db.exec('BEGIN IMMEDIATE');
+      expect(() => transaction(db, () => { ran = true; db.exec('INSERT INTO t VALUES (1)'); })).toThrow(new TypeError('transaction opened outside transaction()'));
+      expect(() => afterCommit(db, () => seen.push(end))).toThrow(new TypeError('transaction opened outside transaction()'));
+      expect(db.isTransaction).toBe(true);
+      db.exec(end);
+    }
+    expect([ran, seen, values(db)]).toEqual([false, [], []]);
+    // Autocommit and helper scopes work as before after the raw transaction ended.
+    afterCommit(db, () => seen.push('autocommit'));
+    transaction(db, () => { afterCommit(db, () => seen.push('committed')); });
+    expect(seen).toEqual(['autocommit', 'committed']);
+    db.close();
+  });
+
+  it('a failing callback changes neither the commit nor the result, and the next callback still runs', () => {
+    const db = table();
+    const seen: string[] = [];
+    expect(transaction(db, () => {
+      db.exec('INSERT INTO t VALUES (1)');
+      afterCommit(db, () => { throw new Error('observer failed'); });
+      afterCommit(db, () => seen.push('next'));
+      return 'result';
+    })).toBe('result');
+    expect(seen).toEqual(['next']);
+    expect(db.prepare('SELECT v FROM t').all().map((r) => r.v)).toEqual([1]);
+    db.close();
   });
 });

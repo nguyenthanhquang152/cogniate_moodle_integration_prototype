@@ -7,7 +7,7 @@ import multipart from '@fastify/multipart';
 import type { Limits } from '@cogniate/package-inspector';
 import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
 import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import { ApiErrorBase, redactPath } from '@cogniate/shared';
+import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
@@ -103,8 +103,8 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     reply.header('x-content-type-options', 'nosniff');
   });
   app.addHook('onResponse', async (req, reply) => {
-    // Route pattern (no ids, no query); a request without a route logs the redacted path.
-    const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');
+    // BD-A1-62 (app API delta §8): the route template (no ids, no query), or "<unmatched>"; never the raw path.
+    const path = req.routeOptions.url ?? '<unmatched>';
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', {
       trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime),
     });
@@ -126,7 +126,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   }));
 
   // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
-  const engine = createRedemptionEngine({ channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
+  const engine = createRedemptionEngine({ urls: deps.urls, channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
   const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
@@ -172,7 +172,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);
   registerPlayPages(app, { ...pageDeps, playerDir: deps.playerDir });
-  registerPortal(app, { db: deps.db, now });
+  registerPortal(app, { channels: deps.channels, db: deps.db, now });
 
   return app;
 }

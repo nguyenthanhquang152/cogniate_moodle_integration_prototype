@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import type { LtiProviderProfile } from '../clients/lti-client.ts';
 import type { TestApp } from '../testkit.ts';
-import { THANH, testApp } from '../testkit.ts';
+import { TEST_CHANNELS, THANH, testApp } from '../testkit.ts';
 
 let t: TestApp;
 afterEach(async () => {
@@ -16,7 +16,7 @@ const unknownProfile: LtiProviderProfile = {
   siteUrlOn: 'platform', serviceUrl: false, simulation: false, sharedPlatform: null,
 };
 
-it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order; the app logs it once', async () => {
+it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep their values and order (every new channel follows: open world); the app logs it once', async () => {
   t = await testApp();
   t.lti.addSharedPlatform('blackboard-sim', 'qa-bb-app');
   const cookie = await t.login(THANH);
@@ -26,7 +26,9 @@ it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep th
     return r.body;
   };
   const baseline = await list();
-  expect((JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+  const ids = (JSON.parse(baseline) as { lms: Array<{ lms: string }> }).lms.map((e) => e.lms);
+  expect(ids.slice(0, 3)).toEqual(['moodle', 'canvas', 'blackboard']);
+  expect(ids).toEqual(TEST_CHANNELS.channels().filter((m) => m.availability !== 'simulation-only').map((m) => m.id));
   // The unknown row comes between two known rows, so a change of order would show.
   t.lti.providers.splice(1, 0, unknownProfile);
   expect(await list()).toBe(baseline);
@@ -77,4 +79,19 @@ it('BD-A1-35: malformed binding values and origin failures keep both frozen desc
     accessTokenEndpoint: 'https://other.test/token', jwksUrl: 'https://school.test/keys' });
   expect(origin.statusCode).toBe(422);
   expect(origin.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', description: 'The URLs must be https and on the Moodle site of this connection.', fields: ['accessTokenEndpoint'] } });
+});
+
+it('LA-IC-17: a strict manual body refuses an unknown key with 422 and details.fields', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const created = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school.test', method: 'manual' } });
+  const id = created.json<{ id: string }>().id;
+  t.lti.calls.length = 0;
+  const refused = await t.app.inject({ method: 'PUT', url: `/app-api/connections/${id}/platform`, headers: t.writeHeaders(cookie),
+    payload: { issuer: 'https://school.test', clientId: 'c', deploymentId: 'd', authenticationEndpoint: 'https://school.test/auth',
+      accessTokenEndpoint: 'https://school.test/token', jwksUrl: 'https://school.test/keys', label: 'unexpected' } });
+  expect(refused.statusCode).toBe(422);
+  expect(refused.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', fields: ['label'] } });
+  expect(t.lti.calls).toEqual([]);
 });

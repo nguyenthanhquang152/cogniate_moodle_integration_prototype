@@ -1,4 +1,4 @@
-import { MANUAL_SELF_LEGACY_CHANNELS, type ChannelRegistry } from '@cogniate/channel-kernel';
+import { familyGuardVerdict, STANDARD_PROFILE_ID, type ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import type { LtiIdToken } from '../clients/lti-client.ts';
 import type { Connection } from '../domain/connections.ts';
@@ -31,15 +31,12 @@ export function checkLaunchConnection(db: Db, token: LtiIdToken, channels: Chann
     return { ok: false, code: 'UNKNOWN_PLATFORM', reason: 'site_mismatch',
       fields: { expected_site: c.siteUrl, launch_site: site, expected_service: c.serviceUrl, launch_service: service } };
   }
-  const profileChannel = channels.channelOfProfile(token.platform.profile ?? 'standard');
-  const familyName = token.platform.productFamilyCode?.toLowerCase();
-  const owner = familyName ? channels.ownerOfFamily(familyName) : null;
-  const guard = owner ? channels.channel(owner)?.lti?.guardedFamilies.find((g) => g.family.toLowerCase() === familyName) : undefined;
-  const wrongFamily = owner !== null && owner !== profileChannel;
-  if (profileChannel !== c.channel || (wrongFamily && (guard?.level === 'launch' || (guard?.level === 'registration' && MANUAL_SELF_LEGACY_CHANNELS.includes(profileChannel ?? ''))))) {
+  const profileChannel = channels.channelOfProfile(token.platform.profile ?? STANDARD_PROFILE_ID);
+  const verdict = familyGuardVerdict(channels, token.platform.productFamilyCode, profileChannel, 'launch');
+  if (profileChannel !== c.channel || verdict.kind === 'refuse') {
     return { ok: false, code: 'UNKNOWN_PLATFORM', reason: 'lms_mismatch', fields: { connection_lms: c.channel, family: token.platform.productFamilyCode ?? null } };
   }
-  if (wrongFamily && guard?.level === 'registration') logger?.info('family_guard_mismatch', { trace_id: traceId, platform_id: token.platform.id, family: familyName });
+  if (verdict.kind === 'log') logger?.info('family_guard_mismatch', { trace_id: traceId, platform_id: token.platform.id, family: verdict.family });
   return { ok: true, connection: c, site: c.siteUrl };
 }
 

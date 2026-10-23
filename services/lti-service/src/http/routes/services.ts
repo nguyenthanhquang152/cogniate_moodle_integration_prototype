@@ -4,6 +4,7 @@
 // `:lineItemId` is a URL-encoded URL: buildApp sets maxParamLength 2048.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import { parseScore } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
 import { checkServiceKeyWriteScope } from '../auth.ts';
@@ -30,9 +31,10 @@ const defined = <T extends Obj>(o: T): T => Object.fromEntries(Object.entries(o)
 type ItemParams = { Params: { lineItemId: string } };
 export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const traceOf = (req: FastifyRequest): string => req.traceId ?? '';
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
   app.post('/api/deeplinking', async (req) => {
     const caller = ctx.auth(req, ['ltik']);
-    return signedDeepLink(ctx, caller, req.body);
+    return signedDeepLink(ctx, resolver, caller, req.body);
   });
 
   app.get('/api/lineitems', async (req) => {

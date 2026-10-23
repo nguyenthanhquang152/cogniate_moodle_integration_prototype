@@ -1,7 +1,62 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-05 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Diff: `git diff 19059aa d40826d -- tests/sim tests/e2e/ltiaas docs/reviews/LA-E7-05/qa.md`. That is the QA-E2E fix rounds 2 and 3 (`d2166d7`, `d40826d`), and the range has no other `tests/sim` work. I did not open any reviewer-a file. I did not run Docker.
+
+Round-2 counts: **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (new).** All six round-1 findings are closed.
+
+### How I checked (round 2)
+
+- Scratch clone of `d40826d` (private `/tmp` folder, `--no-hardlinks`; deleted after the run).
+  - `node --test tests/sim/core/*.test.mjs tests/sim/*/protocol.test.mjs`: **56 of 58 passed**. The 2 failures are not LA-E7-05 work; see "Other observation".
+  - All LA-E7-05 self-tests pass, and so does the new README sync test.
+- Mutation: I deleted the `allowNullScore` row from the README table, and the README sync test failed.
+- Probe (a temporary test with the generic fixture, deleted after the run):
+  - P1, misspelt and removed names:
+    - `scoreAnswer` → `Unknown scenario option "scoreAnswer" (did you mean "scoreAnswers"?)`;
+    - `acceptMultple` → the same message, with "did you mean "acceptMultiple"?";
+    - `dr.tokenFromat` → `Unknown scenario dr option "dr.tokenFromat" (did you mean "dr.tokenFormat"?)`;
+    - the removed aliases `platformStorage` and `adminRole` are refused.
+  - P2, the round-1 leak case: scenario A has `secondKey` and scenario B is posted later. The JWKS has **1** key. After an auth request for A, it has 2 keys, and A's token `kid` is in it.
+  - P3: `GET /any/prefix/lti/jwks.json` is not served (`null`).
+- I searched `tests/ltiaas`, `tests/e2e` and `tests/sim` for every removed alias. No consumer uses one.
+
+### Round-1 findings
+
+| Id | Round-1 severity | Status | Evidence |
+| --- | --- | --- | --- |
+| B-LA-E7-05-01 | MAJOR | Closed | `runtime.mjs` has one list per level: `SCENARIO_OPTIONS` (41), `DR_OPTIONS` (14), and `LEGACY_SCENARIO_ALIASES` (7, each kept only for the frozen LA-E5-14 suite, and the README table names it). `scenario()` refuses every unknown key and suggests the closest name (probe P1). The README has one table per list, with type, default, scope and effect, plus the return shape, the answer object, the query parameters and the reserved Bearer values. A self-test keeps the three README tables equal to the three code lists (my mutation made it fail). |
+| B-LA-E7-05-02 | MINOR | Closed | `secondKey`, `jwksKeys` and `storageTarget` now follow the provider's *active* scenario, or `?scenario=<id>`. The README marks their scope. Probe P2 shows no leak from an older scenario. See the new NIT B-LA-E7-05-07 for the wording of "active". |
+| B-LA-E7-05-03 | MINOR | Closed | Cancel is opt-in: `dlAllowCancel` defaults to `false`, so an empty response gives `DL item count` as before. `matchesEndpointPath` (`provider.mjs:36-47`) matches only the exact path, or the issuer-path prefix of a scenario (probe P3). qa.md round 3 also records the byte-equal default record keys (A-LA-E7-02-04). |
+| B-LA-E7-05-04 | MINOR | Closed | One `answerOf` and one `nextAnswer` in `runtime.mjs` serve the token, NRPS and score answers, and `persistent` works on all three. DR is now `core/dr.mjs` (221 lines) and storage is `core/storage.mjs` (127 lines). `provider.mjs` is down from 716 to 409 lines. |
+| B-LA-E7-05-05 | NIT | Closed | The page script has no local store. Every operation goes to `/__storage` and is recorded. |
+| B-LA-E7-05-06 | NIT | Closed | The labels say what was expected, for example `DL item type must be ltiResourceLink`, `DL item lineItem.scoreMaximum must be 100`, `DR application_type must be "web"`, and `DR bearer token must equal scenario.registration.registrationToken`. |
+
+### New finding
+
+#### B-LA-E7-05-07 — NIT — The README does not define "active scenario", and the round-1 AC table in qa.md still names removed aliases
+
+- **File:** `tests/sim/README.md:60` (it says only that a re-post "marks it as the active scenario"), `:108-110` (scope "active scenario (or `?scenario=<id>`)"); `tests/sim/core/provider.mjs:121` (an auth request also sets the active scenario); `docs/reviews/LA-E7-05/qa.md`, the Round 1 AC rows for AC-05..07 (`nrpsMembers`, `platformStorage: true`, `useSecondKey`, `adminRole`, `tokenError`).
+- **Problem:**
+  - The JWKS and `/__frame` follow the active scenario, because the product fetches them without `?scenario=`. The code sets the active scenario on a POST **and** on each auth request (`login_hint`). The README names only the POST. So a test author cannot predict which key set the product sees between two launches.
+  - A reader who copies an option name from the qa.md round-1 evidence table now gets `400 Unknown scenario option`.
+- **Suggested fix:** Add one sentence to the README: "The active scenario of a provider is the scenario of its latest POST or latest auth request; `?scenario=<id>` overrides it." Add a line under qa.md round 3: "Round-1 alias names (`nrpsMembers`, `platformStorage`, `useSecondKey`, `adminRole`, `tokenError`) were removed in round 3. Use the README tables."
+
+### Other observation (not an LA-E7-05 finding; for the Lead)
+
+At the integration commit `d40826d`, `node --test tests/sim/core/loading.test.mjs` has **2 failures**:
+- "accepts and merges repeated alias and allowlist host inside one entry" (`:126`);
+- the shared table test "loadHostManifest and infra/scripts/lib.sh agree on shared hosts.json table cases" (`:76`).
+
+The table case comes from `19059aa` (LA-E7-02 round 3). It expects a repeated host to be merged. A1 BD-A1-53 changed the rule: one strict rule, and a repeated host is refused by both readers. `lib.sh` now refuses it (S1), but the case and the simulator loader still expect a merge. qa.md round 3 records 58/58 at `7623e61` on `la-qa`, which is before that change. This is the QA-E2E part of BD-A1-53, not LA-E7-05 work. But until it lands, the integration tree has two red simulator self-tests.
+
+## Round 1
+
+Round-1 verdict: CHANGES_REQUESTED.
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff 0e65ab1^ 0e65ab1 -- tests/sim docs/reviews/LA-E7-05/qa.md`. I review only the LA-E7-05 parts; the LA-E7-02 round-2 fixes in the same commit are out of scope. Spec: `docs/architecture/ltiaas/tasks/LA-E7-05.md`. Design: TEST-STRATEGY §2.8; LA-ADR-02 D7; LA-ADR-05 D1, D3, D4; LA-ADR-08. I did not open any reviewer-a file. I did not run Docker.
 

@@ -1,15 +1,9 @@
 // Browser DTOs follow docs/architecture/contracts/cogniate-app-api.md. No service imports.
-import type { BindingAuthority, CapabilitySet, ChannelManifest } from "@cogniate/channel-kernel";
+import type { BindingAuthority, CapabilitySet, ChannelManifest, LegacyCapabilities, LegacyPublicationFields } from "@cogniate/channel-kernel";
 
 export type Lms = string;
-export interface LmsCapabilities {
-  dynamicRegistration: boolean;
-  operatorApproval: boolean;
-  webServices: boolean;
-  courseShell: boolean;
-  addDeployment: boolean;
-  canvasConfiguration: boolean;
-}
+/** The six M1 capability flags; the frozen names come from the kernel (BD-A1-64). */
+export type LmsCapabilities = LegacyCapabilities;
 export interface LmsProfile {
   id: string;
   label: string;
@@ -167,7 +161,8 @@ export interface MbzBuild {
   finishedAt: string | null;
   downloadUrl: string | null;
 }
-export interface Publication {
+/** The frozen extension fields (moodleCourse, shellStatus, shellError) come from the kernel (BD-A1-64). */
+export interface Publication extends LegacyPublicationFields {
   id: string;
   lms: Lms;
   connectionName: string;
@@ -180,9 +175,6 @@ export interface Publication {
   status: "available" | "withdrawn";
   createdAt: string;
   updatedAt: string;
-  moodleCourse: { id: number; idnumber: string; url: string } | null;
-  shellStatus: "created" | "exists" | "failed" | null;
-  shellError: string | null;
   stats: {
     activities: number;
     learners: number;
@@ -243,6 +235,8 @@ export interface ErrorDetails {
   fields?: Record<string, string> | string[];
   field?: string;
   rule?: number;
+  /** A specific cause of a refusal, for example "staged_gone" (BD-A1-102). The portal then keeps the server description. */
+  reason?: string;
   capability?: keyof LmsCapabilities;
   reasons?: RejectReason[];
   traceId?: string;

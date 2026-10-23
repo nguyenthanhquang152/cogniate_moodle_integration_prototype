@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 4
 
 # LA-E7-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -117,3 +117,52 @@ Round: 2
 
 - For LA-E7-05: the JWKS route now also serves any path that ends with the configured path (`provider.mjs:663`, `path.endsWith(config.jwks.path)`). Also, the key set (`publicKeys`) changes for every scenario of a provider while any one of its scenarios asks for a second key. No M1 test checks a wrong JWKS path today. Both items need a look in the LA-E7-05 review.
 - Every scenario now makes a registration token and adds it to `/__sim/secrets`. The token goes nowhere unless a DR flow runs, so the end-of-run leak scan only gets more values to look for.
+
+## Round 3
+
+- Reviewer: Reviewer-A2 (same session), lens A. Date: 2026-10-23.
+- Diff: `git show 19059aa` (QA-E2E round-3 fixes: `tests/sim/server.mjs`, `tests/sim/core/loading.test.mjs`, `tests/sim/README.md`, qa.md). The Lead moved A-LA-E7-02-04 to the LA-E7-05 review, and I closed it there (LA-E7-05 round 2).
+- References: README §4b (BD-A1-01 v1.1, and BD-A1-53, recorded later in `6c806c1`); A1 BD-A1-53.
+- I ran on the host (no Docker), in throwaway `git archive` copies (`tests/sim` and `infra`):
+  - At `19059aa`: the simulator self-tests give 56/56, as qa.md says.
+  - At `d40826d` (the integration head for this dispatch): 58 tests, 56 pass. The shared table case "accepts and merges repeated alias and allowlist host inside one entry" fails, so its parent test fails too.
+  - The `19059aa` tests with the `d40826d` `lib.sh`: the same case fails. Run alone, `lib.sh` exits 1 with "providers[0] (id "dup-in-entry-sim") repeats alias "a.dup.sim.test"; each alias must occur once in the file."
+- Blind review as before.
+- **Verdict (round 3): CHANGES_REQUESTED.** -01 to -03 were closed in round 2, and -04 is closed in LA-E7-05. New: **1 BLOCKER (A-LA-E7-02-05), 0 MAJOR, 0 MINOR, 0 NIT.** The `19059aa` commit itself was right under the rule of its time. This BLOCKER comes from a later ruling, and the fix is the QA-E2E work item of that ruling.
+
+### `19059aa` (lens A)
+
+| Change | Result |
+| --- | --- |
+| Host rule `isSimHost` | Each host must be a string of at most 253 characters, end in `.sim.test`, not be `lms-sim.test`, and have only DNS labels `^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`. So `sim.test`, an empty label, a label that starts or ends with `-`, `_`, upper case and labels longer than 63 characters are refused. The same rule now checks the module host lists in `loadProviders`. |
+| Providers | A blank `id` is refused, and a host in two providers is still refused. `providers: []` is accepted, and README §4b does not list it as a bad file. A missing file fails at `readFileSync`, so it is a bad file, as §4b "No file" says. |
+| Error texts | The startup errors now name the exact host difference and the unloaded manifest id. They show only host names and ids. |
+| Shared table test | 27 cases run both `loadHostManifest` and `lib.sh` (`require_sim_hosts acceptance`, with a fake `docker` and a scratch folder), and each case asserts both results and that they agree. The test does not touch the shared stack. |
+
+### New finding
+
+- **A-LA-E7-02-05 (BLOCKER): after BD-A1-53, the simulator loader still accepts a host repeated inside one entry, so the two readers disagree and the shared table test fails at the integration head.**
+  - Where: `tests/sim/server.mjs` (`loadHostManifest`). In `19059aa` the `aliasSet.has(host)` and `allowSet.has(host)` refusals were removed, and the lists are merged (`entry.aliases = [...aliasSet]`). Also `tests/sim/core/loading.test.mjs:126-133`, the case "accepts and merges repeated alias and allowlist host inside one entry", with expected `true`.
+  - Problem:
+    - `19059aa` matched the rule of its time: BD-A1-01 v1.1 let `lib.sh` merge a repeated host.
+    - Then A1 BD-A1-53 (`6c806c1`) changed the rule: "a repeated host is refused by both". Its work list names QA-E2E: "the loader refuses a host repeated inside one list, if not yet". S1 made the `lib.sh` part in `6ae0ebe`.
+    - So at `d40826d`, `lib.sh` refuses this file and the simulator loader accepts it, and the shared table case fails (56/58).
+    - qa.md still says 56/56 and "27/27 agree", which held in the QA tree (`7623e61`) before the `lib.sh` change.
+  - Required outcome: README §4b, row "Bad file (both readers; BD-A1-53)": "a host that appears twice … The infra (`infra/scripts/lib.sh`) and the simulator loader accept and refuse the same files; one shared table test (QA-E2E) proves it". Row "Host names": "Each host appears at most once in all `aliases` of the file (inside one list and across providers), and each `allowlist` entry appears once".
+  - Risk today: low at run time. The committed `hosts.json` has no repeated host, and `stack:up` runs `lib.sh` before the simulator starts. But a required control of this task fails, and the simulator self-test suite is red at the integration head.
+  - Suggested fix (QA-E2E, the BD-A1-53 work item):
+    - In `loadHostManifest`, refuse a host that repeats inside one `aliases` list or one `allowlist`, as before `19059aa`.
+    - Change the table case to "refuses repeated alias and allowlist host inside one entry", with expected `false`. Remove the merge lines.
+    - Run the shared table test against the current `lib.sh`, and update the qa.md counts.
+
+## Round 4
+
+Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed the LA-E7-02 part of `1babba9` against the task spec, README §4b, BD-A1-53 and plan §6.1. Blind review; no Reviewer-B file read.
+
+**Verdict: APPROVE. Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+- **A-LA-E7-02-05 closed.** `loadHostManifest` now refuses a repeated alias and a repeated allowlist host before returning the manifest. Both errors name the host and provider; the old merge assignments are removed. The table now expects refusal, and separate assertions exercise each duplicate check. README and the round-four QA record match the new rule.
+- Private clone at `d768eec`: all **58 simulator self-tests pass**, including all **27 shared table cases** against the checkout's current `infra/scripts/lib.sh`. Two extra private table cases isolate alias-only and allowlist-only repetition; both readers refuse both (29/29 cases agree). The shell test substitutes a fake `docker` executable and sources only the manifest reader; it starts no stack.
+- Restoring `1babba9^`'s loader in the private clone fails the changed repeated-host table case. Removing either new guard separately also fails its explicit assertion. All temporary edits were restored; logs are under `/tmp/la-review-a-e702-ic20.ewzZy1/`.
+- The fix changes only invalid-manifest handling; the committed manifest and provider defaults are unchanged. No infra, product or frozen M1/M2 file changes in this fix. Earlier findings remain closed or transferred as recorded in round three. The companion LA-E7-05 changes in the batch are outside this item.
+- Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used. The task's K1-SIM ACs and live M1/M2 regression still need QA evidence; these host checks do not claim that gate.

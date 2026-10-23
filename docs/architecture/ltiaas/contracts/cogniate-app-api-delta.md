@@ -65,7 +65,7 @@ Example (`lti-generic`, registered by an operator grant):
 | Moodle | unchanged (base §4) |
 | Canvas, Blackboard | unchanged (base §4.2) |
 
-The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)).
+The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)). Every `method: dynamic` create issues a registration ref, whatever the method's authority, so the answer has `registrationUrl` (BD-A1-106; before: only the `self` branch, so a Canvas `dynamic` create answered `registrationUrl: null`).
 
 ### 3.2 `POST /app-api/connections/:id/registration-url`
 
@@ -82,6 +82,8 @@ New channels (`key` stable; `label` is human text):
 | `lti-generic` | `tool_name`, `login_url` (`{PUBLIC_LTI_URL}/lti/login/cogniate`), `redirect_uri` and `target_link_uri` (`{PUBLIC_LTI_URL}/lti/launch/cogniate`), `jwks_url` (`{PUBLIC_LTI_URL}/lti/keys/cogniate`), `deep_linking_url` (same as the redirect URI), `scopes` (the channel scope set), `privacy` ("Do not send the learner's name or e-mail.") |
 | `brightspace` | `tool_name`, `domain` (host of `PUBLIC_LTI_URL`), `redirect_urls`, `openid_connect_login_url`, `target_link_uri`, `keyset_url`, `extensions` ("Assignment and Grade Services, Deep Linking"), `roles` ("Send institution role"), `privacy` ("Do not send name or e-mail."). The labels follow the D2L "Register Tool" form; they are UNVERIFIED until a live check (R2-2, LA-H3). |
 
+The kernel admin-value adapter builds these rows: the generic set when the manifest has no `setup.toolRows`, else the manifest rows with the kernel placeholders filled (`brightspace`, LA-E2-05; the field and its fill are E2-K work, BD-A1-78, BD-A1-94).
+
 ### 3.4 `PUT /app-api/connections/:id/platform`
 
 | Channel | Strict body | LTI step |
@@ -97,6 +99,11 @@ New and changed answers:
 | A bound value differs from the grant (`bound_values`) | `422 GRANT_MISMATCH` (base check 5, extended); `details.fields` names each differing field, so the portal can show it (Reviewer-B B-LAD-15) |
 | The LTI service answers `PLATFORM_URL_NOT_IN_PROFILE` or `INVALID_SITE_URL` | `422 INVALID_PLATFORM_VALUES` with the field name, or `422 INVALID_SITE_URL` |
 | A finalized repeat (same `clientId`, `deploymentId` and bound values) | `200`, nothing changes (base rule) |
+| Staged redemption: the staged platform's admin values differ from the grant's bound values (changed after the grant was issued) | `422 GRANT_MISMATCH` with `details.fields`; log `grant_rejected` with reason `mismatch` (BD-A1-97) |
+| Staged redemption of a connection with fixed endpoints (Canvas `dynamic`, BD-A1-107) | the grant has no bound values (an admin-value binding is typed admin values, or a staged registration of an admin-value channel); body `{ clientId, deploymentId, grantCode }`; the target is the normal fixed target (snapshot issuer, the connection's site and service URLs); no S1 create; S2 adopts the staged platform only when its profile, client id, deployment, issuer, site URL and service URL match (rule A3); S3 activates it |
+| Staged redemption: the staged platform is gone | `409 PLATFORM_IN_USE` (existing code; the description says that the staged registration is gone and to make a new connection) (BD-A1-97), with `details.reason: "staged_gone"` (BD-A1-102). Portal rule: a refusal with one of the five `texts.errors` codes that has `details.reason` names a specific cause, so the portal shows the server description unchanged (no channel or generic text). Today only this case has it; no baseline answer has `details.reason` on these codes |
+| Disconnect or release of a staged connection that was never redeemed | the inactive staged platform in the LTI service is not changed (it stays inactive and cannot launch) (BD-A1-97) |
+| Grant redemption (not staged), every `operatorGrant` channel with an exclusive platform: the LTI service has the platform already, and S2 finds no record that the adoption rule adopts (base §4.7.1) | `409 PLATFORM_IN_USE`; the description is the channel's `texts.registration.PLATFORM_IN_USE` with `{LMS}` filled, else the core default "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator." The Canvas manifest holds today's sentence ("This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."), so the Canvas bytes do not change; `lti-generic` and `brightspace` get the core default (BD-A1-101). The portal notice is a separate text (`texts.errors.PLATFORM_IN_USE`, else the portal generic text). The staged-platform-gone case above keeps its own description (`da423f9`) |
 
 ### 3.5 `POST /app-api/connections/:id/deployments`
 
@@ -134,7 +141,7 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 | LMS check | the profile's channel must equal the connection's channel; a signed family guarded at the `launch` level must belong to the connection's channel (Canvas and Blackboard, as M1); a `registration`-level guard refuses a launch only on a platform of a `MANUAL_SELF_LEGACY_CHANNELS` channel (Moodle `standard`; A-LAD-19), else it only logs `family_guard_mismatch` ([LA-ADR-01 D6](../adr/LA-ADR-01-channel-kernel.md#decision)); log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
 | Content item `window` | when `launch.windowHint` is true and the platform accepts `window` (base: every non-Moodle LMS) |
 | Embedded page script | when `launch.topLevelContinue` is true (base: Canvas) |
-| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant` |
+| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant`. A connection whose `dynamic` method has authority `operatorGrant` (Canvas) keeps it from the create; only a staged answer is accepted, and an active answer gives `REGISTRATION_FAILED` (the new platform is switched off when no connection owns it; the connection stays `pending`), so the register page never gives launch authority to an `operatorGrant` connection (BD-A1-106). Site check (BD-A1-107): for a connection whose profile has a fixed issuer (the create stored the snapshot issuer; Canvas), the confirm step compares the registration's issuer with the snapshot issuer, not the site; after `complete`, the staged platform's site URL (the LTI service takes it from the configuration URL origin, BD-A2-89) must equal the connection's site URL, else page `SITE_MISMATCH`, nothing changes on the connection (its link still works), and the inactive platform stays inactive. Other channels keep the site check of the confirm step |
 | Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
 | Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
 | Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
@@ -171,6 +178,37 @@ The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not
 | `app:audit list` (new, read-only) | `npm run app:audit -w services/cogniate-app -- list [--connection <id>] [--action <a>] [--since <ISO>] [--limit <n ≤ 500>]`: one JSON line per app audit event, newest first, never the note text; it writes no event (A2 LA-ADR-07 D4) |
 | Every write command | one `audit_event` row, also for a refused run on a known grant or connection; `details` holds `evidence_channel`, `evidence_ref`, `note_present` ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
 
+Refused-event codes (A2 BD-A2-64; A1 BD-A1-67; LA-E5-12). A write command that refuses after it has resolved its grant or connection writes one `audit_event` with `result: refused` and one of these stable `code` values. An unknown target, a usage error, an LTI outage or an operator-policy refusal writes no event. The printed CLI lines do not change. A new code needs a new row here.
+
+| Code | Command | Cause |
+| --- | --- | --- |
+| `ttl_invalid` | `app:grant issue` | `--ttl-seconds` is not 60 to 604800 |
+| `note_invalid` | `app:grant issue`; `app:binding suspend`, `release` | `--note` is empty or longer than 500 characters |
+| `id_invalid` | `app:grant issue` | `--client-id` or `--deployment-id` is not 1 to 255 printable ASCII characters |
+| `library_mismatch` | `app:grant issue` | `--library` is not the library of the connection |
+| `authority_not_operator_grant` | `app:grant issue` | the connection's binding authority is not `operatorGrant` |
+| `connection_not_pending` | `app:grant issue` | an `initial` grant for a connection that is not `pending` |
+| `add_deployment_not_allowed` | `app:grant issue` | an `add_deployment` grant for a connection that is not registered or connected, or whose channel has no `deployments.multiple` |
+| `site_mismatch` | `app:grant issue` | `--site` is not the site URL of the connection |
+| `service_url_not_allowed` | `app:grant issue` | `--service-url` (other than the site URL) for a profile without a service URL |
+| `service_url_mismatch` | `app:grant issue` | `--service-url` is not the service URL of the connection |
+| `client_id_mismatch` | `app:grant issue` | `--client-id` is not the client id of the connection's platform (`add_deployment`), of the shared platform, or of the staged platform (staged registration) |
+| `snapshot_missing` | `app:grant issue` | the connection has no provider snapshot |
+| `profile_changed` | `app:grant issue` | the connection's profile changed after the connection was made |
+| `platform_inactive` | `app:grant issue` | the shared platform of a shared profile is missing or inactive |
+| `platform_changed` | `app:grant issue` | the profile is no longer shared, or its shared platform changed |
+| `deployment_fixed` | `app:grant issue` | the connection already holds a reservation for another deployment |
+| `grant_redeemed` | `app:grant revoke` | the grant was already redeemed |
+| `binding_active` | `app:binding release` | the connection is not disabled (run `suspend` first) |
+| `redemption_running` | `app:binding release` | a redemption may still run (retry later) |
+| `bound_values_missing` | `app:grant issue` | an admin-value connection with no staged platform, and a required bound-value flag (`--issuer`, `--auth-url`, `--token-url`, `--jwks-url`) is missing; or a staged connection without `--accept-staged` (LA-ADR-02 D6) |
+| `bound_values_not_allowed` | `app:grant issue` | a bound-value flag for a grant that is not the initial grant of an admin-value connection, or for a staged connection (its values come from the staged platform); also `--accept-staged` for a staged connection with fixed endpoints (Canvas), which binds no values (BD-A1-107) |
+| `bound_value_invalid` | `app:grant issue` | a bound value is not an `https` URL, or `--issuer` is not on the site URL of the connection |
+| `not_staged` | `app:grant issue` | `--accept-staged` for a connection with no staged platform |
+| `staged_values_changed` | `app:grant issue` | checked before the values are printed: the staged platform that the LTI service gives is active, has another issuer or client id than the connection's staged record, or has no JWK-set key URL (admin values); for a staged connection with fixed endpoints: active, or another issuer, client id, profile or site URL than the connection (BD-A1-107); make a new connection |
+| `deployment_mismatch` | `app:grant issue` | a staged connection (admin values or fixed endpoints, BD-A1-107): `--deployment-id` is not a deployment of the staged platform |
+| `foreign_hosts_unconfirmed` | `app:grant issue` | a bound value has a host other than the issuer host, and `--confirm-foreign-hosts` is missing (LA-ADR-02 D6) |
+
 The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2 (Lead decision, plan OC-9).
 
 ## 8. Log events (base §12)
@@ -184,21 +222,27 @@ The app CLIs stay shell commands in LA; they do not become clients of an operato
 | `record_dispatch` | info | `dispatch_id`, `reporter`, `status`, `tries`, `phase` | new; for reporters other than `lti-ags` (none in LA) |
 | `dispatch_throttled` | warn | `dispatch_id`, `partition`, `retry_at` | new (`429` handling) |
 | `launch_rejected`, `deep_link_rejected` | warn | `connection_lms` holds the channel id | values widen; names unchanged |
+| `picker_rejected` | warn | unchanged fields: `reason`; plus `lti_status`, `lti_code` when the LTI service answered with an error | values widen (BD-A1-98): new `reason` `placement_not_graded` (the `403` `/tool/*` page `PLACEMENT_NOT_GRADED`, on the picker GET and POST; A2 BD-A2-87, [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md), [security delta §5](../security-delta.md)). The base reasons are unchanged: `not_found`, `used`, `expired`, `publication_not_available`, `lti_service_error`, `return_url_mismatch` (base §12) |
+| `http_request` | info (`debug` for `/healthz`) | `trace_id`, `method`, `path`, `status`, `ms` | changed (BD-A1-62, same rule as the LTI service, A2 BD-A2-61): `path` is the matched route template with no ids filled in and no query, or `<unmatched>` when no route matches; never the raw path, also not after `redactPath`. Both listeners: `app/server.ts` and `content-host/server.ts` |
 
 ## 8a. App metrics (Should, with E5 metrics)
 
-For the runbook signals of A2's [operability §4.3](../operability.md). Same rules as the LTI service metrics ([LA-ADR-06 D10](../adr/LA-ADR-06-service-operability.md)).
+For the runbook signals of A2's [operability §4.3](../operability.md). Same rules as the LTI service metrics ([LA-ADR-06 D10](../adr/LA-ADR-06-service-operability.md)). Build ruling BD-A1-100 records A2's BD-A2-88 (LA-E4-07, lane R) here.
 
 | Item | Rule |
 | --- | --- |
-| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener, default `127.0.0.1:4210`. The proxy does not route it. Same bind rule as the LTI operator listener ([LA-ADR-06](../adr/LA-ADR-06-service-operability.md) D3): only the `acceptance` compose profile binds it on the stack network (`http://cogniate-app:4210`), so the `e2e` container can read it. No session and no tenant data in values. |
-| `app_dispatch_rows` | gauge; labels `reporter`, `status` |
-| `app_dispatch_oldest_pending_seconds` | gauge; label `reporter` |
-| `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) |
-| `app_launch_refusals_total` | counter; labels `reason` (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`, …), `channel` |
-| `app_grant_redemptions_total` | counter; label `result` (`committed`, `cancelled`, `failed`) |
-| `app_grant_compensation_failures_total` | counter |
-| `app_job_runs_total`, `app_job_last_success_timestamp_seconds` | as the LTI service job metrics; label `job` (`record-dispatch`, `retention`) |
+| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener. The proxy does not route it. No session and no tenant data in values. |
+| Listener | `OPERATOR_HOST` (default `127.0.0.1`) and `OPERATOR_PORT` (default `4210`; the LTI listener is `4110`), the same names and bind rule as the LTI operator listener ([LA-ADR-06](../adr/LA-ADR-06-service-operability.md) D3). `production` refuses a non-loopback `OPERATOR_HOST` at start: `config_refused` with reason `operator_bind_not_loopback` and the same fixed message as the LTI service ([operability](../operability.md) refusal table). Only the `acceptance` compose profile binds it on the stack network (`http://cogniate-app:4210`), so the `e2e` container can read it. |
+| `/readyz` | `200 {status:"ready"}` or `503 {status:"not_ready", reasons:[…]}`. Checks only the app: the database (`SELECT 1`), every app migration applied, and the key provider when it exists (LA-E5-22). No LTI service check: an LTI outage must not make the app not ready too (the runbooks check both services). |
+| Topology | The listener runs in the web process only. The send and job series exist only when the web process runs the job runner (`APP_JOB_RUNNER=on`). With a standalone worker (`npm run worker`, LA-ADR-03 D7) they are absent, not zero: the worker has no listener in LA. The store-based series work in both topologies. |
+| `app_dispatch_rows` | gauge; labels `reporter`, `status`. Source: a store query at scrape time. |
+| `app_dispatch_oldest_pending_seconds` | gauge; label `reporter`. Source: a store query at scrape time; no pending row = `0`. |
+| `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`). Source: counted at the commit of the transaction that records the outcome (`afterCommit`), never before. |
+| `app_launch_refusals_total` | counter; labels `reason` (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`, …), `channel`. Source: one increment line in the launch page (`tool-pages/launch.ts`). |
+| `app_grant_redemptions_total` | counter; label `result` (`committed`, `cancelled`, `failed`). Source: a scrape-time count of ended `binding_attempt` rows. This is a true counter only while no job deletes those rows; a change that adds such a job moves this series to a commit observer in the same change. |
+| `app_grant_compensation_failures_total` | counter. Source: the log event `grant_compensation_failed`. |
+| `app_job_runs_total`, `app_job_last_success_timestamp_seconds` | as the LTI service job metrics; labels `job` (`record-dispatch`, `retention`), `result` (runs only). Source: the log event `job_run`. The alert `JobStale` watches the interval jobs (for example `retention`) only: `record-dispatch` logs one run per row, so an idle outbox has no new success; `DispatchBacklog` watches the outbox. |
+| Label guards | A `channel` value that is not a loaded channel id becomes `''`. A `reason` value outside `[a-z][a-z0-9_]{0,63}` becomes `other`. So a label never holds free text. |
 
 Label values are data (channel ids, reasons), not code branches, so they do not break the LMS-name rule.
 

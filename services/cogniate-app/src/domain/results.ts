@@ -4,7 +4,14 @@ import { LEGACY_LEARNER_HOST, type ChannelRegistry } from '@cogniate/channel-ker
 // course (data-model §2: after a rebind, an old attempt stays with its own course's publication).
 import type { Outcome, SyncStatus } from '@cogniate/tracking';
 import { bestAttempt } from '@cogniate/tracking';
+import { latestDispatchStatus } from '../kernel/records/dispatch-store.ts';
 import type { Db } from './db.ts';
+
+/**
+ * LA-ADR-03 D4: the results API (`scoreSyncs`, `lastScoreSync`), Resend and the play status line show the dispatch
+ * rows of this one reporter. Their JSON, the `sync_` ids and the route names are M1 contract values (AGS).
+ */
+export const RESULTS_REPORTER = 'lti-ags';
 
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
 
@@ -44,13 +51,32 @@ function attemptsOfPublication(db: Db, connectionId: string, courseId: string): 
 
 interface SyncRowView { id: string; attemptId: string; status: SyncStatus; tries: number; scoreGiven: number; scoreMaximum: number; createdAt: number; sentAt: number | null; lastError: string | null }
 
+const syncView = (r: Record<string, unknown>): SyncRowView => ({
+  id: String(r.id), attemptId: String(r.attempt_id), status: r.status as SyncStatus, tries: Number(r.tries), scoreGiven: Number(r.score_given),
+  scoreMaximum: Number(r.score_maximum), createdAt: Number(r.created_at), sentAt: r.sent_at === null ? null : Number(r.sent_at),
+  lastError: r.last_error === null ? null : String(r.last_error),
+});
+
+/** App contract §5 ScoreSync: the JSON of one score sync row. */
+const scoreSyncJson = (s: SyncRowView) => ({
+  id: s.id, status: s.status, tries: s.tries, scoreGiven: s.scoreGiven, scoreMaximum: s.scoreMaximum, createdAt: iso(s.createdAt), sentAt: iso(s.sentAt), lastError: s.lastError,
+});
+
 function syncsOf(db: Db, attemptIds: string[]): SyncRowView[] {
   if (attemptIds.length === 0) return [];
-  return db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id WHERE s.reporter = 'lti-ags' AND r.attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY s.created_at, s.seq`).all(...attemptIds).map((r) => ({
-    id: String(r.id), attemptId: String(r.attempt_id), status: r.status as SyncStatus, tries: Number(r.tries), scoreGiven: Number(r.score_given),
-    scoreMaximum: Number(r.score_maximum), createdAt: Number(r.created_at), sentAt: r.sent_at === null ? null : Number(r.sent_at),
-    lastError: r.last_error === null ? null : String(r.last_error),
-  }));
+  return db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id WHERE s.reporter = ? AND r.attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY s.created_at, s.seq`)
+    .all(RESULTS_REPORTER, ...attemptIds).map(syncView);
+}
+
+/** One score sync row as the results API shows it (the Resend answer). The caller checked that the row exists. */
+export function scoreSyncRow(db: Db, syncId: string) {
+  return scoreSyncJson(syncView(db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id
+    WHERE s.id = ? AND s.reporter = ?`).get(syncId, RESULTS_REPORTER)!));
+}
+
+/** The newest score sync of a learner and activity (the play status line), or null. */
+export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): { status: SyncStatus; scoreGiven: number; scoreMaximum: number } | null {
+  return latestDispatchStatus(db, RESULTS_REPORTER, resourceLinkId, userSub);
 }
 
 const learnerLabel = (sub: string, issuer: string | null): string => {
@@ -77,8 +103,8 @@ function gradebookOf(db: Db, resourceLinkId: string, userSub: string): { resultS
 export function gradebookDiffers(gradebook: { resultScore: number | null; resultMaximum: number | null } | null, best: { scoreGiven: number | null; scoreMaximum: number | null },
   lastSyncStatus: SyncStatus | undefined): boolean {
   if (!gradebook || gradebook.resultScore === null || lastSyncStatus !== 'sent' || best.scoreGiven === null || !best.scoreMaximum) return false;
-  const moodle = gradebook.resultScore / (gradebook.resultMaximum || 100);
-  return Math.abs(moodle - best.scoreGiven / best.scoreMaximum) > 1e-9;
+  const gradebookRatio = gradebook.resultScore / (gradebook.resultMaximum || 100);
+  return Math.abs(gradebookRatio - best.scoreGiven / best.scoreMaximum) > 1e-9;
 }
 
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */
@@ -102,9 +128,7 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
       preview: first.preview,
       best: { attemptId: best.id, outcome: best.outcome, scoreGiven: best.scoreGiven, scoreMaximum: best.scoreMaximum },
       attempts: list.map((a) => ({ attemptId: a.id, versionId: a.versionId, outcome: a.outcome, scoreGiven: a.scoreGiven, scoreMaximum: a.scoreMaximum, updatedAt: iso(a.updatedAt) })),
-      scoreSyncs: rowSyncs.map((s) => ({
-        id: s.id, status: s.status, tries: s.tries, scoreGiven: s.scoreGiven, scoreMaximum: s.scoreMaximum, createdAt: iso(s.createdAt), sentAt: iso(s.sentAt), lastError: s.lastError,
-      })),
+      scoreSyncs: rowSyncs.map(scoreSyncJson),
       gradebook,
       gradebookDiffers: gradebookDiffers(gradebook, best, rowSyncs.at(-1)?.status),
     };

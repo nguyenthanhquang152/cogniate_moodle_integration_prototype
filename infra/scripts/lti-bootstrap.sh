@@ -4,7 +4,9 @@
 # Host-side options of this wrapper:
 #   --ensure-key-file  make a new API key if infra/.secrets/lti-api-key.<account> is missing (seed uses it)
 #   --quiet            do not print the API key (it is only written to the key file)
-#   --replace-operator-key  revoke old operator keys and save a replacement for OPERATOR_NAME
+#   --replace-operator-key  last choice, only if no operator has a working key (else ask another operator to issue
+#                      you a new key): init --replace revokes EVERY operator key, also the keys of other operators
+#                      and scripts, and saves a replacement for OPERATOR_NAME
 # The CLI calls the operator listener inside the lti-service container. A new or rotated API key is printed ONCE
 # and written to infra/.secrets/lti-api-key.<account> (mode 600). Only its hash is stored in the database.
 # First (LA-ADR-06 D3) it runs `lti:operator init --if-none` for the host's operator (OPERATOR_NAME, else the host
@@ -50,7 +52,7 @@ if [[ "$op_out" =~ ^ltio_[A-Za-z0-9_-]{43}$ ]]; then
 elif [[ "$op_out" == "operator key exists" ]]; then
   if [[ ! -s "$op_file" ]]; then
     rm -f "$op_copy"
-    echo "Operator key file infra/.secrets/lti-operator-key is missing. Put the current key there, or rerun this bootstrap command with --replace-operator-key to run init --replace and save a private replacement." >&2
+    echo "Operator key file infra/.secrets/lti-operator-key is missing. Put the current key there, or ask another operator to issue you a new key. Only if no operator has a working key, rerun this bootstrap command with --replace-operator-key (init --replace). This revokes every operator key, also the keys of other operators and scripts." >&2
     exit 1
   fi
 else

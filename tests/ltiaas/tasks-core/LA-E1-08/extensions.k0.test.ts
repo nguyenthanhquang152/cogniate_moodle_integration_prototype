@@ -388,4 +388,71 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
 
     artifact('e1-08-ac09-f1-deltas.json', `${JSON.stringify({ baseSha, headSha, deltas }, null, 2)}\n`);
   });
+
+  it('Round 2 (BD-A1-40, BD-A1-52): P5 PortContext supplies toolUrls, frozen extension paths and named kernel port refusals are enforced', async () => {
+    const canvasSetup = unwrapSetup(loadedById.get('canvas')?.appAdapter);
+    const canvasConfigRoute = canvasSetup.extensionRoutes!.find(
+      (r) => r.method === 'GET' && r.path === 'canvas-configuration',
+    )!;
+
+    // 1. P5 toolUrls context (BD-A1-40): Canvas canvas-configuration route uses ctx.toolUrls (even if ctx.urls throws)
+    // and normalizes non-ASCII library names to ASCII tool names.
+    const customToolUrls = {
+      login: 'https://lti-custom.example.test/lti/login/custom-acct',
+      launch: 'https://lti-custom.example.test/lti/launch/custom-acct',
+      keys: 'https://lti-custom.example.test/lti/keys/custom-acct',
+      register: 'https://lti-custom.example.test/lti/register/custom-acct',
+      ltiOrigin: 'https://lti-custom.example.test',
+    };
+    const throwingUrls = new Proxy(
+      {},
+      {
+        get(_t, prop) {
+          throw new Error(`Unexpected ctx.urls.${String(prop)} access in Canvas P5 route`);
+        },
+      },
+    );
+    const customOut = await canvasConfigRoute.handle(
+      { body: undefined, query: { jwk: 'url' } },
+      {
+        libraryId: 'acc-1',
+        libraryName: '  Thư \t viện   A  ',
+        connectionId: 'con-canvas-1',
+        toolAccountId: 'custom-acct',
+        urls: throwingUrls,
+        toolUrls: customToolUrls,
+        publicToolKeys: async () => ({ ok: true as const, keys: [] }),
+        outbound: {},
+        sql: { get: () => undefined, all: () => [], run: () => ({ changes: 0 }) },
+        seal: async () => new Uint8Array(),
+        unseal: async () => '',
+        logger: { info: () => {}, warn: () => {}, error: () => {} },
+        traceId: 'trace-e1-08-r2',
+        now: () => 1700000000000,
+      },
+    );
+    expect('status' in customOut && customOut.status).toBe(200);
+    if ('body' in customOut) {
+      const doc = customOut.body as Record<string, unknown>;
+      expect(doc.oidc_initiation_url).toBe(customToolUrls.login);
+      expect(doc.target_link_uri).toBe(customToolUrls.launch);
+      expect(doc.public_jwk_url).toBe(customToolUrls.keys);
+      expect(doc.title).toBe('Cogniate (Thu vien A)');
+    }
+
+    // 2. Frozen extension paths, named kernel port refusals, and SQL coverage tests pass.
+    const extUnit = await run('npx', [
+      '--no-install',
+      'vitest',
+      'run',
+      '--reporter=verbose',
+      'services/cogniate-app/src/kernel/extensions.test.ts',
+      'services/cogniate-app/src/kernel/port-context.test.ts',
+      'packages/channels/canvas/app/configuration.test.ts',
+    ]);
+    artifact('e1-08-r2-unit-extensions.log', extUnit.output);
+    expect(extUnit.code, `extension/port-context/configuration unit tests exit 0:\n${extUnit.output}`).toBe(0);
+    expect(extUnit.output).toContain('mounts only a frozen path or x/<name>');
+    expect(extUnit.output).toContain('names invalid SQL parameter refusals for the runtime log');
+  });
 });

@@ -1,7 +1,7 @@
 // The audit writer of the LTI service (LA-ADR-06 D4): the only path to the table audit_event. Insert and list only;
 // the table is append only (triggers of migrations 007 and 008), and only the audit-retention job (LA-E5-19) deletes rows.
 // Other lanes call this module; they never write SQL for the table.
-import { ApiErrorBase, randomId, redact, redactString } from '@cogniate/shared';
+import { ApiErrorBase, afterCommit, randomId, redact, redactString } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 
@@ -49,6 +49,13 @@ interface AuditRow {
 
 export const AUDIT_DETAILS_MAX_BYTES = 4096;
 
+const observers = new WeakMap<Db, (action: string, result: 'ok' | 'refused') => void>();
+/**
+ * BD-A2-52, BD-A2-60: count each insert once, when its outermost transaction commits (at once in autocommit). A
+ * rolled-back insert never counts. Never a table count: retention deletes rows.
+ */
+export function observeAuditEvents(db: Db, observer: (action: string, result: 'ok' | 'refused') => void): void { observers.set(db, observer); }
+
 /** The stored details: redact() first; a text above 4 KB becomes {"truncated":true}. */
 export function auditDetailsText(details: Record<string, unknown> | null | undefined): string | null {
   if (!details) return null;
@@ -62,12 +69,19 @@ export function auditDetailsText(details: Record<string, unknown> | null | undef
   return Buffer.byteLength(text, 'utf8') <= AUDIT_DETAILS_MAX_BYTES ? text : JSON.stringify({ truncated: true });
 }
 
+/**
+ * One insert and its count in one transaction() scope: the count runs after the outermost commit (BD-A2-60). Inside a
+ * transaction opened outside transaction(), the scope throws before the insert (BD-A2-74).
+ */
 export function insertAuditEvent(db: Db, input: AuditEventInput, now: number): string {
   const id = randomId('aud_');
-  db.prepare(`INSERT INTO audit_event (id, ts, actor_type, actor_id, tool_account_id, action, target_type, target_id, result, code,
-                trace_id, client_ip, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, now, input.actor.type, input.actor.id, input.toolAccountId, input.action, input.target.type, input.target.id, input.result,
-      input.code ?? null, input.traceId, input.clientIp, auditDetailsText(input.details));
+  transaction(db, () => {
+    db.prepare(`INSERT INTO audit_event (id, ts, actor_type, actor_id, tool_account_id, action, target_type, target_id, result, code,
+                  trace_id, client_ip, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, now, input.actor.type, input.actor.id, input.toolAccountId, input.action, input.target.type, input.target.id, input.result,
+        input.code ?? null, input.traceId, input.clientIp, auditDetailsText(input.details));
+    afterCommit(db, () => observers.get(db)?.(input.action, input.result));
+  });
   return id;
 }
 

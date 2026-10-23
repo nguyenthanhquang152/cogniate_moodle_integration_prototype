@@ -311,10 +311,13 @@ it(
     const first = await runSharedPlatformCli(sharedAccount, 'blackboard-sim', 'qa-bb-app', 'QA2 Blackboard');
     assert.equal(first.cliCode, 0, 'first lti:shared-platform exits 0');
     assert.ok(first.platformId && first.platformId.startsWith('plt_'), `first run prints platform id (got ${first.stdout.trim()})`);
+    const firstJson = JSON.parse(first.stdout.trim().split('\n').at(-1) ?? '{}') as { platformId?: string; created?: boolean };
+    assert.deepEqual(firstJson, { platformId: first.platformId, created: true }, 'first run prints {platformId, created: true}');
 
     const second = await runSharedPlatformCli(sharedAccount, 'blackboard-sim', 'qa-bb-app', 'QA2 Blackboard');
     assert.equal(second.cliCode, 0, 'second lti:shared-platform with same client id exits 0');
-    assert.equal(second.stdout.trim(), first.stdout.trim(), 'second run prints the exact same output as the first run');
+    const secondJson = JSON.parse(second.stdout.trim().split('\n').at(-1) ?? '{}') as { platformId?: string; created?: boolean };
+    assert.deepEqual(secondJson, { platformId: first.platformId, created: false }, 'second run prints {platformId, created: false}');
     assert.equal(second.platformId, first.platformId, 'second run prints the same platform id');
 
     const otherClient = await runSharedPlatformCli(sharedAccount, 'blackboard-sim', 'other-bb-app', 'Other Blackboard');
@@ -347,6 +350,16 @@ it(
       failed.stderrLines[0],
       /lti-operator-key/,
       'the single error line names the operator key file (lti-operator-key)',
+    );
+    assert.match(
+      failed.stderrLines[0],
+      /ask another operator to issue you a new key\. Only if no operator has a working key, .*--replace-operator-key \(init --replace\)\. This revokes every operator key/,
+      'B-LA-E5-05-04: recovery text gives --replace-operator-key last and warns that it revokes every operator key',
+    );
+    assert.doesNotMatch(
+      failed.stderrLines[0],
+      /safely/,
+      'B-LA-E5-05-04: recovery text does not call --replace-operator-key "safely"',
     );
 
     // Verify operator key file was restored by the host action and operator API still works.

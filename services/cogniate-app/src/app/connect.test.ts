@@ -4,7 +4,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import { toolPageHeaders } from '../tool-pages/page.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, formBody, ltiPlatform, testApp } from '../testkit.ts';
-import { toolName } from './connections.ts';
+import { toolName } from '@cogniate/channel-kernel/setup';
 
 let t: TestApp;
 afterEach(async () => {
@@ -186,6 +186,13 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     expect(done.body).toMatch(/<script nonce="[^"]+">\(window\.opener \|\| window\.parent\)\.postMessage\(\{subject:'org\.imsglobal\.lti\.close'\}, '\*'\);<\/script>/);
     expect(String(done.headers['content-security-policy'])).toContain("form-action 'none'");
     expect(t.lti.calls.find((x) => x.startsWith('POST complete'))).toContain('"platformName":"Cogniate (Thanh\'s Library)","privacyLevel":"anonymous","autoActivate":true');
+    // LA-E3-07 (LA-IC-04): the Moodle registration asks for the four AGS scopes only, no NRPS scope.
+    expect(JSON.parse(t.lti.calls.find((x) => x.startsWith('POST complete'))!.replace(/^POST complete \S+ /, '')).scopes).toEqual([
+      'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
+      'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
+      'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
+      'https://purl.imsglobal.org/spec/lti-ags/scope/score',
+    ]);
     const c = (await json('GET', `/app-api/connections/${id}`, cookie)).json();
     expect(c).toMatchObject({ status: 'registered', registrationUrl: null, platform: { clientId: expect.stringMatching(/^client-/) } });
     // AC-T4-09: the same URL again -> REF_INVALID

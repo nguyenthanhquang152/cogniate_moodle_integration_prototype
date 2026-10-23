@@ -7,8 +7,8 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import { getPublication } from '../domain/publications.ts';
-import { publicationResults } from '../domain/results.ts';
-import { resendSync, syncConnectionDisabled, syncRow, syncRowInLibrary } from '../kernel/records/dispatch-store.ts';
+import { publicationResults, RESULTS_REPORTER, scoreSyncRow } from '../domain/results.ts';
+import { resendDispatch, type ResendResult } from '../kernel/records/dispatch-store.ts';
 import { getConnection } from '../domain/connections.ts';
 import { readBackTargets, recordReporters } from '../kernel/records/records.ts';
 import type { Logger } from '@cogniate/shared';
@@ -26,6 +26,15 @@ export interface ResultRouteDeps {
 }
 
 type IdParams = { Params: { id: string } };
+
+/** App contract §5 and §4.7.2: the error text of each Resend refusal (M1 texts). */
+const RESEND_REFUSED: Record<Exclude<ResendResult, { ok: true }>['reason'], string> = {
+  not_found: 'The score sync does not exist in your library.',
+  connection_disabled: 'The connection is switched off.',
+  status: 'Only a failed or conflict score sync can be sent again.',
+  not_best: 'This learner has a better result. Resend the better result instead.',
+  already_sent: 'An equal result of this learner is already sent or pending.',
+};
 
 export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps): void {
   const { db, logger: log, now } = deps;
@@ -64,12 +73,12 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
   // Resend a failed or conflict row (ADR-010 rule 10). Else 409 SYNC_NOT_RESENDABLE.
   api.post<{ Params: { syncId: string } }>('/score-syncs/:syncId/resend', async (req) => {
     // App contract §4.7.2: no resend for a disabled Canvas or Blackboard connection (the library check comes first).
-    if (syncRowInLibrary(db, libraryId(req), req.params.syncId) && syncConnectionDisabled(db, req.params.syncId)) {
-      throw new ApiError('CONNECTION_NOT_READY', 'The connection is switched off.');
+    const r = resendDispatch(db, RESULTS_REPORTER, libraryId(req), req.params.syncId, now());
+    if (!r.ok) {
+      const code = r.reason === 'not_found' ? 'NOT_FOUND' : r.reason === 'connection_disabled' ? 'CONNECTION_NOT_READY' : 'SYNC_NOT_RESENDABLE';
+      throw new ApiError(code, RESEND_REFUSED[r.reason]);
     }
-    const r = resendSync(db, libraryId(req), req.params.syncId, now());
-    if (!r.ok) throw new ApiError(r.reason === 'not_found' ? 'NOT_FOUND' : 'SYNC_NOT_RESENDABLE', r.description);
     deps.kickSync?.();
-    return syncRow(db, req.params.syncId);
+    return scoreSyncRow(db, req.params.syncId);
   });
 }

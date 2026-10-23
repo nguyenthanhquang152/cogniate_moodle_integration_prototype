@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { insertAuditEvent } from '../app/audit.ts';
 import type { AuditEventInput } from '../app/audit.ts';
 import { openDb } from '../domain/db.ts';
-import { runAuditCli } from './audit.ts';
+import { AUDIT_HELP, AUDIT_REFUSALS, runAuditCli } from './audit.ts';
 
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
@@ -76,17 +76,46 @@ describe('app:audit list (AC-LA-E5-11-07)', () => {
     expect(invoke(dir, ['list', '--limit', '0'], link).status).toBe(1);
   });
 
-  it.each([
-    [], ['delete'], ['list', 'extra'], ['list', '--unknown', 'x'], ['list', '--limit'],
-    ['list', '--limit', '0'], ['list', '--limit', '501'], ['list', '--limit', '-1'], ['list', '--limit', '1.5'],
-    ['list', '--limit', '2oops'], ['list', '--since', 'yesterday'], ['list', '--since', '2026-02-31T00:00:00Z'],
-    ['list', '--connection', ''], ['list', '--action', ''],
-  ])('refuses invalid arguments %j before creating or opening a database', (...args) => {
+  it.each<[string[], keyof typeof AUDIT_REFUSALS]>([
+    [[], 'arguments_invalid'], [['delete'], 'arguments_invalid'], [['list', 'extra'], 'arguments_invalid'],
+    [['list', '--unknown', 'x'], 'arguments_invalid'], [['list', '--limit'], 'arguments_invalid'],
+    [['list', '--limit', '0'], 'limit_invalid'], [['list', '--limit', '501'], 'limit_invalid'], [['list', '--limit', '-1'], 'arguments_invalid'],
+    [['list', '--limit', '1.5'], 'limit_invalid'], [['list', '--limit', '2oops'], 'limit_invalid'], [['list', '--since', 'yesterday'], 'since_invalid'],
+    [['list', '--since', '2026-02-31T00:00:00Z'], 'since_invalid'], [['list', '--connection', ''], 'connection_invalid'], [['list', '--action', ''], 'action_invalid'],
+  ])('refuses invalid arguments %j with %s before creating or opening a database', (args, reason) => {
     const dir = temp();
     const result = runAuditCli(args, { DATA_DIR: dir });
     expect(result.exitCode).toBe(1);
     expect(result.lines).toHaveLength(1);
-    expect(JSON.parse(result.lines[0]!)).toMatchObject({ event: 'audit_list_refused', traceId: expect.stringMatching(/^[a-f0-9]{32}$/) });
+    expect(JSON.parse(result.lines[0]!)).toEqual({
+      event: 'audit_list_refused', reason, message: AUDIT_REFUSALS[reason], traceId: expect.stringMatching(/^[a-f0-9]{32}$/),
+    });
+    expect(existsSync(join(dir, 'cogniate.db'))).toBe(false);
+  });
+
+  // B-LA-E5-11-01, BD-A2-62: one row per code with the exact LA-ADR-07 D4 text. The message never repeats an input value.
+  it.each([
+    ['arguments_invalid', ['list', '--conection', 'con-typo'],
+      'Usage: app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]. Run app:audit --help for the options.'],
+    ['connection_invalid', ['list', '--connection', '  '], 'Give --connection a connection id that is not empty.'],
+    ['action_invalid', ['list', '--action', ''], 'Give --action an audit action name that is not empty, for example grant.issue.'],
+    ['limit_invalid', ['list', '--limit', '501'], 'Give --limit a whole number from 1 to 500 (default 100).'],
+    ['since_invalid', ['list', '--since', '2026-10-22'], 'Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z.'],
+    ['audit_read_failed', ['list'], 'The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR).'],
+  ])('gives %s with its fixed message', (reason, args, message) => {
+    const dir = temp();
+    const line = runAuditCli(args, { DATA_DIR: dir }).lines[0]!;
+    expect(JSON.parse(line)).toMatchObject({ event: 'audit_list_refused', reason, message });
+    for (const value of ['conection', 'con-typo', '501', 'T00:00:00Zx', dir]) expect(JSON.parse(line).message).not.toContain(value);
+  });
+
+  it('prints the usage on stdout with exit 0 for --help and -h, and opens no database', () => {
+    const dir = temp();
+    for (const args of [['--help'], ['list', '-h']]) expect(runAuditCli(args, { DATA_DIR: dir })).toEqual({ exitCode: 0, lines: AUDIT_HELP });
+    const result = invoke(dir, ['--help']);
+    expect([result.status, result.stderr]).toEqual([0, '']);
+    expect(result.stdout).toBe(`${AUDIT_HELP.join('\n')}\n`);
+    expect(result.stdout).toContain('Usage: app:audit list');
     expect(existsSync(join(dir, 'cogniate.db'))).toBe(false);
   });
 
