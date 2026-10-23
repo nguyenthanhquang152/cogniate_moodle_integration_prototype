@@ -50,6 +50,8 @@ async function useBuild(sha, label) {
   fs.cpSync(r.QA_TESTS_DIR, path.join(r.CLONE, 'tests'), { recursive: true, filter: (src) => !COPY_SKIP.test(path.relative(r.QA_TESTS_DIR, src)) });
   const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: r.CLONE })).stdout.trim();
   const ci = co.code === 0 ? await r.npm(`root-npm-ci-${label}`, ['ci', '--no-audit', '--no-fund'], { timeoutMs: 900_000 }) : null;
+  fs.rmSync(path.join(r.CLONE, 'node_modules', '.vitest-cache'), { recursive: true, force: true });
+  fs.rmSync(path.join(r.CLONE, 'node_modules', '.vite'), { recursive: true, force: true });
   const ok = co.code === 0 && ci?.code === 0 && head.startsWith(sha.slice(0, 7));
   r.record(`U1-${label.toUpperCase()}`, `Clone on the ${label} build; QA tests copied from ${r.QA_TESTS_DIR}; npm ci`, r.pass(ok),
     [`HEAD ${head}`, `checkout ${co.code}, npm ci ${ci?.code ?? 'not run'}`], [co.log, ci?.log].filter(Boolean));

@@ -629,7 +629,7 @@ it('AC-LA-E5-15-07 A key with scopes ["launch"] on POST /api/service-keys/revoke
     );
     assert.equal(matches[0].result, 'ok');
     assert.equal(matches[0].toolAccountId, ACCOUNT);
-    assert.equal(matches[0].targetType, 'service_key');
+    assert.equal(matches[0].target.type, 'platform');
   }
 });
 
