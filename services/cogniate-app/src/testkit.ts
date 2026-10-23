@@ -220,6 +220,11 @@ export function fakeLti(): FakeLti {
         return clone(p);
       });
     },
+    // LA-E6-01: a fixed successful connection check (contract delta §2.6); tests replace it per case.
+    async checkPlatform(id, body) {
+      calls.push(`POST check ${id} ${JSON.stringify(body)}`); failIfAsked();
+      return { checkedAt: '2026-10-17T08:00:00.000Z', jwks: { ok: true, keys: 1 }, token: { ok: true, scope: 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly' }, platform: { active: true, deploymentActive: true }, limits: null };
+    },
     async patchPlatform(id, body) {
       calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`);
       return guarded('PATCH platform', () => {

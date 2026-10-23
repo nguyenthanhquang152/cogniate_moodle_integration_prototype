@@ -345,6 +345,13 @@ describe("manifest portal shell", () => {
     expect(await screen.findByText("This connection already reserved another deployment. Disconnect it, then make a new connection.")).toBeTruthy();
     expect(screen.queryByText(/Blackboard/)).toBeNull();
   });
+  it.each([["canvas", true], ["lti-generic", true], ["moodle", false], ["blackboard", false]] as const)("the %s connection page shows the Check connection panel: %s (LA-ADR-08 D4)", async (id, shown) => {
+    const manifest = channelRegistry.channel(id)!;
+    current = connection(manifest, { status: "registered", bindingAuthority: manifest.registration[0]!.authority });
+    app(`/integrations/${id}/${current.id}`);
+    await screen.findByRole("button", { name: "Refresh status" });
+    expect(screen.queryByRole("button", { name: "Check connection" }) !== null).toBe(shown);
+  });
   it("merges a renewed URL into the existing connection", async () => {
     const existing = connection(self);
     const onChanged = vi.fn();
