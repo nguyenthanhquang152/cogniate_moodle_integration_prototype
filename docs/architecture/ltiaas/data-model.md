@@ -190,6 +190,7 @@ Next numbers: `008` and up. The Lead gives one number at a time, when it briefs 
 | --- | --- | --- | --- |
 | `platform.client_assertion_aud TEXT` | E2-K | A1 [LA-ADR-02 D2](adr/LA-ADR-02-generic-lti-channel.md#decision) | admin value or DR `authorization_server`; `NULL` = the profile default |
 | `platform.granted_scopes TEXT` (JSON) | E2-K | A1 [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) | the DR response `scope`; `NULL` = today's scope set |
+| `registration_session.token_kind TEXT NULL CHECK (token_kind IN ('scope-jwt', 'opaque-bearer'))` (LTI migration `021`) | E2-K (LA-E2-02, lane L) | A1 [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 3; BD-A1-77 | the token kind that the DR start page found; `complete` checks it against the chosen profile; `NULL` = an old row = `scope-jwt` |
 | `oidc_state.storage_target`, `oidc_state.storage_origin`; table `storage_check` | E3 | A2 [LA-ADR-05 D1](adr/LA-ADR-05-lti-advantage-completeness.md) | platform storage launch |
 | `tool_account.status`, `status_changed_at`, `public_base_url`, `limits`, `claim_policy`, `service_key_write_scope` | E5, E3 | A2 [LA-ADR-06 D2](adr/LA-ADR-06-service-operability.md) | tenant model; claim policy |
 | tables `api_key`, `operator_key`, `audit_event`, `idempotency_record` (Should) | E5 | A2 [LA-ADR-06 D3–D5, D9](adr/LA-ADR-06-service-operability.md) | operator API, keys, audit |
