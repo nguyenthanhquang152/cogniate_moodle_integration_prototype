@@ -30,7 +30,7 @@
       },
       "dynamic": {
         "label": "Dynamic Registration",
-        "help": "Copy one registration URL into {LMS}. Cogniate gets the Client ID and the Deployment ID."
+        "help": "Copy one registration URL into {LMS}. Cogniate gets the Client ID and the Deployment ID. For Instructure-hosted {LMS}, use Developer key. Cogniate does not support this method there yet."
       }
     },
     "registration": {
