@@ -1,9 +1,12 @@
 // Content picker sessions (app contract §6, data-model §2): made by /tool/deep-link, used once by the picker POST.
 // The picker id in the URL is the capability. A-T4b2-03: the table keeps only its SHA-256 (`key`), like every other
 // token, so a copy of the database cannot open a picker. The ltik is stored only here, encrypted (T4b2 design note).
+// LA-ADR-05 D3, data model §5b: a used picker keeps one picker_pick row per picked publication (multi-select) until
+// the first launch of that activity.
 import type { PackageFormat, PackageReport } from '@cogniate/package-inspector';
 import { randomId, sha256Hex } from '@cogniate/shared';
 import type { Db } from './db.ts';
+import { transaction } from './db.ts';
 
 export interface PickerSession {
   /** SHA-256 hex of the picker id (the table key). The raw id is only in the URL. */
@@ -44,10 +47,21 @@ export function getPicker(db: Db, pickerId: string): PickerSession | undefined {
   return r ? toPicker(r) : undefined;
 }
 
-/** Claim the picker for one pick (atomic): false if it was used or expired in the meantime. `key` = PickerSession.key. */
-export function claimPicker(db: Db, key: string, publicationId: string, now: number): boolean {
-  return Number(db.prepare('UPDATE picker_session SET used_at = ?, publication_id = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?')
-    .run(now, publicationId, key, now).changes) === 1;
+/**
+ * Claim the picker (atomic): false if it was used or expired in the meantime. `key` = PickerSession.key. The same
+ * transaction writes one picker_pick row per picked publication; a single pick also writes picker_session.publication_id
+ * as before; a cancel (no publication) writes no pick.
+ */
+export function claimPicker(db: Db, key: string, publicationIds: readonly string[], now: number): boolean {
+  return transaction(db, () => {
+    const single = publicationIds.length === 1 ? publicationIds[0]! : null;
+    const claimed = Number(db.prepare('UPDATE picker_session SET used_at = ?, publication_id = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?')
+      .run(now, single, key, now).changes) === 1;
+    if (!claimed) return false;
+    const pick = db.prepare('INSERT INTO picker_pick (picker_id_hash, publication_id) VALUES (?, ?)');
+    for (const publicationId of publicationIds) pick.run(key, publicationId);
+    return true;
+  });
 }
 
 /** A-T4b2-04: after a successful pick, drop the encrypted ltik (the column is NOT NULL, so an empty blob). */
@@ -55,20 +69,30 @@ export function clearPickerLtik(db: Db, key: string): void {
   db.prepare("UPDATE picker_session SET ltik_encrypted = X'' WHERE id = ?").run(key);
 }
 
-/** The Deep Linking call failed after the claim: the teacher may pick again. */
+/** The Deep Linking call failed after the claim: the teacher may pick again. The picks go with the claim. */
 export function releasePicker(db: Db, key: string): void {
-  db.prepare('UPDATE picker_session SET used_at = NULL, publication_id = NULL WHERE id = ?').run(key);
+  transaction(db, () => {
+    db.prepare('DELETE FROM picker_pick WHERE picker_id_hash = ?').run(key);
+    db.prepare('UPDATE picker_session SET used_at = NULL, publication_id = NULL WHERE id = ?').run(key);
+  });
 }
 
 /**
- * A resource link of this publication was made or rebound: the oldest pick of that course in that Moodle course
- * (connection, deployment, context) that no launch has seen yet becomes this activity (stats count it once).
+ * A resource link of this publication was made or rebound: the oldest pick of that course in that LMS course
+ * (connection, deployment, context) that no launch has seen yet becomes this activity (stats count it once). A single
+ * pick also sets picker_session.resource_link_id, so the old columns stay in step (retention reads them).
  */
 export function linkPickToResourceLink(db: Db, input: { connectionId: string; deploymentId: string; contextId: string; publicationId: string; resourceLinkId: string }): void {
-  db.prepare(`UPDATE picker_session SET resource_link_id = ? WHERE id = (
-      SELECT id FROM picker_session WHERE connection_id = ? AND deployment_id = ? AND context_id = ? AND publication_id = ?
-        AND used_at IS NOT NULL AND resource_link_id IS NULL ORDER BY used_at, id LIMIT 1)`)
-    .run(input.resourceLinkId, input.connectionId, input.deploymentId, input.contextId, input.publicationId);
+  transaction(db, () => {
+    const pick = db.prepare(`SELECT ps.id AS session FROM picker_pick pp JOIN picker_session ps ON ps.id = pp.picker_id_hash
+        WHERE ps.connection_id = ? AND ps.deployment_id = ? AND ps.context_id = ? AND pp.publication_id = ?
+          AND ps.used_at IS NOT NULL AND pp.resource_link_id IS NULL ORDER BY ps.used_at, ps.id LIMIT 1`)
+      .get(input.connectionId, input.deploymentId, input.contextId, input.publicationId) as { session: string } | undefined;
+    if (!pick) return;
+    db.prepare('UPDATE picker_pick SET resource_link_id = ? WHERE picker_id_hash = ? AND publication_id = ?').run(input.resourceLinkId, pick.session, input.publicationId);
+    db.prepare('UPDATE picker_session SET resource_link_id = ? WHERE id = ? AND publication_id = ? AND resource_link_id IS NULL')
+      .run(input.resourceLinkId, pick.session, input.publicationId);
+  });
 }
 
 /** A row of the picker list. */
