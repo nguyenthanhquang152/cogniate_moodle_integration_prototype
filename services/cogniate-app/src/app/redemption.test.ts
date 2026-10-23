@@ -1140,13 +1140,17 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
+    // A channel without app.ts gets the kernel admin-value adapter (A1 BD-A1-79), so no adapter means a channel that
+    // is not in the registry.
     const lookup = vi.spyOn(TEST_CHANNELS, 'appAdapter').mockReturnValue(null);
+    const manifest = vi.spyOn(TEST_CHANNELS, 'channel').mockReturnValue(null);
     try {
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
       lookup.mockRestore();
+      manifest.mockRestore();
     }
   });
 
