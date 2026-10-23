@@ -104,18 +104,16 @@ describe('LA-E2-02 K0: E2-K Generic Dynamic Registration fixes and staged regist
       'migration 021 enforces CHECK (token_kind IN (\'scope-jwt\', \'opaque-bearer\'))',
     ).toBe(true);
 
-    // 2. BD-A1-75: token-client reads only clientAssertionAud (not clientAssertionAudArray); once lead QA drops
-    // clientAssertionAudArray from tests/ltiaas/k0/contract.test.ts, kernelProfilesSrc also drops it.
+    // 2. BD-A1-75: token-client reads only clientAssertionAud (never clientAssertionAudArray), and
+    // tests/ltiaas/k0/contract.test.ts no longer requires flags.clientAssertionAudArray on profiles.
     expect(
       tokenClientSrc.includes('clientAssertionAudArray'),
       'token-client.ts reads only clientAssertionAud and never clientAssertionAudArray (BD-A1-75)',
     ).toBe(false);
-    if (!k0ContractSrc.includes('clientAssertionAudArray')) {
-      expect(
-        kernelProfilesSrc.includes('clientAssertionAudArray'),
-        'packages/channel-kernel/src/profiles.ts removes clientAssertionAudArray once K0 contract drops it',
-      ).toBe(false);
-    }
+    expect(
+      k0ContractSrc.includes('flags.clientAssertionAudArray,'),
+      'tests/ltiaas/k0/contract.test.ts no longer asserts flags.clientAssertionAudArray on profiles (BD-A1-75)',
+    ).toBe(false);
 
     // 3. Staged DR per profile, I-SELF, token_kind, endpointsOnIssuerOrigin, grantedScopes, bindingRef (D5 items 1-8, 10; BD-A1-84)
     expect(combinedLti.includes('scope-jwt'), 'supports scope-jwt token kind').toBe(true);
@@ -200,11 +198,12 @@ describe('LA-E2-02 K0: E2-K Generic Dynamic Registration fixes and staged regist
     }
   });
 
-  it('AC-LA-E2-02-01 (UNIT): rule table per profile (D5 items 1-8, 10), migration 021 token_kind CHECK, TOOL_MAY_EXIST (BD-A1-87), profile identity (BD-A1-88) and credential-set replacement (BD-A1-89) unit tests pass', () => {
+  it('AC-LA-E2-02-01 + BD-A1-87, BD-A1-88, BD-A1-89, BD-A1-93 (LA-IC-21), BD-A2-84 (UNIT): rule table per profile (D5 items 1-8, 10), migration 021 token_kind CHECK, TOOL_MAY_EXIST, profile identity, credential-set replacement, stored active preserved on DR update, and reserved-host audience on staged DR unit tests pass', () => {
     const mig = findTokenKindMigration();
     expect(Boolean(mig), 'LTI migration 021 must exist before running unit suite').toBe(true);
 
     fs.rmSync(path.join(TARGET_ROOT, 'node_modules/.vitest-cache'), { recursive: true, force: true });
+    fs.rmSync(path.join(TARGET_ROOT, 'node_modules/.vite'), { recursive: true, force: true });
     const unitRes = spawnSync(
       'npx',
       [

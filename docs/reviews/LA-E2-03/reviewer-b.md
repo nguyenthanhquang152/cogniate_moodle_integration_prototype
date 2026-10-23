@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 ## Round 1
 
@@ -88,3 +88,16 @@ The staged-registration follow-up adds the dynamic client/deployment/grant field
 - The two added-folder probes failed only as described in B-04. The custom-row, issuer-reason and staged-DTO negative controls each caused their intended regression test to fail. Temporary folders and source mutations were removed; all 329 focused tests passed again after restoration.
 - `a176489` is the declared RQ-2 for L's three test files; the other E2-K changes remain in K's manifest, kernel and app files. No `tests/**`, service wiring or portal production file changed in these commits. No LMS branch was added to core.
 - Logs are `/tmp/reviewer-b-e2k-{focused,restored,canary-real-sim,canary-simonly}.log` and `/tmp/reviewer-b-e2k-mutant-{rows,issuer,staged-dto}.log`. QA retains the E2-N add-channel/F2 gate and stack-backed ACs. No Docker, stack, commit or push was run.
+
+
+## Follow-ups (E2-K) round 2
+
+**Verdict: APPROVE.** Reviewer-B: Codex GPT-6-Astra xhigh. Round 4, 2026-10-23. Reviewed `1c60d42` and RQ-2 `d58061f` in merge `053e5c7`, against B-LA-E2-03-04, BD-A1-94/95, N10 and LA-ADR-01 D4. Verification used a private clone at `823bb268fbaf2399f95c8d5b5300ad98d186beff`, with its own `npm ci`; the Vitest cache was deleted before each run. Blind review; no other reviewer's report was read.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No new findings.
+
+**B-LA-E2-03-04 — CLOSED.** The Canvas test now selects the baseline simulation profiles by membership and checks their relative order, then checks the full discovered list against the D4 ordering rule. The kernel comparison removes every manifest whose availability is `simulation-only`; the explicit hidden/shown checks for its own fixture remain. The added ordering fixture covers both forms of simulation support. The storage test preserves the named profiles' values while allowing other valid storage traits, and the LA-IC-03 baseline helper now selects baseline channels positively rather than excluding just `lti-generic`.
+
+Repeated both original folder probes without changing core: a normal `zz-review-new` channel with real and simulation profiles, then a `zz-review-simonly` channel with one simulation profile. **Each passed the full unit suite: 190 files, 3,056 tests passed, 5 skipped.** The clean candidate passed 3,055 tests with the same five skips. This also exercises the two additional closed-world spots found by L. All temporary folders were removed. K0 passed **149 tests**; root type checks, lint, F1 and F5 passed.
+
+These changes give the next team clear examples of membership, relative-order and availability checks. The diff changes only L's four unit-test files and K's registry test under the declared RQ-2; no production behavior or QA-owned test changed. Evidence is in `/tmp/reviewer-b-e2k2-{unit,canary-real-sim,canary-simonly,k0}.log`. QA retains the formal E2-N/F2 gate. No Docker, stack, commit or push was run.
