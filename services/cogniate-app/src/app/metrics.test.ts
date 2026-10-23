@@ -5,8 +5,8 @@ import { openDb } from '../domain/db.ts';
 import { observeDispatchSends } from '../kernel/records/outbox.ts';
 import { registerRecordReporters } from '../kernel/records/records.ts';
 import { recordsFixture, seedBase, testReporter } from '../kernel/records/records.testkit.ts';
-import { TEST_CHANNELS } from '../testkit.ts';
-import { AppMetrics, OPENMETRICS_TYPE, buildOperatorListener, operatorListenerConfig, readiness } from './metrics.ts';
+import { TEST_CHANNELS, testApp } from '../testkit.ts';
+import { AppMetrics, OPENMETRICS_TYPE, appMetricsFor, buildOperatorListener, operatorListenerConfig, readiness } from './metrics.ts';
 
 const FAMILIES = ['app_dispatch_rows', 'app_dispatch_oldest_pending_seconds', 'app_dispatch_sends', 'app_launch_refusals',
   'app_grant_redemptions', 'app_grant_compensation_failures', 'app_job_runs', 'app_job_last_success_timestamp_seconds'];
@@ -152,6 +152,13 @@ describe('GET /metrics', () => {
     expect(value(text, 'app_launch_refusals_total{reason="site_mismatch",channel=""}')).toBe(1);
     expect(value(text, `app_launch_refusals_total{reason="other",channel="${channel}"}`)).toBe(1);
     expect(text).not.toMatch(/school|user-42|lib"/);
+  });
+
+  it('AC-LA-E4-07-04 (unit side): the launch page counts its refusals in the registry of its database', async () => {
+    const t = await testApp();
+    closers.push(() => t.app.close());
+    for (const url of ['/tool/launch?ltik=short', `/tool/launch?ltik=${'a'.repeat(43)}`]) expect((await t.app.inject({ method: 'GET', url })).statusCode).toBe(401);
+    expect(value(appMetricsFor(t.db).render(), 'app_launch_refusals_total{reason="invalid_ltik",channel=""}')).toBe(2);
   });
 
   it('grant redemptions count ended attempts in the store; compensation failures and job runs come from log events', () => {
