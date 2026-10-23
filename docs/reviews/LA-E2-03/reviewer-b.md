@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -43,3 +43,17 @@ Verification ran only in `/tmp/la-e2-03-review-b-dbru185x/repo` at the merge SHA
 - The added review probe for a blank optional audience failed as described in B-01; direct default probes reproduced B-02. All temporary changes were restored. No Docker, stack, commit or push was run.
 
 QA retains K1-SIM AC-03/04/05/07, the F2 report and R1. Request changes for B-01; B-02 and B-03 are safe to schedule separately.
+
+## Round 2
+
+**Verdict: APPROVE.** Reviewed `3777e7c76d5ce89f3cd6d93b8975188fb4dec0f6` at merge `0e6bace312c766509119eeb77f48c4e594a90c34`, against B-LA-E2-03-01 and B-LA-E2-03-02 only. B-03 was explicitly outside this fix round. Blind review; the other reviewer's file was not read.
+
+**Open counts:** 0 BLOCKER, 0 MAJOR, 1 MINOR (B-03 carried), 0 NIT. No new findings.
+
+- **B-LA-E2-03-01 — CLOSED.** `kernel/setup/admin-value.ts:50` treats an empty or whitespace-only optional string as absent before validation. Required blank values still fail. The new tests cover blank, whitespace, supplied valid audience, nonempty invalid audience and blank required JWKS, plus the manual-form-shaped PUT through grant redemption. I also reran the actual rendered generic wizard-to-parser probe from Round 1: the form still sends `tokenAudience: ""`, but parsing now succeeds without an audience.
+- **B-LA-E2-03-02 — CLOSED.** `kernel/setup/admin-value.ts:31` provides one trimming/validation function for posted and defaulted values, and line 63 applies it after placeholder expansion. The malformed issuer, JWKS, client-id and grant-code defaults now fail with the same field as their posted counterparts. Explicit valid values still replace defaults; a valid HTTPS issuer default on another origin still gets the origin refusal.
+- **B-LA-E2-03-03 — OPEN, MINOR.** The issuer-specific repair sentence was not part of `3777e7c`; carry the Round 1 finding unchanged.
+
+Verification in `/tmp/la-e2-04-review-b-p0ltlhei/repo`: the clean merge passed **277 focused tests in 12 files**, including both changed test files and the portal shell, and **134 K0 tests**. Full lint, type checks, F1 and F5 passed. As a negative control, restoring only `admin-value.ts` from `3777e7c^` made all **three** new parser/default/API regressions fail; the fixed parser was then restored. The extra real wizard-to-parser probe passed with the fix. No portal or LTI-service production file changed in this fix; no Docker, stack, commit or push was run.
+
+This approval closes the two dispatched E2-03 findings. The separate staged-form and finalized-repeat gaps introduced or exposed by E2-04 are recorded in that task's Round 1 report.
