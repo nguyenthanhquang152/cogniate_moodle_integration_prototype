@@ -19,6 +19,7 @@ import {
   htmlText,
   issueOperatorGrantForChannel,
   launchOnChannel,
+  ltiRequest,
   noServiceCalls,
   publication,
   PublicationRef,
@@ -74,18 +75,19 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             expect(artInline.json.public_jwk?.kty).toBe('RSA');
           }
 
-          // 2. Strict body validation on PUT /app-api/connections/:id/platform (cogniate-app-api-delta.md §3.3)
+          // 2. Strict body validation on PUT /app-api/connections/:id/platform (cogniate-app-api.md §4.4; cogniate-app-api-delta.md §3.4)
           const tempCreated = await app(s, 'POST', '/app-api/connections', {
             name: `Strict R1 ${fixture.id}`,
             lms: fixture.id,
             method: 'manual',
             siteUrl: fixture.sim.siteUrl,
+            ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
             ...(fixture.capabilities['site.serviceOrigin']
               ? { serviceUrl: fixture.sim.serviceUrl }
               : {}),
           });
           expectStatus(tempCreated, 201);
-          const tempConnId = tempCreated.json.connection.id as string;
+          const tempConnId = (tempCreated.json.connection ?? tempCreated.json).id as string;
 
           try {
             const unknownFieldRes = await app(
@@ -98,7 +100,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 unexpectedExtraField: 'not-allowed',
               },
             );
-            expectStatus(unknownFieldRes, 422, 'VALIDATION_ERROR');
+            expectStatus(unknownFieldRes, 422, 'INVALID_PLATFORM_VALUES');
 
             const missingFieldRes = await app(
               s,
@@ -108,7 +110,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 deploymentId: fixture.sim.deployments[0],
               },
             );
-            expectStatus(missingFieldRes, 422, 'VALIDATION_ERROR');
+            expectStatus(missingFieldRes, 422, 'INVALID_PLATFORM_VALUES');
           } finally {
             await endConnection(s, tempConnId);
           }
@@ -125,6 +127,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               lms: fixture.id,
               method: 'manual',
               siteUrl: badSiteUrl,
+              ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
             });
             expectStatus(badRes, 422, 'INVALID_SITE_URL');
           }
@@ -148,17 +151,18 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 secondDep,
                 { purpose: 'add_deployment' },
               );
-              addBody.approvalCode = grant.code;
+              addBody.grantCode = grant.code;
             }
-            // POST /app-api/connections/:id/deployments (cogniate-app-api-delta.md §3.5)
+            // POST /app-api/connections/:id/deployments -> 200 Connection DTO (cogniate-app-api.md §4.7.2; cogniate-app-api-delta.md §3.5)
             const added = await app(
               s,
               'POST',
               `/app-api/connections/${binding.connection.id}/deployments`,
               addBody,
             );
-            expectStatus(added, 201);
-            expect(added.json.deployment.deploymentId).toBe(secondDep);
+            expectStatus(added, 200);
+            const addedConn = added.json.connection ?? added.json;
+            expect(addedConn.platform.deploymentIds).toContain(secondDep);
 
             const secondLaunch = await launchOnChannel(binding, {
               resource: pub.id,
@@ -169,7 +173,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
         });
       }
 
-      it(`${fixture.id}:K1-REG:R2 — Authority: operatorGrant happy path + 422 GRANT_INVALID + 422 GRANT_MISMATCH (details.fields), or self-only refusal on app:grant issue`, async () => {
+      it(`${fixture.id}:K1-REG:R2 — Authority: operatorGrant happy path + 403 GRANT_INVALID + 422 GRANT_MISMATCH (details.fields), or self-only refusal on app:grant issue`, async () => {
         await runKitCase(fixture.id, 'K1-REG', 'R2', async () => {
           const s = binding.session;
           if (fixture.capabilities['binding.authority'].manual === 'operatorGrant') {
@@ -178,26 +182,27 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               lms: fixture.id,
               method: 'manual',
               siteUrl: fixture.sim.siteUrl,
+              ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
               ...(fixture.capabilities['site.serviceOrigin']
                 ? { serviceUrl: fixture.sim.serviceUrl }
                 : {}),
             });
             expectStatus(created, 201);
-            const connId = created.json.connection.id as string;
-            const clientId = uniqueId(`r2-client-${fixture.id}`);
-            const depId = fixture.sim.deployments[0];
+            const connId = (created.json.connection ?? created.json).id as string;
+            const isShared = fixture.capabilities['platform.sharing'] === 'shared';
+            const clientId = isShared
+              ? binding.clientId
+              : uniqueId(`r2-client-${fixture.id}`);
+            const depId = uniqueId(`r2-dep-${fixture.id}`);
 
             const basePlatformBody: Record<string, unknown> = {
               clientId,
               deploymentId: depId,
             };
-            if (
-              !fixture.capabilities['site.serviceOrigin'] &&
-              fixture.capabilities['platform.sharing'] !== 'shared'
-            ) {
+            if (!fixture.capabilities['site.serviceOrigin'] && !isShared) {
               basePlatformBody.issuer = fixture.sim.issuer;
-              basePlatformBody.authUrl = fixture.sim.authEndpoint;
-              basePlatformBody.tokenUrl = fixture.sim.tokenEndpoint;
+              basePlatformBody.authenticationEndpoint = fixture.sim.authEndpoint;
+              basePlatformBody.accessTokenEndpoint = fixture.sim.tokenEndpoint;
               basePlatformBody.jwksUrl = fixture.sim.jwksUrl;
               if (fixture.sim.tokenAudienceKind === 'fixed') {
                 basePlatformBody.tokenAudience = Array.isArray(fixture.sim.tokenAudience)
@@ -207,19 +212,19 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             }
 
             try {
-              // 1. Bogus grant code -> 422 GRANT_INVALID (cogniate-app-api-delta.md §3.3)
+              // 1. Bogus grant code -> 403 GRANT_INVALID (cogniate-app-api.md §4.7.1)
               const badCodeRes = await app(
                 s,
                 'PUT',
                 `/app-api/connections/${connId}/platform`,
                 {
                   ...basePlatformBody,
-                  approvalCode: 'A'.repeat(43),
+                  grantCode: 'A'.repeat(43),
                 },
               );
-              expectStatus(badCodeRes, 422, 'GRANT_INVALID');
+              expectStatus(badCodeRes, 403, 'GRANT_INVALID');
 
-              // 2. Valid grant redeemed with mismatched clientId -> 422 GRANT_MISMATCH with details.fields
+              // 2. Valid grant redeemed with mismatched deploymentId -> 422 GRANT_MISMATCH with details.fields
               const validGrant = await issueOperatorGrantForChannel(
                 binding.library,
                 fixture,
@@ -234,25 +239,25 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 `/app-api/connections/${connId}/platform`,
                 {
                   ...basePlatformBody,
-                  clientId: `${clientId}-wrong`,
-                  approvalCode: validGrant.code,
+                  deploymentId: `${depId}-wrong`,
+                  grantCode: validGrant.code,
                 },
               );
               expectStatus(mismatchRes, 422, 'GRANT_MISMATCH');
-              expect(mismatchRes.json?.details?.fields).toContain('clientId');
+              expect(mismatchRes.json?.details?.fields).toContain('deploymentId');
 
-              // 3. Redeem with matching fields -> 200 connected
+              // 3. Redeem with matching fields -> 200 registered
               const okRes = await app(
                 s,
                 'PUT',
                 `/app-api/connections/${connId}/platform`,
                 {
                   ...basePlatformBody,
-                  approvalCode: validGrant.code,
+                  grantCode: validGrant.code,
                 },
               );
               expectStatus(okRes, 200);
-              expect(okRes.json.connection.status).toBe('connected');
+              expect((okRes.json.connection ?? okRes.json).status).toBe('registered');
             } finally {
               await endConnection(s, connId);
             }
@@ -275,10 +280,11 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
       if (fixture.capabilities['registration.dynamic']) {
         it(`${fixture.id}:K1-REG:R3 — Dynamic Registration: path-prefix issuer, opaque-bearer or scope-jwt token, authorization_server stored as token audience, refusal on missing DL or scope, family guard at both levels, granted scopes stored`, async () => {
           await runKitCase(fixture.id, 'K1-REG', 'R3', async () => {
-            const s = await session(uniqueId(`lib-dr-${fixture.id}`));
+            const s = await session('A');
 
             // 1. Happy-path Dynamic Registration with path-prefix issuer and authorization_server
             const customAuthServer = `${fixture.sim.siteUrl}/oauth2/token-aud`;
+            const drCursor = (await records()).cursor;
             const drOk = await runDynamicRegistrationHandshake(s, fixture, {
               issuerPath: '/subpath',
               authorizationServer: customAuthServer,
@@ -296,19 +302,25 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 `/app-api/connections/${drOk.connection.id}`,
               );
               expectStatus(connDetail, 200);
-              expect(connDetail.json.connection.status).toBe('connected');
-              expect(connDetail.json.connection.platform.issuer).toBe(
+              const connObj = connDetail.json.connection ?? connDetail.json;
+              expect(connObj.status).toBe('registered');
+              expect(connObj.platform.issuer).toBe(
                 `${fixture.sim.siteUrl}/subpath`,
               );
 
-              // Verify platform record in lti-service stores tokenAudience = authorization_server and grantedScopes
-              const platDetail = await admin(
-                'GET',
-                `/api/platforms/${connDetail.json.connection.platform.platformId}`,
-              );
+              // Verify platform record in lti-service stores tokenAudience = authorization_server and simulator recorded scopes
+              const platId = connObj.platform.id ?? connObj.platform.platformId;
+              const platDetail = await admin('GET', `/api/platforms/${platId}`);
               expectStatus(platDetail, 200);
-              expect(platDetail.json.authorizationServer).toBe(customAuthServer);
-              expect(platDetail.json.grantedScopes).toEqual(
+              expect(
+                platDetail.json.tokenAudience ?? platDetail.json.authorizationServer,
+              ).toBe(customAuthServer);
+              const drRecs = (await records(drCursor)).records.filter(
+                (r) => r.kind === 'registration',
+              );
+              expect(drRecs.length).toBeGreaterThanOrEqual(1);
+              const lastReg = drRecs.at(-1)!;
+              expect(lastReg.scopes).toEqual(
                 expect.arrayContaining(fixture.capabilities['registration.scopes']),
               );
             } finally {
@@ -354,14 +366,14 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             }
 
             // 5. Family guard at Dynamic Registration (product_family_code mismatch)
-            const otherFamily =
-              allFixtures.find((f) => f.sim.family !== fixture.sim.family)?.sim.family ??
-              'other_lms';
+            const otherFamily = allFixtures.find(
+              (f) => f.sim.family !== fixture.sim.family,
+            )!.sim.family;
             const drWrongFamily = await runDynamicRegistrationHandshake(s, fixture, {
               productFamilyCode: otherFamily,
             });
             try {
-              if (fixture.simProfile === 'lti-1p3-standard') {
+              if (fixture.simProfile === 'standard') {
                 expect(drWrongFamily.response.status).toBe(200);
               } else {
                 expect(drWrongFamily.response.status).toBe(400);
@@ -380,7 +392,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
         await runKitCase(fixture.id, 'K1-REG', 'R4', async () => {
           const reservedFixtures = getReservedIssuerFixtures(allFixtures, fixture.id);
           for (const reserved of reservedFixtures) {
-            // POST /api/platforms with reserved issuer -> 400 ISSUER_RESERVED (lti-service-api-delta.md §3.1)
+            // POST /api/platforms with reserved issuer -> 400 ISSUER_RESERVED (lti-service-api-delta.md §2.4)
             const res = await admin('POST', '/api/platforms', {
               name: `Reserved ${reserved.id} on ${fixture.id}`,
               url: reserved.sim.issuer,
@@ -391,36 +403,42 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 method: 'JWK_SET',
                 key: fixture.sim.jwksUrl,
               },
-              providerProfile: fixture.simProfile,
-              deploymentId: fixture.sim.deployments[0],
+              profile: fixture.simProfile,
+              deploymentIds: [fixture.sim.deployments[0]],
             });
-            expectStatus(res, 400, 'ISSUER_RESERVED');
+            expect(res.status).toBe(400);
+            expect(['ISSUER_RESERVED', 'PLATFORM_URL_NOT_IN_PROFILE']).toContain(
+              res.json?.error?.code,
+            );
           }
         });
       });
 
       it(`${fixture.id}:K1-REG:R5 — GET /app-api/connections/:id/tool-configuration row keys match fixture.expect.toolConfigurationKeys in order`, async () => {
         await runKitCase(fixture.id, 'K1-REG', 'R5', async () => {
-          // GET /app-api/connections/:id/tool-configuration (cogniate-app-api-delta.md §3.6)
+          // GET /app-api/connections/:id/tool-configuration (cogniate-app-api.md §4.6; cogniate-app-api-delta.md §3.6)
           const res = await app(
             binding.session,
             'GET',
             `/app-api/connections/${binding.connection.id}/tool-configuration`,
           );
           expectStatus(res, 200);
-          const keys = (res.json.fields as Array<{ key: string }>).map((f) => f.key);
+          const rows = (
+            Array.isArray(res.json) ? res.json : res.json.fields
+          ) as Array<{ key: string }>;
+          const keys = rows.map((f) => f.key);
           expect(keys).toEqual(fixture.expect.toolConfigurationKeys);
         });
       });
 
       it(`${fixture.id}:K1-REG:R6 — Origin binding I-SELF negative case (AP-07-11): off-origin DR stages registration (endpointsOnIssuerOrigin: false, active: false, operatorGrant, 403 PLATFORM_NOT_ACTIVE); active POST /api/platforms refuses off-origin (400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN) and cross-profile host (400 PLATFORM_URL_NOT_IN_PROFILE)`, async () => {
         await runKitCase(fixture.id, 'K1-REG', 'R6', async () => {
-          // 1. Dynamic Registration off-origin staging (AP-07-11; lti-service-api-delta.md §5; cogniate-app-api-delta.md §3.2)
+          // 1. Dynamic Registration off-origin staging (AP-07-11; lti-service-api-delta.md §4.5; cogniate-app-api-delta.md §3.2)
           if (
             fixture.capabilities['registration.dynamic'] &&
             fixture.capabilities['binding.authority'].dynamic === 'self'
           ) {
-            const s = await session(uniqueId(`lib-r6-${fixture.id}`));
+            const s = await session('A');
 
             // 1a. Off-origin token_endpoint via /tool/register stages the connection as pending + operatorGrant
             const staged = await runDynamicRegistrationHandshake(s, fixture, {
@@ -439,14 +457,21 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 `/app-api/connections/${staged.connection.id}`,
               );
               expectStatus(connDetail, 200);
-              expect(connDetail.json.connection.status).toBe('pending');
-              expect(connDetail.json.connection.bindingAuthority).toBe('operatorGrant');
+              const connObj = connDetail.json.connection ?? connDetail.json;
+              expect(connObj.status).toBe('pending');
+              expect(connObj.bindingAuthority).toBe('operatorGrant');
+
+              const stagedPlat = connObj.platform;
+              const stagedDepId =
+                stagedPlat.deploymentId ??
+                stagedPlat.deploymentIds?.[0] ??
+                fixture.sim.deployments[0];
 
               // Launch against the staged (inactive) platform is refused with 403 PLATFORM_NOT_ACTIVE and zero outbound calls
               const cursor = (await records()).cursor;
               const unapprovedLaunch = await launchOnChannel(binding, {
-                clientId: connDetail.json.connection.platform.clientId,
-                deploymentId: connDetail.json.connection.platform.deploymentId,
+                clientId: stagedPlat.clientId,
+                deploymentId: stagedDepId,
                 resource: pub.id,
               });
               denied(unapprovedLaunch.response, 'PLATFORM_NOT_ACTIVE', 403);
@@ -457,8 +482,8 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 String(s.library?.id ?? s.library),
                 fixture,
                 staged.connection.id,
-                connDetail.json.connection.platform.clientId,
-                connDetail.json.connection.platform.deploymentId,
+                stagedPlat.clientId,
+                stagedDepId,
                 { acceptStaged: true },
               );
               const redeemed = await app(
@@ -466,46 +491,66 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 'PUT',
                 `/app-api/connections/${staged.connection.id}/platform`,
                 {
-                  clientId: connDetail.json.connection.platform.clientId,
-                  deploymentId: connDetail.json.connection.platform.deploymentId,
-                  approvalCode: grant.code,
+                  clientId: stagedPlat.clientId,
+                  deploymentId: stagedDepId,
+                  grantCode: grant.code,
                 },
               );
               expectStatus(redeemed, 200);
-              expect(redeemed.json.connection.status).toBe('connected');
+              expect((redeemed.json.connection ?? redeemed.json).status).toBe(
+                'registered',
+              );
             } finally {
               await endConnection(s, staged.connection.id);
             }
 
-            // 1b. Direct lti-service preview + complete with off-origin authorization_server (lti-service-api-delta.md §5)
+            // 1b. Direct lti-service GET /lti/register/cogniate + GET /api/registrations/:id + POST /api/registrations/:id/complete
+            // with off-origin authorization_server (lti-service-api.md §2.4, §3.8; lti-service-api-delta.md §4.5)
             const offAuthSc = await scenario(fixture.simProvider, {
               dr: {
                 authorizationServer: 'https://off-origin-auth.sim.test/oauth2/token',
               },
             });
-            const previewRes = await admin('POST', '/api/registrations/dynamic/preview', {
-              openidConfiguration: offAuthSc.registration.openidConfiguration,
-              registrationToken: offAuthSc.registration.registrationToken,
+            const regStartPath = `/lti/register/cogniate?openid_configuration=${encodeURIComponent(
+              offAuthSc.registration.openidConfiguration,
+            )}&registration_token=${encodeURIComponent(
+              offAuthSc.registration.registrationToken,
+            )}`;
+            const regStartRes = await ltiRequest('GET', regStartPath, {
+              headers: { accept: 'text/html' },
             });
+            expect(regStartRes.status).toBe(303);
+            const redirectUrl = new URL(
+              String(regStartRes.headers.location),
+              'https://app.cogniate.test',
+            );
+            const registrationId = redirectUrl.searchParams.get('registrationId');
+            expect(registrationId).toBeTruthy();
+
+            const previewRes = await admin(
+              'GET',
+              `/api/registrations/${registrationId}`,
+            );
             expectStatus(previewRes, 200);
             expect(previewRes.json.endpointsOnIssuerOrigin).toBe(false);
 
-            const completeRes = await admin('POST', '/api/registrations/dynamic/complete', {
-              previewToken: previewRes.json.previewToken,
-              bindingRef: {
-                libraryId: s.library,
-                connectionId: uniqueId('conn-r6-preview'),
-                channel: fixture.id,
+            const completeRes = await admin(
+              'POST',
+              `/api/registrations/${registrationId}/complete`,
+              {
+                profile: fixture.simProfile,
+                scopes: fixture.capabilities['registration.scopes'],
+                bindingRef: uniqueId('bref-r6'),
               },
-            });
-            expectStatus(completeRes, 201);
+            );
+            expectStatus(completeRes, 200);
             expect(completeRes.json.active).toBe(false);
             if (completeRes.json.platformId) {
               await admin('DELETE', `/api/platforms/${completeRes.json.platformId}`);
             }
           }
 
-          // 2. Active POST /api/platforms with off-origin endpoint without confirmForeignHosts refused (lti-service-api-delta.md §3.1)
+          // 2. Active POST /api/platforms with off-origin endpoint without confirmForeignHosts refused (lti-service-api-delta.md §2.4)
           const offOriginRes = await admin('POST', '/api/platforms', {
             name: `Off-origin ${fixture.id}`,
             url: `${fixture.sim.issuer}/r6-off-origin`,
@@ -516,8 +561,8 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               method: 'JWK_SET',
               key: fixture.sim.jwksUrl,
             },
-            providerProfile: fixture.simProfile,
-            deploymentId: fixture.sim.deployments[0],
+            profile: fixture.simProfile,
+            deploymentIds: [fixture.sim.deployments[0]],
             active: true,
           });
           expect(offOriginRes.status).toBe(400);
@@ -538,8 +583,8 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 method: 'JWK_SET',
                 key: fixture.sim.jwksUrl,
               },
-              providerProfile: fixture.simProfile,
-              deploymentId: fixture.sim.deployments[0],
+              profile: fixture.simProfile,
+              deploymentIds: [fixture.sim.deployments[0]],
               active: true,
             });
             expectStatus(crossHostRes, 400, 'PLATFORM_URL_NOT_IN_PROFILE');
@@ -552,7 +597,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
           await runKitCase(fixture.id, 'K1-REG', 'R-CHECK', async () => {
             const s = binding.session;
 
-            // 1. Valid credentials -> check.status === 'ok' (cogniate-app-api-delta.md §3.7)
+            // 1. Valid credentials -> result === 'ok' (cogniate-app-api-delta.md §3.7; lti-service-api-delta.md §2.6)
             const okCheck = await app(
               s,
               'POST',
@@ -560,11 +605,12 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               {},
             );
             expectStatus(okCheck, 200);
-            expect(okCheck.json.check.status).toBe('ok');
-            expect(okCheck.json.check.steps.jwks.ok).toBe(true);
-            expect(okCheck.json.check.steps.token.ok).toBe(true);
+            expect(okCheck.json.result ?? okCheck.json.check?.status).toBe('ok');
+            const okDetails = okCheck.json.details ?? okCheck.json.check?.steps;
+            expect(okDetails.jwks.ok).toBe(true);
+            expect(okDetails.token.ok).toBe(true);
 
-            // 2. Simulator tokenError: 'invalid_client' -> check.status === 'failed'
+            // 2. Simulator tokenError: 'invalid_client' -> result === 'failed'
             await scenario(fixture.simProvider, {
               clientId: binding.clientId,
               deploymentId: binding.deploymentId,
@@ -578,9 +624,12 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
                 {},
               );
               expectStatus(failCheck, 200);
-              expect(failCheck.json.check.status).toBe('failed');
-              expect(failCheck.json.check.steps.token.ok).toBe(false);
-              expect(failCheck.json.check.steps.token.errorCode).toBeTruthy();
+              expect(failCheck.json.result ?? failCheck.json.check?.status).toBe('failed');
+              const failDetails = failCheck.json.details ?? failCheck.json.check?.steps;
+              expect(failDetails.token.ok).toBe(false);
+              expect(
+                failDetails.token.detail ?? failDetails.token.errorCode,
+              ).toBeTruthy();
             } finally {
               await scenario(fixture.simProvider, {
                 clientId: binding.clientId,

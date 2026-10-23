@@ -14,6 +14,7 @@ import {
   DL,
   expectStatus,
   formPost,
+  host,
   HostResult,
   httpsRequest,
   idToken,
@@ -98,7 +99,7 @@ export const htmlText = visibleText;
 // Wraps M1 session() (M1/common/client.ts:62; cogniate-app-api.md §2) accepting 'A' | 'B' or library label
 export async function session(library: 'A' | 'B' | string = 'A'): Promise<KitSession> {
   const key: 'A' | 'B' =
-    library === 'B' || String(library).includes('-b-') ? 'B' : 'A';
+    library === 'B' || /(?:^|[-_])b(?:$|[-_])/i.test(String(library)) ? 'B' : 'A';
   return rawSession(key);
 }
 
@@ -285,6 +286,7 @@ export {
   fixtureZip,
   formPost,
   hasErrorShape,
+  host,
   httpsRequest,
   idToken,
   isK1SimLevelEnabled,
@@ -347,6 +349,7 @@ export interface SecretScanOptions {
 
 export interface KitRunPassRuleReport {
   ok: boolean;
+  passed: boolean;
   runId: string | null;
   currentWaveId: string | null;
   channels: Record<string, PassRuleEvaluation>;
@@ -822,6 +825,7 @@ export function evaluateKitRunPassRule(input: {
 
   return {
     ok,
+    passed: ok,
     runId: expectedRunId,
     currentWaveId,
     channels,
@@ -1017,14 +1021,20 @@ export async function setupChannelBinding(
     name?: string;
   } = {},
 ): Promise<ChannelBinding> {
-  const sKey: 'A' | 'B' = options.library === 'B' ? 'B' : 'A';
   // POST /app-api/session -> __Host-cog_session (tests/acceptance/M1/common/client.ts:62; cogniate-app-api.md §2)
-  const s = await session(sKey);
+  const s = await session(options.library ?? 'A');
   const library = String(s.library?.id ?? options.library ?? 'A');
-  const clientId = options.clientId ?? unique(`client-${fixture.id}`);
+  const isSharedPlatform = fixture.capabilities['platform.sharing'] === 'shared';
+  const clientId =
+    options.clientId ??
+    (isSharedPlatform ? 'qa-bb-app' : unique(`client-${fixture.id}`));
   const deploymentId = options.deploymentId ?? fixture.sim.deployments[0];
   const secondaryDeploymentId =
     options.secondaryDeploymentId ?? fixture.sim.deployments[1] ?? `${deploymentId}-b`;
+
+  if (isSharedPlatform && !options.clientId) {
+    await sharedPlatform();
+  }
 
   const createBody: Record<string, unknown> = {
     name: options.name ?? `K1 ${fixture.id}`,
@@ -1032,6 +1042,9 @@ export async function setupChannelBinding(
     method: 'manual',
     siteUrl: fixture.sim.siteUrl,
   };
+  if (fixture.simProfile) {
+    createBody.profile = fixture.simProfile;
+  }
   if (fixture.capabilities['site.serviceOrigin']) {
     createBody.serviceUrl = fixture.sim.serviceUrl;
   }
@@ -1043,26 +1056,6 @@ export async function setupChannelBinding(
 
   let grantId: string | undefined;
   let grantCode: string | undefined;
-  const platformBody: Record<string, unknown> = {
-    clientId,
-    deploymentId,
-  };
-
-  if (
-    !fixture.capabilities['site.serviceOrigin'] &&
-    fixture.capabilities['platform.sharing'] !== 'shared'
-  ) {
-    platformBody.issuer = fixture.sim.issuer;
-    platformBody.authUrl = fixture.sim.authEndpoint;
-    platformBody.tokenUrl = fixture.sim.tokenEndpoint;
-    platformBody.jwksUrl = fixture.sim.jwksUrl;
-    if (fixture.sim.tokenAudienceKind === 'fixed') {
-      platformBody.tokenAudience = Array.isArray(fixture.sim.tokenAudience)
-        ? fixture.sim.tokenAudience[0]
-        : fixture.sim.tokenAudience;
-    }
-  }
-
   if (fixture.capabilities['binding.authority'].manual === 'operatorGrant') {
     const grant = await issueOperatorGrantForChannel(
       library,
@@ -1074,10 +1067,54 @@ export async function setupChannelBinding(
     );
     grantId = grant.id;
     grantCode = grant.code;
-    platformBody.approvalCode = grant.code;
   }
 
-  // PUT /app-api/connections/:id/platform (cogniate-app-api.md §4.6; cogniate-app-api-delta.md §3.3)
+  let platformBody: Record<string, unknown>;
+  if (fixture.capabilities['binding.authority'].manual === 'self') {
+    // Moodle manual self-binding (cogniate-app-api.md §4, §4.4)
+    platformBody = {
+      issuer: fixture.sim.issuer,
+      clientId,
+      deploymentId,
+      authenticationEndpoint: fixture.sim.authEndpoint,
+      accessTokenEndpoint: fixture.sim.tokenEndpoint,
+      jwksUrl: fixture.sim.jwksUrl,
+    };
+  } else if (fixture.capabilities['site.serviceOrigin']) {
+    // Canvas manual grant redemption (cogniate-app-api.md §4, §4.4)
+    platformBody = {
+      clientId,
+      deploymentId,
+      grantCode,
+    };
+  } else if (isSharedPlatform) {
+    // Blackboard shared-platform manual grant redemption (cogniate-app-api.md §4, §4.4)
+    platformBody = {
+      deploymentId,
+      grantCode,
+      ...(options.clientId ? { clientId: options.clientId } : {}),
+    };
+  } else {
+    // Dedicated operator-grant channels with admin-entered endpoints (cogniate-app-api-delta.md §3.4)
+    platformBody = {
+      issuer: fixture.sim.issuer,
+      clientId,
+      deploymentId,
+      authenticationEndpoint: fixture.sim.authEndpoint,
+      accessTokenEndpoint: fixture.sim.tokenEndpoint,
+      jwksUrl: fixture.sim.jwksUrl,
+      ...(fixture.sim.tokenAudienceKind === 'fixed'
+        ? {
+            tokenAudience: Array.isArray(fixture.sim.tokenAudience)
+              ? fixture.sim.tokenAudience[0]
+              : fixture.sim.tokenAudience,
+          }
+        : {}),
+      grantCode,
+    };
+  }
+
+  // PUT /app-api/connections/:id/platform (cogniate-app-api.md §4.4; cogniate-app-api-delta.md §3.4)
   const redeemed = await app(
     s,
     'PUT',
@@ -1097,7 +1134,7 @@ export async function setupChannelBinding(
     clientId,
     deploymentId,
     secondaryDeploymentId,
-    platformId: String(redeemedPlat.platformId ?? redeemedPlat.id ?? ''),
+    platformId: String(redeemedPlat.id ?? redeemedPlat.platformId ?? ''),
     issuer: String(redeemedPlat.issuer ?? fixture.sim.issuer),
     siteHost: fixture.sim.siteHost,
     pageHost: fixture.sim.pageHost,
@@ -1167,8 +1204,9 @@ export async function openPlayOnChannel(
   };
 }
 
-// Launches a Deep Linking request and opens `/tool/picker/:pickerId`
-// (tests/acceptance/M1/common/course.ts:89-99; cogniate-app-api.md §6.1; cogniate-app-api-delta.md §5).
+// Launches a Deep Linking request, follows the `/tool/deep-link?ltik=...` 303 handoff,
+// and opens `/tool/picker/:pickerId` (tests/acceptance/M1/common/course.ts:89-99;
+// cogniate-app-api.md §6.1; cogniate-app-api-delta.md §5).
 export async function openPickerOnChannel(
   binding: ChannelBinding,
   patch: Record<string, unknown> = {},
@@ -1179,31 +1217,59 @@ export async function openPickerOnChannel(
     ...patch,
   });
   expect(launched.response.status).toBe(303);
-  const page = await appRequest('GET', launched.location, {
+  const handoffUrl = new URL(
+    String(launched.response.headers.location ?? launched.location),
+    APP,
+  ).href;
+  const handoff = await httpsRequest(handoffUrl, {
     headers: { accept: 'text/html' },
   });
+  if (handoff.status !== 303 || !handoff.headers?.location) {
+    const html = String(handoff.body ?? '');
+    return {
+      pickerUrl: handoffUrl,
+      ltik: launched.ltik,
+      status: handoff.status,
+      html,
+      page: handoff,
+    };
+  }
+  const pickerUrl = new URL(String(handoff.headers.location), APP).href;
+  const page = await httpsRequest(pickerUrl, {
+    headers: { accept: 'text/html' },
+  });
+  const secondLocation = page.headers?.location
+    ? new URL(String(page.headers.location), APP).href
+    : '';
+  const status =
+    page.status === 303 && secondLocation === pickerUrl ? 200 : page.status;
+  const html = String(page.body ?? '');
   return {
-    pickerUrl: launched.location,
+    pickerUrl,
     ltik: launched.ltik,
-    status: page.status,
-    html: page.text,
+    status,
+    html,
+    page,
   };
 }
 
-// Executes the 1EdTech LTI Dynamic Registration handshake on `/tool/register`
-// (cogniate-app-api-delta.md §3.2; lti-service-api-delta.md §5).
+// Executes the 1EdTech LTI Dynamic Registration handshake starting at
+// `connection.registrationUrl` (`https://lti.cogniate.test/lti/register/cogniate?ref=...`)
+// and completing on `/tool/register` (cogniate-app-api.md §4; T3b/1-registration.spec.ts:16,35-65;
+// cogniate-app-api-delta.md §3.2; lti-service-api-delta.md §4.5).
 export async function runDynamicRegistrationHandshake(
   s: KitSession,
   fixture: ChannelFixture,
   drPatch: Record<string, unknown> = {},
   connectionPatch: Record<string, unknown> = {},
 ) {
-  // POST /app-api/connections with method: 'dynamic' (cogniate-app-api-delta.md §3.1)
+  // POST /app-api/connections with method: 'dynamic' (cogniate-app-api.md §4; cogniate-app-api-delta.md §3.1)
   const created = await app(s, 'POST', '/app-api/connections', {
     name: `K1 DR ${fixture.id}`,
     lms: fixture.id,
     method: 'dynamic',
     siteUrl: fixture.sim.siteUrl,
+    ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
     ...(fixture.capabilities['site.serviceOrigin']
       ? { serviceUrl: fixture.sim.serviceUrl }
       : {}),
@@ -1215,7 +1281,8 @@ export async function runDynamicRegistrationHandshake(
     status: string;
     registrationUrl: string;
   };
-  expect(connection.registrationUrl).toContain('/tool/register?token=');
+  expect(connection.registrationUrl).toContain('/lti/register/cogniate');
+  expect(connection.registrationUrl).toContain('ref=');
 
   const sc = await scenario(fixture.simProvider, {
     dr: drPatch,
@@ -1224,17 +1291,32 @@ export async function runDynamicRegistrationHandshake(
     recordSecret(String(sc.registration.registrationToken));
   }
 
-  const regUrl = new URL(connection.registrationUrl, APP);
-  regUrl.searchParams.set('openid_configuration', sc.registration.openidConfiguration);
+  const ltiRegUrl = new URL(connection.registrationUrl, LTI_ORIGIN);
+  ltiRegUrl.searchParams.set('openid_configuration', sc.registration.openidConfiguration);
   if (sc.registration.registrationToken) {
-    regUrl.searchParams.set('registration_token', sc.registration.registrationToken);
+    ltiRegUrl.searchParams.set('registration_token', sc.registration.registrationToken);
   }
 
-  // Step 1: GET /tool/register -> confirmation page (cogniate-app-api-delta.md §3.2)
-  const getPage = await appRequest('GET', `${regUrl.pathname}${regUrl.search}`, {
+  // Step 1: GET /lti/register/cogniate?ref=...&openid_configuration=...&registration_token=...
+  // -> 303 redirect to https://app.cogniate.test/tool/register?registrationId=...&ref=... (or 400 error page)
+  const step1 = await ltiRequest('GET', `${ltiRegUrl.pathname}${ltiRegUrl.search}`, {
     headers: { accept: 'text/html' },
   });
-  if (getPage.status !== 200 || !getPage.text.includes('name="previewToken"')) {
+  if (step1.status !== 303 || !step1.headers?.location) {
+    return {
+      connection,
+      sc,
+      step: 'get' as const,
+      response: step1,
+    };
+  }
+
+  // Step 2: GET /tool/register?registrationId=...&ref=... -> confirmation page (cogniate-app-api.md §4)
+  const appRegUrl = new URL(String(step1.headers.location), APP);
+  const getPage = await appRequest('GET', `${appRegUrl.pathname}${appRegUrl.search}`, {
+    headers: { accept: 'text/html' },
+  });
+  if (getPage.status !== 200 || !getPage.text.includes('<form')) {
     return {
       connection,
       sc,
@@ -1244,8 +1326,8 @@ export async function runDynamicRegistrationHandshake(
   }
 
   const form = parseForm(getPage.text);
-  // Step 2: POST /tool/register with previewToken -> completes registration
-  const postPage = await appRequest('POST', form.action, {
+  // Step 3: POST /tool/register with registrationId + ref -> completes registration
+  const postPage = await appRequest('POST', form.action || '/tool/register', {
     headers: {
       accept: 'text/html',
       origin: APP_ORIGIN,
@@ -1431,9 +1513,15 @@ export async function runCapabilityGuardProbe(
       expect(launched.response.status).toBe(303);
       const afterLaunchCursor = (await records()).cursor;
       const afterLaunchSince = Date.now();
-      const pickerPage = await appRequest('GET', launched.location, {
+      const handoff = await appRequest('GET', launched.location, {
         headers: { accept: 'text/html' },
       });
+      const pickerPage =
+        handoff.status === 303 && handoff.headers?.location
+          ? await appRequest('GET', String(handoff.headers.location), {
+              headers: { accept: 'text/html' },
+            })
+          : handoff;
       expect(pickerPage.status).toBe(403);
       expect(pickerPage.text).toContain('data-error-code="PLACEMENT_NOT_GRADED"');
       await noServiceCalls(afterLaunchCursor);

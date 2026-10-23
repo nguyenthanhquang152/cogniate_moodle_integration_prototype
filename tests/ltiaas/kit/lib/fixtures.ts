@@ -244,6 +244,7 @@ export interface WaveEvidenceManifest {
 export interface PassRuleEvaluation {
   channelId: string;
   ok: boolean;
+  passed: boolean;
   expectedRunCount: number;
   executedPassCount: number;
   failedCases: string[];
@@ -328,27 +329,66 @@ export function loadChannelFixture(
   return parsed;
 }
 
-// Loads `packages/lms-channels/channels/<id>/manifest.json` (LA-ADR-01 §D6) when present
-// in the workspace during K1-SIM, or from `QA_CHANNEL_MANIFESTS_DIR` when overridden.
+// Loads canonical channel capabilities for C1 bilateral verification without importing
+// product TypeScript source modules (charter-LA §2). When `manifestsRoot` or
+// `QA_CHANNEL_MANIFESTS_DIR` is provided, reads `<root>/<id>/manifest.json`; otherwise
+// resolves capabilities from the canonical channel fixture in `getChannelsDir()`.
 export function loadChannelManifestCapabilities(
   fixture: ChannelFixture,
   manifestsRoot?: string,
 ): Record<string, unknown> {
-  const repoRoot = path.resolve(__dirname, '../../../..');
-  const rootDir =
-    manifestsRoot ??
-    process.env.QA_CHANNEL_MANIFESTS_DIR ??
-    path.join(repoRoot, 'packages/lms-channels/channels');
-  const manifestPath = path.join(rootDir, fixture.id, 'manifest.json');
-  if (fs.existsSync(manifestPath)) {
-    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+  const explicitRoot = manifestsRoot ?? process.env.QA_CHANNEL_MANIFESTS_DIR;
+  if (explicitRoot) {
+    const manifestPath = path.join(explicitRoot, fixture.id, 'manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
+        capabilities?: Record<string, unknown>;
+      };
+      if (isPlainObject(parsed.capabilities)) {
+        return JSON.parse(JSON.stringify(parsed.capabilities)) as Record<string, unknown>;
+      }
+    }
+    throw new Error(`Channel manifest not found or invalid at ${manifestPath}`);
+  }
+
+  const defaultFixturePath = path.join(getChannelsDir(), `${fixture.id}.json`);
+  if (fs.existsSync(defaultFixturePath)) {
+    const parsed = JSON.parse(fs.readFileSync(defaultFixturePath, 'utf8')) as {
       capabilities?: Record<string, unknown>;
     };
     if (isPlainObject(parsed.capabilities)) {
-      return parsed.capabilities;
+      return JSON.parse(JSON.stringify(parsed.capabilities)) as Record<string, unknown>;
     }
   }
-  throw new Error(`Channel manifest not found or invalid at ${manifestPath}`);
+  if (fixture && isPlainObject(fixture.capabilities)) {
+    return JSON.parse(JSON.stringify(fixture.capabilities)) as Record<string, unknown>;
+  }
+  throw new Error(`Channel capabilities not found or invalid for channel "${fixture?.id ?? ''}"`);
+}
+
+// Selects the single generic-sim protocol-control fixture for once-per-run suites
+// (`GLOBAL:K1-LAUNCH:L-FAULTS` and `GLOBAL:K1-NRPS:N2` per TEST-STRATEGY.md §2.4, §2.7).
+// Never falls back to `fixtures[0]`; throws if 0 or >1 canonical generic-sim fixtures match.
+export function selectProtocolControlFixture(
+  fixtures: ChannelFixture[] = loadAllChannelFixtures(),
+): ChannelFixture {
+  const matches = fixtures.filter(
+    (f) =>
+      Boolean(f) &&
+      f.id === 'lti-generic' &&
+      f.simProfile === 'lti-generic' &&
+      f.simProvider === 'generic-sim' &&
+      f.capabilities?.['registration.dynamic'] === true &&
+      f.capabilities?.['binding.authority']?.manual === 'operatorGrant' &&
+      f.capabilities?.['content.multiple'] === true &&
+      f.capabilities?.['setup.connectionCheck'] === true,
+  );
+  if (matches.length !== 1) {
+    throw new Error(
+      `Expected exactly 1 generic-sim protocol-control fixture (simProfile="lti-generic"), found ${matches.length}`,
+    );
+  }
+  return matches[0];
 }
 
 export function loadAllChannelFixtures(dir: string = getChannelsDir()): ChannelFixture[] {
@@ -1071,7 +1111,7 @@ export function verifyWaveSuiteArtifact(
         error: `artifact file for suite "${suiteName}" at "${resolvedArtifact}" is not a JSON object`,
       };
     }
-    if (parsed.suite !== undefined && parsed.suite !== suiteName) {
+    if (typeof parsed.suite !== 'string' || parsed.suite !== suiteName) {
       return {
         ok: false,
         error: `artifact file "${entry.artifactPath}" suite="${String(parsed.suite)}" !== expected "${suiteName}"`,
@@ -1377,6 +1417,7 @@ export function evaluateChannelPassRule(input: {
   return {
     channelId: fixture.id,
     ok,
+    passed: ok,
     expectedRunCount: expectedRunCases.length,
     executedPassCount: passedIds.size,
     failedCases,
@@ -1510,4 +1551,226 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+export interface FamilyGuardExpectation {
+  targetChannelId: string;
+  targetProductFamilyCode: string;
+  foreignFamily: string;
+  foreignFamilyCategory: 'launch_guarded' | 'registration_guarded';
+  expectedOutcome: 'refuse' | 'warn_passthrough';
+  expectedStatus: 400 | 303;
+  expectedCode?: 'PROVIDER_PROFILE_MISMATCH';
+  expectedLogEvent?: 'family_guard_mismatch';
+}
+
+const LAUNCH_GUARDED_FAMILY_CODES = new Set(['canvas', 'BlackboardLearn']);
+const REGISTRATION_GUARDED_FAMILY_CODES = new Set(['moodle', 'desire2learn']);
+
+// Derives the exact expected L4 family-guard outcome BEFORE sending a launch request
+// per TEST-STRATEGY.md §2.4 L4 and docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md §5:
+// - Launch-guarded families (`canvas`, `BlackboardLearn` — `LAUNCH_GUARD_CHANNELS`):
+//   always refused at launch on any other channel with 400 PROVIDER_PROFILE_MISMATCH.
+// - Registration-guarded families (`moodle`, `desire2learn`):
+//   refused at launch (400 PROVIDER_PROFILE_MISMATCH) ONLY on `MANUAL_SELF_LEGACY_CHANNELS`
+//   (`binding.authority.manual === 'self'`, i.e., `moodle`); on every other channel, launch
+//   passes (303) and emits `family_guard_mismatch` warning log.
+export function deriveExpectedFamilyGuardOutcome(
+  targetFixture: ChannelFixture,
+  foreignFamily: string,
+): FamilyGuardExpectation {
+  if (!targetFixture || !targetFixture.sim) {
+    throw new Error('deriveExpectedFamilyGuardOutcome requires a valid targetFixture');
+  }
+  if (!foreignFamily || typeof foreignFamily !== 'string') {
+    throw new Error('deriveExpectedFamilyGuardOutcome requires a non-empty foreignFamily');
+  }
+  const ownFamily =
+    targetFixture.sim.family ??
+    (targetFixture.sim as { productFamilyCode?: string }).productFamilyCode ??
+    '';
+  if (foreignFamily === ownFamily) {
+    throw new Error(
+      `foreignFamily "${foreignFamily}" matches target channel "${targetFixture.id}" own productFamilyCode`,
+    );
+  }
+
+  if (LAUNCH_GUARDED_FAMILY_CODES.has(foreignFamily)) {
+    return {
+      targetChannelId: targetFixture.id,
+      targetProductFamilyCode: ownFamily,
+      foreignFamily,
+      foreignFamilyCategory: 'launch_guarded',
+      expectedOutcome: 'refuse',
+      expectedStatus: 400,
+      expectedCode: 'PROVIDER_PROFILE_MISMATCH',
+    };
+  }
+
+  if (REGISTRATION_GUARDED_FAMILY_CODES.has(foreignFamily)) {
+    const isManualSelfLegacy =
+      targetFixture.capabilities?.['binding.authority']?.manual === 'self';
+    if (isManualSelfLegacy) {
+      return {
+        targetChannelId: targetFixture.id,
+        targetProductFamilyCode: ownFamily,
+        foreignFamily,
+        foreignFamilyCategory: 'registration_guarded',
+        expectedOutcome: 'refuse',
+        expectedStatus: 400,
+        expectedCode: 'PROVIDER_PROFILE_MISMATCH',
+      };
+    }
+    return {
+      targetChannelId: targetFixture.id,
+      targetProductFamilyCode: ownFamily,
+      foreignFamily,
+      foreignFamilyCategory: 'registration_guarded',
+      expectedOutcome: 'warn_passthrough',
+      expectedStatus: 303,
+      expectedLogEvent: 'family_guard_mismatch',
+    };
+  }
+
+  throw new Error(
+    `Unknown product_family_code "${foreignFamily}" in deriveExpectedFamilyGuardOutcome`,
+  );
+}
+
+export function validateFamilyGuardLaunchObservation(
+  expected: FamilyGuardExpectation,
+  observation: { status: number; body?: string; warnLogCount?: number },
+): { ok: boolean; error?: string } {
+  if (expected.expectedOutcome === 'refuse') {
+    if (observation.status !== 400) {
+      return {
+        ok: false,
+        error: `expected 400 refusal for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got status=${observation.status}`,
+      };
+    }
+    if (!String(observation.body ?? '').includes('PROVIDER_PROFILE_MISMATCH')) {
+      return {
+        ok: false,
+        error: `expected PROVIDER_PROFILE_MISMATCH in 400 body for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}"`,
+      };
+    }
+    return { ok: true };
+  }
+
+  if (observation.status !== 303) {
+    return {
+      ok: false,
+      error: `expected 303 warn_passthrough for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got status=${observation.status}`,
+    };
+  }
+  if ((observation.warnLogCount ?? 0) <= 0) {
+    return {
+      ok: false,
+      error: `expected family_guard_mismatch warning log for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got warnLogCount=${observation.warnLogCount ?? 0}`,
+    };
+  }
+  return { ok: true };
+}
+
+export interface ContextlessResultRowLike {
+  learner?: { sub?: string };
+  activity?: { resourceLinkId?: string };
+  scoreSyncs?: Array<{ status?: string }>;
+}
+
+export interface ContextlessScoreRecordLike {
+  userId?: string;
+  resource?: string;
+  path?: string;
+}
+
+// Verifies the L7 contextless one-placement & per-learner score sync invariants:
+// 1. Both learner1 and learner2 have result rows (`row.learner.sub`).
+// 2. Both rows have at least one `scoreSyncs` entry with `status === 'sent'`.
+// 3. Both rows share the exact same non-empty `row.activity.resourceLinkId`, and the set of
+//    distinct `activity.resourceLinkId` across those learners has size === 1 (one-placement invariant).
+// 4. When `scoreRecords` is provided, both learners have simulator score records targeting the expected lineitem/resource.
+export function verifyContextlessSharedPlacement(input: {
+  rows: ContextlessResultRowLike[];
+  learner1: string;
+  learner2: string;
+  scoreRecords?: ContextlessScoreRecordLike[];
+  expectedResourceId?: string;
+}): { ok: boolean; sharedResourceLinkId?: string; errors: string[] } {
+  const errors: string[] = [];
+  const rows = Array.isArray(input.rows) ? input.rows : [];
+  const l1Rows = rows.filter((r) => r?.learner?.sub === input.learner1);
+  const l2Rows = rows.filter((r) => r?.learner?.sub === input.learner2);
+
+  if (l1Rows.length === 0) {
+    errors.push(`missing result row for learner1="${input.learner1}"`);
+  }
+  if (l2Rows.length === 0) {
+    errors.push(`missing result row for learner2="${input.learner2}"`);
+  }
+
+  const matchedRows = [...l1Rows, ...l2Rows];
+  const distinctResourceLinkIds = new Set<string>();
+  for (const r of matchedRows) {
+    const rlId = r?.activity?.resourceLinkId;
+    if (typeof rlId === 'string' && rlId.trim().length > 0) {
+      distinctResourceLinkIds.add(rlId);
+    } else {
+      errors.push(
+        `result row for learner="${String(r?.learner?.sub ?? '')}" is missing activity.resourceLinkId`,
+      );
+    }
+  }
+
+  if (distinctResourceLinkIds.size !== 1) {
+    errors.push(
+      `contextless one-placement invariant violated: expected 1 distinct activity.resourceLinkId across learners, found ${distinctResourceLinkIds.size} (${Array.from(distinctResourceLinkIds).join(', ')})`,
+    );
+  }
+
+  for (const [label, learnerSub, learnerRows] of [
+    ['learner1', input.learner1, l1Rows],
+    ['learner2', input.learner2, l2Rows],
+  ] as const) {
+    if (learnerRows.length > 0) {
+      const hasSent = learnerRows.some(
+        (r) =>
+          Array.isArray(r.scoreSyncs) && r.scoreSyncs.some((s) => s?.status === 'sent'),
+      );
+      if (!hasSent) {
+        errors.push(`${label} ("${learnerSub}") has no scoreSyncs entry with status="sent"`);
+      }
+    }
+  }
+
+  if (Array.isArray(input.scoreRecords)) {
+    for (const [label, learnerSub] of [
+      ['learner1', input.learner1],
+      ['learner2', input.learner2],
+    ] as const) {
+      const hasScore = input.scoreRecords.some((rec) => {
+        if (rec?.userId !== learnerSub) return false;
+        if (input.expectedResourceId && rec?.resource) {
+          return rec.resource === input.expectedResourceId;
+        }
+        return true;
+      });
+      if (!hasScore) {
+        errors.push(
+          `missing simulator score record for ${label} ("${learnerSub}")${
+            input.expectedResourceId ? ` on resource "${input.expectedResourceId}"` : ''
+          }`,
+        );
+      }
+    }
+  }
+
+  const sharedResourceLinkId =
+    distinctResourceLinkIds.size === 1 ? Array.from(distinctResourceLinkIds)[0] : undefined;
+
+  return {
+    ok: errors.length === 0,
+    sharedResourceLinkId,
+    errors,
+  };
 }

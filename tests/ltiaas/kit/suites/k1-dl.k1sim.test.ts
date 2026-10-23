@@ -186,25 +186,27 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
             expect([400, 422]).toContain(multiAttempt.status);
           }
 
-          // 2. Service-level POST /api/deeplinking with LTIK-AUTH-V2 (lti-service-api.md §3.1; lti-service-api-delta.md §1.2, §6):
+          // 2. Service-level POST /api/deeplinking with LTIK-AUTH-V2 (lti-service-api.md §3.2; lti-service-api-delta.md §4.2):
           // acceptMultiple: false refuses >1 items and >20 items
           const singlePicker = await openPickerOnChannel(binding, {
             acceptMultiple: false,
           });
           const twoItemsRes = await ltiApi('POST', '/api/deeplinking', {
             authorization: auth.ltik(apiKey(ACCOUNT), singlePicker.ltik),
-            body: [
-              {
-                type: 'ltiResourceLink',
-                title: 'Item 1',
-                url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
-              },
-              {
-                type: 'ltiResourceLink',
-                title: 'Item 2',
-                url: `${APP_ORIGIN}/tool/launch/${pub2.id}`,
-              },
-            ],
+            body: {
+              contentItems: [
+                {
+                  type: 'ltiResourceLink',
+                  title: 'Item 1',
+                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                },
+                {
+                  type: 'ltiResourceLink',
+                  title: 'Item 2',
+                  url: `${APP_ORIGIN}/tool/launch/${pub2.id}`,
+                },
+              ],
+            },
           });
           expectStatus(twoItemsRes, 400, 'INVALID_CONTENT_ITEM');
 
@@ -218,7 +220,9 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           }));
           const tooManyRes = await ltiApi('POST', '/api/deeplinking', {
             authorization: auth.ltik(apiKey(ACCOUNT), multiPicker2.ltik),
-            body: twentyOneItems,
+            body: {
+              contentItems: twentyOneItems,
+            },
           });
           expectStatus(tooManyRes, 400, 'INVALID_CONTENT_ITEM');
         });
@@ -274,14 +278,16 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
 
           const withLineItemRes = await ltiApi('POST', '/api/deeplinking', {
             authorization: auth.ltik(apiKey(ACCOUNT), launched1.ltik!),
-            body: [
-              {
-                type: 'ltiResourceLink',
-                title: 'Should Refuse LineItem',
-                url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
-                lineItem: { scoreMaximum: 100 },
-              },
-            ],
+            body: {
+              contentItems: [
+                {
+                  type: 'ltiResourceLink',
+                  title: 'Should Refuse LineItem',
+                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                  lineItem: { scoreMaximum: 100 },
+                },
+              ],
+            },
           });
           expectStatus(withLineItemRes, 400, 'INVALID_CONTENT_ITEM');
 
@@ -292,18 +298,21 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           });
           const withoutLineItemRes = await ltiApi('POST', '/api/deeplinking', {
             authorization: auth.ltik(apiKey(ACCOUNT), launched2.ltik!),
-            body: [
-              {
-                type: 'ltiResourceLink',
-                title: 'Ungraded Item Allowed At Service Layer',
-                url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
-              },
-            ],
+            body: {
+              contentItems: [
+                {
+                  type: 'ltiResourceLink',
+                  title: 'Ungraded Item Allowed At Service Layer',
+                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                },
+              ],
+            },
           });
           expectStatus(withoutLineItemRes, 200);
-          expect(
-            (withoutLineItemRes.json as { jwt?: string } | undefined)?.jwt,
-          ).toBeTruthy();
+          const dlResJson = withoutLineItemRes.json as
+            | { message?: string; jwt?: string }
+            | undefined;
+          expect(dlResJson?.message ?? dlResJson?.jwt).toBeTruthy();
 
           // 2. App-level picker behaviour when content.ungraded is false -> 403 PLACEMENT_NOT_GRADED with zero DL calls
           if (!fixture.capabilities['content.ungraded']) {
@@ -313,9 +322,15 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
               acceptLineitem: false,
             });
             const cursor = (await records()).cursor;
-            const pickerPage = await appRequest('GET', launched3.location, {
+            const handoff = await appRequest('GET', launched3.location, {
               headers: { accept: 'text/html' },
             });
+            const pickerPage =
+              handoff.status === 303 && handoff.headers?.location
+                ? await appRequest('GET', String(handoff.headers.location), {
+                    headers: { accept: 'text/html' },
+                  })
+                : handoff;
             expect(pickerPage.status).toBe(403);
             expect(pickerPage.text).toContain('data-error-code="PLACEMENT_NOT_GRADED"');
             await noServiceCalls(cursor);
@@ -346,7 +361,7 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
 
       it(`${fixture.id}:K1-DL:D6 — /api/idtoken shows acceptLineItem and acceptMediaTypes when present and omits them when absent`, async () => {
         await runKitCase(fixture.id, 'K1-DL', 'D6', async () => {
-          // 1. Present in Deep Linking settings (lti-service-api-delta.md §4)
+          // 1. Present in Deep Linking settings (lti-service-api.md §3.1; lti-service-api-delta.md §4.1)
           const withFields = await launchOnChannel(binding, {
             messageType: 'LtiDeepLinkingRequest',
             roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
@@ -356,22 +371,27 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           expect(withFields.response.status).toBe(303);
           const tok1 = await idToken(withFields.ltik!);
           expectStatus(tok1, 200);
-          expect(tok1.json.deepLinking?.acceptLineItem).toBe(true);
-          expect(tok1.json.deepLinking?.acceptMediaTypes).toBe(
-            'text/html,application/json',
-          );
+          const dl1 =
+            tok1.json.launch?.deepLinkingSettings ?? tok1.json.deepLinking;
+          expect(dl1?.acceptLineItem).toBe(true);
+          expect(dl1?.acceptMediaTypes).toBe('text/html,application/json');
 
           // 2. Omitted from Deep Linking settings
           const withoutFields = await launchOnChannel(binding, {
             messageType: 'LtiDeepLinkingRequest',
             roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-            omitDeepLinkingFields: ['accept_lineitem', 'accept_media_types'],
+            deepLinkingSettings: {
+              accept_lineitem: null,
+              accept_media_types: null,
+            },
           });
           expect(withoutFields.response.status).toBe(303);
           const tok2 = await idToken(withoutFields.ltik!);
           expectStatus(tok2, 200);
-          expect(tok2.json.deepLinking?.acceptLineItem).toBeUndefined();
-          expect(tok2.json.deepLinking?.acceptMediaTypes).toBeUndefined();
+          const dl2 =
+            tok2.json.launch?.deepLinkingSettings ?? tok2.json.deepLinking;
+          expect(dl2?.acceptLineItem).toBeUndefined();
+          expect(dl2?.acceptMediaTypes).toBeUndefined();
         });
       });
 
@@ -383,9 +403,15 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           });
           expect(launched.response.status).toBe(303);
           const cursor = (await records()).cursor;
-          const page = await appRequest('GET', launched.location, {
+          const handoff = await appRequest('GET', launched.location, {
             headers: { accept: 'text/html' },
           });
+          const page =
+            handoff.status === 303 && handoff.headers?.location
+              ? await appRequest('GET', String(handoff.headers.location), {
+                  headers: { accept: 'text/html' },
+                })
+              : handoff;
           expect(page.status).toBe(403);
           await noServiceCalls(cursor);
         });

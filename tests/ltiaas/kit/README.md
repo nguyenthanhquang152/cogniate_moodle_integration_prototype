@@ -58,23 +58,42 @@ If `<id>.json` (or `moodle.json` in a full run) declares any capability in `cove
     "T3b": {
       "outcome": "PASS",
       "waveId": "wave-B4",
-      "artifactPath": "/abs/path/to/T3b/summary.json"
+      "artifactPath": "artifacts/T3b/summary.json"
     },
     "T7": {
       "outcome": "PASS",
       "waveId": "wave-B4",
-      "artifactPath": "/abs/path/to/T7/summary.json"
+      "artifactPath": "artifacts/T7/summary.json"
     },
     "T8": {
       "outcome": "PASS",
       "waveId": "wave-B4",
-      "artifactPath": "/abs/path/to/T8/summary.json"
+      "artifactPath": "artifacts/T8/summary.json"
     }
   }
 }
 ```
 
-The pass rule fails closed if `wave-evidence.json` is missing, if `waveId` does not match `LA_WAVE_ID`, or if any suite named in `coveredBy` is missing, `"PENDING"`, `"FAIL"`, or lacks an `artifactPath`.
+#### Per-Suite Artifact File Schema, Producer & Containment Rules (`verifyWaveSuiteArtifact`)
+
+- **Producer**: During a wave run, the wave runner (or `writeWaveEvidenceToRun(manifest, runDir)`) writes one JSON summary file per executed live-LMS suite (`T3b`, `T7`, `T8`) inside `$LA_RUN_DIR` (for example `$LA_RUN_DIR/artifacts/T3b/summary.json`, `$LA_RUN_DIR/artifacts/T7/summary.json`, `$LA_RUN_DIR/artifacts/T8/summary.json`) and records their paths in `$LA_RUN_DIR/wave-evidence.json`.
+- **Required Per-Suite Artifact JSON Schema**:
+  ```json
+  {
+    "suite": "T8",
+    "waveId": "wave-B4",
+    "outcome": "PASS"
+  }
+  ```
+- **Containment & Suite-Identity Verification Rules**:
+  1. `currentWaveId` is derived **only** from explicit run input or `process.env.LA_WAVE_ID` (never from `waveEvidence.waveId`).
+  2. Each `artifactPath` must resolve **inside** `$LA_RUN_DIR` (paths resolving outside `$LA_RUN_DIR` are rejected).
+  3. Each referenced artifact file must exist on disk, be a non-empty regular JSON file, and satisfy all three content checks:
+     - `typeof parsed.suite === "string" && parsed.suite === suiteName` (an anonymous file without `"suite"` or a `"T3b"` file reused for `"T7"` / `"T8"` is rejected).
+     - `parsed.waveId === currentWaveId` (stale wave artifacts are rejected).
+     - `parsed.outcome === "PASS"` (failed or pending suite artifacts are rejected).
+
+The pass rule fails closed if `wave-evidence.json` is missing, if `currentWaveId` is unset, if `waveId` does not match `LA_WAVE_ID`, or if any suite named in `coveredBy` is missing, `"PENDING"`, `"FAIL"`, or fails `verifyWaveSuiteArtifact`.
 
 ---
 
@@ -135,3 +154,51 @@ LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=canvas,lti-generic QA_TASK=K1 node tests
 - **`K-HYG` missing inputs or secret leak**:
   `missingInputs: ["service:lti-service", "sim:records", "artifact:redacted-evidence"]`
   `hits: [{ "source": "artifact:evidence/deep/redacted.json", "secretPrefix": "super-..." }]`
+
+---
+
+## 5. Complete Design-Case-to-Assertion Map (`TEST-STRATEGY.md` §2.3–§2.8)
+
+| Suite File | Case Code | Scope | Contract & Safety Assertions |
+| --- | --- | --- | --- |
+| `suites/k1-cap.k1sim.test.ts` | `C1` | Per channel | Bilateral equality (`verifyBilateralCapabilities`) across canonical channel capabilities, `fixture.capabilities` (23 keys), `GET /app-api/lms-providers` (`channelCapabilities` + 6 legacy flags), `GET /app-api/connections/:id` (`channelCapabilities` + 6 legacy flags), and `GET /app-api/connections/:id/tool-configuration` ordered row keys. |
+| `suites/k1-cap.k1sim.test.ts` | `C2:<cap>` | Per false/empty guarded capability | Calls the guarded route (`runCapabilityGuardProbe`) and verifies HTTP status (`422`/`409`/`403`), error code (`CAPABILITY_NOT_SUPPORTED` / `PLACEMENT_NOT_GRADED`), `noServiceCalls(cursor)`, and zero `outbound_request` log events in `lti-service` and `cogniate-app`. |
+| `suites/k1-cap.k1sim.test.ts` | `C3` | Per channel | `DELETE /app-api/connections/:id` returns `204`, connection `status` becomes `'disabled'`, launch on disconnected connection refuses with `403 PLATFORM_NOT_ACTIVE` (dedicated) or `403 DEPLOYMENT_NOT_ACTIVE` (shared), while a second connection on the same channel continues launching (`303`). |
+| `suites/k1-reg.k1sim.test.ts` | `R1` | Per channel | Manual connection + platform binding with required fields; `GET .../canvas-configuration?jwk=url\|inline` when `setup.artifacts` is non-empty; strict body on `PUT /app-api/connections/:id/platform` refuses unknown/missing fields with `422 INVALID_PLATFORM_VALUES`; `POST /app-api/connections` refuses IP literal, localhost, and own hosts with `422 INVALID_SITE_URL`. |
+| `suites/k1-reg.k1sim.test.ts` | `R1-DEPLOYMENTS` | Channels with `deployments.multiple: true` | `POST /app-api/connections/:id/deployments` with `add_deployment` `grantCode` returns `200` with second deployment in `platform.deploymentIds`, and launch on second deployment returns `303`. |
+| `suites/k1-reg.k1sim.test.ts` | `R2` | Per channel | On `operatorGrant` channels: bogus `grantCode` returns `403 GRANT_INVALID`, mismatched `deploymentId` returns `422 GRANT_MISMATCH` (`details.fields` contains `'deploymentId'`), and matching `grantCode` returns `200` (`status: 'registered'`). On `self` channels: `app:grant issue` exits non-zero. |
+| `suites/k1-reg.k1sim.test.ts` | `R3` | Channels with `registration.dynamic: true` | Full DR handshake via `connection.registrationUrl` (`GET /lti/register/cogniate` -> `GET /tool/register` -> `POST /tool/register`): path-prefix issuer, `authorization_server` stored as `tokenAudience`, simulator `registration` record `scopes` contains the 4 AGS scopes, alternate DR token format (`opaque-bearer` vs `moodle-scope-jwt`), refusal (`400 PLATFORM_CONFIGURATION_INVALID`) when `LtiDeepLinkingRequest` or required AGS scope is missing, and DR family guard (`400 PROVIDER_PROFILE_MISMATCH`). |
+| `suites/k1-reg.k1sim.test.ts` | `R4` | Per channel | `POST /api/platforms` with a reserved issuer is refused with `400` (`ISSUER_RESERVED` / `PLATFORM_URL_NOT_IN_PROFILE`). |
+| `suites/k1-reg.k1sim.test.ts` | `R5` | Per channel | `GET /app-api/connections/:id/tool-configuration` returns row keys matching `fixture.expect.toolConfigurationKeys` in exact order. |
+| `suites/k1-reg.k1sim.test.ts` | `R6` | Per channel | Origin binding `I-SELF` negative (`AP-07-11`): off-origin DR via `/tool/register` stages connection (`status: 'pending'`, `bindingAuthority: 'operatorGrant'`), unapproved launch refuses with `403 PLATFORM_NOT_ACTIVE` and `noServiceCalls`, `--accept-staged` grant activates connection (`200 registered`); direct `GET /lti/register/cogniate` + `GET /api/registrations/:id` (`endpointsOnIssuerOrigin: false`) + `POST /api/registrations/:id/complete` (`active: false`); active `POST /api/platforms` refuses off-origin (`400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`) and cross-profile host (`400 PLATFORM_URL_NOT_IN_PROFILE`). |
+| `suites/k1-reg.k1sim.test.ts` | `R-CHECK` | Channels with `setup.connectionCheck: true` | `POST /app-api/connections/:id/check` returns `200` with `result: 'ok'` (`details.jwks.ok: true`, `details.token.ok: true`) on valid credentials and `result: 'failed'` (`details.token.ok: false`) when simulator returns `invalid_client`. |
+| `suites/k1-launch.k1sim.test.ts` | `L1` | Per channel | Resource-link launch returns `303` with `ltik`; `GET /api/idtoken` returns `ltiVersion: '1.3.0'`, `user.id`, `user.roles`, `platform.{id,clientId,deploymentId,productFamilyCode,siteUrl,profile}`, `launch.{type,target,context,resourceLink}`, `services.serviceKey`, and `platform.serviceUrl` / `services.assignmentAndGrades.lineItemId` on split-origin channels. |
+| `suites/k1-launch.k1sim.test.ts` | `L2` | Per channel | Profile-dependent faults `unknown-key` (`400 INVALID_SIGNATURE`) and `wrong-issuer` (`400 INVALID_ISSUER_OR_AUDIENCE`) refused with `noServiceCalls`; rotated signing key (`rotatedKey: true`) succeeds (`303`) via JWKS refresh. |
+| `suites/k1-launch.k1sim.test.ts` | `L3` | Per channel | Unregistered deployment refused (`UNKNOWN_DEPLOYMENT`) with `noServiceCalls`; deactivated deployment (`PATCH .../deployments/:id { active: false }`) refused with `403 DEPLOYMENT_NOT_ACTIVE` and `noServiceCalls`. |
+| `suites/k1-launch.k1sim.test.ts` | `L4` | Per channel | Pre-derives expected outcome via `deriveExpectedFamilyGuardOutcome` before launch and validates via `validateFamilyGuardLaunchObservation`: launch-guarded foreign family (`canvas`, `BlackboardLearn`) always refused with `400 PROVIDER_PROFILE_MISMATCH`; registration-guarded foreign family (`moodle`, `desire2learn`) refused (`400 PROVIDER_PROFILE_MISMATCH`) on `manual === 'self'` and passes (`303`) with `family_guard_mismatch` warning log on all other channels. |
+| `suites/k1-launch.k1sim.test.ts` | `L5` | Per channel | Claim minimization policy: on `allowlist` channels, personal claims (`name`, `given_name`, `family_name`, `email`), `lis`, and `custom` are stripped from raw and normalized `/api/idtoken` and `launch_claims_minimized` is logged; on `full` channels, `user.name` and `launch.custom` are preserved. |
+| `suites/k1-launch.k1sim.test.ts` | `L6` | Per channel | `document_target: 'iframe'` redirects to `/play/:playId/embedded` (`200`, contains `<script` iff `launch.topLevelContinue === true`); `document_target: 'window'` redirects to `/play/:playId` (never `/embedded`). |
+| `suites/k1-launch.k1sim.test.ts` | `L7` | Per channel | Contextless launch (`AP-05-08..11`): two learners without `context` claim on the same `resourceLinkId` both sync scores (`status: 'sent'`) to the launch lineitem and share the single placement (`verifyContextlessSharedPlacement`: `row1.activity.resourceLinkId === row2.activity.resourceLinkId`, 1 distinct `activity.resourceLinkId`); contextless launch without AGS has no `serviceKey` and records `'No gradebook column: the activity has no AGS line item.'` with `noServiceCalls`; launch without `sub` returns `400 MISSING_CLAIM`. |
+| `suites/k1-launch.k1sim.test.ts` | `L8` | Per channel | Learner launch creates graded play (`GET /app-api/play/:id/status` -> `preview: false`); instructor launch creates preview play (`preview: true`); Deep Linking opens picker (`200`) for instructor and returns `403 ROLE_NOT_ALLOWED` for learner. |
+| `suites/k1-launch.k1sim.test.ts` | `L9` | Per channel | Two distinct libraries (`bA.library !== bB.library`) on the same channel: Library A picker lists `pubA` and excludes `pubB`; launching `pubB` on Connection A returns `404 PUBLICATION_NOT_IN_CONNECTION`; Library A `GET /app-api/publications/:pubB/results` returns `404 NOT_FOUND`. |
+| `suites/k1-launch.k1sim.test.ts` | `L10` | Per channel | Platform storage HTTP level (`AP-05-01..07`): login without `lti_storage_target` returns `302`; login with `lti_storage_target` returns `200` relay page (`lti.put_data`) when `launch.platformStorage === true` else `302`; launch without cookie on storage-enabled login returns `200` (`lti.get_data`) -> `POST /lti/launch/cogniate/storage-check` succeeds (`303`) once and refuses replay (`400 INVALID_STATE`), wrong `state` (`400 INVALID_STATE`), and missing `pendingId` (`400 STATE_COOKIE_MISSING`); launch without cookie when `launch.platformStorage === false` returns `400 STATE_COOKIE_MISSING`. |
+| `suites/k1-launch.k1sim.test.ts` | `GLOBAL:K1-LAUNCH:L-FAULTS` | Once per run (`selectProtocolControlFixture` -> `lti-generic`) | Control launch succeeds (`303`), then all 12 `PROTOCOL_SECURITY_FAULTS` are refused with HTTP `400`, exact error code, and `noServiceCalls`. |
+| `suites/k1-dl.k1sim.test.ts` | `D1` | Per channel | Picker selection posts verified `LtiDeepLinkingResponse` JWT (`signatureOk: true`, `iss`, `aud`, `deployment_id`, `nonce`, `sub` iff `dlRequiresSub`, `data` claim vs return URL query by `dlDataMode`, `window.targetName` iff `launch.windowHint`). |
+| `suites/k1-dl.k1sim.test.ts` | `D2` | Per channel | Single graded Deep Linking item carries `type: 'ltiResourceLink'` and `lineItem.scoreMaximum === 100`. |
+| `suites/k1-dl.k1sim.test.ts` | `D3` | Per channel | `accept_multiple: true` renders checkboxes and returns 3 items in exact selection order when `content.multiple === true`, and renders radios / refuses multi-post when `false`; `POST /api/deeplinking` (`{ contentItems }`) refuses >1 items when `accept_multiple === false` and >20 items (`400 INVALID_CONTENT_ITEM`). |
+| `suites/k1-dl.k1sim.test.ts` | `D4` | Per channel | `POST /tool/picker/:pickerId/cancel` with foreign `Origin` returns `403 ORIGIN_NOT_ALLOWED` without consuming the picker session; valid `Origin` returns signed JWT with `content_items: []`. |
+| `suites/k1-dl.k1sim.test.ts` | `D5` | Per channel | With `accept_lineitem: false`: `POST /api/deeplinking` refuses item with `lineItem` (`400 INVALID_CONTENT_ITEM`) and accepts item without `lineItem` (`200 { message, target }`); app picker returns `403 PLACEMENT_NOT_GRADED` with `noServiceCalls` when `content.ungraded === false`. |
+| `suites/k1-dl.k1sim.test.ts` | `D5-UNGRADED` | Channels with `content.ungraded: true` (built) | Picker succeeds (`200`) with `accept_lineitem: false` and emits `ltiResourceLink` without `lineItem`. |
+| `suites/k1-dl.k1sim.test.ts` | `D6` | Per channel | `GET /api/idtoken` includes `launch.deepLinkingSettings.acceptLineItem` and `acceptMediaTypes` when sent and omits them when absent. |
+| `suites/k1-dl.k1sim.test.ts` | `D7` | Per channel | Learner Deep Linking launch is refused at picker (`403`) with `noServiceCalls`. |
+| `suites/k1-dl.k1sim.test.ts` | `D8` | Per channel | Two consecutive Deep Linking responses carry distinct `nonce` claims. |
+| `suites/k1-ags.k1sim.test.ts` | `A1` | Per channel | Cold-cache score sync triggers token request whose verified assertion matches `clientId`, `tokenAudience` (`string`, `array`, or `fixed`), and single scope in `registration.scopes`; when `records.readBack === true`, `POST /app-api/publications/:id/results/refresh` returns `200`. |
+| `suites/k1-ags.k1sim.test.ts` | `A2` | Per channel | `POST /api/lineitems/:lineItemId/scores` forwards `application/vnd.ims.lis.v1.score+json` with ADR-010 fields (`userId`, `scoreGiven`, `scoreMaximum`, `activityProgress`, `gradingProgress`, `scoringUserId`, `submission.submittedAt`, `https://` extension key kept, non-URL key dropped). |
+| `suites/k1-ags.k1sim.test.ts` | `A3` | Per channel | Outbox status mapping: `204 -> sent` (on target publication resource), `400/404/422 -> failed`, `409 -> conflict` with `'has a grade with a newer time'`, `503 -> pending` (`tries >= 1`), `429 Retry-After: 60 -> pending` with `tries === 0`, `dispatch_throttled` log, and 1 simulator score call. |
+| `suites/k1-ags.k1sim.test.ts` | `A4` | Per channel | Instructor preview commit creates no score syncs (`scoreSyncs.length === 0`) and makes zero simulator calls (`noServiceCalls`). |
+| `suites/k1-ags.k1sim.test.ts` | `A5` | Per channel | Disconnecting connection (`DELETE /app-api/connections/:id -> 204`) before grade commit marks sync `failed` with `CONNECTION_DISABLED` and makes zero simulator calls (`noServiceCalls`). |
+| `suites/k1-ags.k1sim.test.ts` | `A6` | Per channel | Off-origin URLs on `POST /api/lineitems/:id/scores`, `GET /api/lineitems/:id/scores`, and `GET /api/lineitems?url=...` are refused with `400` and `noServiceCalls`. |
+| `suites/k1-nrps.k1sim.test.ts` | `N1` | Per channel | Cold-cache grade sync token requests never ask for NRPS scope; `fixture.capabilities['registration.scopes']`, `canvas-configuration` `scopes`, and DR `registration` scopes contain the 4 AGS scopes only and never NRPS. |
+| `suites/k1-nrps.k1sim.test.ts` | `GLOBAL:K1-NRPS:N2` | Once per run (`selectProtocolControlFixture` -> `lti-generic`) | `GET /api/memberships` with NRPS 2.0 returns members with `userId` and `roles` and without personal fields (`name`, `email`, `givenName`, `familyName`); `service_versions: ['1.0']` is refused or marked unavailable; upstream `429 Retry-After: 45` is propagated as `429` with `45`. |
+| `suites/k-hyg.k1sim.test.ts` | `GLOBAL:K-HYG:H1`, `H2`, `SUMMARY` | Strictly last (`KitSuiteSequencer`) | `H1` scans `lti-service`, `cogniate-app`, `lms-sim` logs, `/__sim/records`, and recursive `$LA_RUN_DIR` artifacts against `/__sim/secrets` and captured secrets (`missingInputs: []`, `hits: []`); `H2` runs `evaluateChannelPassRule` per channel; `SUMMARY` writes `k1-kit-summary.{md,json}` and asserts `evaluateKitRunPassRule` (`ok: true`, `totalFailed: 0`, `totalSkipped: 0`). |
+
