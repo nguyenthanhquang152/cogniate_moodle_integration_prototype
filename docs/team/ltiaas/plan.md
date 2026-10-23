@@ -234,6 +234,7 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LA-H22 | Offer ungraded items (D-11) (A2, LA-ADR-05 D5) | Yes for Canvas `link_selection` and `lti-generic`; no for Moodle | E3 Should |
 | LA-H23 | Moodle manual connect authority: keep `self` (residual R-LA-1) or require a verified admin launch or a grant (A2, LA-ADR-07) | Keep `self` for the pilot | E5/E6 |
 | LA-H24 | Approve the verified-admin-launch authority (E6 D3, Could) after a security review (A2, LA-ADR-08) | Only if E6 gets capacity | E6 |
+| LA-H25 | LA-E7-06 (K1 Channel Certification Kit, Must) reached the charter-LA §5 limit of 3 fix rounds with 2 BLOCKERs open in each review (round 4: A-LA-E7-06-07, -08; B-LA-E7-06-02, -07: some safety oracles and some callers still do not match the product contracts). AC-LA-E7-08-02 (K1 passes for every registered channel), LA-E8-01 B-03 and LA-E8-02 depend on it. Choose: (a) one extra fix round by a fresh Claude Opus 5.5 xhigh QA session (a model exception for this task), with the reviewers' round 4 counterexample probes as its acceptance test, then round 5 reviews; (b) one extra round on Antigravity QA-4; (c) move the kit K1 run to LG: keep the kit as host-only K0, close AC-LA-E7-08-02 with the frozen M1/M2/K2 results and the E2-N proof, and say so in LA-E8-05 | (a) | E7, wave-end gate |
 
 ## 7. Risks
 
