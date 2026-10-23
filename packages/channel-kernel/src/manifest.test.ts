@@ -74,6 +74,8 @@ it('BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app reg
     REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.',
     UPDATE_NOT_ALLOWED: 'Go back in Moodle and choose Register as a new external tool.',
     TOOL_MAY_EXIST: "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '{tool}', then connect again.",
+    // BD-A1-101: Moodle has no operator-grant redemption (self authority), so it keeps the core default.
+    PLATFORM_IN_USE: 'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.',
   });
   // BD-A1-87: with the tool name filled, the Moodle sentence is the frozen pendingToolText, byte for byte.
   const tool = fillText(registrationText(parsed.manifest, 'TOOL_MAY_EXIST'), { LMS: 'Moodle', tool: 'Course tool' });
@@ -82,7 +84,15 @@ it('BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app reg
     .toBe("your LMS may have saved the Cogniate tool already. If your LMS shows the tool 'Course tool', delete it there, then connect again.");
 });
 
-it('BD-A1-59: texts.registration is optional, closed to the seven keys (BD-A1-68, BD-A1-87) and to the text placeholders', async () => {
+it('BD-A1-101: the Canvas texts.registration.PLATFORM_IN_USE fills to the collision description of today, byte for byte', async () => {
+  const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
+  const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/canvas'))!.manifest);
+  if (!parsed.ok) throw new Error('The product manifest must be valid');
+  expect(fillText(registrationText(parsed.manifest, 'PLATFORM_IN_USE'), { LMS: 'Canvas' }))
+    .toBe('This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.');
+});
+
+it('BD-A1-59: texts.registration is optional, closed to the eight keys (BD-A1-68, BD-A1-87, BD-A1-101) and to the text placeholders', async () => {
   const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
   const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
   if (!parsed.ok) throw new Error('The product manifest must be valid');
@@ -103,7 +113,9 @@ it('BD-A1-59: a channel without its own sentence gets the core default, which na
     if (key !== 'INVALID_REQUEST') expect(registrationText(own, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
     expect(registrationText({ texts: {} }, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
     expect(registrationText(null, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
-    expect(DEFAULT_REGISTRATION_TEXTS[key]).toContain('{LMS}');
+    // BD-A1-101: the PLATFORM_IN_USE default names no LMS; every other default names the channel.
+    if (key === 'PLATFORM_IN_USE') expect(DEFAULT_REGISTRATION_TEXTS[key]).not.toMatch(/\{/);
+    else expect(DEFAULT_REGISTRATION_TEXTS[key]).toContain('{LMS}');
     expect(DEFAULT_REGISTRATION_TEXTS[key]).not.toMatch(/>|Manage tools|Site administration|Register as a new external tool/);
   }
 });
