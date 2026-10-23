@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 4
+Round: 5
 
 # LA-E7-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -166,3 +166,26 @@ Reviewer: Codex GPT-6-Astra, xhigh; lens A. Reviewed the LA-E7-02 part of `1babb
 - Restoring `1babba9^`'s loader in the private clone fails the changed repeated-host table case. Removing either new guard separately also fails its explicit assertion. All temporary edits were restored; logs are under `/tmp/la-review-a-e702-ic20.ewzZy1/`.
 - The fix changes only invalid-manifest handling; the committed manifest and provider defaults are unchanged. No infra, product or frozen M1/M2 file changes in this fix. Earlier findings remain closed or transferred as recorded in round three. The companion LA-E7-05 changes in the batch are outside this item.
 - Only this review file was edited for this item. No Docker, stack, host stack runner or commit was used. The task's K1-SIM ACs and live M1/M2 regression still need QA evidence; these host checks do not claim that gate.
+
+## Round 5 (open world)
+
+- Reviewer: Claude Code Opus 5.5 xhigh (Reviewer-A, Claude session; same lens A).
+- Diff: `git show 92ac637c` (la-qa `30689140`). It changes `tests/sim/core/loading.test.mjs` (the new `verifyOpenWorldSimManifest`, `KNOWN_PROVIDERS` and the 7th-provider scratch canary; the "adding a new LMS" test now expects the manifest count) and `docs/reviews/LA-E7-02/qa.md` (Round 5, the K1-SIM row map).
+- I ran these in the private clone at `92ac637c`. No Docker.
+  - `node --test $(git ls-files 'tests/sim/**/*.test.mjs')`: 59 tests pass, 0 fail.
+  - A negative probe: the test file's own `verifyOpenWorldSimManifest` run on scratch copies of `tests/sim`, with nine changes. The probe file is kept at `/tmp/ra-e201/e702/ra-openworld-neg.test.mjs`. `git status` stays clean afterwards.
+- Blind review: I did not open the other reviewer's file.
+- **Counts (this round): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Check | Result |
+| --- | --- |
+| The 6 known providers keep every old check | Yes, and the checks are stronger. Before: the exact sorted set of 6 ids and the counts 6 / 16 / 15. Now: each of the 6 is present in `hosts.json` with its exact `aliases` and `allowlist` arrays (order included), it is loaded, and its loaded hosts equal its aliases. The counts are `6 + extra`, `16 + extra aliases` and `15 + extra allowlist`. The `canvas.school-a.sim.test` alias-but-not-allowlist check stays. Probes: dropping `learn-b.blackboard.sim.test` from `blackboard-sim`, or removing `brightspace-sim` (entry and folder), fails. |
+| The open-world rule still fails on bad input | Yes. Probe results on scratch copies:<br>- an alias repeated across providers → `Duplicate simulator host moodle.sim.test across providers …`;<br>- a repeated allowlist host → fails;<br>- an entry with empty aliases → fails;<br>- a non-`.sim.test` alias (`lti.cogniate.test`) → `Invalid simulator alias host …`;<br>- a provider folder removed → `Manifest entry … has no loaded provider`;<br>- a folder without a manifest entry → `Unlisted simulator provider …`.<br>The unchanged copy passes. Each non-`core` folder must have an `index.mjs` that exports `createProviders`, and the folder provider set must equal the manifest set. The stack's own `load_sim_hosts` (`infra/scripts/lib.sh:86-140`) still refuses non-`.sim.test` and reserved stack hosts at start. So an open-world entry cannot alias a real stack host. |
+| Canary on a scratch copy only | Yes. It uses `fs.mkdtempSync(os.tmpdir())`, `cpSync(SOURCE_DIR, scratch)` and `rmSync` in `finally`. The new `canary-lms` folder and the extra manifest entry exist only in the scratch copy. The canary also proves that the new provider answers its JWKS route. No committed file changes (clean `git status` after the full run and after my probes). |
+| No check weaker for the existing set | Holds (see the first row). The only relaxed values are the fixed totals. The fixed id list of the known set is now a "6 known plus listed extras" rule, and each extra must pass the same validation. |
+
+Note (not a finding on this harness diff): the qa.md row for AC-LA-E7-02-01 says PASS, but its own text gives `M1 sim 376/394` with 18 `WE-F1..F4` rows tracked under LA-E7-08. The Lead should treat AC-01's M1 part as closed only after that rerun.
+
+### Verdict (round 5)
+
+APPROVE for lens A. The open-world self-test keeps, and tightens, every check on the six known providers. It still fails on duplicate hosts, broken or non-simulator entries, and a missing or unlisted provider folder. The canary uses a scratch copy only.
