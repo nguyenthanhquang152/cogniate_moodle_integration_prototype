@@ -7,6 +7,21 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
+### Current status — 2026-10-23, 02:54 UTC
+
+| Task | Status | Evidence and next step |
+| --- | --- | --- |
+| M0 | Design complete | Existing design approvals stand. |
+| M1 | C9 repair and v5 launcher approved by both reviewers | `e81fb2b`, `4b571d9`; 184 host checks pass. [E-R7](r7-m1-verification-2026-10-23.md) selects two fresh 394-row rounds plus 94 separate carried C4 rows. Runtime and independent equality judgment remain. |
+| M2 | Functional 64/64 PASS; overall NOT ACCEPTED | Attempt 3's separate lane monitor failed during teardown. Claude's plan at `5c8f2dc` requires a private tool repair, focused review and one fresh M2 run. No product defect is established. |
+| M3 | Legacy accepted; final T7 pending | All twelve fresh legacy groups remain accepted under E-R4. C6 product is unchanged. T7 follows the monitor repair under its own grant. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. |
+| M4 | Guides have static QA and review approvals; final closure pending | Guide base `958ee5c`; final runtime conformance, evidence updates, independent Docs QA and two final reviews remain. Architect Round 5 keeps AC-M4-06 PENDING. |
+
+Claude owns architecture and review; retained Codex owns product changes and Docs; Gemini owns independent QA.
+No product edit, push or main merge is currently authorized. Historical outcomes below keep their original scope.
+
+### Historical snapshot — before the C8 and C9 repairs
+
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |

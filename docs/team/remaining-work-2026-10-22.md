@@ -2,7 +2,18 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 02:35 UTC
+## Current checkpoint — 2026-10-23, 02:54 UTC
+
+Both independent Claude reviews approve C9 and v5 (`e81fb2b`, `4b571d9`). E-R7 at `65f812a` selects two fresh 394-row M1 rounds and 94 carried C4 rows.
+Common Gemini prepares those runs. Independent Gemini repairs the separate M2/T7 lane monitor in a fresh tool directory under Claude's §13 plan at `5c8f2dc`.
+M2 attempt 3 stays NOT ACCEPTED despite 64/64 functional PASS. The monitor repair needs a focused independent review and one M2 rerun; T7 then uses the repaired monitor.
+M1 and legacy are independent of that private tool change. Product C6, C8 and C9 stay unchanged.
+
+Remaining sequence: two M1 rounds and independent equality judgment; repaired-monitor M2 and T7; final conformance; final guide evidence updates, independent Docs QA and two final reviews.
+The host reservation allows these runtime checks through 04:05 UTC at latest, subject to the other QA session's pause confirmation and each separate grant. This is a reservation, not a promised completion time.
+All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 02:35 UTC
 
 C9 and v5 preparation are complete. Both blind Claude reviewers are active on the frozen source and launcher.
 All 64 M2 cases and runner gates passed, with zero skips or retries. Overall M2 acceptance remains held because the separate lane monitor exited 1 during teardown.
