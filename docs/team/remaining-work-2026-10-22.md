@@ -2,7 +2,20 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 04:38 UTC
+## Current checkpoint — 2026-10-23, 06:26 UTC
+
+LA asked for the remaining LTI host needs in `msg_a769094a7cd8`. The Lead replied in `msg_6e526b30c9e4`; LA accepted the planned exclusive T7 window **07:45–08:05 UTC** in `msg_7dcc7a1394ef`.
+The existing block remains in force through 07:45. The reservation is not a start grant. LA must first return the host with its stack down, the full 32-volume inventory, network inventory and its event-watcher extract.
+Before launch, reconcile the full records and any legitimate pre-W3 network change, then issue a fresh bounded T7 grant. Keep all strict runtime and cleanup checks. Do not start if the remaining time cannot cover the run and safe cleanup; return the host by 08:05.
+
+The one-time reminder `a270830b-c5f8-4b21-a686-f7b2020bc70c` now runs at **07:40 UTC (14:40 Vietnam time)** for host-only preparation of the retained Gemini session. It still sends only one coordinator message and disables itself. It does not launch a worker or grant Docker activity.
+Use a new Dispatch for the retained QA session. No Docker command, wake or boundary capture is allowed before 07:45 and the actual handoff.
+
+T7 is the only remaining planned Docker work. After an accepted run and cleanup, LA may use the host from 08:05 for its work. Any unexpected LTI runtime repair needs a new agreed window.
+Final Architect conformance, guide evidence updates, independent Docs QA, two blind reviews and Lead closure remain after T7; these steps are host-only. The slot is not a project completion promise.
+M1, M2 and legacy results remain accepted. All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 04:38 UTC
 
 M1 and M2 are accepted. M1 passed both 394-row rounds and equality, with 94 carried C4 rows separate. M2 r7 passed all 64 cases, 13 criteria, seven gates and operational checks.
 T7 did not start before its 04:33 cutoff. The evidence handoff consumed the available margin; the external preflight completed at 04:35:27. This is a scheduling hold, not a failed T7 test.

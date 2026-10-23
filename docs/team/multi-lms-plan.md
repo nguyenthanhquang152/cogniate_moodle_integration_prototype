@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 04:38 UTC
+### Current directive — 2026-10-23, 06:26 UTC
+
+LA invited scheduling in `msg_a769094a7cd8` and confirmed the planned exclusive T7 window **07:45–08:05 UTC** in `msg_7dcc7a1394ef`.
+The previous host block still holds until 07:45. Require the actual stack-down handoff, full 32-volume and network records, prelaunch reconciliation and a fresh bounded grant before Docker or T7. Return the host by 08:05; do not launch if safe cleanup cannot fit.
+The one-time reminder now runs at 07:40 UTC for host-only preparation. Reuse the retained Gemini session with a new Dispatch. Do not repeat accepted M1, M2 or legacy checks.
+After T7, finish Architect conformance/ADR status, guide evidence updates, independent Docs QA and two blind reviews without Docker. See the [current remaining-work checkpoint](remaining-work-2026-10-22.md) for the handoff conditions.
+Product, tests and qualified tools stay frozen. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior directive — 2026-10-23, 04:38 UTC
 
 M1 is accepted and Common QA's report is committed at `d72dbd6`. M2 r7 is accepted: 64/64 cases, 13 criteria, seven gates, monitor isolation, scan and operational closure PASS.
 [E-R6](r6-independent-verification-2026-10-23.md) records the missed prelaunch hold, the late bridge-only reconciliation and the Architect's bounded acceptance conditions. No check was waived.
