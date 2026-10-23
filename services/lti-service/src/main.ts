@@ -100,9 +100,11 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   const close = (): Promise<void> => closing ??= (async () => {
     // BD-A2-109: the listeners and the runner stop at the same time. The runner keeps its 60 s grace for a run in
     // flight; HTTP requests do not. The database closes when both are done.
-    const [runner] = await Promise.allSettled([jobs.stop(), closeListener(app), closeListener(operatorApp)]);
+    const results = await Promise.allSettled([jobs.stop(), closeListener(app), closeListener(operatorApp)]);
     db.close();
-    if (runner.status === 'rejected') throw runner.reason;
+    // A failed step (the runner or either listener) makes close() reject, so the service exits 1 (A-LA-E5-19-04).
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
   })();
   return { config, masterKey, db, logger, app, operatorApp, jobs, close };
 }

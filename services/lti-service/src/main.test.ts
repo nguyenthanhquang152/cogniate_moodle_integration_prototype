@@ -272,6 +272,36 @@ it('BD-A2-109: a run in flight and one held request: new connections are refused
   service = null;
 });
 
+it.each(['app', 'operatorApp'] as const)('A-LA-E5-19-04: a failed %s close makes close() reject and the exit code 1; the database still closes after the listeners and the runner', async (listener) => {
+  jobServiceConfig();
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  service = null;
+  const order: string[] = [];
+  for (const name of ['app', 'operatorApp'] as const) {
+    const real = started[name].close.bind(started[name]);
+    // Fastify's close has a callback overload; the service calls the promise form.
+    vi.spyOn(started[name], 'close').mockImplementation((async () => {
+      await real();
+      order.push(name);
+      if (name === listener) throw new Error(`${name} close failed`);
+    }) as never);
+  }
+  const realStop = started.jobs.stop.bind(started.jobs);
+  vi.spyOn(started.jobs, 'stop').mockImplementation(async () => { await realStop(); order.push('runner'); });
+  const realDbClose = started.db.close.bind(started.db);
+  vi.spyOn(started.db, 'close').mockImplementation(() => { order.push('database'); realDbClose(); });
+  const exit = vi.fn();
+  createShutdownHandler({ close: started.close, logger: started.logger }, exit)('SIGTERM');
+  await vi.waitFor(() => expect(exit).toHaveBeenCalled());
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+  await expect(started.close()).rejects.toThrow(`${listener} close failed`);
+  expect(order.at(-1)).toBe('database');
+  expect([...order].sort()).toEqual(['app', 'database', 'operatorApp', 'runner']);
+  expect(started.db.isOpen).toBe(false);
+});
+
 it('BD-A2-52, BD-A2-54: wires the platform observers and the JWKS cache age to the operator /metrics', async () => {
   jobServiceConfig();
   service = await startLtiService({ logger: capturingLogger().logger });
