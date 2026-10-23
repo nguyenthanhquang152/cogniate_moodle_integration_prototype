@@ -27,28 +27,40 @@ function isHttpsUrl(value: string): boolean {
   }
 }
 
+/** One value of the strict body, posted or filled from a default: the trimmed string when it has the form of its key. */
+function validValue(key: string, raw: unknown): string | null {
+  const v = typeof raw === 'string' ? raw.trim() : null;
+  if (v === null) return null;
+  const ok = key === 'grantCode' ? GRANT_CODE.test(v) : (URL_KEYS as readonly string[]).includes(key) ? isHttpsUrl(v) : PRINTABLE_ID.test(v);
+  return ok ? v : null;
+}
+
 /**
  * Strict body (app contract §4.4): every key must be listed and every required key present; a value is a trimmed
- * string of the right form. A key with a `FieldSpec.default` that the body does not send gets the default, with
- * `{siteUrl}` filled; a sent value always replaces it. The answer lists every bad key, in body order first, then the
- * missing required keys.
+ * string of the right form. The shared manifest form sends every input, so an optional key with an empty or blank
+ * value counts as absent (B-LA-E2-03-01); a blank required key stays bad. A key with a `FieldSpec.default` that the
+ * body does not send gets the default, with `{siteUrl}` filled, and the filled value is checked as a posted one
+ * (A-LA-E2-03-02); a sent value always replaces it. The answer lists every bad key, in body order first, then the
+ * keys with a bad default, then the missing required keys.
  */
 function parseBody(body: unknown, spec: { required: readonly string[]; optional: readonly string[] }, defaults: Readonly<Record<string, string>>, siteUrl: string):
   { ok: true; values: Record<string, string> } | { ok: false; fields: string[] } {
   if (body !== null && body !== undefined && (typeof body !== 'object' || Array.isArray(body))) return { ok: false, fields: ['body'] };
-  const sent = (body ?? {}) as Record<string, unknown>;
+  const optional = new Set<string>(spec.optional);
+  const sent = Object.fromEntries(Object.entries((body ?? {}) as Record<string, unknown>)
+    .filter(([key, raw]) => !(optional.has(key) && typeof raw === 'string' && raw.trim() === '')));
   const known = new Set<string>([...spec.required, ...spec.optional]);
   const bad: string[] = [];
   const values: Record<string, string> = {};
   for (const [key, raw] of Object.entries(sent)) {
     if (!known.has(key)) { bad.push(key); continue; }
-    const v = typeof raw === 'string' ? raw.trim() : null;
-    const ok = v !== null && (key === 'grantCode' ? GRANT_CODE.test(v) : (URL_KEYS as readonly string[]).includes(key) ? isHttpsUrl(v) : PRINTABLE_ID.test(v));
-    if (ok) values[key] = v; else bad.push(key);
+    const v = validValue(key, raw);
+    if (v !== null) values[key] = v; else bad.push(key);
   }
   for (const key of known) {
     if (key in sent || defaults[key] === undefined) continue;
-    values[key] = fillFieldDefault(defaults[key], { siteUrl });
+    const v = validValue(key, fillFieldDefault(defaults[key], { siteUrl }));
+    if (v !== null) values[key] = v; else bad.push(key);
   }
   for (const key of spec.required) if (!(key in sent) && values[key] === undefined) bad.push(key);
   return bad.length > 0 ? { ok: false, fields: [...new Set(bad)] } : { ok: true, values };
@@ -95,7 +107,7 @@ export function adminValueSetup(manifest: ChannelManifest, capabilities: Capabil
       const v = parsed.values;
       // The issuer may have a path; its origin must be the connection site. Other endpoints may be on another https
       // host (`endpointOrigins: any-https`); the LTI service checks their hosts, and the grant binds them.
-      if (isHttpsUrl(v.issuer!) && new URL(v.issuer!).origin !== ctx.siteUrl) return { ok: false, fields: ['issuer'], reason: 'origin' };
+      if (new URL(v.issuer!).origin !== ctx.siteUrl) return { ok: false, fields: ['issuer'], reason: 'origin' };
       const adminValues: AdminValues = {
         issuer: v.issuer!, authenticationEndpoint: v.authenticationEndpoint!, accessTokenEndpoint: v.accessTokenEndpoint!, jwksUrl: v.jwksUrl!,
         ...(v.tokenAudience !== undefined ? { tokenAudience: v.tokenAudience } : {}),

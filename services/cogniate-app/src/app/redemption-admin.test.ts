@@ -95,6 +95,18 @@ describe('AC-LA-E2-04-03: the manual admin-value redemption', () => {
     expect(refusal(r)).toEqual([422, 'GRANT_MISMATCH', ['connection']]);
     expect(creates()).toEqual([]);
   });
+
+  it('B-LA-E2-03-01: the generic manual form body (every input; Token audience left blank) redeems', async () => {
+    const { issue, connection, put } = await setup();
+    const c = await connection('manual');
+    const code = await issue(c, { boundValues: VALUES });
+    const typed: Record<string, string> = { ...VALUES, clientId: 'client-1', deploymentId: 'dep-1', grantCode: code };
+    const form = Object.fromEntries(TEST_CHANNELS.channel('lti-generic')!.setup.bindingFields.filter((f) => !f.method || f.method === 'manual').map((f) => [f.key, typed[f.key] ?? '']));
+    expect(form).toHaveProperty('tokenAudience', '');
+    const r = await put(c, form);
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.status).toBe('registered');
+  });
 });
 
 describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => {
