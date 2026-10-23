@@ -18,12 +18,14 @@ export const HTTP_DRAIN_MS = 3_000;
  */
 export async function stopService(parts: { servers: readonly Server[]; runner: { stop(): Promise<void> } | null; closeDb: () => void },
   drainMs = HTTP_DRAIN_MS): Promise<void> {
-  const listeners = Promise.all(parts.servers.map((server) => new Promise<void>((resolve, reject) => {
+  // One promise per listener: a listener that fails to close must not end the wait for the others (A-LA-E4-02-04).
+  const listeners = parts.servers.map((server) => new Promise<void>((resolve, reject) => {
     server.close((err) => err ? reject(err) : resolve());
     server.closeIdleConnections();
-  })));
+  }));
   const cut = setTimeout(() => { for (const server of parts.servers) server.closeAllConnections(); }, drainMs);
-  const results = await Promise.allSettled([listeners, Promise.resolve().then(() => parts.runner?.stop())]);
+  // The cutoff stays armed until every listener and the runner have settled.
+  const results = await Promise.allSettled([...listeners, Promise.resolve().then(() => parts.runner?.stop())]);
   clearTimeout(cut);
   parts.closeDb();
   const failed = results.find((r) => r.status === 'rejected');

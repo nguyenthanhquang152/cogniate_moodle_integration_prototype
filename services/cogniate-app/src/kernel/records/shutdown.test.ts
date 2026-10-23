@@ -134,6 +134,25 @@ describe('stop order (BD-A2-109)', () => {
     expect(dbClosed).toBe(true);
   });
 
+  it('A-LA-E4-02-04: one listener fails to close; the database waits until the other listener has cut its held request at 3 s', async () => {
+    const failing = createServer();
+    const s = await server();
+    const held = s.request('/hold');
+    await until(() => s.held.length === 1);
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let dbClosed = false;
+    let settled = false;
+    const closing = stopService({ servers: [failing, s.srv], runner: null, closeDb: () => { dbClosed = true; } })
+      .finally(() => { settled = true; });
+    closing.catch(() => {});
+    await vi.advanceTimersByTimeAsync(HTTP_DRAIN_MS - 1);
+    expect([dbClosed, settled, held.data()]).toEqual([false, false, '']);
+    await vi.advanceTimersByTimeAsync(1);
+    await held.closed;
+    await expect(closing).rejects.toMatchObject({ code: 'ERR_SERVER_NOT_RUNNING' });
+    expect([dbClosed, held.data()]).toEqual([true, '']);
+  });
+
   it('closes the database also when a step fails, then gives the error', async () => {
     const s = await server();
     let dbClosed = false;
