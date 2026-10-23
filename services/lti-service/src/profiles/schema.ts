@@ -40,7 +40,7 @@ export const profileSourceSchema = z.strictObject({
     configurationPath: z.string().regex(/^\/[^?#\s]*$/, 'Expected a path that starts with "/", with no query or fragment.').optional(),
     registrationToken: z.enum(['scope-jwt', 'opaque-bearer']),
     // LA-ADR-05 D6 (RQ-2, A1 to ratify): channel data for the tool configuration claim of the registration request.
-    toolConfigurationExtensions: z.record(z.string().refine(isExtensionKey, 'Expected an absolute https URL as the member name.'), z.string().min(1))
+    toolConfigurationExtensions: z.record(z.string().refine(isExtensionKey, 'Expected an absolute https URL in normal form (as URL.href gives it), with no query or fragment, as the member name.'), z.string().min(1))
       .refine((members) => Object.keys(members).length <= 8, 'Expected at most 8 members.').optional(),
   }).nullable().optional(),
   wireLms: z.string().min(1).nullable().optional(),
@@ -90,6 +90,13 @@ export const profileSourceSchema = z.strictObject({
   }
 }) satisfies z.ZodType<ProfileSource>;
 
+type SchemaIssue = z.ZodError['issues'][number];
+/** One issue as text. B-LA-E3-09-02: a record key or element issue keeps its nested reason. */
+const issueText = (issue: SchemaIssue): string => {
+  const nested = issue.code === 'invalid_key' || issue.code === 'invalid_element' ? issue.issues.map((inner) => inner.message) : [];
+  return `${issue.path.join('.') || 'profile'}: ${issue.message}${nested.length ? ` (${nested.join('; ')})` : ''}`;
+};
+
 /** The loader owns channel and lms; neither may appear in the source. */
 export function parseProfileSource(value: unknown, channel: string): ProfileSource {
   const parsed = profileSourceSchema.safeParse(value);
@@ -97,7 +104,7 @@ export function parseProfileSource(value: unknown, channel: string): ProfileSour
     const id = value !== null && typeof value === 'object' && 'id' in value && typeof value.id === 'string' ? value.id : '<unknown>';
     throw new RegistryError(channel, 7, {
       reason: 'profile_schema_invalid',
-      detail: `profile "${id}": ${parsed.error.issues.map((issue) => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; ')}`,
+      detail: `profile "${id}": ${parsed.error.issues.map(issueText).join('; ')}`,
     });
   }
   const baseline = Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, parsed.data.id);

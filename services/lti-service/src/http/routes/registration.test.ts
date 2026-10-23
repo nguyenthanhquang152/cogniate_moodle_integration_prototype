@@ -16,6 +16,7 @@ import { ensureAccount } from '../../store/accounts.ts';
 import { listApiKeys } from '../../store/api-keys.ts';
 import { listAuditEvents } from '../../store/audit.ts';
 import { createPlatform, getPlatform } from '../../store/platforms.ts';
+import { createRegistrationSession } from '../../store/registrations.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
 import { buildApp } from '../app.ts';
@@ -802,15 +803,6 @@ const hostedConfig = (site = SITE, extra: Record<string, unknown> = {}) => ({
 const selfHostedConfig = (service = 'https://api.school.edu') => hostedConfig(SELF, {
   issuer: SELF, authorization_endpoint: `${SELF}/api/lti/authorize_redirect`, jwks_uri: `${SELF}/api/lti/security/jwks`, token_endpoint: `${service}/login/oauth2/token`,
 });
-/** Only the fixed-endpoint DR profiles: every admin-value profile loses its DR trait (open world: by trait, not by name). */
-async function fixedOnlyRegistry(): Promise<ProfileRegistry> {
-  const loaded = structuredClone(await loadChannelFolders([CHANNEL_ROOT], 'lti'));
-  for (const entry of loaded) {
-    for (const profile of (entry.ltiProfiles ?? []) as Array<Record<string, unknown>>) if (profile.endpoints === 'admin') profile.dynamicRegistration = null;
-  }
-  return buildProfileRegistry(loaded);
-}
-
 describe('LA-E3-09: Dynamic Registration with the profile rule (LA-ADR-05 D6, A2 BD-A2-89)', () => {
   const startAt = (s: Awaited<ReturnType<typeof setup>>, url: string, token?: string) =>
     s.app.inject({ method: 'GET', url: `/lti/register/cogniate?${new URLSearchParams({ openid_configuration: url, ...(token ? { registration_token: token } : {}) })}` });
@@ -889,38 +881,55 @@ describe('LA-E3-09: Dynamic Registration with the profile rule (LA-ADR-05 D6, A2
     } finally { await s.app.close(); s.db.close(); }
   });
 
-  it('BD-A2-89: a configuration URL on the fixed sso host is fetched, but complete refuses it; nothing is stored or sent', async () => {
+  it('BD-A2-89 behind the BD-A2-93 floor: the start page refuses the fixed sso host; a stored session with it is refused at complete', async () => {
     const s = await setup();
     try {
       const url = configUrlAt(SSO);
-      s.state.configs[url] = hostedConfig(SITE, { registration_endpoint: `${SSO}/register-tool` });
+      const config = hostedConfig(SITE, { registration_endpoint: `${SSO}/register-tool` });
+      s.state.configs[url] = config;
       const r = await startAt(s, url, 'opaque-canvas-4');
-      expect(r.statusCode, r.body).toBe(303);
-      const id = idOf(String(r.headers.location));
-      const c = await complete(s, id, { profile: 'canvas-cloud-production', bindingRef: 'conn-c4' });
+      expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]]).toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE']);
+      expect(s.state.fetched).toEqual([]);
+      // A session with that configuration (for example one stored before the floor) still gets nothing stored or sent.
+      const session = createRegistrationSession(s.db, MASTER_KEY, {
+        toolAccountId: 'cogniate', openidConfigurationUrl: url, registrationToken: 'opaque-canvas-4', platformConfiguration: config, operation: 'new',
+        existingPlatformId: null, privacyLevel: 'anonymous', passthrough: {}, expiresAt: s.clock.now + 3600_000, tokenKind: 'opaque-bearer',
+      }, s.clock.now);
+      const c = await complete(s, session.id, { profile: 'canvas-cloud-production', bindingRef: 'conn-c4' });
       expect([c.statusCode, c.json().details.message, c.json().details.reason]).toEqual([400, 'INVALID_REQUEST', 'configuration_on_fixed_host']);
       expect(c.json().details.description).toContain('The site cannot be proven from this platform configuration');
       expect([count(s, 'platform'), s.state.registrations.length]).toEqual([0, 0]);
-      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+      expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(session.id)?.status).toBe('open');
     } finally { await s.app.close(); s.db.close(); }
   });
 
-  it('AC-LA-E3-09-05: with only profile-rule DR profiles loaded, a configuration URL off every allowed site is refused before any fetch', async () => {
-    const s = await setup(await fixedOnlyRegistry());
+  it('AC-LA-E3-09-05 (BD-A2-93): with the product registry, an own host, a failing host name or a reserved host is refused before any fetch', async () => {
+    // The real mixed registry: the admin-value DR profiles (standard, lti-generic) stay loaded next to the profile rules.
+    const s = await setup();
     try {
       rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({ registrationSessionsPerAddress: 20, classes: { registration: { ratePerMinute: 100, burst: 100 } } });
-      for (const url of [configUrlAt('https://canvas.instructure.com'), `${URLS.app}/config`, 'https://10.1.2.3/config', `http://school.instructure.com/config`]) {
+      // A reserved issuer host keeps the M1 ISSUER_RESERVED page (contract §9.2); the other hosts get PLATFORM_URL_NOT_IN_PROFILE.
+      const refused = {
+        [configUrlAt('https://canvas.instructure.com')]: 'issuer_reserved', 'https://blackboard.com/config': 'issuer_reserved', [configUrlAt(SSO)]: 'reserved_host',
+        [configUrlAt('https://sso.test.canvaslms.com')]: 'reserved_host', 'https://developer.blackboard.com/config': 'reserved_host', [`${URLS.app}/config`]: 'site_rule_3',
+        [`${URLS.lti}/config`]: 'site_rule_3', 'https://localhost/config': 'site_rule_2', 'https://intranet/config': 'site_rule_2',
+      };
+      for (const [url, detail] of Object.entries(refused)) {
         const r = await startAt(s, url, 'opaque-canvas-5');
-        expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]], url).toEqual([400, 'PLATFORM_URL_NOT_IN_PROFILE']);
+        expect([r.statusCode, /data-error-code="([A-Z_]+)"/.exec(r.body)?.[1]], url).toEqual([400, detail === 'issuer_reserved' ? 'ISSUER_RESERVED' : 'PLATFORM_URL_NOT_IN_PROFILE']);
       }
       expect(s.state.fetched).toEqual([]);
-      expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.detail)).toEqual(Array(4).fill('configuration_url_not_in_profile'));
-      // The site origin, a separate service origin and the fixed sso host are fetched.
+      expect(count(s, 'registration_session')).toBe(0);
+      expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.detail)).toEqual(Object.values(refused).map((d) => `${d}=configuration_url`));
+      // Another https URL is fetched (the union start rule): a school site and a Moodle site.
       s.state.configs[configUrlAt(SITE)] = hostedConfig();
       expect((await startAt(s, configUrlAt(SITE), 'opaque-canvas-6')).statusCode).toBe(303);
-      await startAt(s, configUrlAt('https://school-api.instructure.com'));
-      await startAt(s, configUrlAt(SSO));
-      expect(s.state.fetched).toEqual([configUrlAt(SITE), configUrlAt('https://school-api.instructure.com'), configUrlAt(SSO)]);
+      expect((await s.start(undefined)).statusCode).toBe(303);
+      // Lead call (option A): http and IP addresses still go to the guarded client, which refuses them (T3b baseline).
+      for (const url of ['http://school.instructure.com/config', 'https://169.254.169.254/config']) {
+        expect(/data-error-code="([A-Z_]+)"/.exec((await startAt(s, url)).body)?.[1], url).toBe('FETCH_FAILED');
+      }
+      expect(s.state.fetched).toEqual([configUrlAt(SITE), CONFIG_URL, 'http://school.instructure.com/config', 'https://169.254.169.254/config']);
     } finally { await s.app.close(); s.db.close(); }
   });
 

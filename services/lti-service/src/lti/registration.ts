@@ -1,6 +1,7 @@
 // Dynamic registration rules (contract §2.4, §3.8, security §2.4, §2.5, ADR-009). Pure functions: the route
 // (http/routes/registration.ts) does the network calls.
-import { checkSiteUrl, fixedHostsOf, hostOf } from '@cogniate/shared';
+import { isIP } from 'node:net';
+import { checkSiteUrl, fixedHostsOf, hostOf, originHost } from '@cogniate/shared';
 import type { SiteRuleInput } from '@cogniate/shared';
 import type { ProtocolUrls } from './target.ts';
 import type { PrivacyLevel, RegistrationOperation } from '../store/registrations.ts';
@@ -141,12 +142,21 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is
 const ENDPOINT_NAMES = ['authorization_endpoint', 'token_endpoint', 'jwks_uri', 'registration_endpoint'] as const;
 
 /**
- * BD-A2-89, before the fetch: a `profile` rule takes a configuration URL only when it is https and its origin passes
- * the site rules of the profile, or when its host is a fixed endpoint host of the profile.
+ * BD-A2-93: the floor of the start page, for every loaded profile, before any fetch. No loaded profile can complete a
+ * configuration whose host fails site rule 2 (a host name: localhost, no dot, a trailing dot) or rule 3 (an own
+ * host), or is a reserved host (a fixed host of any loaded profile). A reserved issuer host keeps the M1 answer
+ * ISSUER_RESERVED (contract §9.2). Null: the URL is fetched (the union start rule). A URL that is not https, or that
+ * has an IP address as its host, goes to the guarded client as before: it refuses http and private addresses.
  */
-export function configurationUrlFits(configUrl: string, rule: FixedRule): boolean {
-  if (!isHttpsUrl(configUrl)) return false;
-  return rule.endpointHosts.includes(hostOf(configUrl)!) || checkSiteUrl(new URL(configUrl).origin, rule.siteRules).ok;
+export function configurationUrlProblem(configUrl: string, rules: AnyHttpsRules): { code: 'ISSUER_RESERVED' | 'PLATFORM_URL_NOT_IN_PROFILE'; detail: string } | null {
+  let url: URL;
+  try { url = new URL(configUrl); } catch { return null; }
+  const host = hostOf(configUrl)!;
+  if (url.protocol !== 'https:' || isIP(host) !== 0) return null;
+  if (rules.reservedIssuerOrigins.map(originHost).includes(host)) return { code: 'ISSUER_RESERVED', detail: 'issuer_reserved=configuration_url' };
+  const problem = endpointHostProblem(configUrl, rules);
+  if (problem === null) return null;
+  return { code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `${problem === 'reserved host' ? 'reserved_host' : `site_rule_${problem}`}=configuration_url` };
 }
 
 /**

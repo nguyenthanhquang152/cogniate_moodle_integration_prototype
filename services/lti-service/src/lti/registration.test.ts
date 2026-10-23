@@ -1,10 +1,11 @@
+import { originHost } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { URLS } from '../testkit.ts';
 import type { AnyHttpsRules } from './platform-rules.ts';
-import { allFixedHosts, listProfiles, profileDefinition, siteRulesFor } from '../profiles/index.ts';
+import { allFixedHosts, listProfiles, profileDefinition, reservedIssuerOrigins, siteRulesFor } from '../profiles/index.ts';
 import type { ConfigurationRule } from './registration.ts';
 import {
-  PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, configurationUrlFits, endpointsOnIssuerOrigin, fixedRuleOf,
+  PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, configurationUrlProblem, endpointsOnIssuerOrigin, fixedRuleOf,
   grantedScopesOf, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, supportsDeepLinking,
 } from './registration.ts';
 
@@ -241,20 +242,25 @@ describe('the profile issuer rule (LA-ADR-05 D6, A2 BD-A2-89)', () => {
       .toEqual({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: 'site_rule_5=configuration_url' });
   });
 
-  it('AC-LA-E3-09-05: before the fetch, the URL must be https on an allowed site or on a fixed endpoint host of the profile', () => {
-    const production = ruleFor('canvas-cloud-production');
-    const self = ruleFor('canvas-self-hosted');
-    expect([URL_AT(SITE), URL_AT(SSO), URL_AT('https://school-api.instructure.com')].map((u) => configurationUrlFits(u, production))).toEqual([true, true, true]);
-    for (const refused of [
-      URL_AT('https://canvas.instructure.com'), `http://school.instructure.com/x`, 'https://10.1.2.3/x', URL_AT('https://localhost'), `${URLS.lti}/x`,
-      'https://user@school.instructure.com/x', `${URL_AT(SITE)}#f`, 'not a url',
-    ]) expect(configurationUrlFits(refused, production), refused).toBe(false);
-    expect([URL_AT(SELF), URL_AT(SITE), URL_AT(SSO)].map((u) => configurationUrlFits(u, self))).toEqual([true, false, false]);
-    // BD-A2-89: the fixed hosts of every loaded profile (the twins too) are no site; only the profile's own endpoint hosts are fetched.
-    const beta = ruleFor('canvas-cloud-beta');
-    expect([URL_AT('https://canvas.instructure.com'), URL_AT(SSO), URL_AT('https://sso.beta.canvaslms.com'), URL_AT('https://developer.blackboard.com')]
-      .map((u) => configurationUrlFits(u, beta))).toEqual([false, false, true, false]);
-    expect(configurationUrlFits(URL_AT('https://sso.beta.canvaslms.com'), production)).toBe(false);
+  it('BD-A2-93: the floor before the fetch refuses own hosts, failing host names and reserved hosts; the rest goes to the fetch', () => {
+    const rules: AnyHttpsRules = {
+      ownHosts: OWN.map(originHost), reservedHosts: allFixedHosts({ simulation: true }), reservedIssuerOrigins: reservedIssuerOrigins({ simulation: true }),
+    };
+    const notInProfile = (detail: string) => ({ code: 'PLATFORM_URL_NOT_IN_PROFILE', detail: `${detail}=configuration_url` });
+    const refused = {
+      // A reserved issuer host keeps the M1 answer (contract §9.2), any port.
+      [URL_AT('https://canvas.instructure.com')]: { code: 'ISSUER_RESERVED', detail: 'issuer_reserved=configuration_url' },
+      'https://Blackboard.com:8443/x': { code: 'ISSUER_RESERVED', detail: 'issuer_reserved=configuration_url' },
+      [URL_AT(SSO)]: notInProfile('reserved_host'), [URL_AT('https://SSO.Beta.canvaslms.com:8443')]: notInProfile('reserved_host'),
+      'https://developer.blackboard.com/x': notInProfile('reserved_host'), [`${URLS.app}/x`]: notInProfile('site_rule_3'),
+      'https://localhost/x': notInProfile('site_rule_2'), 'https://intranet/x': notInProfile('site_rule_2'), 'https://school.test./x': notInProfile('site_rule_2'),
+    };
+    expect(Object.fromEntries(Object.keys(refused).map((u) => [u, configurationUrlProblem(u, rules)]))).toEqual(refused);
+    // Option A (Lead call): http and IP addresses go to the guarded client as before (it refuses http and private
+    // addresses itself); a value that is not a URL fails there too.
+    for (const u of [URL_AT(SITE), URL_AT(SELF), CONFIG_URL, 'https://203.0.113.10/x', 'https://169.254.169.254/x', 'https://[::1]/x', 'http://canvas.instructure.com/x', 'not a url']) {
+      expect(configurationUrlProblem(u, rules), u).toBeNull();
+    }
   });
 
   it('with admin-value rules loaded: the profile rule is tried first; an admin configuration keeps its own result and problem', () => {

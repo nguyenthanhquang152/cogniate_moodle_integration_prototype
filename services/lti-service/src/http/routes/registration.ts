@@ -18,7 +18,7 @@ import { BINDING_REF, checkAudienceHost } from '../../lti/platform-rules.ts';
 import type { AnyHttpsRules } from '../../lti/platform-rules.ts';
 import type { ConfigurationProblem, ConfigurationRule, IssuerRule, OpenIdConfiguration } from '../../lti/registration.ts';
 import {
-  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, configurationUrlFits, endpointsOnIssuerOrigin, fixedRuleOf,
+  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, configurationUrlProblem, endpointsOnIssuerOrigin, fixedRuleOf,
   grantedScopesOf, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView, supportsDeepLinking,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
@@ -200,13 +200,11 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
-    // BD-A2-89: a profile rule takes the configuration URL only on a site that its site rules allow, or on a fixed
-    // endpoint host of the profile. When no rule can take it, it is not fetched.
-    const fixedRules = startRule.fixedRules!.filter((rule) => configurationUrlFits(q.data.openid_configuration, rule));
-    if (startRule.issuerRules.length === 0 && startRule.fixedRules!.length > 0 && fixedRules.length === 0) {
-      return page('PLATFORM_URL_NOT_IN_PROFILE', 'configuration_url_not_in_profile');
-    }
-    const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId, { ...startRule, fixedRules });
+    // BD-A2-93: the floor for every loaded profile. No loaded profile could complete such a configuration, so it is
+    // not fetched; every other URL is fetched and read with the loosest rule of the loaded profiles.
+    const floor = configurationUrlProblem(q.data.openid_configuration, hosts);
+    if (floor) return page(floor.code, floor.detail);
+    const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId, startRule);
     if ('code' in config) return page(config.code, config.detail);
     // M1: a reserved issuer (except the own issuer of the profile rule it passed) or a guarded product family; nothing
     // is stored and no session starts.

@@ -102,6 +102,19 @@ describe('load check 7 for the E2 traits (AC-LA-E2-01-02)', () => {
     })).toBeNull();
   });
 
+  it('B-LA-E3-09-02: the load check 7 detail keeps the reason of a refused member name; a name in normal form passes', () => {
+    const withMembers = (members: Record<string, string>) => (entries: LoadedChannel[]) => Object.assign(profilesOf(entries, 'canvas')[0]!,
+      { dynamicRegistration: { issuerRule: 'profile', registrationToken: 'opaque-bearer', toolConfigurationExtensions: members } });
+    const reason = 'Expected an absolute https URL in normal form (as URL.href gives it), with no query or fragment, as the member name.';
+    for (const name of ['https://lms.example', 'https://lms.example/lti?x=1', 'https://lms.example/lti#x', 'tool_id']) {
+      const err = refusal(withMembers({ [name]: 'x' }));
+      expect(err, name).toMatchObject({ check: 7, reason: 'profile_schema_invalid' });
+      expect((err as RegistryError).detail, name)
+        .toBe(`profile "canvas-cloud-production": dynamicRegistration.toolConfigurationExtensions.${name}: Invalid key in record (${reason})`);
+    }
+    expect(refusal(withMembers({ 'https://lms.example/': 'x', 'https://lms.example/lti/tool_id': 'cogniate' }))).toBeNull();
+  });
+
   it('LA-E3-09: accepts eight extension members and freezes them', () => {
     const entries = copy();
     const members = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`https://lms.example/lti/m${i}`, 'x']));
