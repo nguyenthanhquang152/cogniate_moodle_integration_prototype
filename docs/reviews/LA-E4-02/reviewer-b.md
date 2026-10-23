@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E4-02 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -71,3 +71,16 @@ My MINORs are about the question in the brief, "can a newcomer add a reporter":
 
 - K0 AC-05 and the K1/MOODLE ACs (QA). The LD-6 T5b fixture change (QA, LA-IC-09).
 - Lens-A depth of the recovery SQL and of the partition backfill branches beyond the unit cases.
+
+
+## Round 2 (WE-F4 fix)
+
+Verdict: **APPROVE**. Counts for this bounded round: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT**. Earlier record-core findings are outside this fix review.
+
+Reviewed `git diff 739c51ad^1 739c51ad` (author `549a21b4`) against BD-A2-109, LA-ADR-06 D11, operability §3 and the task's file ownership. Only app `main.ts` and `kernel/records/shutdown{,.test}.ts` change; no forbidden path or LMS name is added.
+
+`stopService()` gives one clear stop sequence: close all three listeners and idle connections, start the runner stop, cut remaining HTTP connections after `HTTP_DRAIN_MS = 3_000`, then close the database after both sides finish. `main.ts` includes the operator server in the same list. The helper and tests name BD-A2-109. The idle and running-job cases show the 3 s cut without an HTTP answer, immediate refusal of new connections, and delayed database close while a job runs. The design and operator text agree with the 3 s HTTP limit, 60 s job grace, 70 s fallback and 75 s container grace.
+
+Verification in a fresh `git clone --no-hardlinks` at `93ab0c50`, with its own `npm ci`, under `/tmp/we-f4-review-b-h2dpjw6k/repo`: **70 tests passed in 4 files** (app shutdown and outbox, shared runner, LTI main); changed-file ESLint and both service typechecks passed. A private control using the former runner-first order without an HTTP cut fails both new app cases: the idle request stays open and the running-job case still accepts a connection. Restoring the shipped source gives **19/19** shutdown/main tests passing; caches were cleared before every Vitest run. Logs are in the clone's parent directory.
+
+No new findings. QA's seven M1-37 restart rows and the K1-SIM restart timing remain for the re-gate; no Docker or stack was run. Blind review maintained; only this report and the assigned LA-E5-19 Reviewer-B report were edited in the integration worktree.

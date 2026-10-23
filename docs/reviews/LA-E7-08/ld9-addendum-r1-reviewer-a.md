@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -34,3 +34,32 @@ Reviewer-A: Codex GPT-6-Astra xhigh. Reviewed the proposed addendum at integrati
 ### Verification boundary
 
 Read the declared integration commit with git and the frozen test files from `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end`, whose HEAD is `8ad12926` and status is clean. Host-only checks used copied files under `/tmp/la-review-a-fc653aca4e95`: Part 1 patch check PASS; Part 2 patch check FAIL as above; seven regex probes PASS; exact ledger probes reject old-only, missing and extra entries; exact log-key probes still reject missing and extra keys. No stack, Docker, host stack runner, install, commit or frozen-test edit was performed. This is approval review of proposed changes, not a wave-end regression result. Only this review file changed in integration, and Reviewer-B's file was not opened.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Reviewed `docs/reviews/LA-E7-08/ld9-addendum-r1.md` Round 2 and `tests/ltiaas/GATE-RUN-PLAN.md` §3C at `0f821dad945be60c3ed8d27065f8f2e94cc63cf4`, against LD-9, AC-LA-E7-08-05 and contract delta §6. **CHANGES_REQUESTED: 0 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT open.** Both original findings close and all three proposed hunks are approved. The new issue is in the procedure that builds the test source, not in those hunks.
+
+### Round 1 findings closed
+
+| Finding | Status and evidence |
+| --- | --- |
+| A-LA-E7-08-01 (MAJOR) | **CLOSED.** Round 2 Hunk 3 has the real trailing context from `8ad12926`. Each of the three individual hunks and the combined patch passes `git apply --check` on a private clone at the exact frozen SHA. Applying the combined patch and comparing complete file contents confirms only the three named single-line replacements; no other assertion changes. |
+| A-LA-E7-08-02 (MINOR) | **CLOSED.** Round 2's Hunk 3 rule (`ld9-addendum-r1.md:174`) and summary name `launch_check_failed`, `launch_accepted` and `launch_claims_minimized`, with **when it is known**, matching `contracts/lti-service-api-delta.md:399`. The superseding test change still adds only `tool_account_id` to `launch_claims_minimized`. |
+
+The required `?ref=[A-Za-z0-9_-]{43}$` suffix, exact migration-ledger comparison and exact log-key comparison remain intact. Round 2 §R2.3 names the complete re-gate runs and decisive rows: `qalead-la-40` / 394 M1 sim rows including `M1-15.canvas.dynamic-refused` and `M1-24.common.event-shapes`, and `qalead-la-41` / six snapshot-upgrade rows including `M1-41.common.j-snapshot`. It requires candidate/test SHAs and artifact paths. These are future evidence requirements, not a claim that the re-gate has passed.
+
+### A-LA-E7-08-03 — MAJOR — The prescribed checkout does not create the exact frozen test overlay
+
+**Location:** `tests/ltiaas/GATE-RUN-PLAN.md:242–244` at `0f821dad` (script starts at `:226`).
+
+**Problem:** `git checkout 8ad12926 -- tests` restores files present in the frozen tree but keeps newer tracked test paths that are absent there. Thus the first planned commit does not contain the promised exact `8ad12926` test tree. The next `git diff --exit-code` reports the mismatch, but the block has no failure guard or `set -e`; an ordinary execution can continue into the commit and tag commands with the wrong base overlay.
+
+**Evidence:** In a second private clone detached at the reviewed integration SHA `0f821dad`, fetched the frozen SHA read-only from `src-wave-end` and ran the documented checkout. The exact-overlay diff returned **exit 1**, with **24 added test paths** remaining, including `tests/ltiaas/kit/**`, four `LA-E5-24` drill files and two `LA-E4-02` files. The combined addendum still passed its subsequent apply check, so that check does not detect this base-tree error. No commits were made. As a control, `git restore --source=8ad1292687431b05bad6b5c070ab722e67714526 --staged --worktree -- tests` in the private clone made the full test-tree comparison return **exit 0**, and the addendum apply check still returned **exit 0**.
+
+**Suggested fix:** In the newly created `src-wave-end-2` clone only, replace the overlay checkout with an exact-tree restore (the command above was verified). Make failed clone, checkout/restore, comparison, patch-check and commit commands stop the procedure before later commits or tags. Preserve the intended two new commits: frozen overlay first, approved addendum second, never amend. Keep the frozen source repository read-only.
+
+### Round 2 verification boundary
+
+- `/tmp/la-review-a-7d961f442a6b`: `git clone --no-hardlinks` from the frozen source, detached at `8ad1292687431b05bad6b5c070ab722e67714526`. **4/4 patch checks PASS** (three individual hunks plus combined patch), full-file exact-change verification PASS, `git diff --check` PASS. Extracted patches, `reviewer-r2-apply-checks.json` and `reviewer-r2-applied.diff` retain the evidence.
+- `/tmp/la-review-a-7d961f442a6b-overlay`: a separate private clone at `0f821dad` for the overlay reproduction and exact-restore control. `reviewer-overlay-diff.log` retains the 24-path failure. No install or test runner was needed.
+- No Docker, stack, host stack runner, commit, or modification to either the frozen source or integration tests. Only this review file changed in integration; concurrent work was left untouched. Reviewer-B's file was not opened. Live re-gate results and the final named candidate/test SHAs remain outside this host-only review.

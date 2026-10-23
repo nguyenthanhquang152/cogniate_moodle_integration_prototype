@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 1
+Verdict: CHANGES_REQUESTED
+Round: 2
 
 # LA-E4-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -63,3 +63,23 @@ Round: 1
 - The F5 adapter entry for `014` allows the `rowid` form for the whole file. It is still "one entry", and an applied migration cannot change (its checksum is frozen).
 - With `APP_JOB_RUNNER=off`, the web process sends no scores and runs no retention. LA-E4-05 adds the `worker` entry. Until then, `off` is only for that task's tests.
 - AC-06 to AC-10 are K1-SIM or MOODLE-LIVE and wait for QA. The unit tests and the checks above cover their logic.
+
+
+## Round 2 — WE-F4 shutdown fix
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `739c51ad^1..739c51ad` (R `549a21b4`), against BD-A2-109, LA-ADR-06 D11, operability §3 and ADR-011 §4a. **CHANGES_REQUESTED: 1 new MAJOR; no new BLOCKER, MINOR or NIT.**
+
+### A-LA-E4-02-04 — MAJOR — One listener error ends the wait for every other listener
+
+- **File:** `services/cogniate-app/src/kernel/records/shutdown.ts:21`, also `:26`–`:28`.
+- **Problem:** `Promise.all` rejects on the first listener error. The outer `allSettled` then waits only for that already-rejected aggregate and the runner; it does not wait for the other listeners. It cancels their three-second cutoff and closes the database while a request can still be open. This violates the required database-after-listeners order on the failure path.
+- **Evidence:** A private real-HTTP probe passed one non-listening server and another server holding a request to `stopService`, with no runner. The first server reported `ERR_SERVER_NOT_RUNNING`; before advancing the fake clock, `closeDb` had already run while the second request remained held. The required `dbClosed === false` assertion failed. Existing tests cover only one listener and a runner failure, so they do not detect this case.
+- **Suggested fix:** Retain each listener-close promise separately and await all of them together with the runner using `Promise.allSettled`. Keep the cutoff armed until all have settled, close the database, then rethrow a failed result. Add the two-listener failure case. That private control passed the probe and all existing focused tests.
+
+### Checks and limits
+
+- Normal path: all three app listeners stop immediately, the runner stop begins concurrently, idle keep-alives close, held HTTP sockets are cut at 3,000 ms, and the database waits for the runner. `close()` remains idempotent. The 60 s runner grace, 70 s service fallback and 75 s compose grace are unchanged; worker code is untouched. R1 **A-LA-E4-02-01 is closed** by the existing shutdown handler's stop log, fallback and failure exit tests. R1 NITs 02 and 03 are outside this fix and are not re-reviewed.
+- ADR-011: a socket cut does not cancel JavaScript. While a job drains, a handler can finish through the existing attempt/ref fencing; phase 1 and phase 2 remain separate transactions, with conditional approval and compensation. On the normal shutdown path, `createShutdownHandler` exits immediately after `close()` returns, so a killed handler leaves the established recoverable lease/ref state. No grant, lease, transaction or compensation code changed. The listener-failure ordering exception is finding 04 above.
+- Ownership is wave-dependent: epics §5 gives `kernel/records/**` to R in B2/B3 and K in B4 for LA-E5-22. This is the existing R shutdown helper, within LA-E4-02's explicit directory grant and this Lead-dispatched R fix of BD-A2-109; no K key-provider behavior was edited. The change stays within the specifically authorized fix scope.
+- **48/48 existing focused tests passed** across app shutdown, LTI main and shared jobs. Both app cases (a) and (b) failed when the old runner-first/no-HTTP-cut order was restored privately; all four new app/LTI cases failed under those mutations. The two new error-path probes failed on the submitted code; private controls for both services passed **50/50** checks. No product fix was made in integration.
+- Verification used `/tmp/la-reviewer-a-ctx-63e08b92dff0` at `9f8e990a`, a fresh `--no-hardlinks` clone with its own `npm ci` and a cleared Vitest cache before every run. It is clean after restoring all probes. Logs: `/tmp/la-reviewer-a-ctx-63e08b92dff0-focused.log` and `/tmp/la-reviewer-a-ctx-63e08b92dff0-probes/{error-paths,controls,old-order-mutants}.log`; probe sources are in that directory. No Docker, stack, host stack runner, commit or Reviewer-B file was used. QA's seven frozen M1-37 re-gate rows remain pending.

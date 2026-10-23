@@ -115,3 +115,131 @@ diff --git a/tests/acceptance/M1/common/99-logs.test.ts b/tests/acceptance/M1/co
 | **Part 1, Hunk 2 (`WE-F5`)** | `tests/host/m1-migration.mjs:332` | **Runner change with no frozen assertion change** (`AC-LA-E7-08-05`: open-world candidate migration-ledger directory lookup in `snapshotMigrationRun`) | Confirmed by **A2** (`BD-A2-108`); requires **Reviewer-A** and **Reviewer-B** approval before cutting new gate test SHA. | `8ad12926` checked non-existent `services/lti-service/src/store/migrations` instead of `services/lti-service/src/db/migrations`, causing `expectedLtiLedger` to fall back to `oldLedger` (`001..004`) and fail exact ledger equality at line 340 before `M1-41.common.j-snapshot` at line 344. | In `qalead-la-12`, `M1-38.common.h1..h5` passed (`5/5 PASS`), `newLedger['lti-service/lti.db']` had all 21 SQL migrations (`001..021`), and line 340 threw `AssertionError` against the 4-item fallback `expectedLtiLedger`, leaving `M1-41.common.j-snapshot` not run. |
 | **Part 2 (`WE-F2`)** | `tests/acceptance/M1/common/99-logs.test.ts:33` | **`LA-IC-22` test-change list item** (`M1-24.common.event-shapes`, `LA-ADR-04 D8`, integration `571ef1a7`) | **A2** (`BD-A2-108`) + **A1** (`LA-IC-22`, `571ef1a7`) confirmed; requires **Reviewer-A** and **Reviewer-B** approval before cutting new gate test SHA. | Every `launch_*` event log line in `lti-service` carries `tool_account_id`, so `launch_claims_minimized` has required fields `['platform_id', 'claims', 'tool_account_id']`. | In `qalead-la-14`, `M1-24.common.event-shapes` failed with `['claims', 'event', 'level', 'platform_id', 'service', 'tool_account_id', 'trace_id', 'ts']` vs expected without `'tool_account_id'`. |
 | **No Test Change (`WE-F1`)** | None (product fix in lane **S1**) | **No test change** | Product fix in lane **S1** (`admin` default `1200/min`, burst `600`, merged in `ecc19bbc`); rerun in re-gate slot. | The 9 `HTTP 429 RATE_LIMITED` rows in `M1 sim` hit `lti-service` `class: "admin"` (`LA-E5-03`) default rate limit (`300/min`, burst `60`). | In `qalead-la-14`, `lti-service.jsonl` logged `event: "rate_limited", class: "admin", key_kind: "api_key", tool_account_id: "cogniate"` at `17:17:13.114Z`. |
+
+---
+
+## Round 2
+
+- **Author:** Lead QA (`task_f58735a7596f` / `ctx_27248ee34e63`), 2026-10-23
+- **Reviews Addressed:**
+  - **Reviewer-A (`docs/reviews/LA-E7-08/ld9-addendum-r1-reviewer-a.md`, `CHANGES_REQUESTED`):**
+    - **`A-LA-E7-08-01` (MAJOR):** Regenerated every hunk below using `git diff 8ad1292687431b05bad6b5c070ab722e67714526` in a private scratch clone of `src-wave-end` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/scratch-addendum-r2`; `src-wave-end` itself was not touched and remains at `8ad1292687431b05bad6b5c070ab722e67714526` with empty `git status --short`). Verified that each individual hunk block and the combined 3-file diff block pass `git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end apply --check` with exit code `0`.
+    - **`A-LA-E7-08-02` (MINOR):** Replaced the nonexistent event names in the `LA-IC-22` prose with the exact event names and `"when it is known"` qualification from `docs/architecture/ltiaas/contracts/lti-service-api-delta.md` §6 (`:399`): `launch_check_failed`, `launch_accepted`, and `launch_claims_minimized` get `tool_account_id` when it is known (`LA-ADR-06 D10`; `BD-A2-108`). Kept `LA-IC-22`'s frozen-test change scope limited to the single `launch_claims_minimized` field addition at `tests/acceptance/M1/common/99-logs.test.ts:33`.
+  - **Reviewer-B (`docs/reviews/LA-E7-08/ld9-addendum-r1-reviewer-b.md`, `APPROVE`):**
+    - **`B-LA-E7-08-LD9-01` (MINOR):** Added the **Re-Gate Evidence Required (Slot 3C)** column to the Round 2 summary table (§R2.3), naming the exact complete suite run, required passing row IDs, candidate SHA, test SHA, and artifact records required to close each hunk (`WE-F3`, `WE-F5`, `WE-F2`) alongside the product fixes (`WE-F1`, `WE-F4`).
+
+### R2.1 Regenerated Hunks Against `8ad1292687431b05bad6b5c070ab722e67714526` (Verified with `git apply --check`)
+
+#### Hunk 1 — `WE-F3` (`LA-IC-14`, `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:247`)
+
+```diff
+diff --git a/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts b/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
+index ef09c8f7..22f05527 100644
+--- a/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
++++ b/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
+@@ -244,7 +244,7 @@ m1Test('M1-15.canvas.dynamic-refused', 'Canvas connection create accepts dynamic
+   expectStatus(r, 201);
+   assert.equal(r.json.status, 'pending');
+   assert.equal(r.json.method, 'dynamic');
+-  assert.match(String(r.json.registrationUrl ?? ''), /\/lti\/register\/cogniate$/);
++  assert.match(String(r.json.registrationUrl ?? ''), /\/lti\/register\/cogniate\?ref=[A-Za-z0-9_-]{43}$/);
+ });
+ for (const [variant, body, status, code, detail] of [
+   ['profile-mismatch', { profile: 'blackboard' }, 400, 'INVALID_REQUEST', ['field', 'profile']],
+```
+
+#### Hunk 2 — `WE-F5` (`AC-LA-E7-08-05` Runner Path Fix, `tests/host/m1-migration.mjs:332`)
+
+```diff
+diff --git a/tests/host/m1-migration.mjs b/tests/host/m1-migration.mjs
+index 2bc8e6b5..ddc459fc 100644
+--- a/tests/host/m1-migration.mjs
++++ b/tests/host/m1-migration.mjs
+@@ -329,7 +329,7 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
+   await stopServices(r);
+   const newLedger = await volumeLedger(candidateLane);
+   assertSnapshotBoundary(newLedger['cogniate-app/cogniate.db'], 'after');
+-  const ltiMigDir = path.join(r.CLONE, 'services/lti-service/src/store/migrations');
++  const ltiMigDir = path.join(r.CLONE, 'services/lti-service/src/db/migrations');
+   const appMigDir = path.join(r.CLONE, 'services/cogniate-app/src/domain/migrations');
+   const expectedLtiLedger = fs.existsSync(ltiMigDir)
+     ? fs.readdirSync(ltiMigDir).filter((n) => n.endsWith('.sql')).sort()
+```
+
+#### Hunk 3 — `WE-F2` (`LA-IC-22`, `tests/acceptance/M1/common/99-logs.test.ts:33`)
+
+- **Change ID:** `LA-IC-22` (`LA-ADR-04 D8`, integration `571ef1a7`)
+- **Affected Frozen File:** `tests/acceptance/M1/common/99-logs.test.ts` (line 33)
+- **Affected Manifest Case ID:** `M1-24.common.event-shapes` (base keys plus `platform_id`, `claims`, `tool_account_id`)
+- **Contract Rule (`docs/architecture/ltiaas/contracts/lti-service-api-delta.md` §6, `:399`; `LA-ADR-06 D10`; `BD-A2-108`):** `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted`, and `launch_claims_minimized` get `tool_account_id` **when it is known** (every `launch_*` line). `LA-IC-22`'s frozen-test change scope is limited to adding `'tool_account_id'` to `launch_claims_minimized` at `tests/acceptance/M1/common/99-logs.test.ts:33`.
+
+```diff
+diff --git a/tests/acceptance/M1/common/99-logs.test.ts b/tests/acceptance/M1/common/99-logs.test.ts
+index 3c49d0b1..955fc549 100644
+--- a/tests/acceptance/M1/common/99-logs.test.ts
++++ b/tests/acceptance/M1/common/99-logs.test.ts
+@@ -30,7 +30,7 @@ m1Test('M1-24.common.event-shapes', 'new app and deployment events have exactly
+       platform_created: ['info', ['platform_id', 'profile']],
+       deployment_added: ['info', ['platform_id', 'deployment_id']],
+       deployment_updated: ['info', ['platform_id', 'deployment_id', 'active', 'binding_generation']],
+-      launch_claims_minimized: ['info', ['platform_id', 'claims']],
++      launch_claims_minimized: ['info', ['platform_id', 'claims', 'tool_account_id']],
+     }],
+   ] as [string, Record<string, [string, string[]]>][]) {
+     const log = readLog(service); assert.deepEqual(log.badLines, []);
+```
+
+### R2.2 Combined 3-File Addendum Patch (`git diff 8ad1292687431b05bad6b5c070ab722e67714526`)
+
+```diff
+diff --git a/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts b/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
+index ef09c8f7..22f05527 100644
+--- a/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
++++ b/tests/acceptance/M1/canvas/11-canvas-platforms.test.ts
+@@ -244,7 +244,7 @@ m1Test('M1-15.canvas.dynamic-refused', 'Canvas connection create accepts dynamic
+   expectStatus(r, 201);
+   assert.equal(r.json.status, 'pending');
+   assert.equal(r.json.method, 'dynamic');
+-  assert.match(String(r.json.registrationUrl ?? ''), /\/lti\/register\/cogniate$/);
++  assert.match(String(r.json.registrationUrl ?? ''), /\/lti\/register\/cogniate\?ref=[A-Za-z0-9_-]{43}$/);
+ });
+ for (const [variant, body, status, code, detail] of [
+   ['profile-mismatch', { profile: 'blackboard' }, 400, 'INVALID_REQUEST', ['field', 'profile']],
+diff --git a/tests/acceptance/M1/common/99-logs.test.ts b/tests/acceptance/M1/common/99-logs.test.ts
+index 3c49d0b1..955fc549 100644
+--- a/tests/acceptance/M1/common/99-logs.test.ts
++++ b/tests/acceptance/M1/common/99-logs.test.ts
+@@ -30,7 +30,7 @@ m1Test('M1-24.common.event-shapes', 'new app and deployment events have exactly
+       platform_created: ['info', ['platform_id', 'profile']],
+       deployment_added: ['info', ['platform_id', 'deployment_id']],
+       deployment_updated: ['info', ['platform_id', 'deployment_id', 'active', 'binding_generation']],
+-      launch_claims_minimized: ['info', ['platform_id', 'claims']],
++      launch_claims_minimized: ['info', ['platform_id', 'claims', 'tool_account_id']],
+     }],
+   ] as [string, Record<string, [string, string[]]>][]) {
+     const log = readLog(service); assert.deepEqual(log.badLines, []);
+diff --git a/tests/host/m1-migration.mjs b/tests/host/m1-migration.mjs
+index 2bc8e6b5..ddc459fc 100644
+--- a/tests/host/m1-migration.mjs
++++ b/tests/host/m1-migration.mjs
+@@ -329,7 +329,7 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
+   await stopServices(r);
+   const newLedger = await volumeLedger(candidateLane);
+   assertSnapshotBoundary(newLedger['cogniate-app/cogniate.db'], 'after');
+-  const ltiMigDir = path.join(r.CLONE, 'services/lti-service/src/store/migrations');
++  const ltiMigDir = path.join(r.CLONE, 'services/lti-service/src/db/migrations');
+   const appMigDir = path.join(r.CLONE, 'services/cogniate-app/src/domain/migrations');
+   const expectedLtiLedger = fs.existsSync(ltiMigDir)
+     ? fs.readdirSync(ltiMigDir).filter((n) => n.endsWith('.sql')).sort()
+```
+
+### R2.3 Round 2 Summary Table & Re-Gate Evidence Per Hunk (`B-LA-E7-08-LD9-01`)
+
+| Item | File & Line | Classification (`AC-LA-E7-08-05`) | Contract / Runner Rule | Re-Gate Evidence Required in Slot 3C (`src-wave-end-2`, Recording Candidate SHA, Test SHA & Artifact Path) |
+| --- | --- | --- | --- | --- |
+| **Hunk 1 (`WE-F3`)** | `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:247` | **`LA-IC-14` test-change list item** (`M1-15.canvas.dynamic-refused`) | `POST /app-api/connections` (`lms: 'canvas', method: 'dynamic'`) always returns `registrationUrl` ending with `/lti/register/cogniate?ref=<43-char-base64url>` (`BD-A2-108`). | Complete `M1 --phase sim --provider all` run (`qalead-la-40`, `394/394` manifest rows `PASS`), proving **`M1-15.canvas.dynamic-refused` = `PASS`** in `m1-case-results.json` and `summary.json`. |
+| **Hunk 2 (`WE-F5`)** | `tests/host/m1-migration.mjs:332` | **Runner change with no frozen assertion change** (`AC-LA-E7-08-05`: candidate migration-ledger lookup in `snapshotMigrationRun`) | Reads `services/lti-service/src/db/migrations` (`21` SQL files `001_init.sql`..`021_registration_token_kind.sql`) and keeps `assert.deepEqual(newLedger['lti-service/lti.db'], expectedLtiLedger)` exact (`BD-A2-108`). | Complete `M1 --phase snapshot-upgrade --provider all` run (`qalead-la-41`), proving **all `6/6` manifest rows `PASS`** (`M1-38.common.h1..h5` and host qualification row **`M1-41.common.j-snapshot`** in `m1-case-results.json`, `0` `ERROR` rows in `summary.json`) and exact candidate migration-ledger equality. |
+| **Hunk 3 (`WE-F2`)** | `tests/acceptance/M1/common/99-logs.test.ts:33` | **`LA-IC-22` test-change list item** (`M1-24.common.event-shapes`, `LA-ADR-04 D8`, `571ef1a7`) | Per `contracts/lti-service-api-delta.md` §6 (`:399`), `launch_check_failed`, `launch_accepted`, and `launch_claims_minimized` get `tool_account_id` when it is known (`LA-ADR-06 D10`, `BD-A2-108`). | Complete `M1 --phase sim --provider all` run (`qalead-la-40`, `394/394` manifest rows `PASS`), proving **`M1-24.common.event-shapes` = `PASS`** in `m1-case-results.json` and `summary.json` (and `0` `ERROR` rows). |
+| **Product Fix (`WE-F1`)** | No test change (lane **S1** `ecc19bbc`) | **No test change** | `lti-service` `class: "admin"` default raised to `1200/min`, burst `600` (`BD-A2-108`, `ecc19bbc`). | Complete `M1 --phase sim --provider all` run (`qalead-la-40`, `394/394` `PASS`), proving all **9 `WE-F1` rows `PASS`** (`M1-13.blackboard.inactive`, `M1-25.blackboard.site-metadata`, `M1-14.blackboard.claims`, `M1-36.blackboard.{origin,path,query,encoded-dot,encoded-slash}`, `M1-08.canvas.login-redirect`). |
+| **Product Fix (`WE-F4`)** | No test change (lanes **R** and **S1**, `BD-A2-109`) | **No test change** | Stop-order fix in `cogniate-app` / `lti-service` (`BD-A2-109`) so `m1-restart cogniate-app` during an in-flight dead-handler lease does not stall `76.4 s` (Slot 7 baseline on `1b17261` was `8.2–8.4 s`, `7/7 PASS`). | Complete `M1 --phase sim --provider all` run (`qalead-la-40`, `394/394` `PASS`), proving all **7 `WE-F4` rows `PASS`** (`M1-37.blackboard.{d,o,v5}`, `M1-37.canvas.{d,s-dead,v4,v6}`) with `m1-restart cogniate-app` wall times recorded from `host-actions/*.json`. |
+

@@ -17,7 +17,7 @@ import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
 import { createAppRunner } from './worker-main.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
-import { createShutdownHandler } from './kernel/records/shutdown.ts';
+import { createShutdownHandler, stopService } from './kernel/records/shutdown.ts';
 import type { JobRunner, Logger } from '@cogniate/shared';
 
 const APP_SERVICE_NAME = 'cogniate-app';
@@ -85,15 +85,8 @@ async function startAppService(operator: OperatorListenerConfig, config: AppConf
   const bound = operatorApp.server.address() as AddressInfo;
   loggers[0]?.info('operator_listener_started', { operator_bind: bound.family === 'IPv6' ? `[${bound.address}]:${bound.port}` : `${bound.address}:${bound.port}` });
   let closing: Promise<void> | undefined;
-  const close = (): Promise<void> => closing ??= (async () => {
-    await runner?.stop();
-    await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
-      server.close((err) => err ? reject(err) : resolve());
-      server.closeIdleConnections();
-    })));
-    await operatorApp.close();
-    db.close();
-  })();
+  // BD-A2-109: listeners stop at once, in-flight requests are cut after 3 s, only the runner drains.
+  const close = (): Promise<void> => closing ??= stopService({ servers: [...servers, operatorApp.server], runner, closeDb: () => db.close() });
   return { close, runner, db, servers, loggers };
 }
 
