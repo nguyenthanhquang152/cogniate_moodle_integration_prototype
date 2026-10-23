@@ -166,6 +166,8 @@ describe('the grant collision text (BD-A1-101)', () => {
     const r = await put(second, manualBody(await issue(second, { boundValues: VALUES })));
     expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
       'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.']);
+    // BD-A1-102: the ordinary collision has no details.reason (the portal keeps its channel or generic text).
+    expect(r.json.details).not.toHaveProperty('reason');
     expect(grantsOfConnection(t.db, second.id).map((g) => g.redeemedAt)).toEqual([null]);
   });
 });
@@ -229,6 +231,8 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
     const r = await put(c, { clientId: 'client-1', deploymentId: 'dep-1', grantCode: code });
     expect([r.status, r.json.details.message, r.json.details.description]).toEqual([409, 'PLATFORM_IN_USE',
       'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.']);
+    // BD-A1-102: the cause is also a details field, so the portal shows this description.
+    expect(r.json.details.reason).toBe('staged_gone');
     expect(creates()).toEqual([]);
     expect(t.lti.calls.filter((x) => x.startsWith('PATCH platform'))).toEqual([]);
     expect(grantsOfConnection(t.db, c.id).map((g) => g.redeemedAt)).toEqual([null]);
