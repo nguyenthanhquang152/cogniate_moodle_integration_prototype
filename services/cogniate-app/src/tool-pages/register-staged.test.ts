@@ -1,11 +1,12 @@
 // LA-E2-04: the staged Dynamic Registration in the app (LA-ADR-02 D5 item 10; A1 BD-A1-90, -91) and the register page
 // texts from the channel manifest (BD-A1-59). Unit level with the fake LTI service; QA proves the stack (AC-04).
 import type { ChannelManifest } from '@cogniate/channel-kernel';
-import { DEFAULT_REGISTRATION_TEXTS, buildChannelRegistry } from '@cogniate/channel-kernel';
+import { DEFAULT_REGISTRATION_TEXTS, TOOL_MAY_EXIST_CODE, buildChannelRegistry, fillText, pendingToolText } from '@cogniate/channel-kernel';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getConnectionAnyLibrary, stageRegistration } from '../domain/connections.ts';
 import type { TestApp } from '../testkit.ts';
 import { TEST_CHANNELS, TEST_URLS, THANH, testApp } from '../testkit.ts';
+import { registerErrorText } from './register-texts.ts';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -95,14 +96,14 @@ describe('the staged Dynamic Registration (LA-ADR-02 D5 item 10)', () => {
   });
 });
 
-describe('register page texts from the channel manifest (A1 BD-A1-59)', () => {
+describe('register page texts from the channel manifest (A1 BD-A1-59, BD-A1-87)', () => {
   const base = TEST_CHANNELS.channel('moodle')!;
   const own = (id: string, registration?: Record<string, string>): ChannelManifest => ({
     ...base, id, names: { text: 'Own LMS', label: 'Own LMS' }, card: { ...base.card, order: 50 + id.length },
     registration: [{ method: 'dynamic', authority: 'self', profiles: [`${id}-profile`], defaultProfile: `${id}-profile` }],
     texts: { ...base.texts, registration },
   });
-  const channels = buildChannelRegistry([...TEST_CHANNELS.channels(), own('zz-own', { UPDATE_NOT_ALLOWED: 'In {LMS}, open Tools and add Cogniate as a new tool.' }), own('zz-plain')]
+  const channels = buildChannelRegistry([...TEST_CHANNELS.channels(), own('zz-own', { UPDATE_NOT_ALLOWED: 'In {LMS}, open Tools and add Cogniate as a new tool.', TOOL_MAY_EXIST: "In {LMS}, open Tools and delete '{tool}' if it is there." }), own('zz-plain')]
     .map((m) => ({ folder: `/test/${m.id}`, manifest: m, appAdapter: TEST_CHANNELS.appAdapter(m.id) ?? undefined })), { simulations: true });
 
   it('UPDATE_NOT_ALLOWED takes the channel sentence, else the core default; Moodle keeps its bytes', async () => {
@@ -119,5 +120,13 @@ describe('register page texts from the channel manifest (A1 BD-A1-59)', () => {
     expect(await page('zz-own', 'https://own.school.edu')).toBe('In Own LMS, open Tools and add Cogniate as a new tool.');
     expect(await page('zz-plain', 'https://plain.school.edu')).toBe(DEFAULT_REGISTRATION_TEXTS.UPDATE_NOT_ALLOWED.replace('{LMS}', 'Own LMS'));
     expect(await page('moodle', TEST_URLS.moodle)).toBe('Go back in Moodle and choose Register as a new external tool.');
+  });
+
+  it('BD-A1-87: the MOODLE_TOOL_MAY_EXIST action takes the channel sentence, else the core default, with {tool}; Moodle keeps its bytes', () => {
+    const tool = 'Cogniate ({LMS} $&)';
+    const action = (channel: string | null) => registerErrorText(TOOL_MAY_EXIST_CODE, tool, channels, channel)!.action;
+    expect(action('zz-own')).toBe("In Own LMS, open Tools and delete 'Cogniate ({LMS} $&)' if it is there.");
+    expect(action('zz-plain')).toBe(fillText(DEFAULT_REGISTRATION_TEXTS.TOOL_MAY_EXIST, { LMS: 'Own LMS', tool }));
+    expect([action('moodle'), action(null)]).toEqual([pendingToolText(tool), pendingToolText(tool)]);
   });
 });
