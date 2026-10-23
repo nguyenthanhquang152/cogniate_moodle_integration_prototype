@@ -153,6 +153,9 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
           return fail(req, reply, { code: 'REGISTRATION_FAILED', connection, err: new LtiServiceError(200, 'PLATFORM_NOT_ACTIVE', '') });
         }
       } else {
+        // A1 BD-A1-106: only a `self` connection takes an active platform here. An operatorGrant connection gets launch
+        // authority only from the redemption (Canvas DR is always staged), so the catch below switches off the orphan.
+        if (connection.bindingAuthority !== 'self') throw new LtiServiceError(200, 'PLATFORM_NOT_STAGED', '');
         markRegistered(db, connection.id, platformInfo(platform), now());
       }
     } catch (err) {

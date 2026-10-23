@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -28,3 +28,22 @@ Verification ran in `/tmp/la-e2-05-review-b-ct5y_xy1/repo` at the merge SHA. The
 - Additional probes verified the exact six legacy flags (only `operatorApproval` and `addDeployment` true), four scopes, no channel `app.ts`, and the HTTP tool rows with filled host/login/launch/keyset values. The real wizard probe and the K0 control reproduce B-01. All temporary changes were restored; the private checkout is clean.
 
 QA retains K1-SIM AC-04/-05/-06/-10, K2 AC-07 and R1; these were not run or claimed here. The folder-only extensibility measurement is proven, but the user-facing setup needs B-01 closed before this review can approve. No integration source edit, commit or push was made.
+
+## Round 2
+
+**Verdict: APPROVE.** Reviewed `6bfb150` and `eea9532` at merge `326ceae8db2faeb438481e4f6f1bd704b4ced697`, with the K-ADAPTER prerequisite `4d08fc1`, against BD-A1-85 and the Round 1 finding. Blind review; the other reviewer's file was not read. **Open counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.**
+
+**B-LA-E2-05-01 — CLOSED.** Both manifests now use `lti.toolConfiguration: 'channel'`. The real Brightspace wizard requests the tool configuration and displays all nine rows beside the instructions; its issuer and four D2L defaults remain correct. A separate injected app-route probe returned the nine correctly filled rows in contract order without a channel adapter. Updated K-ADAPTER accepts the kernel adapter for the admin-endpoint profiles, and all 148 current K0 tests pass. The RQ-2 mock change correctly separates the tool-configuration response from the connection DTO.
+
+### B-LA-E2-05-02 — MINOR — The visible-row regression is not pinned in the committed tests
+
+- **Files:** `apps/portal/src/channels/staged-wizard.test.tsx:32`; `packages/channels/brightspace/channel.test.ts:62`.
+- **Problem:** the portal fixture returns an empty row list, while the channel test checks only the manifest's row data. Neither proves that the wizard requests and shows the required settings. The missing rendered-wizard check requested in Round 1 remains a coverage gap; the functional fix itself is verified and can proceed.
+- **Evidence:** changing only both manifests back to `toolConfiguration: 'none'` left all **52 tests in the three relevant channel/shell/staged-wizard files** and **148 K0 tests** passing. The private rendered-wizard probe then failed because no `/tool-configuration` request was made. With the reviewed values, that same probe passed and showed nine data rows.
+- **Suggested fix:** through P or an RQ-2, add one rendered manual-wizard test with a non-empty tool-configuration response and assert the requested endpoint plus visible values/row order. Use the real Brightspace manifest so restoring `'none'` fails the test; the same pattern can cover the generic channel. Private probe text is at `/tmp/la-e2-05-06-review-b-51bb0tyi/shell.test-review-probe.txt`.
+
+### Round 2 verification and scope
+
+Used a fresh `git clone --no-hardlinks` at `/tmp/la-e2-05-06-review-b-51bb0tyi/repo`, its own successful `npm ci`, and a cleared Vitest cache before every run. **153 focused tests in eight files, 148 K0 tests and five added host-only probes passed** across this dispatch's two items. Targeted lint, full type checks, F1 (0 hits) and F5 (six rules, 0 hits) passed. All private mutations were restored; the checkout is clean.
+
+As dispatched, `6bfb150` is the separate E2-K repair: F2 classifies its generic-channel path as `core = 1` (two paths total). It is not evidence for an E2-N folder-only commit. The LA-E2-06 commit is measured separately in that review. The manifest changes and P test RQ-2 are explicitly authorized; no new core production behavior or LMS-name literal was added. QA retains the full manual K2 flow and stack regression. Only this report and the assigned LA-E2-06 report were edited in integration; no Docker, stack, commit or push was run.

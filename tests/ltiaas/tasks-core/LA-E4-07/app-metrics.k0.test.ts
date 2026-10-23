@@ -20,6 +20,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 function requireEnv(name: string): string {
@@ -102,5 +103,120 @@ describe('LA-E4-07 app metrics and readiness listener (K0 + UNIT rows)', () => {
     expect(combined).toMatch(/AC-LA-E4-07-01|127\.0\.0\.1|4210|operator_bind_not_loopback/);
     expect(combined).toMatch(/AC-LA-E4-07-05|readyz|not_ready/);
     expect(combined).toMatch(/AC-LA-E4-07-07|APP_JOB_RUNNER|other/);
+  });
+
+  it('AC-LA-E4-07-07 Round 2 (B-LA-E4-07-01): launch refusal reason boundary rows (hyphen, 64 chars kept, 65 chars, leading digit, upper case, empty -> other; unknown channel -> "")', async () => {
+    const dbUrl = pathToFileURL(path.join(cloneDir, 'services/cogniate-app/src/domain/db.ts')).href;
+    const recordsKitUrl = pathToFileURL(
+      path.join(cloneDir, 'services/cogniate-app/src/kernel/records/records.testkit.ts'),
+    ).href;
+    const testkitUrl = pathToFileURL(path.join(cloneDir, 'services/cogniate-app/src/testkit.ts')).href;
+    const metricsUrl = pathToFileURL(path.join(cloneDir, 'services/cogniate-app/src/app/metrics.ts')).href;
+
+    const { openDb } = (await import(dbUrl)) as {
+      openDb: (p: string) => { close: () => void };
+    };
+    const { seedBase } = (await import(recordsKitUrl)) as {
+      seedBase: (db: unknown) => void;
+    };
+    const { TEST_CHANNELS } = (await import(testkitUrl)) as {
+      TEST_CHANNELS: { channels: () => Array<{ id: string }> };
+    };
+    const { AppMetrics } = (await import(metricsUrl)) as {
+      AppMetrics: new (db: unknown) => {
+        useChannels: (reg: unknown) => void;
+        launchRefused: (reason: string, channel: string) => void;
+        render: () => string;
+      };
+    };
+
+    const knownChannel = TEST_CHANNELS.channels()[0]!.id;
+    const reason64 = `a${'0'.repeat(63)}`;
+    const reason65 = `a${'0'.repeat(64)}`;
+
+    const cases: Array<{
+      name: string;
+      reason: string;
+      channel: string;
+      expectedReason: string;
+      expectedChannel: string;
+    }> = [
+      {
+        name: 'hyphenated reason -> other',
+        reason: 'deployment-not-approved',
+        channel: knownChannel,
+        expectedReason: 'other',
+        expectedChannel: knownChannel,
+      },
+      {
+        name: '64-char valid reason -> kept',
+        reason: reason64,
+        channel: knownChannel,
+        expectedReason: reason64,
+        expectedChannel: knownChannel,
+      },
+      {
+        name: '65-char reason -> other',
+        reason: reason65,
+        channel: knownChannel,
+        expectedReason: 'other',
+        expectedChannel: knownChannel,
+      },
+      {
+        name: 'leading digit -> other',
+        reason: '1deployment_not_approved',
+        channel: knownChannel,
+        expectedReason: 'other',
+        expectedChannel: knownChannel,
+      },
+      {
+        name: 'upper case -> other',
+        reason: 'Deployment_Not_Approved',
+        channel: knownChannel,
+        expectedReason: 'other',
+        expectedChannel: knownChannel,
+      },
+      {
+        name: 'empty reason -> other',
+        reason: '',
+        channel: knownChannel,
+        expectedReason: 'other',
+        expectedChannel: knownChannel,
+      },
+      {
+        name: 'unknown channel -> ""',
+        reason: 'deployment_not_approved',
+        channel: 'unknown-channel-id',
+        expectedReason: 'deployment_not_approved',
+        expectedChannel: '',
+      },
+    ];
+
+    const summaryRows: Array<Record<string, string | number>> = [];
+    for (const c of cases) {
+      const db = openDb(':memory:');
+      try {
+        seedBase(db);
+        const metrics = new AppMetrics(db);
+        metrics.useChannels(TEST_CHANNELS);
+        metrics.launchRefused(c.reason, c.channel);
+        const text = metrics.render();
+        const expectedLinePrefix = `app_launch_refusals_total{reason="${c.expectedReason}",channel="${c.expectedChannel}"} `;
+        const matchedLine = text.split('\n').find((l) => l.startsWith(expectedLinePrefix));
+        expect(matchedLine, `${c.name}: expected ${expectedLinePrefix}1 in:\n${text}`).toBe(
+          `${expectedLinePrefix}1`,
+        );
+        summaryRows.push({
+          case: c.name,
+          inputReasonLength: c.reason.length,
+          inputChannel: c.channel,
+          emittedLine: matchedLine!,
+        });
+      } finally {
+        db.close();
+      }
+    }
+
+    writeArtifact('e4-07-r2-boundary.json', `${JSON.stringify(summaryRows, null, 2)}\n`);
   });
 });

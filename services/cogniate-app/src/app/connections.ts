@@ -205,9 +205,12 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       throw providerNotReady();
     }
     const snapshot = snapshotOf(profile, { siteUrl, serviceUrl: serviceUrl ?? siteUrl });
+    // A1 BD-A1-106: a dynamic method with authority operatorGrant (Canvas, LA-ADR-05 D6) also gets its registration URL
+    // at create. The authority stays operatorGrant; the registration stages the platform for the grant.
+    const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
     const c = transaction(db, () => createConnection(db, libraryOf(req).id, {
       name: b.name, siteUrl, method: b.method, channel, profile: profile.id, serviceUrl, snapshot,
-    }, null, now(), channels, adapter.sharingOf));
+    }, ref, now(), channels, adapter.sharingOf));
     return reply.code(201).send(dto(req, c));
   });
 
