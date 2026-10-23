@@ -8,6 +8,33 @@
       "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-50)",
       "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d5-app-channel-contract-and-portal-slot-contract"
     ],
+    "summary": "(a) publish modal LMS name, (b) Connect-page logo colour, (c) logo title; no assertion reads any of them.",
+    "visibleChanges": [
+      {
+        "id": "a",
+        "what": "Publish result modal and course-shell checkbox name the connection's LMS",
+        "before": "Modal title 'Published to Moodle', status 'This course is available in the Moodle content picker.', and checkbox 'Also create an empty Moodle course' for every LMS",
+        "after": "Modal title 'Published to {LMS}', status 'This course is available in the {LMS} content picker.', and checkbox 'Also create an empty {LMS} course' (using lmsNames[result.lms] / lmsNames[connection.lms])",
+        "code": "apps/portal/src/courses/PublishDialog.tsx:71-73,147",
+        "whyNoTestMoved": "For Moodle in U1/U2 and T6 (tests/e2e/1-scenario-a.spec.ts, 2-scenario-b.spec.ts, tests/acceptance/T6/3-courses.spec.ts, 5-xss-a11y.spec.ts), lmsNames.moodle is 'Moodle' (unchanged). In M2 (tests/e2e/M2/04-detail.m2.ts:67-92, 05-publish-results.m2.ts:10-32, 07-sim-scenario.m2.ts:17-29), Canvas and Blackboard have capabilities.courseShell=false, so the checkbox is absent and clicking Publish closes the dialog without rendering the course-shell result view. Golden G1..G4 captures API DTOs, simulator records, and tool pages (/tool/picker/*, /play/*), not portal UI components."
+      },
+      {
+        "id": "b",
+        "what": "Connect-page logo uses the channel manifest card colour",
+        "before": "color={lms === 'moodle' ? 'orange' : 'red'} (Blackboard was red on the Connect page and blue on the Integrations card)",
+        "after": "color={manifest.card.color} (Blackboard is blue on both the Integrations card and the Connect page; Moodle stays orange and Canvas stays red)",
+        "code": "apps/portal/src/connect/Connect.tsx:51",
+        "whyNoTestMoved": "No U1/U2, T6, or M2 test reads a logo CSS class or computed colour on the Connect page; T6 AC-T6-02 (tests/acceptance/T6/1-integrations.spec.ts:64-88) checks only body background, active pill background, font, and card border-radius on /integrations, and no test compares screenshots."
+      },
+      {
+        "id": "c",
+        "what": "IntegrationLogo span includes a title attribute with the channel card title",
+        "before": "<span aria-hidden='true' className=...> had no title attribute",
+        "after": "<span aria-hidden='true' title={name} className=...> sets title to the channel name",
+        "code": "apps/portal/src/IntegrationLogo.tsx:29-31",
+        "whyNoTestMoved": "The span is aria-hidden='true', so title does not affect accessible names in getByRole or getByText, and the only getByTitle / [title] selectors in the frozen suites target Moodle's own tool cards (tests/e2e/lib/moodle.ts:192,303), not the portal logo."
+      }
+    ],
     "goldenFields": [],
     "testChanges": [],
     "frozenTestsTouched": [],
@@ -31,7 +58,7 @@
       "tests/acceptance/T6/5-xss-a11y.spec.ts:26-114",
       "tests/ltiaas/golden/capture.golden.ts:80-176,178-261"
     ],
-    "scanResult": "0 golden changes and 0 frozen-test changes: (a) PublishDialog names lmsNames[result.lms] / lmsNames[connection.lms] ('Published to Canvas', 'the Canvas content picker'), which is unchanged ('Moodle') for Moodle in U1/U2 (tests/e2e/1-scenario-a.spec.ts, 2-scenario-b.spec.ts, tests/acceptance/T6/3-courses.spec.ts, 5-xss-a11y.spec.ts), while M2 Canvas/Blackboard publish tests (tests/e2e/M2/04-detail.m2.ts:67-92, 05-publish-results.m2.ts:10-32, 07-sim-scenario.m2.ts:17-29) inspect the pre-publish form or wait for the dialog to close on Publish without rendering the course-shell result view; (b) Connect.tsx passes manifest.card.color to IntegrationLogo (Blackboard blue on both Integrations and Connect pages), and no U1/U2 or M2 test asserts the Connect-page logo colour class; (c) IntegrationLogo adds title={name} on the aria-hidden span, and no U1/U2 or M2 selector or assertion checks the logo title attribute; golden capture G1..G4 captures API DTOs, simulator records, and tool pages (/tool/picker/*, /play/*), not portal UI components."
+    "scanResult": "0 golden changes and 0 frozen-test changes: (a) publish modal LMS name, (b) Connect-page logo colour, (c) logo title; no golden capture (G1..G4) or frozen U1/U2/T6/M2 assertion reads any of them (see visibleChanges[a..c])."
   },
   "changes": []
 }
