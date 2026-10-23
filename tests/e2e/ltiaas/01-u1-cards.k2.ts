@@ -87,7 +87,17 @@ k2Case(
       await expect(c, `Card for ${m.id}`).toBeVisible();
       await expect(c.getByRole('heading', { name: m.card.title, exact: true })).toBeVisible();
       await expect(c.getByText(m.card.description, { exact: true })).toBeVisible();
-      await expect(c.getByText(m.card.mark, { exact: true }).first()).toBeVisible();
+      if (m.card.icon) {
+        await expect(
+          c.locator(`[data-icon="${m.card.icon}"], svg, img, [role="img"]`).first(),
+          `Card ${m.id} renders icon "${m.card.icon}"`,
+        ).toBeVisible();
+      } else {
+        await expect(
+          c.getByText(m.card.mark, { exact: true }).first(),
+          `Card ${m.id} renders mark "${m.card.mark}"`,
+        ).toBeVisible();
+      }
 
       const connectBtn = connectControl(c);
       const manageBtn = manageControl(c);

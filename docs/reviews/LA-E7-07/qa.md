@@ -25,11 +25,9 @@ Per the Slot 6 brief, the following intended product changes between `8c65424` a
 
 ## 2. Product Findings Uncovered on `195930c1` (`qa-e2e-la-sim-r2`)
 
-### P1 — `U1.card-copy-and-action` (`AC-LA-E7-07-01`, `AC-LA-E1-11-04`): Moodle card on `/integrations` does not render `moodle.manifest.card.description` or `moodle.manifest.card.mark`
-- **Severity**: Medium (`AC-LA-E1-11-04` / `AC-LA-E7-07-01` manifest-driven card rendering)
-- **Observed on `195930c1`** (`error-context.md` for `U1.card-copy-and-action`):
-  - On `/integrations` (`tabpanel "LMS Publishing"`), the 4 newer channel cards (`Canvas`, `Blackboard`, `LTI 1.3`, `D2L Brightspace`) render their exact `manifest.card.title`, `manifest.card.description`, and `manifest.card.mark` (`Cv`, `Bb`, `LTI`, `D2L`).
-  - However, the `Moodle` card (`article "Moodle"`) still renders legacy hardcoded copy `"Export SCORM packages and sync course content with your Moodle LMS."` and an `<svg>` (`img`) icon instead of `moodle.manifest.card.description` (`"Publish Cogniate courses to Moodle with LTI 1.3."`) and `moodle.manifest.card.mark` (`"m"`).
+### P1 — `U1.card-copy-and-action` (`AC-LA-E7-07-01`, `AC-LA-E1-11-04`, `BD-A1-49`, `BD-A1-111`): Ruled NOT a product defect — test updated to assert `m.card.icon` when set, else `m.card.mark`
+- **Disposition (`BD-A1-111`)**: Not a product defect. `moodle` manifest defines `description: 'Export SCORM packages and sync course content with your Moodle LMS.'`, `mark: 'm'`, `icon: 'graduation-cap'` (preserving frozen `T6 AC-T6-01` / `M2` / `LD-1 g-base cards.json` copy), and the shell draws the named icon instead of `mark` when `card.icon` is set (`BD-A1-49`).
+- **Test Fix Applied (`tests/e2e/ltiaas/01-u1-cards.k2.ts`)**: `U1.card-copy-and-action` reads `m.card.title` and `m.card.description` from each manifest and asserts the rendered icon (`c.locator('[data-icon="..."], svg, img, [role="img"]')`) when `m.card.icon` is set, else `c.getByText(m.card.mark, { exact: true })`.
 
 ### P2 — `U2.admin-steps-texts` / `U3.lti-generic.*` (`AC-LA-E1-11-05`): `lti-generic` wizard renders doubled `"your your LMS"` when substituting `{LMS}`
 - **Severity**: Low (UI copy / STE polish)
