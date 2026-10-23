@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { approvalOf, grantsOfConnection, insertGrant } from '../domain/bindings.ts';
 import { getConnectionAnyLibrary, stageRegistration } from '../domain/connections.ts';
 import type { TestApp } from '../testkit.ts';
-import { TEST_CHANNELS, THANH, ltiPlatform, testApp } from '../testkit.ts';
+import { TEST_CHANNELS, TEST_URLS, THANH, ltiPlatform, testApp } from '../testkit.ts';
 import { createBindingCleanup } from './binding-cleanup.ts';
 import type { IssueInput } from './operator.ts';
 import { createOperator } from './operator.ts';
@@ -146,6 +146,24 @@ describe('the staged registration redemption (AC-LA-E2-04-04 unit part)', () => 
   });
 
   const platformActive = () => t.lti.platforms.get('plt_staged')!.active;
+
+  it('the chain: the staged /tool/register page, --accept-staged, then the short body activates the same platform', async () => {
+    const { call, issue, connection, put, creates } = await setup();
+    const c = await connection('dynamic');
+    const reg = t.lti.addRegistration({ url: `${SITE}/sakai`, familyCode: 'sakai', stage: STAGED });
+    const ref = new URL(c.registrationUrl).searchParams.get('ref')!;
+    const page = await t.app.inject({ method: 'POST', url: '/tool/register', headers: { 'content-type': 'application/x-www-form-urlencoded', origin: TEST_URLS.app },
+      payload: new URLSearchParams({ registrationId: reg, ref }).toString() });
+    expect(page.body).toContain('data-connection-status="pending"');
+    const dto = (await call('GET', `/app-api/connections/${c.id}`)).json;
+    expect(dto).toMatchObject({ status: 'pending', bindingAuthority: 'operatorGrant' });
+    const { clientId, id: platformId } = dto.platform as { clientId: string; id: string };
+    const deploymentId = t.lti.platforms.get(platformId)!.deploymentIds[0]!;
+    const code = await issue(c, { clientId, deploymentId, acceptStaged: true, confirmForeignHosts: true });
+    const r = await put(c, { clientId, deploymentId, grantCode: code });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect([r.json.status, getConnectionAnyLibrary(t.db, c.id)!.ltiPlatformId, t.lti.platforms.get(platformId)!.active, creates()]).toEqual(['registered', platformId, true, []]);
+  });
 });
 
 describe('AC-LA-E2-04-07: suspend and release pick the record kind from the stored target_kind', () => {
