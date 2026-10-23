@@ -1,4 +1,4 @@
-// LA-E3-05 (data model §5b, LA-ADR-05 D3b): picker_pick, its migration and the stats.
+// LA-E3-05 (data model §5b, LA-ADR-05 D3b): picker_pick, its migration, the stats and the retention rule.
 // The migration fixture is seeded with old SQL, never with the current writers: a writer change must not change it.
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,7 @@ import type { Db } from './db.ts';
 import { openDb } from './db.ts';
 import { launchStats } from './launch.ts';
 import { claimPicker, linkPickToResourceLink, releasePicker } from './pickers.ts';
+import { DAY_MS, cleanupExpired } from './retention.ts';
 
 const MIGRATION = '018_picker_pick.sql';
 const migrations = fileURLToPath(new URL('./migrations/', import.meta.url));
@@ -151,5 +152,31 @@ describe('picks (data model §5b)', () => {
     // Session b is a multi-pick: its old columns stay empty.
     expect(d.prepare("SELECT publication_id, resource_link_id FROM picker_session WHERE id = 'b'").get()).toEqual({ publication_id: null, resource_link_id: null });
     expect(activities(d)).toEqual([3, 1, 0]); // pub_1: rl_x + open picks of a and c
+  });
+});
+
+describe('retention with picker_pick (data model §5b, A-LAD-21)', () => {
+  it('keeps an old session with an open pick (also a multi-pick); deletes one whose picks are all matched, with its picks', () => {
+    const d = openDb(':memory:');
+    seed(d);
+    link(d, 'rl_1', 'pub_1');
+    link(d, 'rl_2', 'pub_2');
+    const now = 100 * DAY_MS;
+    const old = now - DAY_MS - 1;
+    for (const id of ['multi-open', 'multi-matched', 'single-open', 'cancelled']) session(d, id, { expiresAt: now });
+    claimPicker(d, 'multi-open', ['pub_1', 'pub_3'], 1);
+    claimPicker(d, 'multi-matched', ['pub_1', 'pub_2'], 2);
+    claimPicker(d, 'single-open', ['pub_2'], 3);
+    claimPicker(d, 'cancelled', [], 4);
+    linkPickToResourceLink(d, { connectionId: 'con', deploymentId: '1', contextId: '2', publicationId: 'pub_1', resourceLinkId: 'rl_1' }); // multi-open's pub_1 (oldest)
+    linkPickToResourceLink(d, { connectionId: 'con', deploymentId: '1', contextId: '2', publicationId: 'pub_1', resourceLinkId: 'rl_1' }); // multi-matched's pub_1
+    linkPickToResourceLink(d, { connectionId: 'con', deploymentId: '1', contextId: '2', publicationId: 'pub_2', resourceLinkId: 'rl_2' }); // multi-matched's pub_2
+    d.prepare('UPDATE picker_session SET expires_at = ?').run(old);
+    const before = activities(d);
+    const rows = cleanupExpired(d, now);
+    expect(rows.find((r) => r.table === 'picker_session')).toEqual({ table: 'picker_session', deleted: 2 });
+    expect(d.prepare('SELECT id FROM picker_session ORDER BY id').all()).toEqual([{ id: 'multi-open' }, { id: 'single-open' }]);
+    expect(d.prepare("SELECT COUNT(*) AS n FROM picker_pick WHERE picker_id_hash IN ('multi-matched', 'cancelled')").get()).toEqual({ n: 0 });
+    expect(activities(d)).toEqual(before);
   });
 });
