@@ -13,10 +13,29 @@ This decision permits host-only implementation and independent qualification of 
 
 - Retained Codex executor: `task_92a1807d669a` / `ctx_980764b0c00c`. One session owns all implementation and fixes. Its original launch receipt records effective `gpt-6-astra` and `xhigh`; the worker cannot observe the backend variant or effort in-session. The structured session is reused through a context-only Dispatch and orchestration preamble; no new process ownership is claimed.
 - Retained independent Gemini QA: `task_608e1c827365` / `ctx_ecf89d43aa55`. The readiness response confirms Gemini 4 Argon High. Normal same-terminal `worker-start` observed turn start. QA derives and freezes its cases from the Claude requirements before reading the executor's candidate or notes.
-- A separate Claude reviewer follows the frozen candidate. The reviewer must not be the Architect or executor.
+- Independent Claude reviewer: `task_3957028cdfba` / `ctx_7f627c526127`, handle `structworker_36aaf9e5-74f3-4f30-83fe-5a1830138b66`. The launch receipt records effective `claude-opus-5-5`, `xhigh`, with turn start observed. This worker is not the Architect or executor. It reads requirements first, then reviews the frozen candidate alongside Gemini qualification. Its final verdict requires the independent QA evidence.
 
 Codex owns new copies under the private C8 preparation root: `tools/boundary-r2/**`, `tools/lane-watch-r5/**`, `notes/scripts/reconcile-32vol-v2.mjs`, `notes/scripts/run-t7-window-v3.sh`, `notes/t7-shared-host-implementation/**` and `notes/MANIFEST-t7-shared-host-v1.sha256`.
 Gemini owns `notes/t7-shared-host-independent-qa/**` and `docs/reviews/M3/t7-shared-host-tools-qa.md`. The Lead owns this decision and current task records. No repository product or test edit is authorized.
+
+## Qualification checkpoint — 2026-10-23, 13:26 UTC
+
+Gemini froze its requirements and test harness before reading the executor's implementation or notes (`msg_4bea30dc22b4`, `msg_e0d8a0f97c71`). The Lead checked the bytes, SHA-256 and modes of all six files below. They live under `notes/t7-shared-host-independent-qa/` in the private preparation root. This proves the test-first checkpoint, not that the candidate passed.
+
+| File | Bytes | Mode | SHA-256 |
+| --- | ---: | --- | --- |
+| `frozen-checklist-and-test-plan.md` | 22099 | 0600 | `b8671bdd8fdd6a36e6868b0c3e01ec0c2e9aa2ef21f4788529a5a05aa97770d0` |
+| `independent-qa-harness.mjs` | 15858 | 0700 | `7eb044dcf5b8ef3836259c5b360ca8500f7ea0324a678abe28f9268025d98a32` |
+| `run-candidate-verification.mjs` | 6422 | 0700 | `7926d9998438d5d5bd8c2e2b99f989436a6738d0d299977bf246fa835eb9969a` |
+| `frozen-cases-runner.mjs` | 35638 | 0700 | `b46e56d1c994276a0e62aaf343a8efc06e0f0239692724531f48f62514ef1c59` |
+| `frozen-lanewatch-and-v3-runner.mjs` | 16789 | 0700 | `d5084419530f9841e1051ca26f2dcb1603803205fbdf3ca74460ee5e6ae9f444` |
+| `pre-freeze-selfcheck.json` | 175 | 0600 | `5798dbcc354698275e1ec5b171175959fa014c8ab2277291e299aed6522ad811` |
+
+The bound runners use the executor's published `mounts: [{type, volumeName}]` interface. The earlier checklist uses `name` for the same field. This is a schema mapping; the predicates and assertions stay unchanged. The pre-freeze self-check reports all 32 baseline volumes, seven protected originals and zero sentinel Docker calls.
+
+Lead ruling `msg_32cbc886594d` permits a byte-identical observer copy and fresh C8 host-source checkout inside each fresh attempt root. Use the existing checkout helper. Keep the separate pristine runtime clone, B-TW-03, exact source hashes, runner arguments, phase order and deadlines. Bind all relocated paths. The focused reviewer must inspect this path-only change. It does not authorize creation of a runtime attempt during preparation.
+
+Codex remains the sole implementation and fix owner. The initial candidate, its independent QA verdict and the focused review remain pending. No Docker runtime or acceptance exception is approved.
 
 ## Required result
 
