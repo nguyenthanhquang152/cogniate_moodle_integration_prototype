@@ -367,7 +367,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
 | `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`, `result: ok`: `details.outcome` `complete`, `partial` or `failed`, the counts `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, and `legacyBlobsRefused: true` when that run stored the setting; an exception gives `outcome: failed` with `details.errorClass`; BD-A2-36, BD-A2-42) | `key_provider` |
-| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
+| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `service_setting` (target id `rate_limits`; BD-A2-92) |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
 | `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.counts` = a list of `{table, rows}`; BD-A2-67, BD-A2-82) | `account` |
