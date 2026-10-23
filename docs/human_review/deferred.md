@@ -103,7 +103,9 @@ Board notes that do not match the review files (for the Lead): the board lists Q
 
 ## Canvas and Blackboard phase (M4)
 
-Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels).
 
 The [phase plan](../team/multi-lms-plan.md) records the accepted deferrals below, including the R4/R5 harness findings. This section records those decisions; it closes no finding.
 
@@ -173,7 +175,7 @@ The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-ca
 
 ### Guide and source-checkpoint notes
 
-These accepted NITs remain deferred. The entries authorize no source, architecture or cosmetic change. Final conformance and document approval remain pending.
+These accepted NITs remain deferred. The entries authorize no source, architecture or cosmetic change. Final conformance is APPROVE. Independent document QA and reviews remain pending.
 
 | Id | Severity | Finding | Suggested fix |
 | --- | --- | --- | --- |
@@ -186,6 +188,64 @@ These accepted NITs remain deferred. The entries authorize no source, architectu
 | AR-M4-05 | NIT | ADR-012 §7 A3 says "manual exit: the M4 guide". No validated manual recovery procedure exists; the operator must stop and escalate. The refusal behaviour stays unchanged. ([Architect](../reviews/M4/architect-conformance.md)) | Correct the ADR wording when the Architect receives a grant. |
 | AR-M4-06 | NIT | ADR-011 §4b calls both Moodle and Canvas release deletes conditional. Only Canvas uses a conditional delete; Moodle keeps the unchanged unconditional delete. ([Architect](../reviews/M4/architect-conformance.md)) | Distinguish the two deletes in the ADR when the Architect receives a grant. |
 | A-CR-05, B-CRR-06 | NIT | The infra README restore-order list omits the content check. Its error guidance omits `content_check_failed`. Both prose issues remain deferred. ([A](../reviews/M1/content-refusal-reviewer-a.md), [B](../reviews/M1/content-refusal-reviewer-b.md)) | The infra README owner adds the order and error guidance under a later grant. |
+
+### T7 C10 repair review limits
+
+The C8 T7 attempt and its separate shared-log scan remain FAILED. One screenshot failure caused seven later failures. The separate scan found one redaction failure.
+
+C10 contains the reviewed screenshot and redaction repairs. Independent static and synthetic QA passed. Both source and identity reviews approved the repair. The C10 run is accepted. Final conformance is APPROVE.
+
+| Id | Severity | Finding | Disposition |
+| --- | --- | --- | --- |
+| A-T7C10-01 | MINOR | One full-page picker capture remains before later footer actions. The inferred mechanism requires judgment from each runtime trace. ([A](../reviews/M3/t7-c10-reviewer-a.md)) | Keep deferred. Judge A4/B4/B5 traces for viewport retries in every run. |
+| A-T7C10-02 | NIT | Import closures exclude the four repair files. M1 and M2 typecheck globs include E2E files. Typecheck passed at C10. ([A](../reviews/M3/t7-c10-reviewer-a.md)) | Keep precise import-closure wording. Do not claim complete executable exclusion. |
+| A-T7C10-03 | NIT | The earlier final-binding checklist named C8 for T7. C10 now identifies T7; M2 remains C8. ([A](../reviews/M3/t7-c10-reviewer-a.md)) | Bind final T7 evidence to C10. Keep actual M2 at C8. Final document closure remains pending. |
+| B-C10-01 | NIT | The viewport helper copies evidence-name and folder rules. Its comment omits the maintenance reason. ([B](../reviews/M3/t7-c10-reviewer-b.md)) | Add a comment in a later authorized test batch. Keep C10 unchanged. |
+| B-C10-02 | NIT | The copied wrapper uses an absolute frozen-source path. It resolves to the intended location without a behavior difference. ([B](../reviews/M3/t7-c10-reviewer-b.md)) | Consider relative notation in a future copy. Keep the accepted wrapper unchanged. |
+
+The accepted run passed every required trace, screenshot and scan judgment. All 51 default tests had no viewport click retries. All 12 required PNGs showed the completion controls or full picker. A-T7C10-01 stays deferred; each future run still needs the trace judgment.
+
+The Lead accepted all five findings as nonblocking. Source identity and wording corrections do not remove the residual picker risk. Final guide QA and reviews remain pending. See [E-R8](../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc).
+
+### Tracker, focus and verification limits
+
+These accepted prototype limits remain deferred ([Architect](../reviews/M4/architect-conformance.md#r77-limits-and-future-work-not-resolved-by-this-verdict)).
+They authorize no optional product, test or tool change.
+
+| Id | Severity | Retained limit |
+| --- | --- | --- |
+| A-TR-01 | MINOR | After the first document, the fast check needs a child `pagehide`. Chromium behavior before `load` remains unverified. |
+| A-TR-02 / B-M3TR-01 | MINOR | The strong document map keeps observed documents until the runtime page closes. |
+| A-TR-04 / B-M3TR-02 | NIT / MINOR | WindowProxy prevents cleanup from reaching replaced-window hooks. Those hooks are inert after stop. The unit model cannot prove browser removal. |
+| B-M3TR-03 | NIT | The tracker comment omits residual limits. ADR-004 retains them. |
+| B-M3TR-05 | MINOR | Frozen legacy launchers accept existing roots. Grants require fresh absent roots and observer continuity. |
+| A-TR-05 / B-M3TR-06 / B-M3TR-07 | NIT | Original guard labels, launcher headers and report citations remain recorded. |
+| AR-M3-T609-01/02 | MINOR | Route focus can move after data arrives. Keys typed before focus settles can be lost. |
+| A-M4P-R2-01 | NIT | Recovery guidance omits expired, revoked or replaced unused codes. The D-12 setup-denial window can last longer. Check 14 still refuses Canvas access. |
+
+B-M3TR-04 was an evidence correction, not a new open product finding.
+AR-M2-LW-02 and the existing storage-harness MINOR findings remain deferred in the final Architect verdict.
+The A-DH, B-M1-DH and N1–N7 NITs remain recorded with their accepted limits.
+The existing cosmetic NITs remain deferred; no optional polish is included.
+
+The 10 ms and 150 ms check intervals are nominal, not wall-clock guarantees.
+A document parsed and replaced between checks can be missed.
+A first package document arriving after five seconds depends on fallback checks.
+Observation of every document is not guaranteed.
+After SIGKILL, the app log can lose its last lines.
+Docker restart behavior after a kill remains unmeasured.
+
+T7 used a shared host, with qualified attribution rather than exclusivity.
+Objects created and removed between captures can escape snapshot comparison.
+The LA watcher restarted and replayed events; no gap exceeded two minutes.
+Earlier failed attempts retain their original results.
+
+ADR-012 acceptance covers this prototype only.
+Its 72 storage rows remain carried C4 results within the separate 94-row ledger.
+G-1 covers only measured identities; Docker volumes have no generation id.
+The negative host test proves fault detection, not safe bind-mount locking.
+`content_check_failed` is unit-only; the lost-lock exit has host fault-injection evidence only.
+For `operation_lock_invalid`, stop and escalate; no manual recovery is validated.
 
 ### Not open deferrals (for clarity)
 

@@ -6,11 +6,17 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 ## Supported LMS
 
-Canvas and Blackboard phase: branch `nguyenthanhquang152/lti-multi-lms`, 2026-10-22. Documentation remains a **draft**, based on `82aff91`. Final source stamp and approval are pending.
+Canvas and Blackboard phase: evidence basis `31f4d0bb8afdfeee59ce50e558bb58b49ebc5d54`, 2026-10-23. This authored guide candidate awaits independent QA and two blind reviews.
 
-Candidate under validation: C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`. Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`.
+Product: C6 `4008afb92fe983d52db33442e060210b929966c8`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. Separate carried results: C4 `bf09cda`.
 
-The Lead accepted full2 round 1: 488/488 cases, including independent Canvas judgments for 233/233 cases ([handoff](docs/team/model-transition-2026-10-22.md)). This is one round only. Final acceptance needs the second round, exact case equality, legacy groups, final isolation checks and cleanup. Fresh M2/T7, Architect conformance, independent Docs QA and two final reviews also remain pending.
+T7 actual tests: C10 `97b68af439b6565f891042b20497b18aadca6a24`. Tests tree: `ec2d86f590902ee99997d6ed2b78599dc3006072`. Run: `qa-e2e-m3-r3-97b68af4-2026-10-23T16-26-41-657Z`. The Lead accepted this run ([E-R8](docs/team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)).
+
+M1 passed two equal fresh rounds of 394 cases at product C6 and tests C9 ([E-R7](docs/team/r7-m1-verification-2026-10-23.md)). Another 94 rows are carried from C4. M2 passed 64 cases, 13 criteria and seven gates at actual C8/C6 ([E-R6](docs/team/r6-independent-verification-2026-10-23.md)). All 12 legacy groups passed, with 304 raw PASS entries ([E-R4](docs/team/r4-evidence-decision-2026-10-22.md)). Their per-subrun unique-ID counts sum to 251. This is not a global distinct count.
+
+T7 passed all 15 criteria at C10/C6 ([E-R8](docs/team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)). Each of three cycles had 17 PASS, zero failures and only the permitted demo skip. Demo preparation took 11.45 seconds; both player launches passed. All four confirmation/refusal checks passed.
+
+The Architect gave final [AC-M4-06 APPROVE](docs/reviews/M4/architect-conformance.md#r76-verdict), with no open BLOCKER or MAJOR. [ADR-011](docs/architecture/adr/ADR-011-multi-lms.md) is accepted for design and prototype conformance. [ADR-012 revisions 3.3–3.7](docs/architecture/adr/ADR-012-sqlite-volume-storage.md) are accepted for the prototype only. The limits and decisions in [G1](docs/human_review/decisions-needed.md#g1-storage-design-blocking-design-findings-closed) still apply. Final guide QA and two blind reviews remain pending.
 
 | LMS | Claim | Evidence label |
 | --- | --- | --- |
@@ -24,13 +30,13 @@ The Lead accepted full2 round 1: 488/488 cases, including independent Canvas jud
 
 The guides tag each step with one of these labels. This table gives the current status of each label.
 
-| Label in a guide | Meaning | Status on 2026-10-22 |
+| Label in a guide | Meaning | Status on 2026-10-23 |
 | --- | --- | --- |
-| `MOODLE-LIVE AC-T7-…` | End-to-end test on the local Moodle 5.2.4 container | PASS in three runs at `c5683f8` and in one run at `aff4882` ([T7 QA](docs/reviews/T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)). Fresh T7 on C4: pending. |
-| `MOODLE-LIVE AC-M1-23`, `AC-M1-30` | Upgrade and rollback on the local Moodle container (host runner) | C4 full2 round 1: cited cases PASS within the 12/12 migration results ([Lead checkpoint](docs/team/multi-lms-plan.md)). Final two-round acceptance: pending. |
-| `SIM AC-M2-…` | Portal browser test against a signed simulation (fixed `.sim.test` hosts) | 64 of 64 PASS at `aff4882` ([M2 QA](docs/reviews/M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Fresh M2 on C4: pending. |
-| `SIM AC-M1-…` | API and launch test against a signed simulation | C4 full2 round 1: 394/394 `sim` rows and 12/12 snapshot rows PASS ([Lead checkpoint](docs/team/multi-lms-plan.md)). Independent Canvas judgment: 233/233 PASS. Final two-round acceptance: pending. |
-| `SIM AC-M1-41` | Storage commands (ADR-012) | C4 full2 round 1: all 72 rows PASS, including 2 migration rows and 70 storage rows ([Lead checkpoint](docs/team/multi-lms-plan.md)). Final acceptance: pending. |
+| `MOODLE-LIVE AC-T7-…` | End-to-end test on the local Moodle 5.2.4 container | Historical PASS: three runs at `c5683f8` and one at `aff4882` ([T7 QA](docs/reviews/T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)). C8 attempt: FAILED. C10: all 15 criteria PASS; three cycles of 17 PASS ([E-R8](docs/team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)). |
+| `MOODLE-LIVE AC-M1-23`, `AC-M1-30` | Upgrade and rollback on the local Moodle container (host runner) | Cited cases passed in both C4 rounds. They remain carried migration evidence in the separate 94-row ledger ([E-R7](docs/team/r7-m1-verification-2026-10-23.md)). They are not fresh C6/C9 runs. |
+| `SIM AC-M2-…` | Portal browser test against a signed simulation (fixed `.sim.test` hosts) | Accepted r7: 64/64 PASS, 13 criteria and seven gates at actual C8/C6 ([E-R6](docs/team/r6-independent-verification-2026-10-23.md)). Later dependency equivalence does not change that run identity. |
+| `SIM AC-M1-…` | API and launch test against a signed simulation | Two equal fresh rounds: 394 PASS each at C6/C9. Another 94 C4 rows are carried separately ([E-R7](docs/team/r7-m1-verification-2026-10-23.md)). This is not 488 fresh cases. |
+| `SIM AC-M1-41` | Storage commands (ADR-012) | All 72 rows passed in both C4 rounds: two migration rows and 70 storage rows. They remain carried evidence ([Architect assessment](docs/reviews/M4/architect-conformance.md#r68-review-of-the-qa-carried-evidence-mapping-for-adr-012-about-0417-utc)). The unit, host-fault and bind-mount limits still apply. |
 | `HOST-QA` | Host-only QA with simulated Docker answers | Storage-command QA Round 2 PASS at `9f8ac62` ([report](docs/reviews/M1/storage-command-qa.md)). No runtime credit. |
 | `DOC F-…` | A fact from provider documentation ([research](docs/research/multi-lms.md)) | Proves nothing about our code. |
 | `UNVERIFIED L-…` | A live check on a real LMS ([M3 live matrix](docs/architecture/tasks/M3.md#5-live-check-matrix)) | All 32 rows `UNVERIFIED`. Blockers: B-1, B-2, B-3. |
@@ -42,6 +48,14 @@ A tag can name one QA case instead of a criterion, for example `SIM M1-19.canvas
 `SIM` means a signed simulation of the LMS. It tests our protocol handling, not real LMS behaviour.
 
 Earlier failed attempts and environment deviations remain in [M1 QA](docs/reviews/M1/qa.md) and the [phase plan](docs/team/multi-lms-plan.md). Diagnostic and host-only passes give no full acceptance credit. The 12 legacy groups use their documented fixtures and knobs, followed by default-profile checks with no knobs.
+
+Legacy functional results were accepted, but the exclusive-host condition failed ([E-R4](docs/team/r4-evidence-decision-2026-10-22.md)). M2 attempt 3 remains NOT ACCEPTED despite its 64 functional passes. Accepted M2 r7 missed the prelaunch hold. The later bridge reconciliation and the 256-event query limit remain disclosed ([E-R6](docs/team/r6-independent-verification-2026-10-23.md)). No check was waived.
+
+The C8 T7 attempt remains FAILED. One screenshot failure caused seven later failures. Its separate shared-log scan found one redaction failure. C10 contains the reviewed repairs and the accepted new run ([E-R8](docs/team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)).
+
+The M1, M2 and legacy import closures exclude all four C10 repair files. M1 and M2 typecheck globs include E2E files. Typecheck passed at C10. These facts do not change any accepted run identity.
+
+T7 used a shared host; attribution does not prove exclusivity. Keep, teardown and operational closure passed, with all 32 complete protected records unchanged. The strict scan passed with 162 values and zero shared hits. All 51 default tests had no viewport click retries; all 12 required PNGs passed judgment. Snapshot comparisons cannot detect resources created and removed between captures. The LA watcher restarted and replayed events; no gap exceeded two minutes.
 
 ## Start here
 

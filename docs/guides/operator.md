@@ -1,6 +1,8 @@
 # Operator guide: Canvas and Blackboard bindings
 
-Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp, evidence and approval are pending.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels).
 
 This guide is for Cogniate staff with shell access to the Cogniate app service and the LTI service. Design: [ADR-011](../architecture/adr/ADR-011-multi-lms.md) §4a, §4b and §14, and [ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md).
 
@@ -159,6 +161,12 @@ WARNING: An enterprise service must not rely on this workflow before a reserved-
 ## 4. Upgrade and rollback
 
 The full sequences are in [ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback). QA ran them on the local Moodle stack [MOODLE-LIVE AC-M1-23, AC-M1-30]. Use the same checkout, compose project, `.env`, keys and data.
+
+The accepted evidence carries the C4 migration and storage results separately from fresh C6/C9 tests. All 72 storage rows passed in both C4 rounds. The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE. ADR-012 revisions 3.3–3.7 are accepted for this prototype only.
+
+G-1 covers only the measured host and tool identities. Docker volumes have no generation id. The negative host test proves fault detection, not safe bind-mount locking. `content_check_failed` has unit evidence only. The lost-lock exit has host fault-injection evidence only. See the [current G1 checkpoint](../human_review/decisions-needed.md#g1-storage-design-blocking-design-findings-closed) for these limits.
+
+For `operation_lock_invalid`, stop and escalate. No manual recovery is validated. This evidence does not establish production or enterprise storage acceptance.
 
 ### 4.1 Upgrade
 

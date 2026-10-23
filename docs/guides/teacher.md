@@ -18,6 +18,8 @@ NOTE: QA tested teachers and learners with Chromium only. Other browsers are not
 
 NOTE: [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed after the grade repair. [Fresh T7](../reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19) also passed.
 
+NOTE: Those passes retain their historical identities. The later C8 T7 attempt remains FAILED. The final C10/C6 run passed all 15 criteria in three cycles of 17 tests. Only the permitted demo skip occurred. See [E-R8](../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc).
+
 NOTE: An older Moodle request can write after the best score’s accepted confirmation. Permanent grade agreement is [not guaranteed (P2 remote ordering)](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19).
 
 ### Procedure: Add the course
@@ -71,7 +73,9 @@ If a Cogniate user withdraws the course, the activity shows "This course is no l
 
 ## Canvas
 
-Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Canvas site. Canvas menu names come from provider documentation ([research](../research/multi-lms.md#4-canvas-facts)).
 
@@ -111,7 +115,9 @@ Learners are anonymous: Cogniate gets no names or emails [SIM AC-M1-14]. The por
 
 ## Blackboard Learn
 
-Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Blackboard site. Learn menu names come from provider documentation ([research](../research/multi-lms.md#3-blackboard-facts)).
 
