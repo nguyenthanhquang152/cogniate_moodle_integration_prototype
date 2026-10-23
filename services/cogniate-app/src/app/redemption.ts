@@ -11,6 +11,7 @@
 // No database transaction is open during an LTI call; every call has the normal 5 s timeout of the outbound client.
 // Authority comes ONLY from the approval that phase 2 writes (§6.1).
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { fillText, registrationText } from '@cogniate/channel-kernel';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
@@ -27,7 +28,7 @@ import { transaction } from '../domain/db.ts';
 import type { BindingTarget, GrantPurpose, PlatformBodyValues, RedemptionRequest } from '../kernel/ports.ts';
 import { ApiError, providerNotReady } from './api-errors.ts';
 import type { LocalTarget, ReadinessCause } from './binding-targets.ts';
-import { localTarget, s1ReadinessCause, sharedReadiness, stagedCall } from './binding-targets.ts';
+import { differingBoundFields, grantAdminValues, holdsBoundValues, localTarget, platformAdminValues, s1ReadinessCause, sharedReadiness, stagedCall, stagedRegistration } from './binding-targets.ts';
 
 export interface RedemptionEngine {
   /** Redeem a grant (or answer a finalized repeat). Throws the contract ApiError on any refusal. */
@@ -46,6 +47,8 @@ export interface RedemptionDeps {
 const startState = (purpose: GrantPurpose, c: Connection): boolean =>
   purpose === 'initial' ? c.status === 'pending' : c.status === 'registered' || c.status === 'connected';
 const stateError = (purpose: GrantPurpose) => new ApiError(purpose === 'initial' ? 'CONNECTION_NOT_PENDING' : 'CONNECTION_NOT_READY');
+/** BD-A1-97 (app API delta §3.4): the `409 PLATFORM_IN_USE` description when the staged platform is gone. */
+const STAGED_GONE = 'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.';
 
 type CancelReason = 'revoked' | 'replaced' | 'taken_over' | 'connection_changed';
 
@@ -82,6 +85,18 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       && p.deploymentIds.includes(values.deploymentId);
   }
 
+  /**
+   * LA-ADR-02 D6 (B-LA-E2-04-02): a finalized repeat with admin values needs the bound values of the committed approval,
+   * compared as phase 1 does (canonical form for an origin, exact text for a URL); the answer names each differing
+   * field. A body without admin values (a fixed profile, the short staged body) has nothing more to compare.
+   */
+  function repeatMismatch(c: Connection, values: PlatformBodyValues): string[] {
+    if (values.adminValues === undefined) return [];
+    const approval = c.ltiPlatformId !== null ? approvalOf(db, c.ltiPlatformId, values.deploymentId) : undefined;
+    const bound = approval ? grantAdminValues(getGrant(db, approval.grantId)?.boundValues ?? null) : null;
+    return bound ? differingBoundFields(bound, values.adminValues) : ['connection'];
+  }
+
   /** Phase 1 (§4.7.1): checks 1 to 7 in order; on success the attempt, the lease and the Blackboard reservation. */
   function phase1(req: RedemptionRequest): { connection: Connection; attempt: Attempt; grant: Grant; resolved: LocalTarget } {
     return transaction(db, () => {
@@ -89,6 +104,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       const connection = getConnection(db, req.libraryId, req.connectionId);
       if (!connection) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
       const invalid = (reason: string) => reject(reason, connection.id, req.traceId, new ApiError('GRANT_INVALID', 'This approval code is not valid, was used, or expired.'));
+      const mismatch = (fields: string[]) => reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
       // 1. form and hash
       const grant = grantByCode(db, req.values.grantCode);
       if (!grant) return invalid('not_found');
@@ -102,20 +118,29 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       if (grant.purpose !== req.purpose) return invalid('purpose');
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
-      // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it.
+      // 5 (LA-ADR-02 D6), first part: an admin-value binding (typed admin values, or a staged registration) needs a grant
+      // with bound values, and only such a binding takes one.
+      const staged = req.purpose === 'initial' && stagedRegistration(connection);
+      const bound = grantAdminValues(grant.boundValues);
+      if ((staged || req.values.adminValues !== undefined) !== (bound !== null)) return mismatch(['connection']);
+      // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it. An admin-value
+      // profile has no provider issuer: the issuer is the bound one.
       const adapter = setupOf(channels, connection.channel);
       const sharing = adapter?.sharingOf(connection.profile);
-      const snapshot = req.purpose === 'initial' && sharing ? completeSnapshot(connection, sharing) : null;
+      const snapshot = req.purpose === 'initial' && sharing ? (bound ? { issuer: bound.issuer, platformId: null, clientId: null } : completeSnapshot(connection, sharing)) : null;
       if (req.purpose === 'initial' && !snapshot) return notReady(connection, 'no_snapshot', req.traceId);
-      const resolved = localTarget(connection, req.purpose, req.values, snapshot, adapter);
+      // The target takes the bound values: S1 creates, and S2 adopts, exactly what the operator approved.
+      const resolved = localTarget(connection, req.purpose, bound ? { ...req.values, adminValues: bound } : req.values, snapshot, adapter);
       // 5. values
       const target = resolved.target;
       if (grant.channel !== connection.channel || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
-        return reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields: ['connection'] } }));
+        return mismatch(['connection']);
       }
       const clientId = resolved.clientId;
-      const fields = [...(grant.clientId !== clientId ? ['clientId'] : []), ...(grant.deploymentId !== req.values.deploymentId ? ['deploymentId'] : [])];
-      if (fields.length > 0) return reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
+      // Each bound value after canonical form (an origin) or exact text (a URL); A1 BD-A1-91.
+      const fields = [...(grant.clientId !== clientId ? ['clientId'] : []), ...(grant.deploymentId !== req.values.deploymentId ? ['deploymentId'] : []),
+        ...(bound && req.values.adminValues ? differingBoundFields(bound, req.values.adminValues) : [])];
+      if (fields.length > 0) return mismatch(fields);
       // 6. the connection lease (also for a replacement grant)
       if (leaseLive(connection, t)) throw new ApiError('GRANT_IN_USE', 'Cogniate is already saving this connection. Wait a moment, then reload the page.');
       // 7. Blackboard reservation: free, ours (retry) or of a disabled connection of the same library (move); one per connection.
@@ -146,7 +171,13 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       const traceId = req.traceId;
       const connection = getConnection(db, req.libraryId, req.connectionId);
       if (!connection) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-      if (finalizedRepeat(connection, req.purpose, req.values)) return connection;
+      if (finalizedRepeat(connection, req.purpose, req.values)) {
+        const fields = repeatMismatch(connection, req.values);
+        if (fields.length > 0) {
+          return reject('mismatch', connection.id, traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
+        }
+        return connection;
+      }
       const committed = phase1(req);
       const { attempt, grant, resolved } = committed;
       // A refusal or rollback must never produce this event. No LTI request has run yet.
@@ -172,6 +203,8 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
 
   async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
+    // A staged registration already has its platform (app API delta §3.4): no S1 create; S2 adopts it (rule A3).
+    const staged = attempt.purpose === 'initial' && stagedRegistration(c);
     const create = stagedCall({ db, lti, urls: deps.urls }, c, target, traceId, setupOf(channels, c.channel)!);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
@@ -189,11 +222,17 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
-    const inUse = (): never => {
+    const inUse = (description?: string): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
-        : new ApiError('PLATFORM_IN_USE', `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
+        // BD-A1-101: the channel's texts.registration.PLATFORM_IN_USE with {LMS} filled, else the core default.
+        : new ApiError('PLATFORM_IN_USE', description ?? fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
+    };
+    const stagedChanged = (fields: string[]): never => {
+      transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
+      log.warn('grant_rejected', { trace_id: traceId, reason: 'mismatch', connection_id: c.id });
+      throw new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } });
     };
     const call = async <T>(fn: () => Promise<T>): Promise<T> => {
       try {
@@ -250,11 +289,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         }
       }
       // ---------------------------------------------------------------- S1 staged create
-      const g1 = s0(c, attempt, grant.id, 'step');
+      let goS2 = staged;
+      const g1 = staged ? 'ok' : s0(c, attempt, grant.id, 'step');
       if (g1 === 'taken_over' || g1 === 'lease_lost') return leaseStop(g1);
       if (g1 === 'stop') stop = true;
-      let goS2 = false;
-      if (!stop) {
+      if (!stop && !staged) {
         const ref = recordRef(db, { connectionId: c.id, attemptId: attempt.attemptId, grantId: grant.id, action: 'create', platformId, deploymentId: attempt.deploymentId }, now());
         try {
           const created = await create(ref);
@@ -281,11 +320,18 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
             const guard = s0(c, attempt, grant.id, 'step');
             if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
             if (guard === 'stop') { stop = true; break; }
-            return inUse();
+            // A staged registration has no S1 create, so no record means that its staged platform is gone.
+            return inUse(staged ? STAGED_GONE : undefined);
           }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;
           setAttemptPlatform(db, attempt.attemptId, platformId);
+          if (staged) {
+            // App API delta §3.4: the staged values must still equal the bound values; else the differing fields.
+            const held = platformAdminValues(rec.platform);
+            const fields = target.kind === 'exclusive_platform' && target.adminValues && held ? differingBoundFields(target.adminValues, held) : [];
+            if (fields.length > 0) return stagedChanged(fields);
+          }
           if (!adoptable(c, attempt, target, rec)) return inUse();
           expected = rec.ref;
         }
@@ -343,8 +389,10 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   function adoptable(c: Connection, attempt: Attempt, target: BindingTarget, rec: ReadRecord): boolean {
     if (target.kind === 'exclusive_platform') {
       const p = rec.platform;
-      const same = p.profile === target.profile && p.url === target.issuer && p.clientId === target.clientId && p.siteUrl === target.siteUrl
-        && (p.serviceUrl ?? p.siteUrl) === target.serviceUrl && p.deployments.some((d) => d.deploymentId === target.deploymentId);
+      // An admin-value platform has no site URL (its site is the issuer origin) and must hold exactly the bound values.
+      const same = p.profile === target.profile && p.clientId === target.clientId && p.deployments.some((d) => d.deploymentId === target.deploymentId)
+        && (target.adminValues ? holdsBoundValues(p, target.adminValues)
+          : p.url === target.issuer && p.siteUrl === target.siteUrl && (p.serviceUrl ?? p.siteUrl) === target.serviceUrl);
       if (!same) return false;
     }
     const row = refRow(db, rec.ref);

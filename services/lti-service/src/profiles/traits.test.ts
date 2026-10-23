@@ -46,12 +46,12 @@ describe('E2 profile traits (LA-ADR-02 D2, AC-LA-E2-01-01)', () => {
     expect(Object.isFrozen(byId('standard').clientAssertionAud)).toBe(true);
   });
 
-  it('takes the default aud form from the legacy flag clientAssertionAudArray (provisional Lead call 2a)', () => {
+  it('BD-A1-75: the aud form comes only from clientAssertionAud; without it, the token URL as a string', () => {
     const entries = copy();
     const [blackboard] = profilesOf(entries, 'blackboard');
     delete blackboard!.clientAssertionAud;
     const registry = buildProfileRegistry(entries);
-    expect(registry.listProfiles(true).find((p) => p.id === 'blackboard')!.clientAssertionAud).toEqual({ value: '{tokenEndpoint}', form: 'array' });
+    expect(registry.listProfiles(true).find((p) => p.id === 'blackboard')!.clientAssertionAud).toEqual(TOKEN_STRING);
   });
 });
 
@@ -75,8 +75,8 @@ describe('load check 7 for the E2 traits (AC-LA-E2-01-02)', () => {
     ['admin endpoints without an endpoint origin rule', 'moodle', 0, { endpointOrigins: null }, 'endpointOrigins'],
     ['a configuration path without path-prefix', 'moodle', 0, { dynamicRegistration: { issuerRule: 'origin', configurationPath: '/x', registrationToken: 'opaque-bearer' } }, 'configurationPath'],
     ['an unknown aud value', 'moodle', 0, { clientAssertionAud: { value: '{issuer}', form: 'string' } }, 'clientAssertionAud'],
-    ['an aud form that disagrees with the legacy flag', 'blackboard', 0, { clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' } }, 'clientAssertionAud.form'],
-    ['an array aud form without the legacy flag', 'moodle', 0, { clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' } }, 'clientAssertionAud.form'],
+    ['a stored audience on fixed endpoints (A-LA-E2-01-04)', 'canvas', 0, { clientAssertionAud: { value: '{platformValue}', form: 'string' } }, 'clientAssertionAud.value'],
+    ['the removed flag clientAssertionAudArray (BD-A1-75)', 'moodle', 0, { flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false } }, 'flags'],
   ])('stops the start for %s', (_, channel, index, change, field) => {
     const err = refusal((entries) => Object.assign(profilesOf(entries, channel)[index]!, change));
     expect(err).toBeInstanceOf(RegistryError);

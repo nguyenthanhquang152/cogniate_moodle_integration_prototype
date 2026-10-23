@@ -48,7 +48,6 @@ export const profileSourceSchema = z.strictObject({
   productFamily: z.string().min(1).nullable(),
   flags: z.strictObject({
     deepLinkingResponseSub: z.boolean(),
-    clientAssertionAudArray: z.boolean(),
     serviceOriginCheck: z.boolean(),
   }),
   refusedHostSuffixes: z.array(z.string().min(1)).optional(),
@@ -68,9 +67,9 @@ export const profileSourceSchema = z.strictObject({
   if (profile.endpointOrigins !== undefined && (profile.endpointOrigins === null) !== (profile.endpoints === 'fixed')) {
     ctx.addIssue({ code: 'custom', path: ['endpointOrigins'], message: profile.endpoints === 'fixed' ? 'Expected null for endpoints "fixed".' : 'Expected "issuer" or "any-https" for endpoints "admin".' });
   }
-  // Legacy flag (provisional Lead call 2a): flags.clientAssertionAudArray stays until QA removes it with this rule.
-  if (profile.clientAssertionAud !== undefined && (profile.clientAssertionAud.form === 'array') !== profile.flags.clientAssertionAudArray) {
-    ctx.addIssue({ code: 'custom', path: ['clientAssertionAud', 'form'], message: `Expected "${profile.flags.clientAssertionAudArray ? 'array' : 'string'}" to agree with flags.clientAssertionAudArray.` });
+  // A-LA-E2-01-04: a stored audience is an admin value; a fixed profile has no such value (LA-ADR-02 D2).
+  if (profile.clientAssertionAud?.value === '{platformValue}' && profile.endpoints === 'fixed') {
+    ctx.addIssue({ code: 'custom', path: ['clientAssertionAud', 'value'], message: 'Expected "{tokenEndpoint}" for endpoints "fixed".' });
   }
   if (profile.dynamicRegistration?.configurationPath !== undefined && profile.dynamicRegistration.issuerRule !== 'path-prefix') {
     ctx.addIssue({ code: 'custom', path: ['dynamicRegistration', 'configurationPath'], message: 'Expected a configurationPath only with issuerRule "path-prefix".' });

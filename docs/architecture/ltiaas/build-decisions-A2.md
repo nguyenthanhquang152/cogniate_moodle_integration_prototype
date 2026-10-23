@@ -464,3 +464,47 @@ Routed in dispatch `ctx_e03f42d6f8fe`. Items 1–4 went to the Lead first (`msg_
 | BD-A2-82 | S1's choices: `account.purge` `details.counts` as a list `[{table, rows}]` (redaction hides object keys that end in `key`); the log line `job_run_request_failed` when `runNow` rejects. | **Ratified.** | LA-ADR-06 D2, D11; contract delta §5, §6; LA-E5-20 notes | A good catch: an object key `api_key` would be redacted. |
 
 Changes for the Lead to route: **S1** (LA-E5-21 fix round): BD-A2-77 to BD-A2-80 with the unit tests in the notes (RQ-2 for the `keys/key-config.ts` lines). **A1 FYI:** the app's `APP_MASTER_KEY_FILE` (LA-E5-22) goes through the same shared `readSecretFile` and `hexKey` rule.
+
+## 38. Round 37: granted scopes before the claim, reserved-host audience, runbook (LA-E2-01/02 lane L, LA-E5-20), 2026-10-23
+
+Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`msg_eaceb1e6109f`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-83 | A-LA-E2-01-02: with `platform.grantedScopes`, a scope that the platform did not grant gives `403` from the token client after the idempotency claim (so it is stored), and `needScope` can pick a scope that was not granted while a granted one would work. | **Yes, before the claim.** `needScope` picks the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). The preflight's step 4 checks both; else `403 SERVICE_NOT_AVAILABLE` with a fixed text for the claim or the grant. The token-client filter stays as a backstop. | LA-ADR-06 D9; contract delta §4.9; LA-E2-01 and LA-E5-16 notes | A refusal of the current grant is never stored, and a call never asks for an ungranted scope. |
+| BD-A2-84 | A-LA-E2-01-01: a staged admin create accepts `clientAssertionAud` on a reserved host, because the staged exception (A1 BD-A1-82) skips the audience check. | **The reserved-host rule applies to the audience always, staged or active:** rule 2 (https, site rules 2 and 3, not a reserved host), else `400 PLATFORM_URL_NOT_IN_PROFILE`. The staged exception covers only the issuer-origin rule (I-SELF, and "audience = token URL" for active platforms). | LA-ADR-07 A6; security-delta §2.4; contract delta §4.6; LA-E2-01 and LA-E2-02 notes | We sign the client assertion with our key. An audience on a hosted LMS host (for example a Canvas token URL with a client id of ours) would let the holder of a staged platform replay our assertion there; a grant does not make that safe. A1's BD-A1-82 stays as is. |
+| BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
+
+Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
+
+## 39. Round 38: the `autoActivate` line of `complete` (A1 BD-A1-93, LA-E2-02), 2026-10-23
+
+Routed in dispatch `ctx_a8c14abba5d2`. No lane waits.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-86 | A1 BD-A1-93 (LA-IC-21) asks for one line in the `complete` table: `autoActivate` applies to a new platform only; an update keeps the stored `active` value; a staged result is inactive. Also check that the table and the base contract agree with it and with BD-A2-83/84 and A1 BD-A1-88/89. | **Added**, as a table row for the base field `autoActivate`. Aligned in the same section: the I-SELF bullet ("an update keeps its stored `active` value"; "created or set inactive"); the stored-values paragraph (BD-A2-83 scope choice, BD-A1-89 one credential set with an omitted `authorization_server` clearing the audience, BD-A1-88 `profile_mismatch`); the reserved-host bullet (BD-A2-84 audience). | contract delta §4.5 | The base contract §3.8 row (`autoActivate` default `true`) stays true for a new platform; the delta row narrows it for updates, as LA-IC-21 lists. Nothing contradicts. |
+
+Changes for the Lead to route: none (contract text only).
+
+## 40. Round 39: L2's LA-E3-05 local choices (Deep Linking completeness), 2026-10-23
+
+Routed in dispatch `ctx_bf9df1eb1c35`. All five are ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-87 | (Provisional, L2's choices.) (1) `PLACEMENT_NOT_GRADED` = a `/tool/*` error page with status `403`, log `picker_rejected {reason: placement_not_graded}`. (2) The picker GET and POST read `acceptMultiple` and `acceptLineItem` from `GET /api/idtoken`. (3) The POST also refuses with `PLACEMENT_NOT_GRADED`, with no Deep Linking call. (4) A duplicate id in a multi-select POST gives `400 PUBLICATION_NOT_AVAILABLE`. (5) Items go in the picker list order. | **All five ratified.** (1) Matches the other picker refusals. (2) The server reads the shaped token and never trusts a form field. (3) The POST re-checks, never relying on the GET page. (4) The page never sends duplicates, so a duplicate is a broken or forged request, with the same code as 21 ids. (5) Is D3b. | LA-ADR-05 D3 "Build notes"; security-delta §5 (page row); LA-E3-05 notes | Process calls checked: app migration `018` = `picker_pick`, and the retention rule (keep a session with an unmatched `picker_pick` row) matches data model §5b. A1 to note the number `018` in §5b (A1's file). A1 FYI: `picker_rejected` reason `placement_not_graded` joins the app log names. |
+
+Changes for the Lead to route: **A1:** the migration number `018` in data model §5b, and the new `picker_rejected` reason in the app log list. Nothing for L2.
+
+## 41. Round 40: app metrics and readiness (LA-E4-07, lane R), 2026-10-23
+
+Lane R's design calls D1–D4, routed in dispatch `ctx_0289fb00215b`. One call changes, so a status message went first (`msg_c7293864d95e`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-88 | D1 listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` default 4210, production loopback rule); D2 sources of each app series and the label guards; D3 readiness (database, migrations, and the LTI service through the guarded client); D4 topology (web process only; send and job series only with `APP_JOB_RUNNER=on`). | **D1 ratified**: 4210 is the design port; the LTI listener is 4110, so there is no clash; same fixed refusal message. **D2 ratified, with three precisions**: (a) the send counter counts at commit (`afterCommit`); (b) the redemption count from `binding_attempt` rows is a counter only while no job deletes them; (c) `JobStale` covers interval jobs only, and the outbox is watched by `DispatchBacklog`. **D3 changed**: app readiness checks only the app (database, migrations, key provider when it exists); no LTI check. **D4 ratified**: series absent (not zero) with a standalone worker. | LA-ADR-06 D10 "Readiness"; operability §4.3 "App rules", §4.4, §5 (`JobStale`) | An LTI readiness check inside the app would make one outage show twice and cascade, while the runbooks already check both services. The `record-dispatch` precision prevents a false `JobStale` on an idle outbox. |
+
+Changes for the Lead to route:
+- **R (LA-E4-07):** drop the `lti_service` readiness check; count sends at commit; `JobStale` only for interval jobs.
+- **A1:** in app API delta §8a, record the listener settings (`OPERATOR_HOST`, `OPERATOR_PORT` 4210, the production loopback refusal), the series list with sources and label guards (unknown channel `''`, reason grammar else `other`), the readiness checks and answer shape (no LTI check), and the topology rule (send and job series only with `APP_JOB_RUNNER=on`; absent, not zero, with a standalone worker). Also the same notes in the LA-E4-07 spec (A1's file).

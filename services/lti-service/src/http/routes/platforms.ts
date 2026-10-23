@@ -4,7 +4,9 @@ import { canonicalOrigin, originHost } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
-import { BINDING_REF, DEPLOYMENT_ID, checkAnyHttpsPlatform, checkPlatformUrls, checkProfileSiteUrl, checkRotation } from '../../lti/platform-rules.ts';
+import {
+  BINDING_REF, DEPLOYMENT_ID, checkActiveAudience, checkAnyHttpsPlatform, checkAudienceHost, checkPlatformUrls, checkProfileSiteUrl, checkRotation,
+} from '../../lti/platform-rules.ts';
 import type { ProviderProfile } from '../../profiles/index.ts';
 import {
   allFixedHosts, fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
@@ -119,15 +121,18 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     const b = parsed.data;
     if (b.authConfig.method !== 'JWK_SET') throw new ApiError('UNSUPPORTED_AUTH_METHOD', 'Only authConfig.method JWK_SET is supported.');
     const urls = { url: b.url, authenticationEndpoint: b.authenticationEndpoint, accesstokenEndpoint: b.accesstokenEndpoint, jwksUrl: b.authConfig.key };
+    const staged = raw.active === false && raw.bindingRef !== undefined;
+    const hosts = { ownHosts: ownOrigins.map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles) };
     if (profile.endpointOrigins === 'any-https') {
-      const staged = raw.active === false && raw.bindingRef !== undefined;
-      checkAnyHttpsPlatform({ ...urls, clientAssertionAud: raw.clientAssertionAud }, staged, {
-        ownHosts: ownOrigins.map(originHost), reservedHosts: allFixedHosts(ctx.profiles), reservedIssuerOrigins: reservedIssuerOrigins(ctx.profiles),
-      }, ADMIN_FIELDS);
+      checkAnyHttpsPlatform({ ...urls, clientAssertionAud: raw.clientAssertionAud }, staged, hosts, ADMIN_FIELDS);
     } else {
       checkPlatformUrls(urls, ADMIN_FIELDS);
       if (reservedIssuerOrigins(ctx.profiles).includes(new URL(b.url).origin)) throw new ApiError('ISSUER_RESERVED', 'This issuer belongs to a hosted LMS profile. Use that profile.');
+      // BD-A2-84: the audience of a {platformValue} profile obeys rule 2 too, staged or active.
+      if (raw.clientAssertionAud !== undefined) checkAudienceHost(raw.clientAssertionAud, hosts);
     }
+    // BD-A1-82 (B-LA-E2-01-01): for every admin profile, whatever its endpoint origin rule.
+    checkActiveAudience({ accesstokenEndpoint: b.accesstokenEndpoint, clientAssertionAud: raw.clientAssertionAud }, staged);
     return {
       issuer: b.url, clientId: b.clientId, name: b.name, authEndpoint: b.authenticationEndpoint, tokenEndpoint: b.accesstokenEndpoint,
       jwksUrl: b.authConfig.key, deploymentIds: b.deploymentIds, active: raw.active ?? true, productFamilyCode: raw.productFamilyCode ?? null,

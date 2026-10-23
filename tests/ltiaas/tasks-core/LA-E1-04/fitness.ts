@@ -54,11 +54,15 @@ export interface RunResult { code: number | null; stdout: string; stderr: string
 /** Async, so the Vitest worker stays responsive during long commands such as `npm run check`. */
 export function run(cmd: string, args: string[], opts: { input?: string; cwd?: string; timeoutMs?: number } = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
+    const cwd = opts.cwd ?? ROOT;
+    if (cmd === 'vitest' || args.some((a) => a === 'vitest' || a === 'check' || a === 'test:unit' || a === 'test:k0')) {
+      fs.rmSync(path.join(cwd, 'node_modules/.vitest-cache'), { recursive: true, force: true });
+    }
     const started = Date.now();
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     const all: Buffer[] = [];
-    const child = spawn(cmd, args, { cwd: opts.cwd ?? ROOT, env: plainEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, { cwd, env: plainEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
     const timer = setTimeout(() => child.kill('SIGTERM'), opts.timeoutMs ?? 20 * 60_000);
     child.stdout.on('data', (d: Buffer) => { out.push(d); all.push(d); });
     child.stderr.on('data', (d: Buffer) => { err.push(d); all.push(d); });

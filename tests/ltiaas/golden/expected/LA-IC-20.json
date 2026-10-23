@@ -1,20 +1,20 @@
 {
   "id": "LA-IC-20",
-  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md, docs/reviews/LA-E1-12/reviewer-a.md, docs/reviews/LA-E1-12/reviewer-b.md",
   "ld9": {
-    "epic": "E1 (LA-E1-12, lane P portal part)",
+    "epic": "E1 (LA-E1-12, lane P portal part + BD-A1-81 Moodle PLATFORM_IN_USE)",
     "design": [
       "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
-      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-63)",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-63, BD-A1-81)",
       "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#2-decision",
       "docs/architecture/ltiaas/tasks/LA-E1-12.md"
     ],
     "goldenFields": [],
     "authorUnitTestChanges": [
-      "packages/channel-kernel/src/manifest.test.ts (adds BD-A1-63 test for ERROR_TEXT_KEYS, {LMS} placeholder rule, and moodle/canvas/blackboard texts.errors matching M1 portal texts byte for byte)",
+      "packages/channel-kernel/src/manifest.test.ts (adds BD-A1-63 / BD-A1-81 tests for ERROR_TEXT_KEYS, {LMS} placeholder rule, moodle/canvas/blackboard texts.errors matching M1 texts byte for byte, and Moodle PLATFORM_IN_USE matching LEGACY_SELF_BINDING_TEXT.collision byte for byte)",
       "packages/channel-kernel/src/legacy-wire.test.ts (adds BD-A1-64 LegacyPublicationFields test; keeps LEGACY_APP_ERROR_TEXT byte-for-byte test)",
-      "apps/portal/src/connect/provider-errors.test.tsx (new: checks per-channel texts.errors vs generic core texts for moodle, canvas, blackboard, undefined/null, and custom channels, plus ProviderErrorNotice with ChannelScope)",
-      "apps/portal/src/channels/shell.test.tsx (adds create-route SITE_RULE_5 and manage-route DEPLOYMENT_FIXED tests for canvas and blackboard)",
+      "apps/portal/src/connect/provider-errors.test.tsx (checks ChannelErrorNotice / channelErrorText and providerErrorMessage for the five codes SITE_RULE_1, SITE_RULE_5, PLATFORM_IN_USE, DEPLOYMENT_IN_USE, DEPLOYMENT_FIXED across moodle, canvas, blackboard, undefined/null, and custom channels, including Moodle PLATFORM_IN_USE keeping its server sentence and non-five codes passing through unchanged)",
+      "apps/portal/src/channels/shell.test.tsx (checks ChannelErrorNotice on ManifestWizard, ManifestBinding, Moodle ManualSetup, and Moodle CreateConnection, including Moodle PLATFORM_IN_USE keeping the Moodle server sentence and generic fallback when a channel has no own text for one of the five codes)",
       "packages/channels/canvas/portal/canvas.test.tsx (passes manifest to providerErrorMessage; checks Canvas SITE_RULE_1, SITE_RULE_5, PLATFORM_IN_USE and generic DEPLOYMENT_FIXED)",
       "packages/channels/blackboard/portal/blackboard.test.tsx (wraps BlackboardWizard in ChannelScope with the Blackboard manifest)",
       "apps/portal/src/portal.test.ts (adds BD-A1-65 Results / ResultTableRow tests with explicit lms)"
@@ -25,18 +25,18 @@
     ],
     "frozenTestsTouched": [],
     "scanChecked": [
-      "tests/ltiaas/golden/capture.golden.ts:80-176,183-261 (G1-G4 capture API DTOs, simulator records, and tool pages, not portal ProviderErrorNotice / providerErrorMessage)",
+      "tests/ltiaas/golden/capture.golden.ts:80-176,183-261 (G1-G4 capture API DTOs, simulator records, and tool pages, not portal ChannelErrorNotice / ProviderErrorNotice / providerErrorMessage)",
       "tests/e2e/M2/lib/m2.ts:35-53 (defines ERR.rule[1..5], ERR.platformInUse, ERR.deploymentInUse)",
       "tests/e2e/M2/02-canvas-wizard.m2.ts:28-61 (M2-03.* runs on /integrations/canvas/connect where ChannelScope provides the Canvas manifest; SITE_RULE_1 and SITE_RULE_5 come from canvas/manifest.ts texts.errors and equal ERR.rule[1] and ERR.rule[5] byte for byte; rules 2..4 are channel-independent)",
       "tests/e2e/M2/02-canvas-wizard.m2.ts:210-219 (M2-05.platform-in-use runs on /integrations/canvas/:id where ChannelScope provides the Canvas manifest; PLATFORM_IN_USE comes from canvas/manifest.ts texts.errors and equals ERR.platformInUse byte for byte)",
       "tests/e2e/M2/03-blackboard-wizard.m2.ts:38-48,105-107 (M2-06.deployment-in-use runs on /integrations/blackboard/:id where ChannelScope provides the Blackboard manifest; DEPLOYMENT_IN_USE comes from blackboard/manifest.ts texts.errors and equals ERR.deploymentInUse byte for byte; line 106 checks the API JSON details.message === 'DEPLOYMENT_IN_USE', not the portal notice)",
-      "tests/acceptance/T6/2-connect.spec.ts:148-152 (AC-T6-05 checks hasInlineError(page) on http issuer and cross-origin jwksUrl for PUT /app-api/connections/:id/platform -> 422 INVALID_PLATFORM_VALUES; never triggers SITE_RULE_5, PLATFORM_IN_USE, DEPLOYMENT_IN_USE, or DEPLOYMENT_FIXED in the portal UI)",
-      "tests/acceptance/lib/portal.ts:89-99 (hasInlineError checks aria-invalid='true' or [role='alert'] presence, not specific providerErrorMessage strings)",
-      "tests/acceptance/T4b1/4-adoption.spec.ts:54-68 (AC-T4-36 calls PUT /app-api/connections/:id/platform via appApi and asserts HTTP 409 and details.message === 'PLATFORM_IN_USE', not the portal UI notice text)",
+      "tests/acceptance/T6/2-connect.spec.ts:148-152 (AC-T6-05 checks hasInlineError(page) on http issuer and cross-origin jwksUrl for PUT /app-api/connections/:id/platform -> 422 INVALID_PLATFORM_VALUES; ChannelErrorNotice replaces only the five codes and passes 422 INVALID_PLATFORM_VALUES through unchanged)",
+      "tests/acceptance/lib/portal.ts:176-181 (hasInlineError checks [aria-invalid=\"true\"] or [role=\"alert\"] presence, not specific providerErrorMessage / channelErrorText strings)",
+      "tests/acceptance/T4b1/4-adoption.spec.ts:54-68 (AC-T4-36 calls PUT /app-api/connections/:id/platform via appApi and asserts HTTP 409 and details.message === 'PLATFORM_IN_USE', not the portal UI notice text; Moodle manifest also defines texts.errors.PLATFORM_IN_USE equal to the server sentence byte for byte)",
       "tests/e2e/1-scenario-a.spec.ts:58-75 (valid Moodle dynamic connect flow; never triggers a portal provider error notice)",
       "tests/e2e/2-scenario-b.spec.ts:62-78 (valid Moodle manual connect flow; never triggers a portal provider error notice)"
     ],
-    "scanResult": "0 golden changes and 0 frozen-test changes: (1) golden capture G1-G4 does not render portal UI components (and server-side LEGACY_APP_ERROR_TEXT stays unchanged); (2) baseline manifests keep their own error texts byte for byte (SITE_RULE_1 in moodle, canvas, and blackboard; SITE_RULE_5 and PLATFORM_IN_USE in canvas; DEPLOYMENT_IN_USE and DEPLOYMENT_FIXED in blackboard), while keys absent from a channel's texts.errors fall back to generic core texts (SITE_RULE_1 -> 'Enter only the address, for example https://lms.example.edu. No path.'; SITE_RULE_5 -> 'This is the address of a hosted LMS. Choose a hosted type.'; PLATFORM_IN_USE -> 'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library.'; DEPLOYMENT_IN_USE -> 'This LMS site is already connected to Cogniate.'; DEPLOYMENT_FIXED -> 'This connection already reserved another deployment. Disconnect it, then make a new connection.'); (3) every M2 browser check of these texts runs on the channel that owns the text (M2-03 rule 1/5 and M2-05 PLATFORM_IN_USE on Canvas; M2-06 DEPLOYMENT_IN_USE on Blackboard), and no T6, T4b1, U1/U2, or M2 browser test triggers a portal notice for a key where the channel falls back to the generic text."
+    "scanResult": "0 golden changes and 0 frozen-test changes: (1) golden capture G1-G4 does not render portal UI components (and server-side LEGACY_APP_ERROR_TEXT and LEGACY_SELF_BINDING_TEXT stay unchanged); (2) ChannelErrorNotice replaces only the five codes (SITE_RULE_1, SITE_RULE_5, PLATFORM_IN_USE, DEPLOYMENT_IN_USE, DEPLOYMENT_FIXED), baseline manifests keep their own error texts byte for byte (SITE_RULE_1 in moodle, canvas, and blackboard; PLATFORM_IN_USE in moodle with the server sentence 'This {LMS} tool is already registered with Cogniate. In {LMS}, make a new tool for this library and use its values.' filled byte for byte; SITE_RULE_5 and PLATFORM_IN_USE in canvas; DEPLOYMENT_IN_USE and DEPLOYMENT_FIXED in blackboard), and the generic fallback text appears only where a channel has no own text for one of the five codes (e.g. a Moodle form with DEPLOYMENT_IN_USE or DEPLOYMENT_FIXED, or a new channel); (3) every M2 browser check of these texts runs on the channel that owns the text (M2-03 rule 1/5 and M2-05 PLATFORM_IN_USE on Canvas; M2-06 DEPLOYMENT_IN_USE on Blackboard), and no T6, T4b1, U1/U2, or M2 browser test triggers a portal notice for a code where the channel has no own text."
   },
   "changes": []
 }

@@ -10,7 +10,7 @@ export interface ProviderProfile extends ProfileSource {
   readonly issuerKind: NonNullable<ProfileSource['issuerKind']>;
   /** Default: `issuer` for admin endpoints, `null` for fixed endpoints. */
   readonly endpointOrigins: Exclude<ProfileSource['endpointOrigins'], undefined>;
-  /** Default: the token URL, as an array when the legacy flag clientAssertionAudArray is true. */
+  /** Default: the token URL as a string. */
   readonly clientAssertionAud: NonNullable<ProfileSource['clientAssertionAud']>;
   /** Default: false. */
   readonly assertionDeploymentId: boolean;

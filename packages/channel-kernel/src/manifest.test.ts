@@ -1,8 +1,8 @@
 import { expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
-import { LEGACY_SELF_BINDING_TEXT } from './legacy-wire.ts';
+import { LEGACY_SELF_BINDING_TEXT, pendingToolText } from './legacy-wire.ts';
 import { loadChannelFolders } from './registry.ts';
-import { ERROR_TEXT_KEYS, fillFieldDefault, parseChannelManifest } from './manifest.ts';
+import { ERROR_TEXT_KEYS, TOOL_ROW_PLACEHOLDERS, fillFieldDefault, fillToolRow, parseChannelManifest } from './manifest.ts';
 import { DEFAULT_REGISTRATION_TEXTS, REGISTRATION_TEXT_KEYS, fillText, registrationText } from './text.ts';
 import type { RegistrationTextKey } from './text.ts';
 
@@ -73,10 +73,26 @@ it('BD-A1-59: the Moodle registration sentences fill to the LA-E1-10 and app reg
     INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
     REGISTRATION_UPDATE_NOT_ALLOWED: 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.',
     UPDATE_NOT_ALLOWED: 'Go back in Moodle and choose Register as a new external tool.',
+    TOOL_MAY_EXIST: "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '{tool}', then connect again.",
+    // BD-A1-101: Moodle has no operator-grant redemption (self authority), so it keeps the core default.
+    PLATFORM_IN_USE: 'This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator.',
   });
+  // BD-A1-87: with the tool name filled, the Moodle sentence is the frozen pendingToolText, byte for byte.
+  const tool = fillText(registrationText(parsed.manifest, 'TOOL_MAY_EXIST'), { LMS: 'Moodle', tool: 'Course tool' });
+  expect(tool).toBe(pendingToolText('Course tool'));
+  expect(fillText(DEFAULT_REGISTRATION_TEXTS.TOOL_MAY_EXIST, { LMS: 'your LMS', tool: 'Course tool' }))
+    .toBe("your LMS may have saved the Cogniate tool already. If your LMS shows the tool 'Course tool', delete it there, then connect again.");
 });
 
-it('BD-A1-59: texts.registration is optional, closed to the six keys (BD-A1-68) and to the text placeholders', async () => {
+it('BD-A1-101: the Canvas texts.registration.PLATFORM_IN_USE fills to the collision description of today, byte for byte', async () => {
+  const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
+  const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/canvas'))!.manifest);
+  if (!parsed.ok) throw new Error('The product manifest must be valid');
+  expect(fillText(registrationText(parsed.manifest, 'PLATFORM_IN_USE'), { LMS: 'Canvas' }))
+    .toBe('This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.');
+});
+
+it('BD-A1-59: texts.registration is optional, closed to the eight keys (BD-A1-68, BD-A1-87, BD-A1-101) and to the text placeholders', async () => {
   const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
   const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
   if (!parsed.ok) throw new Error('The product manifest must be valid');
@@ -97,7 +113,9 @@ it('BD-A1-59: a channel without its own sentence gets the core default, which na
     if (key !== 'INVALID_REQUEST') expect(registrationText(own, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
     expect(registrationText({ texts: {} }, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
     expect(registrationText(null, key)).toBe(DEFAULT_REGISTRATION_TEXTS[key]);
-    expect(DEFAULT_REGISTRATION_TEXTS[key]).toContain('{LMS}');
+    // BD-A1-101: the PLATFORM_IN_USE default names no LMS; every other default names the channel.
+    if (key === 'PLATFORM_IN_USE') expect(DEFAULT_REGISTRATION_TEXTS[key]).not.toMatch(/\{/);
+    else expect(DEFAULT_REGISTRATION_TEXTS[key]).toContain('{LMS}');
     expect(DEFAULT_REGISTRATION_TEXTS[key]).not.toMatch(/>|Manage tools|Site administration|Register as a new external tool/);
   }
 });
@@ -125,4 +143,25 @@ it('BD-A1-81: the Moodle texts.errors.PLATFORM_IN_USE fills to the server collis
   const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/moodle'))!.manifest);
   if (!parsed.ok) throw new Error('The product manifest must be valid');
   expect(fillText(parsed.manifest.texts.errors!.PLATFORM_IN_USE!, { LMS: 'Moodle' })).toBe(LEGACY_SELF_BINDING_TEXT.collision);
+});
+
+it('BD-A1-78: setup.toolRows is optional; a value takes only the closed tool-row placeholders; one row per key', async () => {
+  const loaded = await loadChannelFolders([fileURLToPath(new URL('../../channels/', import.meta.url))], 'app');
+  const parsed = parseChannelManifest(loaded.find((c) => c.folder.endsWith('/lti-generic'))!.manifest);
+  if (!parsed.ok) throw new Error('The product manifest must be valid');
+  expect(parsed.manifest.setup.toolRows).toBeUndefined();
+  const withRows = (toolRows: unknown) => parseChannelManifest({ ...parsed.manifest, setup: { ...parsed.manifest.setup, toolRows } });
+  const all = TOOL_ROW_PLACEHOLDERS.map((p) => `{${p}}`).join(' ');
+  const ok = withRows([{ key: 'tool_name', label: 'Name', value: all }, { key: 'privacy', label: 'Privacy', value: 'Do not send name or e-mail.' }]);
+  expect(ok.ok && ok.manifest.setup.toolRows!.map((r) => r.key)).toEqual(['tool_name', 'privacy']);
+  expect(withRows([{ key: 'x', label: 'X', value: '{LMS}' }])).toEqual({ ok: false, problem: { reason: 'manifest_schema', detail: expect.stringContaining('setup.toolRows.0.value: only the placeholders {toolName}') } });
+  for (const bad of [[], [{ key: 'a', label: 'A', value: 'v' }, { key: 'a', label: 'B', value: 'w' }], [{ key: 'Bad-Key', label: 'A', value: 'v' }],
+    [{ key: 'a', label: '', value: 'v' }], [{ key: 'a', label: 'A', value: '' }], [{ key: 'a', label: 'A', value: '{siteUrl}' }], [{ key: 'a', label: 'A', value: 'v', extra: 1 }]]) {
+    expect(withRows(bad).ok, JSON.stringify(bad)).toBe(false);
+  }
+});
+
+it('BD-A1-78: fillToolRow fills each placeholder once, literally', () => {
+  const values = { toolName: 'T {scopes} $&', loginUrl: 'L', launchUrl: 'U', keysUrl: 'K', deepLinkingUrl: 'D', ltiHost: 'h:8443', scopes: 'S' };
+  expect(fillToolRow('{toolName}|{loginUrl}|{launchUrl}|{keysUrl}|{deepLinkingUrl}|{ltiHost}|{scopes}|{other}', values)).toBe('T {scopes} $&|L|U|K|D|h:8443|S|{other}');
 });

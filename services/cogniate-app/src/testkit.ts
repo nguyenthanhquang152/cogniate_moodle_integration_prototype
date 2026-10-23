@@ -51,11 +51,11 @@ export interface FakeFault {
 /** In-memory stand-in of the LTI service API (registrations, platforms, deployments, refs) for the app tests. */
 export interface FakeLti {
   client: LtiClient;
-  registrations: Map<string, LtiRegistration & { completed?: boolean }>;
+  registrations: Map<string, FakeRegistration>;
   platforms: Map<string, LtiPlatform>;
   calls: string[];
   /** Make a registration session as GET /lti/register would (operation new or update). */
-  addRegistration(over?: Partial<LtiRegistration>): string;
+  addRegistration(over?: Partial<FakeRegistration>): string;
   failNext: { code: string; status: number; reason?: string } | null;
   /** Launches behind ltiks (GET /api/idtoken). */
   launches: Map<string, LtiIdToken>;
@@ -79,11 +79,18 @@ export interface FakeLti {
   addSharedPlatform(profile: string, clientId: string): LtiPlatform;
 }
 
+/**
+ * A registration of the fake. `stage` models the E2 staged registration (contract delta §4.5): the configuration
+ * breaks I-SELF, so `complete` makes the platform inactive with the request's binding ref and these platform values.
+ */
+export type FakeRegistration = LtiRegistration & { completed?: boolean; stage?: Partial<LtiPlatform> };
+
 /** A full platform answer from a partial one (M1 fields default to the `standard` values). */
 export function ltiPlatform(p: Partial<LtiPlatform> & Pick<LtiPlatform, 'id' | 'url' | 'clientId'>): LtiPlatform {
   const deploymentIds = p.deploymentIds ?? [];
   return {
     name: 'Platform', active: true, productFamilyCode: null, profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null,
+    authenticationEndpoint: null, accesstokenEndpoint: null, authConfig: null, clientAssertionAud: null,
     deployments: p.deployments ?? deploymentIds.map((d) => ({ deploymentId: d, siteUrl: new URL(p.url).origin, active: true, bindingGeneration: 0, bindingRef: null })),
     ...p, deploymentIds,
   };
@@ -135,7 +142,7 @@ export function launchToken(o: {
 }
 
 export function fakeLti(): FakeLti {
-  const registrations = new Map<string, LtiRegistration & { completed?: boolean }>();
+  const registrations = new Map<string, FakeRegistration>();
   const platforms = new Map<string, LtiPlatform>();
   const providers = fakeProviders();
   const faults: FakeFault[] = [];
@@ -186,10 +193,15 @@ export function fakeLti(): FakeLti {
       if (r.completed) throw new LtiServiceError(409, 'REGISTRATION_ALREADY_COMPLETED', '');
       // The app never sends updatePlatformId (security §2.5), so the LTI service refuses every update.
       if (r.operation === 'update') throw new LtiServiceError(409, 'REGISTRATION_UPDATE_NOT_ALLOWED', '');
+      if (r.stage && body.bindingRef === undefined) throw new LtiServiceError(400, 'INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).');
       r.completed = true;
       const id2 = `plt_${++seq}`;
-      platforms.set(id2, ltiPlatform({ id: id2, url: r.url, clientId: `client-${seq}`, name: body.platformName, active: true, deploymentIds: [String(seq)], productFamilyCode: 'moodle' }));
-      return { platformId: id2, html: '<script>close</script>' };
+      const staged = r.stage !== undefined;
+      platforms.set(id2, ltiPlatform({
+        id: id2, url: r.url, clientId: `client-${seq}`, name: body.platformName, active: !staged, deploymentIds: [String(seq)], productFamilyCode: 'moodle',
+        profile: body.profile ?? 'standard', bindingRef: staged ? body.bindingRef! : null, ...(r.stage ?? {}),
+      }));
+      return { platformId: id2, html: '<script>close</script>', active: !staged };
     },
     async createPlatform(body) {
       calls.push(`POST platform ${JSON.stringify(body)}`); failIfAsked();
@@ -235,6 +247,21 @@ export function fakeLti(): FakeLti {
           id, url, clientId: body.clientId, name: body.name, active: body.active, profile: body.profile, siteUrl: body.siteUrl, serviceUrl: body.serviceUrl ?? body.siteUrl,
           bindingRef: body.bindingRef, deploymentIds: body.deploymentIds,
           deployments: body.deploymentIds.map((d) => ({ deploymentId: d, siteUrl: body.siteUrl, active: true, bindingGeneration: 0, bindingRef: null })),
+        });
+        platforms.set(id, p);
+        return clone(p);
+      });
+    },
+    async createAdminProfilePlatform(body) {
+      calls.push(`POST platform ${JSON.stringify(body)}`);
+      return guarded('POST platform', () => {
+        const prof = providers.find((x) => x.id === body.profile);
+        if (!prof) throw new LtiServiceError(400, 'UNKNOWN_PROFILE', '');
+        if ([...platforms.values()].some((p) => p.url === body.url && p.clientId === body.clientId)) throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', '');
+        const id = `plt_${++seq}`;
+        const p = ltiPlatform({
+          id, url: body.url, clientId: body.clientId, name: body.name, active: body.active, profile: body.profile, bindingRef: body.bindingRef, deploymentIds: body.deploymentIds,
+          authenticationEndpoint: body.authenticationEndpoint, accesstokenEndpoint: body.accesstokenEndpoint, authConfig: body.authConfig, clientAssertionAud: body.clientAssertionAud ?? null,
         });
         platforms.set(id, p);
         return clone(p);

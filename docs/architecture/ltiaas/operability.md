@@ -178,14 +178,20 @@ The app has no `/metrics` today. With E5 it gets `GET /metrics` and `GET /readyz
 | `app_dispatch_sends_total{reporter,outcome}` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) | grade return health (`DispatchFailures`, `PlatformThrottled`) |
 | `app_launch_refusals_total{reason,channel}` | setup problems per channel (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`) |
 | `app_grant_redemptions_total{result}`, `app_grant_compensation_failures_total` | onboarding health |
-| `app_job_runs_total{job,result}`, `app_job_last_success_timestamp_seconds{job}` | `record-dispatch` and `retention` job health (`JobStale`) |
+| `app_job_runs_total{job,result}`, `app_job_last_success_timestamp_seconds{job}` | job health. `JobStale` watches the interval jobs (for example `retention`) only; `record-dispatch` logs one run per row, so an idle outbox has no new success, and `DispatchBacklog` watches the outbox. |
+
+App rules (BD-A2-88; LA-E4-07, lane R):
+
+- Listener: `OPERATOR_HOST` (default `127.0.0.1`) and `OPERATOR_PORT` (default `4210`) in the app process, with the same names and rule as the LTI service. `production` refuses a non-loopback bind (`operator_bind_not_loopback`, the same fixed message). It runs in the web process only.
+- Sources: the dispatch gauges are store queries at scrape time (no pending row = age `0`). `app_dispatch_sends_total` counts at the commit of the recording transaction (`afterCommit`). `app_grant_redemptions_total` is a scrape-time count of ended `binding_attempt` rows, which is a true counter only while no job deletes those rows; a job that deletes them moves this series to a commit observer in the same change. `app_grant_compensation_failures_total` and the job series come from log events. `app_launch_refusals_total` gets one line in the launch page; an unknown channel id becomes `''`, and a reason outside `[a-z][a-z0-9_]{0,63}` becomes `other`.
+- Topology: the send and job series exist only when the web process runs the job runner (`APP_JOB_RUNNER=on`). A standalone worker exposes no listener in LA, so those series are absent, not zero. The store-based series and `DispatchBacklog` work in both topologies.
 
 ### 4.4 Health and readiness
 
 | Endpoint | Where | Answer |
 | --- | --- | --- |
 | `/healthz` | public | liveness; `production`: `{status, service}` only |
-| `/readyz` | public and operator listener | `200` ready, or `503`; the operator answer lists `reasons` (`database`, `migrations`, `key_version_missing`) |
+| `/readyz` | public and operator listener | `200` ready, or `503`; the operator answer lists `reasons` (`database`, `migrations`, `key_version_missing`) The app `/readyz` (operator listener only) checks only the app: the database, the migrations, and the app key provider when it exists. It never checks the LTI service, so an LTI outage does not make the app not ready; the runbooks check both services (BD-A2-88). |
 
 ### 4.5 Service level objectives (recommendation; LA-H8)
 
@@ -216,7 +222,7 @@ Severity: **page** = act now; **ticket** = act within one working day. The pagin
 | `NextKeyWaiting` | a `next` key older than 7 days | ticket | Finish §6.1, or retire the `next` key. |
 | `ApiKeyExpiring`, `OperatorKeyExpiring` | expires within 14 days | ticket | §6.2, §6.4. |
 | `KeyRingNotRewrapped` | `lti_key_provider_sealed_rows` > 0 for a non-active version, 7 days after a key-ring change | ticket | Run the re-wrap (§6.3). |
-| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. Then follow §8a. |
+| `JobStale` | last success older than 3 × the job interval | ticket | Read `job_run` lines of that job. Then follow §8a. Interval jobs only (not the queue job `record-dispatch`; BD-A2-88). |
 | `BackupMissing` | no verified backup within the RPO | page (pilot) | Run §7.2. |
 | `CertificateExpiry` | TLS certificate expires within 21 days | ticket | Renew (dev: `npm run gen-env`; LG: ingress). |
 | `SharedPlatformQuota` | outbound calls to one shared Blackboard platform > 8,000 per 24 h | ticket | Anthology's default limit is 10,000 REST calls per 24 h per application (R2 §9 item 13; whether AGS calls count is UNVERIFIED). Ask for a raise before the limit. |
@@ -361,7 +367,7 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 2 again.
    - `409 JOB_RUNNING`: a run of that job is in progress. Wait one minute, then do step 3.
    - `404 NOT_FOUND`: the job name is wrong. Use a name from step 1.
-3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id`, or `lastResult` in step 1. If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
+3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id` (BD-A2-85: the log line is the source; `GET /operator/v1/jobs` is only the list). If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
    - `ok`: done. `counts` gives the work of the run.
    - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
    - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).

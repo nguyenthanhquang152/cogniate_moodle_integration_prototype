@@ -118,12 +118,20 @@ describe('profile load checks (AC-05 and load check 5)', () => {
   });
 });
 
-it('keeps every frozen provider-list lms value, including the explicit null', () => {
-  expect(listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms])).toEqual([
+const BASELINE_CHANNELS = ['moodle', 'canvas', 'blackboard'];
+
+it('keeps every frozen provider-list lms value, including the explicit null; a new profile shows its channel id', () => {
+  const rows = listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms]);
+  // Open world: the frozen baseline rows keep their values and order; the new profiles may be anywhere after them.
+  const channelOf = new Map(baseline.flatMap((entry) => entry.ltiProfiles!.map((p) => [(p as { id: string }).id, manifestOf(entry).id] as const)));
+  expect(rows.filter(([id]) => BASELINE_CHANNELS.includes(channelOf.get(id!)!))).toEqual([
     ['standard', null],
     ['canvas-cloud-production', 'canvas'], ['canvas-cloud-beta', 'canvas'], ['canvas-cloud-test', 'canvas'], ['canvas-self-hosted', 'canvas'],
-    ['blackboard', 'blackboard'], ['lti-generic', 'lti-generic'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
+    ['blackboard', 'blackboard'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
   ]);
+  const added = rows.filter(([id]) => !BASELINE_CHANNELS.includes(channelOf.get(id!)!));
+  expect(added).toContainEqual(['lti-generic', 'lti-generic']);
+  for (const [id, lms] of added) expect(lms, id!).toBe(channelOf.get(id!));
 });
 
 describe('new profile listOrder', () => {
@@ -138,19 +146,32 @@ describe('new profile listOrder', () => {
   it('orders new real profiles after the baseline, by listOrder and id, before every simulation', () => {
     const a = extraChannel('aa');
     const z = extraChannel('zz');
+    // A normal channel with a simulation profile, and a simulation-only channel (open world, N10).
     const simulation = extraChannel('xx');
     firstProfile(simulation).simulation = true;
-    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, a]);
-    expect(listProfiles({ registry, simulation: true }).map((p) => p.id)).toEqual([
-      'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
-      'lti-generic', 'aa-platform', 'zz-platform', 'blackboard-sim', 'canvas-sim-cloud', 'xx-platform',
-    ]);
+    const simulationOnly = extraChannel('yy');
+    (simulationOnly.manifest as { availability: string }).availability = 'simulation-only';
+    Object.assign(firstProfile(simulationOnly), { simulation: true, listOrder: 90 });
+    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, simulationOnly, a]);
+    const list = listProfiles({ registry, simulation: true });
+    const ids = list.map((p) => p.id);
+    // Open world: the product root may hold more new channels; the rule is checked, not a written-out list.
+    expect(ids.slice(0, 6)).toEqual(['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard']);
+    const added = list.slice(6).filter((p) => !p.simulation);
+    const byListOrder = [...added].sort((x, y) => x.listOrder - y.listOrder || (x.id < y.id ? -1 : 1));
+    expect(added.map((p) => p.id)).toEqual(byListOrder.map((p) => p.id));
+    expect(added.map((p) => p.id)).toEqual(expect.arrayContaining(['lti-generic', 'aa-platform', 'zz-platform']));
+    expect(list.slice(6 + added.length).every((p) => p.simulation)).toBe(true);
+    expect(ids.filter((id) => ['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud', 'yy-platform', 'xx-platform']);
     expect(findProfile('xx-platform', { registry, simulation: false })).toBeNull();
+    expect(findProfile('yy-platform', { registry, simulation: false })).toBeNull();
+    expect(listProfiles({ registry, simulation: false }).map((p) => p.id)).not.toContain('yy-platform');
   });
 
   it('derives the boundary from loaded baseline data', () => {
-    // LA-E2-03: a loaded new channel (lti-generic) is not baseline data; leave it out so the raised boundary checks zz.
-    const entries = baselineCopy().filter((entry) => manifestOf(entry).id !== 'lti-generic');
+    // A loaded new channel (lti-generic, ...) is not baseline data; keep only the baseline channels, so the raised
+    // boundary checks zz.
+    const entries = baselineCopy().filter((entry) => BASELINE_CHANNELS.includes(manifestOf(entry).id));
     firstProfile(standardEntry(entries)).listOrder = 200;
     const extra = extraChannel('zz');
     firstProfile(extra).listOrder = 200;

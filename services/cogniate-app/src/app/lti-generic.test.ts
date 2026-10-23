@@ -23,14 +23,17 @@ async function signedIn() {
 it('the provider list gives lti-generic after the three baseline entries, with its name, methods and profile', async () => {
   const { call } = await signedIn();
   const list = (await call('GET', '/app-api/lms-providers')).json().lms as Json[];
-  expect(list.map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
-  expect(list[3]).toMatchObject({
+  // Open world: other new channels may follow the baseline too.
+  expect(list.slice(0, 3).map((e) => e.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+  const generic = list.find((e) => e.lms === 'lti-generic');
+  expect(list.indexOf(generic!)).toBeGreaterThan(2);
+  expect(generic).toMatchObject({
     lms: 'lti-generic', channel: 'lti-generic', label: 'Other LTI 1.3 platform', channelName: 'your LMS', family: 'lti13', methods: ['dynamic', 'manual'],
     capabilities: { dynamicRegistration: true, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: false },
     registration: [{ method: 'dynamic', authority: 'self', profiles: ['lti-generic'] }, { method: 'manual', authority: 'operatorGrant', profiles: ['lti-generic'] }],
     profiles: [{ id: 'lti-generic', label: 'Other LTI 1.3 platform', simulation: false, ready: true, clientId: null }],
   });
-  expect(list[3]!.channelCapabilities['registration.scopes']).toEqual(AGS);
+  expect(generic!.channelCapabilities['registration.scopes']).toEqual(AGS);
 });
 
 it('a manual or dynamic create passes site rules 1–4 and stores the channel, its profile and the method authority', async () => {
@@ -66,8 +69,9 @@ it('the tool configuration gives the eight generic rows; the strict body refuses
   const refused = async (b: Json) => { const r = await put(b); return [r.statusCode, r.json().details.message, r.json().details.fields, r.json().details.description]; };
   expect(await refused({ ...body, extra: 'x' })).toEqual([422, 'INVALID_PLATFORM_VALUES', ['extra'], 'Some values are missing or not valid.']);
   expect(await refused({ ...body, jwksUrl: undefined })).toEqual([422, 'INVALID_PLATFORM_VALUES', ['jwksUrl'], 'Some values are missing or not valid.']);
+  // B-LA-E2-03-03: the issuer has its own sentence; the token URL on another host is allowed.
   expect(await refused({ ...body, issuer: 'https://other.school.edu/sakai' }))
-    .toEqual([422, 'INVALID_PLATFORM_VALUES', ['issuer'], 'The URLs must be https and on the your LMS site of this connection.']);
+    .toEqual([422, 'INVALID_PLATFORM_VALUES', ['issuer'], 'The issuer must have the same https origin as the site URL of this connection.']);
   expect(t.lti.calls).toEqual(expect.not.arrayContaining([expect.stringMatching(/^POST platform/)]));
   expect(TEST_CHANNELS.appAdapter('lti-generic')).toBeNull();
 });

@@ -1,0 +1,10 @@
+# Review dispatch: Reviewer-B (Codex, same session), two items (lanes K and L)
+
+Item 1: E2-K follow-ups (lane K; merge e82808e): 9d52c24, b01794f, 6776bbd, afaf9ff, a176489 (see LA-E2-03 and A1 BD-A1-94/95; rule N10 in README §4). Lens B: is the N10 open-world test style clear enough for the next team; is the toolRows schema easy to use. Write docs/reviews/LA-E2-03/reviewer-b.md section '## Follow-ups (E2-K)'.
+Item 2: LA-E2-04: nothing (fix round running). Instead: LA-E2-02 round 3 check of lane L's fix round 2, Reviewer-B part: your round-2 MAJOR (explicit update reactivates a disabled platform; A1 BD-A1-93, LA-IC-21) is fixed in f8fa4ff (merge 678eb72). Add '## Round 3' to docs/reviews/LA-E2-02/reviewer-b.md.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.

@@ -12,7 +12,7 @@ Status: v1 (A1, milestone LA P2, 2026-10-22); P4 build ratification BD-A1-04 in 
 | Cogniate app | `017_record_dispatch_pause.sql` | E4 (LA-E4-03, lane R, fix round 2) | A1 (BD-A1-71) | partial index `record_dispatch_pause` on `record_dispatch (partition_key, not_before) WHERE not_before IS NOT NULL` (the `429` partition pause, LA-ADR-03 D7); `016` stays reserved for LA-E6-02 |
 | Cogniate app | `016_connection_health.sql` (first E6 file; number: the Lead, in landing order) | E6 (Could), LA-E6-02 (P, B3) | shape A2 ([LA-ADR-08 D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
 | Cogniate app | second E6 file, `admin_launch_code` (number: the Lead, in landing order; plan LD-12) | E6 (Could), LA-E6-03 (K, B4) | shape A2 ([LA-ADR-08 D3](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `admin_launch_code` |
-| Cogniate app | E3 migration (number: P3) | E3 Must (multi-select) | A1 (table), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
+| Cogniate app | `018_picker_pick.sql` | E3 Must (multi-select) | A1 (table; number BD-A1-98), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
 | LTI service | `005_…` and later (numbers: the Lead, §4.1) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
 
 Each file keeps one epic. Migrations of different lanes must not depend on each other. File name form: `NNN_<content>.sql` (three digits), so the name order is the number order.
@@ -284,7 +284,7 @@ CREATE TABLE admin_launch_code (                      -- verified admin launch (
 
 ## 5b. Cogniate app: picker picks (E3)
 
-Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) returns up to 20 publications from one picker session, but `picker_session.publication_id` holds one (`services/cogniate-app/src/domain/migrations/004_launch.sql:37`). One additive table keeps every pick (Reviewer-A A-LAD-10):
+Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) returns up to 20 publications from one picker session, but `picker_session.publication_id` holds one (`services/cogniate-app/src/domain/migrations/004_launch.sql:37`). One additive table keeps every pick (Reviewer-A A-LAD-10). App migration `018_picker_pick.sql` adds it (BD-A1-98, Lead RQ-5 call; `016` stays reserved for LA-E6-02; `017` is `record_dispatch_pause`):
 
 ```sql
 CREATE TABLE picker_pick (
@@ -299,7 +299,7 @@ CREATE TABLE picker_pick (
 | --- | --- |
 | Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). |
 | Stats | `stats.activities` counts picks from `picker_pick` that no launch has matched yet (today it counts one per session, base data model §2.1). |
-| Retention | A picker session with an unmatched pick stays (the base retention exception), now read from `picker_pick`. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
+| Retention | An expired picker session (`expires_at` more than 24 h ago) stays if one of these two is true (BD-A1-98; the built rule in `domain/retention.ts`): (a) the base exception: the session is used, has a `publication_id` and has no `resource_link_id` yet; (b) the session has a `picker_pick` row with `resource_link_id` `NULL` (an unmatched pick of a multi-select). All other expired sessions are deleted. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
 
 ## 6. State machines
 

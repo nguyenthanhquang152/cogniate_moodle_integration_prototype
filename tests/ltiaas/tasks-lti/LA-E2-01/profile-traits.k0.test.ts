@@ -117,7 +117,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     expect(standard?.dynamicRegistration).toEqual({
       issuerRule: 'path-prefix',
       configurationPath: '/mod/lti/openid-configuration.php',
-      registrationToken: 'moodle-scope-jwt',
+      registrationToken: 'scope-jwt',
     });
 
     // 2. Canvas cloud profiles + canvas-sim-cloud
@@ -138,6 +138,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
         form: 'string',
       });
       expect(def?.assertionDeploymentId, `${id}.assertionDeploymentId`).toBe(false);
+      expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
     }
 
     // 3. canvas-self-hosted
@@ -151,6 +152,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       form: 'string',
     });
     expect(canvasSelfHosted?.assertionDeploymentId).toBe(false);
+    expect(canvasSelfHosted?.dynamicRegistration ?? null).toBeNull();
 
     // 4. Blackboard + blackboard-sim
     for (const id of ['blackboard', 'blackboard-sim']) {
@@ -164,16 +166,19 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
         form: 'array',
       });
       expect(def?.assertionDeploymentId, `${id}.assertionDeploymentId`).toBe(false);
+      expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
     }
   });
 
-  it('Static check: platform-rules.ts, token-client.ts, platforms route/store and E2 migration implement I-SELF and traits without profile-id branches', () => {
+  it('Static check: platform-rules.ts, token-client.ts, ags.ts, platforms route/store and E2 migration implement I-SELF, BD-A2-83, BD-A2-84 and traits without profile-id branches', () => {
     const rulesSrc = readRepoFile('services/lti-service/src/lti/platform-rules.ts');
     const tokenClientSrc = readRepoFile('services/lti-service/src/platform/token-client.ts');
+    const agsSrc = readRepoFile('services/lti-service/src/platform/ags.ts');
     const platformsRouteSrc = readRepoFile('services/lti-service/src/http/routes/platforms.ts');
     const platformsStoreSrc = readRepoFile('services/lti-service/src/store/platforms.ts');
+    const kernelProfilesSrc = readRepoFile('packages/channel-kernel/src/profiles.ts');
 
-    // platform-rules.ts uses endpointOrigins trait ('issuer' | 'any-https') and checks I-SELF
+    // platform-rules.ts uses endpointOrigins trait ('issuer' | 'any-https') and checks I-SELF + BD-A2-84
     expect(rulesSrc.includes('endpointOrigins'), 'platform-rules.ts reads endpointOrigins trait').toBe(true);
     expect(rulesSrc.includes('any-https'), 'platform-rules.ts handles any-https trait').toBe(true);
     expect(
@@ -182,7 +187,13 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     ).toBe(true);
     expect(
       rulesSrc.includes('PLATFORM_URL_NOT_IN_PROFILE'),
-      'platform-rules.ts refuses fixed/issuer hosts of loaded profiles with PLATFORM_URL_NOT_IN_PROFILE',
+      'platform-rules.ts refuses fixed/issuer hosts of loaded profiles with PLATFORM_URL_NOT_IN_PROFILE (including audience rule 2 on staged creates, BD-A2-84)',
+    ).toBe(true);
+
+    // load check 7 in packages/channel-kernel/src/profiles.ts refuses {platformValue} on fixed endpoints
+    expect(
+      kernelProfilesSrc.includes('{platformValue}'),
+      'packages/channel-kernel/src/profiles.ts checks {platformValue} in load check 7',
     ).toBe(true);
 
     // token-client.ts uses clientAssertionAud, assertionDeploymentId, and grantedScopes
@@ -197,6 +208,16 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     expect(
       tokenClientSrc.includes('grantedScopes') || tokenClientSrc.includes('granted_scopes'),
       'token-client.ts filters requested scopes by grantedScopes when set',
+    ).toBe(true);
+
+    // BD-A2-83: ags.ts checks launch claim AND platform grantedScopes in needScope and preflightCreateLineItem before idempotency claim
+    expect(
+      agsSrc.includes('preflightCreateLineItem') && agsSrc.includes('grantedScopes'),
+      'ags.ts checks grantedScopes in needScope and preflightCreateLineItem before idempotency claim (BD-A2-83)',
+    ).toBe(true);
+    expect(
+      agsSrc.includes('The platform did not grant the scope for this call.'),
+      'ags.ts uses fixed grant-refusal message for missing platform grantedScopes (BD-A2-83)',
     ).toBe(true);
 
     // platforms route and store support clientAssertionAud and grantedScopes
@@ -231,6 +252,9 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       'services/lti-service/src/http/validation.ts',
       'services/lti-service/src/store/platforms.ts',
       'services/lti-service/src/platform/token-client.ts',
+      'services/lti-service/src/platform/ags.ts',
+      'services/lti-service/src/profiles/schema.ts',
+      'packages/channel-kernel/src/profiles.ts',
       mig!.relPath,
     ];
 
@@ -246,10 +270,12 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     }
   });
 
-  it('AC-LA-E2-01-02, 04, 05, 06, 07, 09 (UNIT): load check 7, I-SELF active/staged rules, refused hosts, clientAssertionAud/deployment_id, granted_scopes and migration unit tests pass', () => {
+  it('AC-LA-E2-01-02, 04, 05, 06, 07, 09 + BD-A2-83, BD-A2-84 (UNIT): load check 7, I-SELF active/staged rules, reserved-host audience on staged create, grantedScopes before idempotency claim, clientAssertionAud/deployment_id, and migration unit tests pass', () => {
     const mig = findPlatformE2Migration();
     expect(Boolean(mig), 'E2 platform migration must exist before running unit suite').toBe(true);
 
+    fs.rmSync(path.join(TARGET_ROOT, 'node_modules/.vitest-cache'), { recursive: true, force: true });
+    fs.rmSync(path.join(TARGET_ROOT, 'node_modules/.vite'), { recursive: true, force: true });
     const unitRes = spawnSync(
       'npx',
       [

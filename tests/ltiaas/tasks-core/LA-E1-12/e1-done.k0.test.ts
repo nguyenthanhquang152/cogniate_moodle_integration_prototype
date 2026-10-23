@@ -166,12 +166,16 @@ describe('LA-E1-12 F1 ratchet at zero, F2 report mode and E1 fitness verificatio
   });
 
   it('AC-LA-E1-12-05: commit message names the E1-done SHA (or LA_E1_DONE_SHA is set) and F2 against it lists 0 core paths for a scratch channel packages/channels/zz-probe/**', async () => {
-    // 1. Check that the recent commit log or LA_E1_DONE_SHA identifies the E1-done SHA, and resolve the base ref.
-    const logText = git(['log', '-n', '5', '--format=%H %s%n%b']);
+    // 1. Check that the commit log (e.g. 7cbb898) and/or LA_E1_DONE_SHA identifies the E1-done SHA, and resolve the base ref.
+    const e1CommitLog = git(['log', '--grep=E1-done SHA', '-n', '1', '--format=%H %s%n%b']);
+    const recentLog = git(['log', '-n', '5', '--format=%H %s%n%b']);
     const envSha = process.env.LA_E1_DONE_SHA;
-    const shaMatch = /\b([0-9a-f]{7,40})\b/i.exec(envSha ?? logText);
-    expect(shaMatch !== null, 'E1-done SHA is present in git log or LA_E1_DONE_SHA').toBe(true);
     const baseSha = git(['rev-parse', envSha ?? 'HEAD']);
+    if (e1CommitLog) {
+      expect(e1CommitLog, 'LA-E1-12 commit message names the E1-done SHA').toContain(baseSha.slice(0, 7));
+    } else {
+      expect(/\b([0-9a-f]{7,40})\b/i.exec(envSha ?? recentLog)).not.toBeNull();
+    }
 
     // 2. Test F2 with --paths-from for a pure channel addition `packages/channels/zz-probe/**` (0 core paths -> exit 0).
     const purePathsFile = path.join(runDir, 'e1-12-ac05-zz-probe-pure.txt');
@@ -191,11 +195,32 @@ describe('LA-E1-12 F1 ratchet at zero, F2 report mode and E1 fitness verificatio
     expect(pureF2.code, `F2 pure channel addition exits 0:\n${pureF2.output}`).toBe(0);
     expect(pureF2.output, 'F2 reports core = 0').toMatch(/core\s*=\s*0/);
 
-    // 3. Test F2 against `--base <baseSha> --channel zz-probe` on the clean tree (0 core paths -> exit 0).
-    const baseF2 = await channelDiff(['--base', baseSha, '--channel', 'zz-probe']);
-    artifact('e1-12-ac05-f2-base.log', baseF2.output);
-    expect(baseF2.code, `F2 --base ${baseSha} --channel zz-probe exits 0:\n${baseF2.output}`).toBe(0);
-    expect(baseF2.output, 'F2 --base reports core = 0').toMatch(/core\s*=\s*0/);
+    // 3. Test F2 against `--base <baseSha> --channel zz-probe` on a scratch branch rooted at <baseSha> that adds only packages/channels/zz-probe/**.
+    const wtDir = path.join(runDir, 'zz-f2-base-wt');
+    git(['worktree', 'add', '--detach', wtDir, baseSha]);
+    try {
+      const probeDir = path.join(wtDir, 'packages/channels/zz-probe');
+      fs.mkdirSync(probeDir, { recursive: true });
+      fs.writeFileSync(path.join(probeDir, 'manifest.json'), '{"id":"zz-probe"}\n');
+      git(['add', 'packages/channels/zz-probe/manifest.json'], wtDir);
+      git(
+        ['-c', 'user.name=QA-3', '-c', 'user.email=qa3@test.local', 'commit', '--quiet', '-m', 'zz-probe scratch channel on E1-done base'],
+        wtDir,
+      );
+      const baseF2 = await run(
+        process.execPath,
+        [path.join(wtDir, 'infra/scripts/fitness/channel-diff.mjs'), '--base', baseSha, '--channel', 'zz-probe'],
+        { cwd: wtDir },
+      );
+      artifact('e1-12-ac05-f2-base.log', baseF2.output);
+      expect(baseF2.code, `F2 --base ${baseSha} --channel zz-probe exits 0:\n${baseF2.output}`).toBe(0);
+      expect(baseF2.output, 'F2 --base reports core = 0').toMatch(/core\s*=\s*0/);
+      expect(baseF2.output, 'F2 --base classifies packages/channels/zz-probe/manifest.json as channel:zz-probe').toContain(
+        'channel:zz-probe\tpackages/channels/zz-probe/manifest.json',
+      );
+    } finally {
+      git(['worktree', 'remove', '--force', wtDir]);
+    }
 
     // 4. Negative check: if a core file is also touched alongside packages/channels/zz-probe/**, F2 fails (core > 0, exit 1).
     const leakyPathsFile = path.join(runDir, 'e1-12-ac05-zz-probe-leaky.txt');

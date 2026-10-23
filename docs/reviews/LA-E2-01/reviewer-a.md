@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 3
 
 # LA-E2-01 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -73,3 +73,100 @@ Round: 1
 ### Verdict
 
 APPROVE for lens A: I found no BLOCKER or MAJOR. This verdict does not close B-LA-E2-01-01 / BD-A1-82. That finding stays open for the lane L fix round, and probe P5 confirms it. A-LA-E2-01-01 is a design question for A1/A2. A-LA-E2-01-02 can land with LA-E2-02, the task that first sets `granted_scopes`.
+
+## Round 2
+
+- Reviewer: Claude Code Opus 5.5 xhigh (the same session as round 1).
+- Diff: `git show d6a0b82` (lane L, fix round 1), merged by `3b3dadf`. It changes `http/routes/platforms.ts`, `lti/platform-rules.ts` and `http/routes/platforms.test.ts`. All three files are on the may-edit list.
+- References: A1 BD-A1-82 (LA-ADR-02 D2a "Audience check at create"); A2 BD-A2-83 and BD-A2-84 (build-decisions-A2.md:474-475). A2 ruled these on my round 1 findings A-LA-E2-01-02 and A-LA-E2-01-01. Their task notes in `tasks/LA-E2-01.md` and `tasks/LA-E2-02.md` were not yet committed in the worktree when I reviewed.
+- I ran these in the private clone at `3b3dadf` (no Docker, no stack):
+  - Vitest on `services/lti-service` and `packages/channel-kernel`: 98 files, 1303 tests pass.
+  - `npm run test:k0`: 134 tests pass.
+  - F1 PASS (0 hits); `npm run typecheck`: exit 0.
+  - ESLint on the product packages: clean. The only lint errors were in my own probe file.
+  - A probe matrix on `POST /api/platforms` (below).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 2): 0 BLOCKER, 0 MAJOR, 3 MINOR, 2 NIT.** The fix round did not target my round 1 MINORs and NITs. BD-A2-83 and BD-A2-84 now rule the work for A-01 and A-02.
+
+### BD-A1-82 (Reviewer-B B-LA-E2-01-01): closed
+
+- The fix: `checkActiveAudience` (`lti/platform-rules.ts`) now runs in `planAdmin` for every admin profile, after the endpoint rules of either branch. The `any-https` rule 7 no longer checks the audience, so there is one rule for both branches. `staged` is computed once, as `active === false` with a `bindingRef`.
+- Probe matrix. I tested two test profiles: `{platformValue}` with `endpointOrigins` `issuer`, and `{platformValue}` with `any-https`. Both give the same results:
+
+| Create | Result |
+| --- | --- |
+| Active (absent, `true`) with a foreign audience | `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`, field `clientAssertionAud` |
+| `active: false` without a `bindingRef`, foreign audience | `400` (not a staged create) |
+| Audience equal to `accesstokenEndpoint` | `201`, value stored |
+| Audience = the token URL with an explicit `:443` | `400`. BD-A1-82 says "equal", so string equality is the strict and correct reading. |
+| Audience absent | `201`, `null` |
+| Staged (`active: false` + `bindingRef`) with a foreign audience | `201` (the staged exception) |
+
+- The committed test (`platforms.test.ts`, "the active-admin audience rule for every admin profile") builds the profiles from data. It covers `endpointOrigins` omitted and `issuer`. It fails on the round 1 code: probe P5 of round 1 gave `201`.
+- Dynamic Registration keeps the same invariant on its own path. At `complete`, `staged = !endpointsOnIssuerOrigin({ …config, authorizationServer: platformAud })`. So an active DR platform has its audience absent or equal to the token URL (LA-E2-02).
+- I found no other write path for the audience. `PATCH /api/platforms/:id` cannot set it. `applyRegistrationUpdate` writes it only from the checked DR configuration (LA-E2-02 BD-A1-89). A fixed profile drops it (A-04).
+
+### Round 1 findings
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E2-01-01 (MINOR): staged audience on a reserved host | **Open**, ruled | Probe at `3b3dadf`: a staged create with `clientAssertionAud` = `https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken` gives `201` for both test profiles. A2 BD-A2-84: rule 2 applies to the audience in every create, also a staged one. Work: lane L (the next LA-E2-01 change or LA-E2-02), with the Dynamic Registration twin (A-LA-E2-02-08). |
+| A-LA-E2-01-02 (MINOR): granted-scope check after the scope choice and after the claim | **Open**, ruled | `platform/ags.ts` and `platform/token-client.ts` have no change for it. A2 BD-A2-83: `needScope` and the preflight check the launch claim **and** `grantedScopes`, before the idempotency claim; the token-client filter stays as a backstop. No live effect until a DR platform stores `granted_scopes` (LA-E2-02 now does). |
+| A-LA-E2-01-03 (MINOR): AC-09 has no test of the API answer for an old row | **Open** | `store/platforms.test.ts` has no change. |
+| A-LA-E2-01-04 (NIT): `{platformValue}` is allowed on a fixed profile | **Open** | `profiles/schema.ts` has no change. It still fails closed. |
+| A-LA-E2-01-05 (NIT): `lti/idtoken.test.ts` ownership | **Open** (Lead record) | No code change needed. |
+
+### Verdict (round 2)
+
+APPROVE for lens A. The MAJOR audience gap (BD-A1-82) is closed and has a test that would fail on the old code. The open items are MINOR and NIT, and A2 has ruled the two MINORs that need code (BD-A2-83, BD-A2-84). Under charter-LA §5, they go to `deferred.md`, or to the lane L change that implements the A2 rulings.
+
+## Round 3
+
+- Reviewer: Claude Code Opus 5.5 xhigh (the same session as rounds 1 and 2).
+- Diff, merged by `678eb72`:
+  - `git show 2c92e3f` (A2 BD-A2-83);
+  - the LA-E2-01 part of `git show 4dfd87d` (A2 BD-A2-84);
+  - `git show 6e2a289` (AC-09 answer test; load check 7).
+- I ran these in the private clone at `678eb72` (no Docker, no stack):
+  - Vitest on `services/lti-service` and `packages/channel-kernel`: 98 files, 1313 tests pass.
+  - `npm run test:k0`: 134 tests pass.
+  - F1 PASS; `npm run typecheck`: exit 0; ESLint on the product packages: clean.
+  - My round 2 probe matrix on `POST /api/platforms`, extended with nine audience cases (below).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (open after round 3): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round 1 findings
+
+| Finding | Status | Evidence at `678eb72` |
+| --- | --- | --- |
+| A-LA-E2-01-01 (MINOR): staged audience on a reserved host | **Closed** (BD-A2-84) | `checkAudienceHost` (`lti/platform-rules.ts`) applies rule 2 to `clientAssertionAud`: https, site rules 2 and 3, not a reserved host. It runs on every create, before the staged return. On the `any-https` branch it runs right after the endpoints; on the issuer-origin branch it runs for a `{platformValue}` profile. The probe results are below. The BD-A1-82 matrix of round 2 does not change: an active foreign audience is still refused, and a staged audience on a host of no profile is still allowed. |
+| A-LA-E2-01-02 (MINOR): granted-scope check after the scope choice and after the claim | **Closed** (BD-A2-83) | `needScope` (`platform/ags.ts`) takes the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). It refuses `403 SERVICE_NOT_AVAILABLE`, and the text says whether the claim or the grant is missing. `preflightCreateLineItem` uses it, so a grant refusal comes before the LA-E5-16 claim. Committed tests: (1) a read with both line-item scopes in the claim and only `lineitem` granted asks for `lineitem`; (2) the preflight refuses an ungranted `lineitem` with the grant text; (3) a `POST /api/lineitems` with an `Idempotency-Key` that the grant refuses makes no outbound call and runs again after a new grant, so nothing was stored. With `grantedScopes` `NULL` (every M1 platform), the scope choice and the claim refusal text do not change. NRPS has one scope and no idempotency; the token-client backstop still refuses it with no outbound request. |
+| A-LA-E2-01-03 (MINOR): AC-09 answer test | **Closed** | `platforms.test.ts`, "the platform answer of a row from before LTI migration 020". It builds a database with the migrations before `020`, inserts an old row, opens it with every migration, and reads `GET /api/platforms/:id`. Every old field keeps its value, the two new fields are `null`, and the key set is exactly the old keys plus those two. |
+| A-LA-E2-01-04 (NIT): `{platformValue}` on a fixed profile | **Closed** | Load check 7 refuses `clientAssertionAud.value '{platformValue}'` with `endpoints: fixed` (`profiles/schema.ts`). There is a test case in `traits.test.ts`. The `brightspace` and `lti-generic` profiles are `endpoints: admin`, so they are not affected. |
+| A-LA-E2-01-05 (NIT): `lti/idtoken.test.ts` ownership | **Closed** (Lead record) | No code change. |
+
+### Audience probes (BD-A2-84)
+
+I ran each case on both test profiles (`{platformValue}` with `issuer`, and with `any-https`), in a staged create (`active: false` + `bindingRef`):
+
+| `clientAssertionAud` | Answer |
+| --- | --- |
+| `https://developer.blackboard.com/…/jwttoken` (fixed host) | `400 PLATFORM_URL_NOT_IN_PROFILE`, reserved host |
+| `https://SSO.CanvasLMS.com:8443/…` (capitals, port) | `400`, reserved host |
+| `https://canvas.instructure.com/x` (fixed issuer host) | `400`, reserved host |
+| `https://sso.canvaslms.com./t` (trailing dot) | `400`, site rule 2 |
+| `https://lti.cogniate.test/t` (own host) | `400`, site rule 3 |
+| `https://10.0.0.5/t` (IP literal) | `400`, site rule 2 |
+| `urn:example:aud`, `http://…` | `400 INVALID_REQUEST`, "must be an https URL" |
+| `https://api.brightspace.com/auth/token` (no profile's host) | `201` (allowed when staged; the grant binds it) |
+
+L's note: a non-URL audience is now refused. This follows BD-A2-84 (rule 2 includes https). The Brightspace audience and a DR `authorization_server` are https URLs, so I see no loss.
+
+### Other checks
+
+- `2c92e3f` edits `platform/ags.ts`, `platform.test.ts` and `compat.test.ts`. These are lane L files outside this task's may-edit list, but BD-A2-83 names `needScope` and the preflight, so the ruling covers the edit.
+- No LMS name was added to a core path (F1 PASS).
+
+### Verdict (round 3)
+
+APPROVE for lens A. Every lens A finding of rounds 1 to 3 is closed, and each code finding has a committed test that fails on the old code. The K1-SIM and MOODLE-LIVE rows stay with QA.
