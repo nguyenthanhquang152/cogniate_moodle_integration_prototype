@@ -59,7 +59,8 @@ describe('startLtiService (main.ts)', () => {
     for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
     const { logger, lines } = capturingLogger();
     await expect(startLtiService({ logger })).rejects.toBeInstanceOf(ConfigRefusedError);
-    expect(lines).toEqual([expect.objectContaining({ level: 'error', event: 'config_refused', reason: 'test_knob_active' })]);
+    const message = 'Production does not allow test knobs. Remove every test knob setting, then start the service again.';
+    expect(lines).toEqual([expect.objectContaining({ level: 'error', event: 'config_refused', reason: 'test_knob_active', message })]);
     expect(existsSync(join(dir, 'lti.db'))).toBe(false);
     vi.unstubAllEnvs();
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('./main.ts', import.meta.url))], {
@@ -68,7 +69,7 @@ describe('startLtiService (main.ts)', () => {
     expect([result.status, result.stderr]).toEqual([1, '']);
     const out = result.stdout.trim().split('\n');
     expect(out).toHaveLength(1);
-    expect(JSON.parse(out[0]!)).toMatchObject({ level: 'error', service: 'lti-service', event: 'config_refused', reason: 'test_knob_active' });
+    expect(JSON.parse(out[0]!)).toMatchObject({ level: 'error', service: 'lti-service', event: 'config_refused', reason: 'test_knob_active', message });
     expect(result.stdout).not.toContain(LEGACY);
   });
 

@@ -38,7 +38,9 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   try { config = loadConfig(); }
   catch (err) {
     // LA-ADR-06 D12: one config_refused line before any file or port is opened. The entry point exits with code 1.
-    if (err instanceof ConfigRefusedError) sink.error('config_refused', { reason: err.reason });
+    if (err instanceof ConfigRefusedError) {
+      sink.error('config_refused', { reason: err.reason, message: err.message, ...(err.setting ? { setting: err.setting } : {}) });
+    }
     throw err;
   }
   const db = openDb(join(config.dataDir, 'lti.db'));

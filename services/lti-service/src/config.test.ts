@@ -66,6 +66,21 @@ describe('production profile refusals (LA-E5-21, LA-ADR-06 D12)', () => {
     }
   });
 
+  // BD-A2-79: one row per refusal with the exact A2 text; the message never holds a setting value.
+  it.each([
+    ['test_knob_active', { LTIK_TTL_SECONDS: '20' }, 'Production does not allow test knobs. Remove every test knob setting, then start the service again.'],
+    ['simulation_on', { LTI_PROVIDER_SIMULATION: 'on' }, 'Production does not allow simulation profiles. Remove LTI_PROVIDER_SIMULATION or set it to off, then start the service again.'],
+    ['private_host_allowlist', { OUTBOUND_PRIVATE_HOST_ALLOWLIST: 'private-host.test' }, 'Production does not allow private outbound hosts. Remove OUTBOUND_PRIVATE_HOST_ALLOWLIST, then start the service again.'],
+    ['master_key_in_env', { LTI_MASTER_KEY: 'ab'.repeat(32) }, 'Production does not allow the master key as an environment value. Remove LTI_MASTER_KEY and use LTI_MASTER_KEY_FILE or the key-ring file.'],
+    ['no_trusted_proxy', { TRUSTED_PROXY_CIDRS: '' }, 'Production needs TRUSTED_PROXY_CIDRS. Set it to the address or host name of the proxy, then start the service again.'],
+    ['operator_bind_not_loopback', { OPERATOR_HOST: '10.9.8.7' }, 'Production allows the operator listener on loopback only. Set OPERATOR_HOST to 127.0.0.1 or ::1, then start the service again.'],
+  ])('gives %s with its fixed message', (expected, change, message) => {
+    let refused: unknown;
+    try { loadConfig({ ...production(), ...change }); } catch (err) { refused = err; }
+    expect(refused).toMatchObject({ reason: expected, message, setting: undefined });
+    for (const value of Object.values(change)) if (value.length > 3) expect(message).not.toContain(value);
+  });
+
   it('accepts only loopback operator binds', () => {
     for (const host of ['127.0.0.1', '127.0.0.53', '::1', '[::1]', 'localhost', 'LOCALHOST']) expect(isLoopbackHost(host), host).toBe(true);
     for (const host of ['0.0.0.0', '::', '10.0.0.1', '128.0.0.1', 'lti-service', '127.0.0.1.example.test']) expect(isLoopbackHost(host), host).toBe(false);
