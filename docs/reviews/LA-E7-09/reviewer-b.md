@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-09 — Reviewer-B
 
@@ -37,3 +37,45 @@ Reviewer: Codex GPT-6-Astra, Reviewer-B (can a human team own it?), 2026-10-23 U
 - Verification here was read-only: a small Node import/expression probe and artifact inspection. No Docker, stack, browser suite, host runner, package installation, commit or push was executed. No other reviewer's file was opened. Only this Reviewer-B report was written in integration.
 
 **Result:** CHANGES_REQUESTED — 0 BLOCKER, 1 MAJOR, 2 MINOR, 0 NIT. Repair and host-verify B-LA-E7-09-01 before approval; B-02/B-03 can be corrected or deferred under charter §5.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, Reviewer-B, 2026-10-23 UTC. Scope: QA-E2E fix `e8a92d2c`, integrated as `c48b76dcd783346e16e52348bef40c12cb27ad0c`, including WE-F9 discovery isolation. Review started at integration `ff287b2897626832643f85e1902229f124f162be`. This approval covers the host-only repair; the repaired live `M3-07-S8` row remains scheduled for Slot 8b.
+
+### Round 1 disposition
+
+- **B-LA-E7-09-01 — CLOSED.** `scanSlot8Files` uses the real Redactor's public `apply` and `size` interfaces. The new `--selftest` passes in a fresh private clone: three candidates loaded, two planted hits detected across service and Docker logs, then zero hits after cleaning. Restoring the old `.values` access in that private clone makes the same selftest exit 1 with `TypeError: redact.values is not iterable`; the mutation was restored. Collection runs in `finally`, and captured M1 secrets load before the artifact redaction and scan. The QA report now distinguishes the historical failing live run from host verification and the pending live rerun.
+- **B-LA-E7-09-02 — CLOSED.** `--help` names the actual entry point, fixtures and supported defaults. The direct entry applies port `9543` and subnet `172.21.0.0/16` before `createRunner`; the selftest verifies the default values and help text.
+- **B-LA-E7-09-03 — PARTLY RESOLVED; MINOR remains.** All ten saved summary IDs, PASS/FAIL totals and failing IDs now match the saved JSON. The report explains serial skips. The remaining issue is the log mapping below.
+
+### Remaining findings
+
+**B-LA-E7-09-03 — MINOR — Some table rows still point to another run's saved log.**
+
+- **Location:** `docs/reviews/LA-E7-09/qa.md:112` and `:118`.
+- **Problem/evidence:** Rows 4–10 all name `run-slot8-r2-run.log`. Reading the saved log's run ID shows that it contains only `23-10-32-311Z` (row 9). The primary `23-14-54-556Z` run is in `run-slot8-r2-final.log`. Rows 4–8 have valid individual summaries, but the named top-level log does not contain those runs. A reader following the primary row reaches the earlier `collectLogs` failure instead of the `findIn` failure.
+- **Suggested fix:** Point row 10 to `run-slot8-r2-final.log`; for rows 4–8, identify retained per-run artifacts or mark the top-level log as overwritten/unavailable. Keep the now-correct summary IDs and totals.
+
+**B-LA-E7-09-04 — MINOR — The WE-F9 proof documents acceptance selectors and guard guarantees inaccurately.**
+
+- **Location:** `docs/reviews/LA-E7-09/qa.md:162`, `:171` and `:172`; `tests/e2e/ltiaas/run-k2.mjs:122` and `:137`.
+- **Problem/evidence:** The documented `--grep "@T6"` and `--grep "@T5a|@T8"` commands both exit 1 with zero tests on baseline and candidate. The frozen titles do not carry those tags. Setting `QA_TASK=T6` or `QA_TASK=T5a,T8` instead gives the reported 18/6 and 37/14 selections, identical between commits. The harness uses those correct task selectors, but only checks LA exclusion for these acceptance groups; exact count assertions exist only for T7 and M2, despite the report claiming all four. Its success message also says M2 has nine files, while Playwright reports one helper source file (from nine specs).
+- **Suggested fix:** Document the actual `QA_TASK` commands, without the nonexistent tags. Describe the acceptance guard as an exclusion check, or add the claimed count assertions. Make the M2 message distinguish nine specs from the one file in Playwright's listing. The independently verified selections below establish that the discovery repair itself works.
+
+### Independent host verification
+
+Used separate `git clone --no-hardlinks` copies at baseline `1b17261be97c4701b928fa9dc2fa74c6d23028f6` and candidate `c48b76dc`, with each clone's own root and `tests/` dependencies. Cleared inherited `QA_*` selection variables and supplied exact product/test SHAs. Ran Playwright `--list` only, from `tests/`:
+
+| Selection | Baseline and candidate | Complete stdout comparison |
+| --- | --- | --- |
+| T7: default config, `QA_SUITE=e2e` | 18 tests, 6 files | Identical |
+| M2: `e2e/M2/playwright.config.ts` | 64 tests, 1 file | Identical |
+| T6: default config, `QA_SUITE=acceptance QA_TASK=T6` | 18 tests, 6 files | Identical |
+| T5a/T8: default config, `QA_SUITE=acceptance QA_TASK=T5a,T8` | 37 tests, 14 files | Identical |
+| Full acceptance: default config, `QA_SUITE=acceptance` | 171 tests, 66 files | Identical |
+
+Dedicated candidate configs still discover R2-SIM (2), K2 (12), and Slot 8 pass 1/pass 2 (5/1). Renaming the R2 file back to `.spec.ts` in the private clone makes T7 discover 20 tests in 7 files, including both R2 cases; the new exclusion/count guards would reject this old behavior. Restored both private mutations and confirmed no tracked diff in that clone. Outputs are under `/tmp/la-e7-09-b-r2-lists/`.
+
+Read the full fix against the task spec, governing charters, plan §6.1 and ownership rules. Changes stay in QA-E2E-owned files and the assigned QA report; frozen configs/specs and product/core paths are unchanged. There is no UNIT AC in this scope. No Docker command, stack, browser execution, live runner mode, commit or push was used. No other reviewer's file was opened; only this review file was edited in integration.
+
+**Result:** APPROVE — 0 BLOCKER, 0 MAJOR, 2 MINOR, 0 NIT open (B-03 carried, B-04 new). Correct or defer the two documentation items through the Lead under charter §5. This is not completion evidence for the remaining live or full wave-end gates.

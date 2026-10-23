@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-09 Reviewer A (lens: is it right and is it safe?)
 
@@ -61,3 +61,53 @@ The functional live checks prove what they claim for this run, and the files tha
 
 - `SLOT8-QA-E2E/logs/run-slot8-r2-run.log` is 0644, and the clone's `tests/e2e/artifacts/captured-secrets.jsonl` is 0644 (written by the existing e2e helper). Both are inside 0700 folders.
 - The task file allows only "runner glue" in `tests/e2e/ltiaas/**`. The new 903-line spec is a test, not glue. This is an ownership question for Lens B and the Lead.
+
+## Round 2 (slot 8 fixes and WE-F9)
+
+Scope: `git show c48b76dc` (la-qa e8a92d2c). The changed files are `run-slot8-moodle.mjs`, `05-moodle-live-slot8.moodle.ts`, the rename `r2-moodle-sim.spec.ts` → `r2-moodle-sim.r2sim.ts`, `playwright.r2-sim.config.ts`, `run-k2.mjs` and `qa.md` Round 3. I worked in my private clone at c48b76dc, with private worktrees at 1b17261 and b5f68c4b (`npm ci` in `tests/` there only). I did not use Docker or a stack, and I did not open `reviewer-b.md`.
+
+### Summary
+
+All 4 of my Round 1 findings are closed. I verified the WE-F9 claim myself: it is true, and I also proved the leak it fixes. I found 3 new NITs and 0 BLOCKER, MAJOR or MINOR, so the verdict is APPROVE. The live secret-hygiene row is still open until slot 8b runs it.
+
+### Round 1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-09-01 | Closed (code; live proof in slot 8b) | `scanSlot8Files` uses only `redact.apply` and `redact.size`. No `.values` or `findIn` call remains; the only `.values` use is the self-test's check that it is `undefined`. `collectAndScanLogsAndEvidence` runs in a `finally`. It loads all secrets, collects `docker-logs/` and `service-logs/` before the scan, writes `slot8-secret-scan.json` and records `M3-07-S8`. `--selftest` in my clone gives PASS: the planted probe has `ok: false` with 2 hits (`infra/.logs/cogniate-app.jsonl`, `docker-logs/moodle-probe.log`), and the clean probe has `ok: true` with 0 hits. I mutated the code in 3 ways, and each one makes the self-test fail (exit 1): a scan that never counts hits, an artifact redaction that does nothing, and no `m1-secrets.raw.jsonl`. The self-test does not cover the live `finally` wiring. Slot 8b proves that. |
+| A-LA-E7-09-02 | Closed | `loadCapturedSecretsIntoRedactor` reads `m1-secrets.raw.jsonl`. The runner calls it after each Playwright phase and in the `finally` before the logs are collected. In the 10 saved run folders, 0 raw `ref` values remain, and the 5 Moodle logs show `ref=<redacted:43>`. QA changed these held files after the run, and qa.md Round 3 §3 names the 5 folders. `SLOT8-QA-E2E/logs/*.log` are now 0600. |
+| A-LA-E7-09-03 | Closed | The 10-run table matches each `summary.json` (I recounted the PASS/FAIL totals and failing ids for all 10). AC-04 is labelled "picker part". The S8-01 order is `moodle, canvas, blackboard, lti-generic, brightspace`. S8-06 now says only "returns 200". |
+| A-LA-E7-09-04 | Closed | `|origin` is removed (spec:332). The test now asserts closed-or-message (spec:654). |
+
+### WE-F9 check (my own `--list` runs)
+
+| Selection (as the frozen runners use it) | 1b17261 | c48b76dc | Diff lines |
+| --- | --- | --- | --- |
+| T7: `QA_SUITE=e2e`, `tests/playwright.config.ts` | 18 tests in 6 files | 18 tests in 6 files | 0 |
+| M2: `e2e/M2/playwright.config.ts` | 64 tests in 1 file | 64 tests in 1 file | 0 |
+| `QA_SUITE=acceptance QA_TASK=T5a` / `T5b` / `T6` / `T8` | 23/7, 24/12, 18/6, 14/7 | same | 0 each |
+| `QA_TASK=T5a,T8` | 37 tests in 14 files | 37 tests in 14 files | 0 |
+| Full `QA_SUITE=acceptance`, and the default with no `QA_SUITE` | 171 tests in 66 files | 171 tests in 66 files | 0 |
+
+Proof of the leak: at b5f68c4b, before the rename, T7 lists 20 tests in 7 files. The 2 extra tests are `ltiaas/lib/k2.ts:383:7 › K2 R2-SIM.connect-mbz-deeplink-and-grades` and `…R2-SIM.grades-409-503-and-check14`. After the rename, no `ltiaas` line remains in the T7 list. The `run-k2.mjs` harness now asserts the T7 and M2 counts, and it checks T6 and T5a+T8 with `QA_TASK`.
+
+### New findings
+
+**A-LA-E7-09-05 (NIT): Two commands in the qa.md `--list` table are wrong.**
+- File: `docs/reviews/LA-E7-09/qa.md:171-172` (Round 3 §2); also `:55`.
+- Problem: The table gives `QA_SUITE=acceptance … --grep "@T6" --list` and `--grep "@T5a|@T8" --list`. On both SHAs these commands select 0 tests and exit 1, because the titles have no `@T6` tag. The counts in the table (18/6 and 37/14) are correct, but they come from `QA_TASK=T6` and `QA_TASK=T5a,T8`, which the frozen runners and `run-k2.mjs` use. Line 55 still says that the `ERROR` row "was fixed in … :369".
+- Suggested fix: Write the `QA_TASK` commands. Change line 55 so that it points to the Round 3 repair.
+
+**A-LA-E7-09-06 (NIT): The `run-k2.mjs` harness skips the typecheck without a message, and one printed count is wrong.**
+- File: `tests/e2e/ltiaas/run-k2.mjs:52-59` and `:137`.
+- Problem: When `tests/node_modules/.bin/tsc` is missing, the typecheck does not run and nothing is printed, so a harness PASS can hide a type error. The final line prints "M2 (64 tests in 9 files)", but the assertion at `:117` checks "64 tests in 1 file".
+- Suggested fix: Print "typecheck skipped (no tests/node_modules)", or fail. Make the print agree with the assertion.
+
+**A-LA-E7-09-07 (NIT): The artifacts part of the scan cannot find a hit.**
+- File: `tests/e2e/ltiaas/run-slot8-moodle.mjs:625-626`.
+- Problem: The runner redacts `r.ART` with the full set (`:625`) and then scans `r.ART` with the same set (`:626`). Also, `saveText` has already redacted the docker logs. So the `docker-logs/` and evidence part of `M3-07-S8` is 0 by construction, and only `infra/.logs/*.jsonl` (product logs) can make the row fail. This is safe, because the shared files are clean. But a reader can take "0 hits in docker-logs" as a finding, when the runner itself removed the values first, for example the Moodle `ref`.
+- Suggested fix: Count the replacements that `redactSlot8Artifacts` makes, and record them per file ("redacted N values in M files"). Keep the hit count for `infra/.logs` only.
+
+### Re-run
+
+None for the functional rows. Slot 8b must show `M3-07-S8` PASS with `slot8-secret-scan.json` from the committed runner.
