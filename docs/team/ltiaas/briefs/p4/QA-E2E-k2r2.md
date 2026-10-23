@@ -1,8 +1,8 @@
 # P4 dispatch: QA-E2E (Antigravity): DOCKER-YES slot 6b: LA-E7-07 K2 Round 2 (+ LA-E3-16 AC-05 E2E)
 
 Same terminal session and rules. Your P1 test fix is committed (la-qa fc87b9e1); the lead QA updated tests/e2e/ltiaas/03-u3-new-channels-flow.k2.ts:120 and :369 for BD-A1-111 (la-qa 28eb4a8e).
-DOCKER-YES: window START_TIME to END_TIME (hard end). One stack at a time; only qa-e2e-la-sim-r3..r4 (new numbers); PUBLIC_PORT 9443; STACK_SUBNET 172.20.0.0/16; before/after Docker records (umask 077); owned-only cleanup; a host ps watcher from launch. Never touch the sto-* containers; list them apart.
-SHA: a NEW clone of integration SHA_HERE (it holds BD-A1-111/112: lti-generic names.text 'LMS' and its own texts with 'your {LMS}').
+DOCKER-YES: window 15:45Z to 16:10Z (hard end: the other run has a window at 16:15Z). One stack at a time; only qa-e2e-la-sim-r3..r4 (new numbers); PUBLIC_PORT 9443; STACK_SUBNET 172.20.0.0/16; before/after Docker records (umask 077); owned-only cleanup; a host ps watcher from launch. Never touch the sto-* containers; list them apart.
+SHA: a NEW clone of integration 8786a2cd (code = 5260eac5, the wave-end candidate; Lead check green: 3302 unit, 255 infra, 145 K0, F1 0, F5 6 rules; it holds BD-A1-111/112: lti-generic names.text 'LMS' and its own texts with 'your {LMS}').
 Run: LA-E7-07 K2 U1-U4 (12 cases) Round 2, and LA-E3-16 AC-05 (the Canvas wizard dynamic path in the browser, the M2 Canvas regression labels). When done, send "QA-E2E stack down" with the records, then worker_done with docs/reviews/LA-E7-07/qa.md (Round 2) and docs/reviews/LA-E3-16/qa.md.
 If I send PAUSE DOCKER, finish the running suite, bring your stack down and wait.
 
