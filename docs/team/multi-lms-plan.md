@@ -13,7 +13,17 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 03:25 UTC
+### Current directive — 2026-10-23, 03:50 UTC
+
+M1 Round 1 is accepted: 394/394 PASS with independent seven-case, sink and browser-scan verification, clean W4/32-volume comparison and LA whole-window confirmation.
+[E-R7](r7-m1-verification-2026-10-23.md) records the exact evidence and Round 2 grant `msg_d0ead4f3d22c` through 04:20 UTC.
+The same Common Gemini session runs the second invocation; independent Gemini judges all rows and equality. The 94 carried C4 rows remain separate.
+
+The repaired M2/T7 monitor has focused Claude APPROVE at `b84b53e`; the Lead's E-R6 amendment is `5ecf069`.
+M2 and T7 remain separate gated invocations after M1. LA's confirmed hold now ends 04:35 UTC, then its uninterrupted block lasts through 07:35 UTC.
+Final conformance, guide updates, independent Docs QA and two final reviews remain host-only. All model roles, real-LMS limits and no-push rules remain unchanged.
+
+### Prior directive — 2026-10-23, 03:25 UTC
 
 M1 Round 1 started at 03:12:17 UTC under `msg_01cc4a7ce777` with C6 product and C9 tests.
 Run ID: `qa-multi-r1-4008afb9-2026-10-23T03-12-17-293Z`. Startup gates and all 32 complete volume records passed comparison.

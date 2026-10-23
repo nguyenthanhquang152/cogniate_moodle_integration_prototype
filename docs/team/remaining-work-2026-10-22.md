@@ -2,7 +2,17 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 03:25 UTC
+## Current checkpoint — 2026-10-23, 03:50 UTC
+
+M1 Round 1 is accepted: 394/394 PASS, seven dead-handler preconditions PASS, independent sink/browser scan PASS and clean operational closure.
+Round 2 has one-invocation grant `msg_d0ead4f3d22c` through 04:20 UTC. Its result and independent equality check remain.
+The repaired M2/T7 monitor passed focused Claude review at `b84b53e`; E-R6 amendment `5ecf069` binds its use. M2 and T7 still need separate runtime grants after M1.
+
+LA confirmed an extended host reservation through 04:35 UTC. After return, LTI plans no Docker activity through 07:35 UTC.
+Remaining work after runtime is final conformance, guide evidence updates, independent Docs QA and two final reviews, all host-only.
+The reservation is not a promised project completion time. All 32 real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 03:25 UTC
 
 M1 Round 1 is running under grant `msg_01cc4a7ce777` on the approved C6/C9 inputs.
 It started at 03:12:17 UTC. QA reports healthy containers and progressing acceptance tests; no final result is claimed.

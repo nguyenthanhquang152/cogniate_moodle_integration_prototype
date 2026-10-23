@@ -7,13 +7,13 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current status — 2026-10-23, 03:25 UTC
+### Current status — 2026-10-23, 03:50 UTC
 
 | Task | Status | Evidence and next step |
 | --- | --- | --- |
 | M0 | Design complete | Existing design approvals stand. |
-| M1 | First fresh C9 round running | Started 03:12:17 UTC under `msg_01cc4a7ce777`; startup gates pass. [E-R7](r7-m1-verification-2026-10-23.md) requires two fresh 394-row rounds plus 94 separate carried C4 rows. Both final results and independent equality judgment remain. |
-| M2 | Functional 64/64 PASS; overall NOT ACCEPTED | Attempt 3's separate lane monitor failed during teardown. The private repair passed 39 mock checks across 54 scenarios. Final focused review and one fresh M2 run remain. No product defect is established. |
+| M1 | First fresh C9 round accepted; Round 2 granted | Round 1 passed 394/394 and independent seven-case, sink and browser-scan checks; operational closure passed. [E-R7](r7-m1-verification-2026-10-23.md) records Round 2 grant `msg_d0ead4f3d22c`. The second result and equality judgment remain; 94 carried C4 rows stay separate. |
+| M2 | Functional 64/64 PASS; overall NOT ACCEPTED | Attempt 3's separate lane monitor failed. The private repair passed 39 mock checks across 54 scenarios and focused Claude review `b84b53e`. E-R6 amendment `5ecf069` approves the fresh r7 invocation; its separate runtime grant and result remain. |
 | M3 | Legacy accepted; final T7 pending | All twelve fresh legacy groups remain accepted under E-R4. C6 product is unchanged. T7 follows the monitor repair under its own grant. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. |
 | M4 | Guides have static QA and review approvals; final closure pending | Guide base `958ee5c`; final runtime conformance, evidence updates, independent Docs QA and two final reviews remain. Architect Round 5 keeps AC-M4-06 PENDING. |
 
