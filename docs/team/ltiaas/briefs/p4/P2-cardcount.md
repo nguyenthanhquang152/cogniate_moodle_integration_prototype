@@ -1,0 +1,5 @@
+Lane P (same Claude session; new dispatch): URGENT small fix. The integration branch is red on two lane P portal tests since ddfd4c6 (lane K added the lti-generic channel, so the portal shows one more card):
+- apps/portal/src/multi-lms.test.ts > "isolates newest card status by LMS with equal names/times and a stable id tie break" (expects 4 cards, gets 5);
+- apps/portal/src/portal.test.ts > "portal forms and contract states > shows eleven cards, filters them, and shows the newest connection error" (expects 11, gets 12).
+(The Lead's earlier green checks hid this: a stale node_modules/.vitest-cache served the old import.meta.glob result. Delete node_modules/.vitest-cache in your worktree before you run the tests.)
+Fix the tests open-world (plan LD-1): derive the expected card set from the channel registry (or assert the baseline cards by id and that every registry channel has a card), so a new channel folder never breaks them again; keep every baseline assertion. No product change. Merge quang/ltiaas-milestone first. npm run check green (after deleting node_modules/.vitest-cache); one worker_done with the SHA at once.
