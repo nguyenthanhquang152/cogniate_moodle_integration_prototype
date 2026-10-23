@@ -381,19 +381,23 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           active: staged ? false : body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
           grantedScopes: grantedScopesOf(answer), clientAssertionAud: platformAud, bindingRef,
         };
-        /** The update of an existing platform, checked again in the write transaction (the record can change meanwhile). */
-        const update = (existing: Platform | null, active: boolean): Platform | null => {
+        /**
+         * The update of an existing platform, checked again in the write transaction (the record can change meanwhile).
+         * A1 BD-A1-93 (LA-IC-21): it sets active = false when it stages, else it keeps the stored value, so no registration
+         * switches on a platform that an operator or the app switched off. autoActivate applies only to a new platform.
+         */
+        const update = (existing: Platform | null): Platform | null => {
           if (!existing) return null;
           const problem = updateProblem(existing);
           if (problem) throw problem;
-          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active });
+          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active: staged ? false : existing.active });
         };
         // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
         const { platform, operation } = audit.change(() => {
           let platform: Platform | null;
           let operation: RegistrationOperation = operation0;
           if (operation0 === 'update') {
-            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!), values.active);
+            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!));
           } else {
             try {
               platform = createPlatform(ctx.db, account.id, {
@@ -411,7 +415,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
               // app deactivated) is never switched on again by this path.
               // A staged registration never leaves the platform active (I-SELF).
               const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-              platform = update(same, staged ? false : same.active);
+              platform = update(same);
               operation = 'update';
             }
           }

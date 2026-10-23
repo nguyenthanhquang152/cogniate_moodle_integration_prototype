@@ -711,6 +711,26 @@ describe('LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88
     } finally { await s.app.close(); s.db.close(); }
   });
 
+  it('B-LA-E2-02-04 = A-LA-E2-02-07 (BD-A1-93): an explicit update keeps a switched-off platform off; a new platform takes autoActivate', async () => {
+    const s = await setup(registry);
+    try {
+      const off = seed(s, { issuer: M, clientId: 'client-jwt', profile: 'zz-jwt', deploymentIds: ['12'], active: false, bindingRef: 'owner-ref' });
+      s.state.clientId = 'client-jwt';
+      s.state.nextTypeId = 12;
+      const id = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '12' }))).headers.location));
+      const u = await complete(s, id, { profile: 'zz-jwt', bindingRef: 'owner-ref', updatePlatformId: off.id });
+      expect([u.statusCode, u.json().platformId, u.json().active]).toEqual([200, off.id, false]);
+      expect(getPlatform(s.db, 'cogniate', off.id)).toMatchObject({ active: false, bindingRef: 'owner-ref', tokenEndpoint: CONFIG.token_endpoint });
+      // autoActivate has no effect on an update.
+      const again = idOf(String((await s.start(await s.regToken({ scope: 'reg-update', sub: '12' }))).headers.location));
+      expect((await complete(s, again, { profile: 'zz-jwt', bindingRef: 'owner-ref', updatePlatformId: off.id, autoActivate: true })).json().active).toBe(false);
+      // A new platform still takes autoActivate (default true).
+      s.state.clientId = 'client-new';
+      const fresh = idOf(String((await s.start(await s.regToken({ scope: 'reg' }))).headers.location));
+      expect((await complete(s, fresh, { profile: 'zz-jwt', bindingRef: 'owner-ref', autoActivate: false })).json().active).toBe(false);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
   it.each([
     ['an active owner', true, 'owner-connection'], ['a staged owner', false, 'owner-connection'],
   ])('A-LA-E2-02-04: a collision with %s of another binding ref is refused; the record stays', async (_, active, owner) => {
