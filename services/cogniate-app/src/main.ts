@@ -10,7 +10,8 @@ import { ConfigRefusedError, createLogger, createOutboundClient, knobString, kno
 import { appMetricsFor, buildOperatorListener, operatorListenerConfig, type OperatorListenerConfig } from './app/metrics.ts';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
-import { loadConfig } from './config.ts';
+import { loadAppKeyProvider } from './app/sealing.ts';
+import { loadConfig, type AppConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
@@ -20,9 +21,10 @@ import { createShutdownHandler } from './kernel/records/shutdown.ts';
 import type { JobRunner, Logger } from '@cogniate/shared';
 
 const APP_SERVICE_NAME = 'cogniate-app';
-async function startAppService(operator: OperatorListenerConfig) {
-  const config = loadConfig();
+async function startAppService(operator: OperatorListenerConfig, config: AppConfig) {
   const db = openDb(join(config.dataDir, 'cogniate.db'));
+  // LA-E5-22: bind the app key ring to the master-key handle before any request can seal or open a value.
+  const keys = await loadAppKeyProvider({ db, masterKey: config.masterKey, ring: config.keyRing, logger: createLogger({ service: APP_SERVICE_NAME, dir: process.env.LOG_DIR }) });
   const store = await prepareStore(config.dataDir);
   // LA-E4-07: one metrics registry for the database; the app listener's logger feeds its log-event series.
   const metrics = appMetricsFor(db);
@@ -77,7 +79,8 @@ async function startAppService(operator: OperatorListenerConfig) {
       },
     },
   ], { handleSignals: false });
-  const operatorApp = buildOperatorListener({ db, metrics });
+  // BD-A2-88 D3: /readyz also checks that the app key ring has every key version in use (LA-E5-22).
+  const operatorApp = buildOperatorListener({ db, metrics, keys });
   await operatorApp.listen({ host: operator.host, port: operator.port });
   const bound = operatorApp.server.address() as AddressInfo;
   loggers[0]?.info('operator_listener_started', { operator_bind: bound.family === 'IPv6' ? `[${bound.address}]:${bound.port}` : `${bound.address}:${bound.port}` });
@@ -95,21 +98,21 @@ async function startAppService(operator: OperatorListenerConfig) {
 }
 
 /** LA-ADR-06 D12: a refused setting gives one config_refused line and exit code 1, before any file or port is opened. */
-function operatorSettings(): OperatorListenerConfig | null {
+function startSettings(): { operator: OperatorListenerConfig; config: AppConfig } | null {
+  const logger = createLogger({ service: APP_SERVICE_NAME, dir: process.env.LOG_DIR });
   try {
-    return operatorListenerConfig();
+    return { operator: operatorListenerConfig(), config: loadConfig(process.env, logger) };
   } catch (err) {
     if (!(err instanceof ConfigRefusedError)) throw err;
-    createLogger({ service: APP_SERVICE_NAME, dir: process.env.LOG_DIR })
-      .error('config_refused', { reason: err.reason, message: err.message, ...(err.setting ? { setting: err.setting } : {}) });
+    logger.error('config_refused', { reason: err.reason, message: err.message, ...(err.setting ? { setting: err.setting } : {}) });
     process.exitCode = 1;
     return null;
   }
 }
 
-const operator = operatorSettings();
-if (operator) {
-  const app = await startAppService(operator);
+const settings = startSettings();
+if (settings) {
+  const app = await startAppService(settings.operator, settings.config);
   const stop = createShutdownHandler(app);
   process.once('SIGTERM', () => stop('SIGTERM'));
   process.once('SIGINT', () => stop('SIGINT'));

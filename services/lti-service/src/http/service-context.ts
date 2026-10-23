@@ -1,3 +1,4 @@
+import { storeFor } from '../store/index.ts';
 // Shared authorization context for the T3a and T3c service routes, and the M1 binding checks of every API call that
 // uses a ltik or a service key (LTI contract §9.14).
 import { ApiError } from '../api-errors.ts';
@@ -9,7 +10,6 @@ import { signToolJwt } from '../lti/tool-jwt.ts';
 import type { AgsContext } from '../platform/ags.ts';
 import { profileDefinition } from '../profiles/index.ts';
 import type { Platform } from '../store/platforms.ts';
-import { getPlatform } from '../store/platforms.ts';
 import type { AuthResult } from './auth.ts';
 import type { RouteContext } from './context.ts';
 
@@ -30,10 +30,10 @@ export function claimObject(value: unknown): Record<string, unknown> | null {
 /** The deployment of the ltik or service key ('' when neither has one). */
 export const deploymentIdOf = (caller: AuthResult): string => caller.launch?.deploymentId ?? caller.serviceKey?.deploymentId ?? '';
 
-export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
+export async function platformOf(ctx: Ctx, caller: AuthResult): Promise<Platform> {
   const unauthorized = () => new ApiError(caller.launch ? 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER' : 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
   const id = caller.launch?.platformId ?? caller.serviceKey?.platformId;
-  const platform = id ? getPlatform(ctx.db, caller.account.id, id) : null;
+  const platform = id ? (await storeFor(ctx.db).platforms.getPlatform(caller.account.id, id)) : null;
   if (!platform) throw unauthorized();
   const deploymentId = deploymentIdOf(caller);
   const generation = caller.launch?.bindingGeneration ?? caller.serviceKey?.bindingGeneration ?? 0;
@@ -45,16 +45,16 @@ export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
   return platform;
 }
 
-export function agsContext(ctx: Ctx, caller: AuthResult, traceId: string): AgsContext {
+export async function agsContext(ctx: Ctx, caller: AuthResult, traceId: string): Promise<AgsContext> {
   return {
-    platform: platformOf(ctx, caller), traceId, deploymentId: deploymentIdOf(caller),
+    platform: (await platformOf(ctx, caller)), traceId, deploymentId: deploymentIdOf(caller),
     agsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.ags]) : caller.serviceKey?.agsClaim ?? null,
   };
 }
 
 /** The route group gives its resolver. The protocol URLs come from the account of the ltik (LA-ADR-06 D2). */
 export async function signedDeepLink(ctx: RouteContext, resolver: ProtocolUrlResolver, caller: AuthResult, body: unknown) {
-  const platform = platformOf(ctx, caller);
+  const platform = (await platformOf(ctx, caller));
   const protocolUrls = resolver.protocolUrls(caller.account);
   const { claims, target } = deepLinkingResponse(caller.launch!, platform, claimObject(body) ?? {}, protocolUrls);
   return { message: await signToolJwt(ctx.db, ctx.masterKey, caller.account.id, claims, ctx.now()), target };

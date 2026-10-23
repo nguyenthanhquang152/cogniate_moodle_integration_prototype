@@ -1,6 +1,6 @@
 // LA-E1-12 (LA-ADR-01 D10, D12): the operator and redemption texts take LMS names from the registry. The baseline
 // channels keep the M1 bytes; a new channel that offers the feature joins the name list (LA-E2-03: lti-generic, with
-// the text name "your LMS"; the Lead's provisional call keeps the list rule, A1 decides on a generic sentence). The
+// the text name "LMS", A1 BD-A1-111; the Lead's provisional call keeps the list rule, A1 decides on a generic sentence). The
 // product registry is an open world: its lists are computed from the loaded manifests, not written out.
 import type { ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
 import { buildChannelRegistry } from '@cogniate/channel-kernel';
@@ -68,12 +68,12 @@ it('the issue refusals keep the M1 lines with the baseline channels', async () =
   expect((await op.suspend(bb.id, 'cleanup', 't')).lines).toContain('Binding: Blackboard: no reservation');
 });
 
-it('with the product channels, every channel that offers the feature joins the two name lists in registry order (lti-generic: "your LMS")', async () => {
+it('with the product channels, every channel that offers the feature joins the two name lists in registry order (lti-generic: "LMS", BD-A1-111)', async () => {
   const { op, create, input } = await setup(TEST_CHANNELS);
   const moodle = await create({ name: 'Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' });
   const bb = await create({ name: 'Learn', siteUrl: LEARN_A, method: 'manual', lms: 'blackboard', profile: 'blackboard-sim' });
-  expect([grantNames(TEST_CHANNELS).slice(0, 2), grantNames(TEST_CHANNELS).includes('your LMS')]).toEqual([['Canvas', 'Blackboard'], true]);
-  expect([multiNames(TEST_CHANNELS)[0], multiNames(TEST_CHANNELS).includes('your LMS')]).toEqual(['Canvas', true]);
+  expect([grantNames(TEST_CHANNELS).slice(0, 2), grantNames(TEST_CHANNELS).includes('LMS')]).toEqual([['Canvas', 'Blackboard'], true]);
+  expect([multiNames(TEST_CHANNELS)[0], multiNames(TEST_CHANNELS).includes('LMS')]).toEqual(['Canvas', true]);
   expect((await op.issue(input(moodle))).lines).toEqual([`Approval grants are only for ${grantList(TEST_CHANNELS)} connections.`]);
   expect((await op.issue(input(bb, { purpose: 'add_deployment' }))).lines).toEqual([`An add_deployment grant needs a registered or connected ${multiList(TEST_CHANNELS)} connection.`]);
 });

@@ -28,7 +28,7 @@
       "tests/acceptance/T4b1/1-connect.spec.ts:67-94 (AC-T4-08 completes a new Moodle registration through the app where no existing platform exists -> new platform is created active, unchanged; the app never sends updatePlatformId)",
       "tests/acceptance/T4b1/4-adoption.spec.ts:15-80 (tests manual platform binding and PLATFORM_IN_USE, not DR updatePlatformId)",
       "tests/e2e/1-scenario-a.spec.ts:58-95 (U1 scenario A registers a new Moodle tool on a fresh connection, unchanged)",
-      "tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts:150-310 (QA-4 LA-E2-02 K1-SIM suite completes new and staged registrations, unaffected)",
+      "tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts:149-348 (QA-4 LA-E2-02 K1-SIM suite: checks fixed-host refusal, guarded product_family_code refusal, missing LtiDeepLinkingRequest refusal, missing channel scope refusal, path-prefix Moodle issuer start, wrong path refusal, foreign authorization_server session view, and direct POST /api/platforms inactive platform login refusal, unaffected)",
       "tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:262-360 (QA-4 LA-E3-06 K1-SIM suite completes new Moodle DR sessions with type=0, unaffected)",
       "tests/ltiaas/tasks-lti/LA-E5-06/protocol-wiring.k1sim.test.ts:404-460 (QA-4 LA-E5-06 K1-SIM suite completes a new moodle-sim DR session with autoActivate: true, unaffected)"
     ],

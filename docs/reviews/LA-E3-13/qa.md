@@ -1,13 +1,13 @@
 # QA Review — `LA-E3-13` (Deep Linking per-type item fields)
 
 - **Reviewer**: QA-4 (independent test author & verifier, lane L2)
-- **Round**: 1
+- **Round**: 2
 - **Task**: `LA-E3-13` (`docs/architecture/ltiaas/tasks/LA-E3-13.md`)
 - **Author**: Author-2 (`lti-author`)
-- **Merge Commit / Integration SHA**: `84d5679` / `aa3b214` (code identical to `836d579`)
-- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/clone` (detached at `aa3b2141e96b6723b5af8fa40ed86904970f4dc0`, `--no-hardlinks`, push URL `DISABLED`)
-- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/logs`
-- **Verdict**: **PASS (K0 / UNIT green; K1-SIM suites authored and ready for Docker window)**
+- **Merge Commit / Integration SHA**: `84d5679` / `aa3b214` (Round 1 K0/UNIT); `d12b7b94` (`QA_TEST_SHA=f4846bb0`, Round 2 Docker Slot 5 K1-SIM)
+- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/clone` (detached at `d12b7b948cb1337ca1b9c53715df87d6270081d5`, `--no-hardlinks`, push URL `DISABLED`)
+- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/logs` (`LA-E3-13-k1sim.log`, `all-17-k1sim.log`)
+- **Verdict**: **PASS (K0 + UNIT + K1-SIM all green)**
 
 ---
 
@@ -45,8 +45,8 @@ No files outside the task scope (`tests/**`, `docs/**`, or exclusive files owned
 | --- | --- | --- | --- | --- |
 | `AC-LA-E3-13-01` | `UNIT` | A `link`, `file`, or `image` item without `url`, with a non-string `url`, or with an `http://` `url` returns `400 INVALID_CONTENT_ITEM` whose `description` names the item index. | `deep-linking-per-type.k0.test.ts > AC-LA-E3-13-01 & AC-LA-E3-13-02 (UNIT)`, `deep-linking.test.ts > per-type fields (LA-ADR-05 D3e) > a link/file/image without url / http url / null url / non-string url / unparseable url / javascript url / data url -> 400 INVALID_CONTENT_ITEM; description names the item index (AC-LA-E3-13-01)` | **PASS** |
 | `AC-LA-E3-13-02` | `UNIT` | An `html` item without `html` or with a non-string `html` returns `400 INVALID_CONTENT_ITEM` whose `description` names the item index. | `deep-linking-per-type.k0.test.ts > AC-LA-E3-13-01 & AC-LA-E3-13-02 (UNIT)`, `deep-linking.test.ts > per-type fields (LA-ADR-05 D3e) > an html item without html / null html / non-string html / only a url -> 400 INVALID_CONTENT_ITEM with the index (AC-LA-E3-13-02)` | **PASS** |
-| `AC-LA-E3-13-03` | `K1-SIM` | Valid `link`, `file`, `image`, and `html` items (when allowed by `accept_types`) sign and verify on `/api/deeplinking`, `/api/deeplinking/form`, and `/api/deeplinking/message`. | `deep-linking-per-type.k1sim.test.ts > AC-LA-E3-13-03: valid link, file, image and html items sign and verify on /api/deeplinking, /api/deeplinking/form and /api/deeplinking/message` (plus unit coverage in `deep-linking.test.ts > keeps valid link, file, image and html items exactly as sent`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E3-13-04` | `K1-SIM` | Existing `ltiResourceLink` Deep Linking tests pass unchanged. | `deep-linking-per-type.k1sim.test.ts > AC-LA-E3-13-04: existing ltiResourceLink Deep Linking item behavior (default url and custom string map) passes unchanged` (plus unit coverage in `deep-linking.test.ts > does not change ltiResourceLink items (AC-LA-E3-13-04 at unit level)`) | `pending: Docker window` (UNIT verified) |
+| `AC-LA-E3-13-03` | `K1-SIM` | Valid `link`, `file`, `image`, and `html` items (when allowed by `accept_types`) sign and verify on `/api/deeplinking`, `/api/deeplinking/form`, and `/api/deeplinking/message`. | `deep-linking-per-type.k1sim.test.ts > AC-LA-E3-13-03` (`2/2` K1-SIM tests pass in `60ms`; `LA-E3-13-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E3-13-04` | `K1-SIM` | Existing `ltiResourceLink` Deep Linking tests pass unchanged. | `deep-linking-per-type.k1sim.test.ts > AC-LA-E3-13-04` (`LA-E3-13-k1sim.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
 
 ---
 

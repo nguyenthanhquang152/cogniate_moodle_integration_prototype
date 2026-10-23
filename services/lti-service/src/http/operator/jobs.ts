@@ -20,22 +20,18 @@ export function registerJobRoutes(app: FastifyInstance, ctx: OperatorContext): v
     const runner = ctx.jobs;
     const name = runner?.jobs.find((job) => job.name === req.params.name)?.name ?? null;
     // An unknown name is operator input: the event keeps no target id for it.
-    return ctx.audited(req, { action: 'job.run', target: { type: 'job', id: name } }, (audit) => {
+    return (await ctx.audited(req, { action: 'job.run', target: { type: 'job', id: name } }, async (audit) => {
       if (!runner || runner.state() !== 'active') {
         throw new ApiError('NOT_READY', undefined, { details: { reasons: ['job_runner_not_active'], retryAfter: 30 } });
       }
       if (!name) throw new ApiError('NOT_FOUND', 'Unknown job.');
-      const requireFreeLease = () => {
-        const held = ctx.db.prepare('SELECT 1 FROM job_lease WHERE name = ? AND owner IS NOT NULL AND lease_until > ?').get(name, ctx.now());
-        if (held) throw new ApiError('JOB_RUNNING');
-      };
-      requireFreeLease();
+
       // Record acceptance before the run starts. The request, the job_run line and the job's events share one trace id.
-      audit.change(requireFreeLease);
+      (await audit.acceptJob(name, ctx.now));
       void runner.runNow(name, { traceId: req.traceId }).catch((err: unknown) => {
         ctx.logger.error('job_run_request_failed', { trace_id: req.traceId, job: name, error: err instanceof Error ? err.name : 'Error' });
       });
       return reply.code(202).send({ job: name, traceId: req.traceId });
-    });
+    }));
   });
 }

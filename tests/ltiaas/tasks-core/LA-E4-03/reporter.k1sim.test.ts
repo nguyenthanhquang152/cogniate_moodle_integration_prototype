@@ -36,7 +36,7 @@ import {
   unique,
   type Json,
 } from '../../../acceptance/M1/common/client';
-import { commitGrade, openPlay, publication, results, waitSync } from '../../../acceptance/M1/common/course';
+import { commitGrade, newVersion, openPlay, publication, results, waitSync } from '../../../acceptance/M1/common/course';
 import {
   CLOUD,
   PATHS,
@@ -324,7 +324,8 @@ describe('LA-E4-03 K1-SIM (pending: Docker window)', () => {
   it('AC-LA-E4-03-05: app restart while a send is held makes the row uncertain; after release, one confirmation send follows >= 5 s after the first accepted send (T5b P2 rule)', async () => {
     const cv = await canvasBound();
     const pub = await publication(cv, 'scorm12');
-    const play = await canvasPlay(cv, pub);
+    const resourceLinkId = `p2-${pub.id}`;
+    const play = await canvasPlay(cv, pub, { resourceLinkId });
     const cursor = (await records()).cursor;
 
     await gateReset();
@@ -338,10 +339,13 @@ describe('LA-E4-03 K1-SIM (pending: Docker window)', () => {
       },
     ]);
 
-    await commitGrade(play, 'scorm12', 9, 10);
+    await commitGrade(play, 'scorm12', 5, 10);
     const held = await gatePhase('hold-p2-restart', 'held_before', 15_000);
 
-    // Restart cogniate-app while the score POST is held in flight (`send_started_at` set).
+    // Commit a higher score on the same resourceLinkId while the 5/10 send is held in flight (`send_started_at` set), then restart cogniate-app.
+    await newVersion(cv, pub);
+    const playHigher = await canvasPlay(cv, pub, { resourceLinkId });
+    await commitGrade(playHigher, 'scorm12', 9, 10);
     const restarted = await host('m1-restart', { service: 'cogniate-app' });
     expect(restarted.code).toBe(0);
     await release(held.request_id, 'drop').catch(() => undefined);

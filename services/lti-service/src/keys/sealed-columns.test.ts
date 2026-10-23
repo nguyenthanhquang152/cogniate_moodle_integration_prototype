@@ -23,7 +23,7 @@ it('registers every encrypted column in the LTI schema exactly once', () => {
   } finally { db.close(); }
 });
 
-it('readiness, status and stores count removed-key blobs and expired tokens, but omit cleared blobs', () => {
+it('readiness, status and stores count removed-key blobs and expired tokens, but omit cleared blobs', async () => {
   const db = openDb(':memory:');
   try {
     const legacy = Buffer.alloc(32, 7);
@@ -37,11 +37,11 @@ it('readiness, status and stores count removed-key blobs and expired tokens, but
       platformConfiguration: {}, operation: 'new' as const, existingPlatformId: null, privacyLevel: 'public' as const, passthrough: {}, expiresAt: 0 };
     const session = createRegistrationSession(db, keys, input, 1000);
     createRegistrationSession(db, keys, { ...input, registrationToken: null }, 1000);
-    expect(Object.fromEntries(sealedVersionCounts(db))).toEqual({ legacy: 1, k2: 1 });
-    expect(keyVersionsInUse(db)).toEqual(['k2', 'legacy']);
+    expect(Object.fromEntries((await sealedVersionCounts(db)))).toEqual({ legacy: 1, k2: 1 });
+    expect((await keyVersionsInUse(db))).toEqual(['k2', 'legacy']);
     expect(toolKeyVersions(db)).toEqual(['legacy']);
     expect(registrationTokenVersions(db)).toEqual(['k2']);
-    expect(keyProviderStatus(db, keys).versions).toEqual([
+    expect((await keyProviderStatus(db, keys)).versions).toEqual([
       { id: 'k2', state: 'active', sealedCount: 1, derivedCount: 0 },
       { id: 'legacy', state: 'decrypt-only', sealedCount: 1, derivedCount: 0 },
     ]);

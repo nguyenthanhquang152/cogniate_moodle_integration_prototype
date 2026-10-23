@@ -1,12 +1,11 @@
+import { storeFor } from '../../store/index.ts';
 // Operator keys (contract delta §3 "Operators"): list, issue (the key is shown once), revoke. `lti:operator init`
 // makes the first key (cli/operator.ts); every other operator-key change goes through these routes.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import type { OperatorKeyRecord } from '../../store/operator-keys.ts';
-import {
-  OPERATOR_KEY_DEFAULT_TTL_MS, OPERATOR_NAME, getOperatorKey, issueOperatorKey, listOperatorKeys, operatorKeyExpiryInRange, revokeOperatorKey,
-} from '../../store/operator-keys.ts';
+import { OPERATOR_KEY_DEFAULT_TTL_MS, OPERATOR_NAME, operatorKeyExpiryInRange } from '../../store/operator-keys.ts';
 import { invalid } from '../validation.ts';
 import type { OperatorContext } from './index.ts';
 
@@ -23,9 +22,9 @@ const toApi = (k: OperatorKeyRecord) => ({
 });
 
 export function registerOperatorKeyRoutes(app: FastifyInstance, ctx: OperatorContext): void {
-  app.get('/operator/v1/operator-keys', async () => ({ operatorKeys: listOperatorKeys(ctx.db).map(toApi) }));
+  app.get('/operator/v1/operator-keys', async () => ({ operatorKeys: (await storeFor(ctx.db).operatorKeys.listOperatorKeys()).map(toApi) }));
 
-  app.post('/operator/v1/operator-keys', async (req, reply) => ctx.audited(req, { action: 'operator_key.issue', target: { type: 'operator_key', id: null } }, (audit) => {
+  app.post('/operator/v1/operator-keys', async (req, reply) => (await ctx.audited(req, { action: 'operator_key.issue', target: { type: 'operator_key', id: null } }, async (audit) => {
     const parsed = IssueBody.safeParse(req.body ?? {});
     if (!parsed.success) throw invalid(parsed.error);
     const now = ctx.now();
@@ -34,15 +33,14 @@ export function registerOperatorKeyRoutes(app: FastifyInstance, ctx: OperatorCon
       throw new ApiError('INVALID_REQUEST', 'Invalid field: expiresAt. It must be 1 hour to 1 year from now.');
     }
     // The event names the new key and its operator, never the key.
-    const { record, operatorKey } = audit.change(() => issueOperatorKey(ctx.db, { operator: parsed.data.operator, expiresAt }, now),
-      (issued) => ({ target: { type: 'operator_key', id: issued.record.id }, details: { operator: issued.record.operator, expiresAt: iso(issued.record.expiresAt) } }));
+    const { record, operatorKey } = (await audit.issueOperatorKey({ operator: parsed.data.operator, expiresAt }, now));
     return reply.code(201).send({ id: record.id, operatorKey, operator: record.operator, expiresAt: iso(record.expiresAt) });
-  }));
+  })));
 
   app.post<{ Params: { id: string } }>('/operator/v1/operator-keys/:id/revoke', async (req) =>
-    ctx.audited(req, { action: 'operator_key.revoke', target: { type: 'operator_key', id: req.params.id } }, (audit) => {
+    (await ctx.audited(req, { action: 'operator_key.revoke', target: { type: 'operator_key', id: req.params.id } }, async (audit) => {
       if (req.params.id === ctx.operator(req).keyId) throw new ApiError('OPERATOR_KEY_IN_USE');
-      if (!getOperatorKey(ctx.db, req.params.id)) throw new ApiError('NOT_FOUND', 'Unknown operator key.');
-      return toApi(audit.change(() => revokeOperatorKey(ctx.db, req.params.id, ctx.now())!, (revoked) => ({ details: { operator: revoked.operator } })));
-    }));
+      if (!(await storeFor(ctx.db).operatorKeys.getOperatorKey(req.params.id))) throw new ApiError('NOT_FOUND', 'Unknown operator key.');
+      return toApi((await audit.revokeOperatorKey(req.params.id, ctx.now())));
+    })));
 }

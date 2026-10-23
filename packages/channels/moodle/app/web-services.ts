@@ -26,7 +26,7 @@ export const webServicesRoute: ExtensionRoute = {
     if (missing.length) return { error: { status: 422, code: 'WS_FUNCTIONS_MISSING', message: `The token cannot use: ${missing.join(', ')}.`, details: { missing } } };
     ctx.sql.run(`UPDATE connection SET ws_token_encrypted = :token, ws_site_name = :site_name, ws_release = :release, updated_at = :now
       WHERE id = :connection_id AND library_id = :library_id`, {
-      token: await ctx.seal(body.token), site_name: info.siteName, release: info.release, now: ctx.now(),
+      token: await ctx.seal(body.token, 'ws_token_encrypted'), site_name: info.siteName, release: info.release, now: ctx.now(),
     });
     return { status: 200, body: info };
   },

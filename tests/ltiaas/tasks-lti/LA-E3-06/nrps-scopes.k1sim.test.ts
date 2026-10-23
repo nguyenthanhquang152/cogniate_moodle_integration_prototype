@@ -207,7 +207,7 @@ async function startQaPlatformRegistration(
   );
 
   const now = Math.floor(Date.now() / 1000);
-  const regToken = await new SignJWT({ sub: '0', scope: 'reg-create', iat: now, exp: now + 600 })
+  const regToken = await new SignJWT({ sub: '0', scope: 'reg', iat: now, exp: now + 600 })
     .setProtectedHeader({ alg: 'RS256', kid, typ: 'JWT' })
     .sign(privateKey);
   recordSecret('id_token', regToken);
@@ -238,10 +238,23 @@ describe('LA-E3-06 K1-SIM: NRPS scope complete.scopes and registration.complete 
   let completedPlatformIdForAudit = '';
   let completedTraceIdForAudit = '';
 
-  beforeAll(() => {
+  beforeAll(async () => {
     key = apiKey(ACCOUNT);
     operatorKey = readOperatorKey();
     expect(OPERATOR_KEY_RE.test(operatorKey)).toBe(true);
+    const opBase = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+    const patchRes = await fetch(`${opBase}/operator/v1/rate-limits`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `OPERATOR-AUTH-V1 ${operatorKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        registrationSessionsPerAddress: 50,
+        classes: { registration: { ratePerMinute: 200, burst: 200 } },
+      }),
+    });
+    expect(patchRes.status).toBe(200);
   });
 
   afterAll(async () => {
@@ -257,6 +270,18 @@ describe('LA-E3-06 K1-SIM: NRPS scope complete.scopes and registration.complete 
         authorization: auth.bearer(key),
       }).catch(() => undefined);
     }
+    const opBase = (process.env.LTI_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/$/, '');
+    await fetch(`${opBase}/operator/v1/rate-limits`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `OPERATOR-AUTH-V1 ${operatorKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        registrationSessionsPerAddress: null,
+        classes: { registration: null },
+      }),
+    }).catch(() => undefined);
   });
 
   it('AC-LA-E3-06-01: a complete with scopes = the four AGS scopes sends a registration request whose scope has exactly those four (AP-05-21)', async () => {

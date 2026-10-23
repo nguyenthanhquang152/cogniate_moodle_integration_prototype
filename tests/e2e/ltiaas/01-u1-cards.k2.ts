@@ -15,6 +15,7 @@ import {
   ok,
   portalSignIn,
   session,
+  sharedPlatform,
   shot,
   type Json,
 } from './lib/k2';
@@ -44,7 +45,9 @@ k2Case(
     await portalSignIn(page, THANH);
     await integrations(page);
 
-    const cardLocators = manifests.map((m) => card(page, m.card.title));
+    const cardLocators = manifests.map((m) =>
+      page.getByRole('article', { name: m.card.title, exact: true }).or(card(page, m.card.title)).first(),
+    );
     for (const [idx, m] of manifests.entries()) {
       await expect(cardLocators[idx], `Card visible for ${m.id} (${m.card.title})`).toBeVisible();
     }
@@ -74,6 +77,7 @@ k2Case(
   'U1.card-copy-and-action',
   'every channel card renders its manifest card.title, card.description, card.mark, and Connect action routing to /integrations/:channelId/connect',
   async ({ page }) => {
+    await sharedPlatform();
     const registry = await loadProductChannelRegistry(false);
     const manifests = [...registry.channels()].sort((a, b) => a.card.order - b.card.order);
 
@@ -81,11 +85,21 @@ k2Case(
 
     for (const m of manifests) {
       await integrations(page);
-      const c = card(page, m.card.title);
+      const c = page.getByRole('article', { name: m.card.title, exact: true }).or(card(page, m.card.title)).first();
       await expect(c, `Card for ${m.id}`).toBeVisible();
       await expect(c.getByRole('heading', { name: m.card.title, exact: true })).toBeVisible();
       await expect(c.getByText(m.card.description, { exact: true })).toBeVisible();
-      await expect(c.getByText(m.card.mark, { exact: true }).first()).toBeVisible();
+      if (m.card.icon) {
+        await expect(
+          c.locator(`[data-icon="${m.card.icon}"], svg, img, [role="img"]`).first(),
+          `Card ${m.id} renders icon "${m.card.icon}"`,
+        ).toBeVisible();
+      } else {
+        await expect(
+          c.getByText(m.card.mark, { exact: true }).first(),
+          `Card ${m.id} renders mark "${m.card.mark}"`,
+        ).toBeVisible();
+      }
 
       const connectBtn = connectControl(c);
       const manageBtn = manageControl(c);

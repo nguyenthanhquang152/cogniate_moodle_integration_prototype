@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createLocalKeyProvider, legacyKeyRing } from '@cogniate/shared';
 import { listAuditEvents } from '../../store/audit.ts';
-import { issueServiceKey } from '../../store/service-keys.ts';
+import { findServiceKey, issueServiceKey } from '../../store/service-keys.ts';
 import type { Harness } from '../../testkit.ts';
 import { harness, MASTER_KEY } from '../../testkit.ts';
 
@@ -11,15 +11,29 @@ async function fixture() {
   const h = await harness();
   resources.push(h);
   const keys = createLocalKeyProvider(legacyKeyRing(MASTER_KEY));
-  issueServiceKey(h.db, keys, { toolAccountId: 'cogniate', platformId: h.platform.id, deploymentId: '1', contextId: 'c',
+  const { serviceKey } = issueServiceKey(h.db, keys, { toolAccountId: 'cogniate', platformId: h.platform.id, deploymentId: '1', contextId: 'c',
     resourceLinkId: 'r', agsClaim: null, nrpsClaim: null }, h.clock.now);
   const post = (payload: unknown, apiKey = h.apiKey) => h.app.inject({ method: 'POST', url: '/api/service-keys/revoke',
     headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, payload: JSON.stringify(payload) });
   const events = () => listAuditEvents(h.db, { limit: 100 }).events;
-  return { ...h, post, events };
+  return { ...h, keys, serviceKey, post, events };
 }
 
 describe('tenant service-key revoke boundaries and transaction', () => {
+  it.each([undefined, '', 'c'])('distinguishes an absent, empty and named context filter: %j (BD-A2-76)', async (contextId) => {
+    const h = await fixture();
+    const empty = issueServiceKey(h.db, h.keys, { toolAccountId: 'cogniate', platformId: h.platform.id, deploymentId: '1', contextId: '',
+      resourceLinkId: 'r', agsClaim: null, nrpsClaim: null }, h.clock.now);
+    const filter = { platformId: h.platform.id, ...(contextId === undefined ? {} : { contextId }) };
+    const res = await h.post(filter);
+    const revoked = contextId === undefined ? 2 : 1;
+    expect([res.statusCode, res.json()]).toEqual([200, { revoked }]);
+    for (const [context, key] of [['c', h.serviceKey], ['', empty.serviceKey]]) {
+      expect(findServiceKey(h.db, 'cogniate', key!) !== null).toBe(contextId !== undefined && contextId !== context);
+    }
+    expect(h.events()).toEqual([expect.objectContaining({ action: 'service_key.revoke', result: 'ok', details: { ...filter, revoked } })]);
+  });
+
   it.each([{ typo: 'platform' }, { resourceLinkId: '' }, { contextId: null }, { deploymentId: 1 }])('rejects invalid filters %j without a change', async (extra) => {
     const h = await fixture();
     const before = h.db.prepare('SELECT * FROM service_key').all();

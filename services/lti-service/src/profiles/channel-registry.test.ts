@@ -200,18 +200,18 @@ it('uses one registry context for profile lookups and login/launch text', async 
   try {
     const resolver = createAccountResolver(h.db, URLS.lti);
     const params = { iss: 'https://zz.example.test', login_hint: '1', target_link_uri: LAUNCH, client_id: CLIENT_ID };
-    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
+    expect((await initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), params, h.clock.now, opts))).toMatchObject({ ok: false, lms: 'ZZ' });
     for (const iss of [undefined, 'unreadable', 'https://unknown.example.test']) {
-      expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
+      expect((await initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), { iss }, h.clock.now, opts))).toMatchObject({ ok: false, lms: 'Test default' });
     }
     const values = profileEndpoints(profile, {});
     const platform = createPlatform(h.db, 'cogniate', {
       issuer: values.issuer, authEndpoint: values.authenticationEndpoint, tokenEndpoint: values.accesstokenEndpoint, jwksUrl: values.jwksUrl,
       clientId: CLIENT_ID, name: 'Unit platform', active: false, deploymentIds: ['1'], profile: profile.id,
     });
-    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
+    expect((await initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts))).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
     updatePlatform(h.db, 'cogniate', platform.id, { active: true });
-    const login = initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts);
+    const login = (await initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts));
     expect(login.ok).toBe(true);
     if (!login.ok) throw new Error('login must succeed');
     const result = await handleLaunch({

@@ -13,7 +13,7 @@ const dbs: Db[] = [];
 afterEach(() => { for (const db of dbs.splice(0)) db.close(); });
 const base = 'https://lms.test/lineitems';
 const own = `${base}/own`;
-function fixture() {
+async function fixture() {
   const db = openDb(':memory:');
   dbs.push(db);
   const keys = createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7)));
@@ -23,8 +23,8 @@ function fixture() {
     authEndpoint: 'https://lms.test/auth', tokenEndpoint: 'https://lms.test/token', jwksUrl: 'https://lms.test/keys', deploymentIds: ['d'], active: true });
   const input = { toolAccountId: 'unit', platformId: platform.id, deploymentId: 'd', contextId: 'c', resourceLinkId: 'r',
     agsClaim: { lineitems: base, lineitem: own }, nrpsClaim: null };
-  const issue = () => authenticate(db, `SERVICE-AUTH-V1 ${apiKey}:${issueServiceKey(db, keys, input, 1).serviceKey}`, ['service'], 1, () => {});
-  const caller = issue();
+  const issue = async () => (await authenticate(db, `SERVICE-AUTH-V1 ${apiKey}:${issueServiceKey(db, keys, input, 1).serviceKey}`, ['service'], 1, () => {}));
+  const caller = (await issue());
   const clock = { now: 1000 };
   const getLineItem = vi.fn(async (_ctx: AgsContext, url: string): Promise<LineItem> => ({ id: url, resourceLinkId: 'r' }));
   const ctx = { ags: { getLineItem }, now: () => clock.now };
@@ -35,7 +35,7 @@ function fixture() {
 
 describe('service-key write scope and cache (BD-A2-47)', () => {
   it('accepts the claimed lineitem without a GET and leaves other auth/account modes unchanged', async () => {
-    const h = fixture();
+    const h = (await fixture());
     await h.check(own);
     await checkServiceKeyWriteScope(h.ctx, { scheme: 'ltik', account: h.caller.account, actor: h.caller.actor, launch: null, serviceKey: null }, h.ags, `${base}/other`);
     await checkServiceKeyWriteScope(h.ctx, { ...h.caller, account: { ...h.caller.account, serviceKeyWriteScope: 'context' } }, h.ags, `${base}/other`);
@@ -43,7 +43,7 @@ describe('service-key write scope and cache (BD-A2-47)', () => {
   });
 
   it.each([true, false])('caches a %s ownership result for exactly ten minutes', async (match) => {
-    const h = fixture();
+    const h = (await fixture());
     const url = `${base}/found`;
     h.getLineItem.mockResolvedValue({ id: url, resourceLinkId: match ? 'r' : 'other' });
     const call = async () => {
@@ -60,20 +60,20 @@ describe('service-key write scope and cache (BD-A2-47)', () => {
   });
 
   it('isolates line items and re-issued credentials and shares an in-flight GET', async () => {
-    const h = fixture();
+    const h = (await fixture());
     const url = `${base}/found`;
     await Promise.all([h.check(url), h.check(url)]);
     expect(h.getLineItem).toHaveBeenCalledTimes(1);
     await h.check(`${base}/second`);
     revokeServiceKeys(h.db, h.platform.id, 2);
-    const next = h.issue();
+    const next = (await h.issue());
     expect(next.serviceKeyHash).not.toBe(h.caller.serviceKeyHash);
     await checkServiceKeyWriteScope(h.ctx, next, h.ags, url);
     expect(h.getLineItem).toHaveBeenCalledTimes(3);
   });
 
   it.each(['PLATFORM_ERROR', 'PLATFORM_RATE_LIMITED'] as const)('propagates %s and retries the GET on the next request', async (code) => {
-    const h = fixture();
+    const h = (await fixture());
     const error = new ApiError(code);
     h.getLineItem.mockRejectedValueOnce(error);
     await expect(h.check(`${base}/found`)).rejects.toBe(error);
@@ -82,7 +82,7 @@ describe('service-key write scope and cache (BD-A2-47)', () => {
   });
 
   it('refuses a missing resourceLinkId and checks the current URL boundary before any cached result', async () => {
-    const h = fixture();
+    const h = (await fixture());
     const url = `${base}/found`;
     h.getLineItem.mockResolvedValueOnce({ id: url });
     await expect(h.check(url)).rejects.toMatchObject({ code: 'SERVICE_KEY_SCOPE' });
@@ -93,7 +93,7 @@ describe('service-key write scope and cache (BD-A2-47)', () => {
   });
 
   it('evicts the least recently used entry at the 10,000-entry bound without extending the TTL', async () => {
-    const h = fixture();
+    const h = (await fixture());
     for (let i = 0; i < 10_000; i++) await h.check(`${base}/${i}`);
     await h.check(`${base}/0`);
     await h.check(`${base}/10000`);

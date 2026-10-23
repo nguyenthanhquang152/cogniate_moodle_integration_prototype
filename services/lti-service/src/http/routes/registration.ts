@@ -1,3 +1,4 @@
+import { storeFor } from '../../store/index.ts';
 // Dynamic registration (contract §2.4, §3.8, security §2.4, §2.5, ADR-009):
 //   GET  /lti/register/:account               Moodle opens it in the registration frame (HTML errors, 303 to the app)
 //   GET  /api/registrations/:id               Bearer: the platform data, operation, existingPlatformId
@@ -9,7 +10,6 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { createAccountResolver } from '../../accounts/resolver.ts';
-import { transaction } from '../../db/index.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
@@ -22,13 +22,10 @@ import {
   grantedScopesOf, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView, supportsDeepLinking,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
-import { withAudit } from '../../store/audit.ts';
+
 import type { Platform } from '../../store/platforms.ts';
-import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
 import type { PrivacyLevel, RegistrationOperation, RegistrationSession, RegistrationTokenKind } from '../../store/registrations.ts';
-import {
-  claimRegistrationSession, completeRegistrationSession, createRegistrationSession, getRegistrationSession, releaseRegistrationSession,
-} from '../../store/registrations.ts';
+
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
@@ -132,15 +129,15 @@ async function readToken(ctx: RouteContext, token: string, config: OpenIdConfigu
   if (typeof payload.exp !== 'number' || payload.exp <= now / 1000 - CLOCK_SKEW_S) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'registration_token_expired' };
   const op = operationFromToken(payload);
   if (!op) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'registration_token_scope' };
-  const existing = op.typeId ? findPlatformByDeployment(ctx.db, accountId, config.issuer, op.typeId) : null;
+  const existing = op.typeId ? (await storeFor(ctx.db).platforms.findPlatformByDeployment(accountId, config.issuer, op.typeId)) : null;
   return { operation: op.operation, existingPlatformId: existing?.id ?? null, expiresAt: Math.min(payload.exp * 1000, now + SESSION_MAX_MS) };
 }
 
-export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): void {
+export async function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): Promise<void> {
   const log = ctx.logger;
   const lms = lmsNameOf(null, ctx.profiles);
   const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
-  const limiter = rateLimiterFor(ctx.db, log, ctx.now);
+  const limiter = (await rateLimiterFor(ctx.db, log, ctx.now));
   const channels = channelRegistry(ctx.profiles);
   // The start page does not know the connection's channel: the no-context channel's sentences apply (BD-A1-59).
   const noContextChannel = channels.channel(channels.channelOfProfile(STANDARD_PROFILE_ID) ?? '');
@@ -191,13 +188,13 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const help = sentence ? withLms(sentence, lmsNameFor(code, lms, ctx.profiles)) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
-    const gate = statusGate(resolver.resolveAccount(req));
+    const gate = statusGate((await resolver.resolveAccount(req)));
     if (!gate.ok) return page(gate.code, gate.detail);
     const { account } = gate;
     const q = RegisterQuery.safeParse(req.query ?? {});
     if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
     // First check: no outbound fetch when the address is already at the cap (LA-ADR-06 D1).
-    const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
+    const cap = (await checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now));
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
     // BD-A2-93: the floor for every loaded profile. No loaded profile could complete such a configuration, so it is
@@ -235,13 +232,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       .filter(([k, v]) => !RESERVED_QUERY.has(k) && typeof v === 'string' && k.length <= 64 && v.length <= 512).slice(0, 20)) as Record<string, string>;
     // A-LA-E5-06-01: parallel starts from one address all pass the first check while they wait for their fetch.
     // Count again and insert in one transaction, with no await between them, so the cap holds.
-    const session = transaction(ctx.db, () => {
-      if (!checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, ctx.now()).allowed) return null;
-      return createRegistrationSession(ctx.db, ctx.masterKey, {
+    const session = (await storeFor(ctx.db).registrations.createCappedRegistrationSession(ctx.masterKey, {
         toolAccountId: account.id, clientKey: cap.clientKey, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
         platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt, tokenKind,
-      }, now);
-    });
+      }, now, limiter.registrationSessionLimit, ctx.now()));
     if (!session) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     log.info('registration_started', { trace_id: req.traceId, registration_id: session.id, operation });
     const location = new URL(account.registrationUrl);
@@ -250,8 +244,8 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     return reply.code(303).headers({ location: location.href, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
   });
 
-  const sessionOf = (accountId: string, id: string): RegistrationSession => {
-    const session = getRegistrationSession(ctx.db, ctx.masterKey, accountId, id, ctx.now());
+  const sessionOf = async (accountId: string, id: string): Promise<RegistrationSession> => {
+    const session = (await storeFor(ctx.db).registrations.getRegistrationSession(ctx.masterKey, accountId, id, ctx.now()));
     if (!session) throw new ApiError('REGISTRATION_NOT_FOUND');
     return session;
   };
@@ -265,23 +259,23 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
 
   // ---------------------------------------------------------------- GET /api/registrations/:id (contract §3.8)
   app.get<{ Params: { id: string }; Querystring: { raw?: string } }>('/api/registrations/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const session = sessionOf(account.id, req.params.id);
+    const { account } = (await ctx.auth(req, ['bearer']));
+    const session = (await sessionOf(account.id, req.params.id));
     return registrationView(configOf(session), session, req.query.raw === 'true');
   });
 
   // ---------------------------------------------------------------- POST /api/registrations/:id/complete (contract §3.8)
   app.post<{ Params: { id: string } }>('/api/registrations/:id/complete', async (req) => {
-    const caller = ctx.auth(req, ['bearer']);
+    const caller = (await ctx.auth(req, ['bearer']));
     const { account } = caller;
     const protocolUrls = resolver.protocolUrls(account);
-    return withAudit(ctx.db, ctx.now, {
+    return (await storeFor(ctx.db).audit.request(ctx.now, {
       actor: caller.actor, toolAccountId: account.id, traceId: req.traceId, clientIp: req.ip,
       action: 'registration.complete', target: { type: 'registration', id: req.params.id },
     }, async (audit) => {
       const body = CompleteBody.safeParse(req.body ?? {});
       if (!body.success) throw invalid(body.error);
-      const session = sessionOf(account.id, req.params.id);
+      const session = (await sessionOf(account.id, req.params.id));
       if (session.status !== 'open') throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
       // Same fields as the page side (B-T3b-03): code and a safe detail.
       const reject = (err: ApiError): never => {
@@ -321,7 +315,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       };
       // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to the platform otherwise.
       if (operation0 === 'update') {
-        const target = session.existingPlatformId === null ? null : getPlatform(ctx.db, account.id, session.existingPlatformId);
+        const target = session.existingPlatformId === null ? null : (await storeFor(ctx.db).platforms.getPlatform(account.id, session.existingPlatformId));
         if (target === null || body.data.updatePlatformId !== session.existingPlatformId) reject(updateNotAllowed());
         const problem = updateProblem(target!);
         if (problem) reject(problem);
@@ -379,7 +373,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       if ((profile.endpointOrigins === 'any-https' || fixed !== null) && body.data.bindingRef === undefined) {
         throw new ApiError('INVALID_REQUEST', 'Invalid field: bindingRef (required for this profile).', { details: { field: 'bindingRef' } });
       }
-      if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+      if (!(await storeFor(ctx.db).registrations.claimRegistrationSession(account.id, session.id))) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
       try {
         const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(fixed?.siteUrl ?? config.issuer).host}`;
         const request = buildRegistrationRequest({
@@ -422,50 +416,20 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
          * A1 BD-A1-93 (LA-IC-21): it sets active = false when it stages, else it keeps the stored value, so no registration
          * switches on a platform that an operator or the app switched off. autoActivate applies only to a new platform.
          */
-        const update = (existing: Platform | null): Platform | null => {
-          if (!existing) return null;
-          const problem = updateProblem(existing);
-          if (problem) throw problem;
-          return applyRegistrationUpdate(ctx.db, account.id, existing.id, { ...values, active: staged ? false : existing.active });
-        };
+
         // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
-        const { platform, operation } = audit.change(() => {
-          let platform: Platform | null;
-          let operation: RegistrationOperation = operation0;
-          if (operation0 === 'update') {
-            platform = update(getPlatform(ctx.db, account.id, session.existingPlatformId!));
-          } else {
-            try {
-              platform = createPlatform(ctx.db, account.id, {
-                issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
-                jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
-                profile: profile.id, bindingRef, clientAssertionAud: platformAud, grantedScopes: values.grantedScopes, siteUrl: values.siteUrl, serviceUrl: values.serviceUrl,
-              });
-            } catch (err) {
-              if (!(err instanceof PlatformExistsError)) throw err;
-              // B-T3b-02 (Lead decision): a "new" registration answered with a client id that this account already has for
-              // this issuer is the SAME Moodle tool (Moodle issues a new client id for every new tool, so only a re-sent or
-              // re-used registration gets here). The platform belongs to this account (security §2.5), so we update it and
-              // log operation "update".
-              // A-T4b1-03: keep the stored `active` value. A platform that was switched off (for example an orphan that the
-              // app deactivated) is never switched on again by this path.
-              // A staged registration never leaves the platform active (I-SELF).
-              const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-              platform = update(same);
-              operation = 'update';
-            }
-          }
-          if (!platform) throw new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`);
-          completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
-          return { platform, operation };
-        }, ({ platform, operation }) => ({ details: { platformId: platform.id, operation } }));
+        const { platform, operation } = (await audit.completeRegistration(account.id, session.id, session.existingPlatformId, operation0, {
+          issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
+          jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
+          profile: profile.id, bindingRef, clientAssertionAud: platformAud, grantedScopes: values.grantedScopes, siteUrl: values.siteUrl, serviceUrl: values.serviceUrl,
+        }, values, staged, updateProblem, req.traceId, ctx.now()));
         log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation, ...(staged ? { staged: true } : {}) });
         return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id, active: platform.active };
       } catch (err) {
-        releaseRegistrationSession(ctx.db, account.id, session.id);
+        (await storeFor(ctx.db).registrations.releaseRegistrationSession(account.id, session.id));
         if (err instanceof ApiError) reject(err);
         throw err;
       }
-    });
+    }));
   });
 }

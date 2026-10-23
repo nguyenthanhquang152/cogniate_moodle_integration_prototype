@@ -43,6 +43,8 @@ const manifest = {
   // Check 14 (D6): a launch with family `canvas` must come from a Canvas profile.
   lti: { guardedFamilies: [{ family: 'canvas', level: 'launch' }], toolConfiguration: 'channel' },
   setup: {
+    // LA-ADR-08 D4, D6 (LA-E6-04): the "Check connection" button; the check proves the developer key of this school.
+    connectionCheck: true,
     createFields: [
       { key: 'siteUrl', label: 'Canvas URL', kind: 'origin', required: true },
       { key: 'serviceUrl', label: 'Canvas service URL', kind: 'origin', required: false },

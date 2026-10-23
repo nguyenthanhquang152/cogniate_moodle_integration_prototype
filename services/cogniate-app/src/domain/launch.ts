@@ -43,7 +43,8 @@ export interface ResourceLinkInput {
   contextTitle: string;
   title: string;
   lineItemId: string | null;
-  serviceKeyEncrypted: Uint8Array | null;
+  /** LA-E5-22: seals the LTI service key for the row id (associated data binds it to the row); null = no new key. */
+  sealServiceKey: ((resourceLinkId: string) => Uint8Array) | null;
 }
 
 export interface ResourceLinkResult {
@@ -67,7 +68,7 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
       db.prepare(`INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title,
         line_item_id, service_key_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, input.connectionId, input.publicationId, input.deploymentId, input.contextId, input.resourceLinkId, input.contextTitle, input.title,
-          input.lineItemId, input.serviceKeyEncrypted, now, now);
+          input.lineItemId, input.sealServiceKey?.(id) ?? null, now, now);
       upsertPlacement(db, id);
       return { id, created: true, rebound: null };
     }
@@ -75,7 +76,7 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
     const from = String(existing.publication_id);
     db.prepare(`UPDATE resource_link SET publication_id = ?, context_title = ?, title = ?, line_item_id = COALESCE(?, line_item_id),
       service_key_encrypted = COALESCE(?, service_key_encrypted), updated_at = ? WHERE id = ?`)
-      .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.serviceKeyEncrypted, now, id);
+      .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.sealServiceKey?.(id) ?? null, now, id);
     upsertPlacement(db, id);
     return { id, created: false, rebound: from === input.publicationId ? null : { from, to: input.publicationId } };
   });

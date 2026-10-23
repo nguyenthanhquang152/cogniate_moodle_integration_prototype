@@ -1,6 +1,6 @@
-// The e2e container must not read the LTI key ring (A-T1-03; LA-ADR-06 D6): compose.yaml puts an empty tmpfs on
-// /repo/infra/.secrets/lti, on top of the read-only bind of infra/.secrets (run: npm run test:infra). No Docker: the test
-// reads the volume list of the e2e service from the file.
+// The e2e container must not read the LTI key ring or the app key ring (A-T1-03; LA-ADR-06 D6; LA-E5-22, BD-A2-91):
+// compose.yaml puts empty tmpfs mounts on /repo/infra/.secrets/lti and /repo/infra/.secrets/app-keys, on top of the
+// read-only bind of infra/.secrets (run: npm run test:infra). No Docker: the test reads the volume lists from the file.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,5 +45,12 @@ describe('compose.yaml e2e service', () => {
 
   it('the lti-service still mounts the key ring folder (read only)', () => {
     assert.ok(serviceVolumes(fs.readFileSync(COMPOSE, 'utf8'), 'lti-service').includes('./.secrets/lti:/run/secrets/lti:ro'));
+  });
+
+  it('hides infra/.secrets/app-keys with an empty tmpfs; cogniate-app mounts it read only (LA-E5-22, BD-A2-91)', () => {
+    const hide = volumes.filter((v) => typeof v === 'object' && v.target === '/repo/infra/.secrets/app-keys');
+    assert.deepEqual(hide.map((v) => v.type), ['tmpfs']);
+    assert.ok(!volumes.some((v) => typeof v === 'string' && v.includes('.secrets/app-keys')), 'no bind of the app key ring folder');
+    assert.ok(serviceVolumes(fs.readFileSync(COMPOSE, 'utf8'), 'cogniate-app').includes('./.secrets/app-keys:/run/secrets/app-keys:ro'));
   });
 });

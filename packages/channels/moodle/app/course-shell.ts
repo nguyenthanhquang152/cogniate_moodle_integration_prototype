@@ -30,7 +30,7 @@ export const courseShellHook: PublishHook = {
       return;
     }
     try {
-      const token = await ctx.unseal(ws.ws_token_encrypted);
+      const token = await ctx.unseal(ws.ws_token_encrypted, 'ws_token_encrypted');
       const client = createMoodleWsClient({ outbound: ctx.outbound });
       const found = await client.courseByIdnumber(p.siteUrl, token, idnumber, ctx.traceId);
       if (found) return setShell(ctx, p.id, { courseId: found.id, idnumber, status: 'exists', error: null });

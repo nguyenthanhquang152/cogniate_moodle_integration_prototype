@@ -1,13 +1,13 @@
 # QA Review — `LA-E5-18` (Tenant ids in protocol log lines)
 
 - **Reviewer**: QA-4 (independent test author & verifier, lane L2)
-- **Round**: 1
+- **Round**: 2
 - **Task**: `LA-E5-18` (`docs/architecture/ltiaas/tasks/LA-E5-18.md`)
 - **Author**: Author-2 (`lti-author`)
-- **Merge Commit / Integration SHA**: `1e65040` / `aa3b214` (code identical to `836d579`)
-- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/clone` (detached at `aa3b2141e96b6723b5af8fa40ed86904970f4dc0`, `--no-hardlinks`, push URL `DISABLED`)
-- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/qa4-r9-aa3b214/logs`
-- **Verdict**: **PASS (K0 / UNIT green; K1-SIM suites authored and ready for Docker window)**
+- **Merge Commit / Integration SHA**: `1e65040` / `aa3b214` (Round 1 K0/UNIT); `d12b7b94` (`QA_TEST_SHA=f4846bb0`, Round 2 Docker Slot 5 K1-SIM)
+- **Isolated Clone**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/clone` (detached at `d12b7b948cb1337ca1b9c53715df87d6270081d5`, `--no-hardlinks`, push URL `DISABLED`)
+- **Logs Directory**: `/Users/quangnguyen/cogniate-qa-runs/LA/sim-window-d12b7b94/logs` (`LA-E5-18-k1sim.log`, `lti-service-after-LA-E5-18.log`, `all-17-k1sim.log`)
+- **Verdict**: **PASS (K0 + UNIT + K1-SIM all green)**
 
 ---
 
@@ -46,9 +46,9 @@ Note: `services/lti-service/src/http/routes/protocol.ts` is owned by Author-2 (`
 
 | AC ID | Kind | Spec Requirement | QA Suite / Test Case | Status |
 | --- | --- | --- | --- | --- |
-| `AC-LA-E5-18-01` | `K1-SIM` | A rejected login for a known account and unknown `iss` logs `event: "login_rejected"` with `tool_account_id: "<accountId>"` and no `platform_id` field. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-01: rejected login for a known account and unknown iss returns 400 and logs login_rejected with tool_account_id and no platform_id` (plus unit coverage in `login.test.ts > tenant ids in login_rejected > an unknown iss (AC-LA-E5-18-01 at unit level): tool_account_id only, no platform_id field`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E5-18-02` | `K1-SIM` | A launch that fails check 6 (signature) for a known platform logs `event: "launch_check_failed"` with `check: 6`, `tool_account_id`, and `platform_id`. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-02: launch failing check 6 (signature) for a known platform returns 401 and logs launch_check_failed with check: 6, tool_account_id and platform_id` (plus unit coverage in `launch.test.ts > launch_check_failed (contract delta §6) > a bad signature for a known platform logs check 6 with tool_account_id and platform_id (AC-LA-E5-18-02 at unit level)`) | `pending: Docker window` (UNIT verified) |
-| `AC-LA-E5-18-03` | `K1-SIM` | A valid launch logs `event: "launch_accepted"` with `tool_account_id`, `platform_id`, and `binding`. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-03: valid launch succeeds (302) and logs launch_accepted with tool_account_id, platform_id and binding` (plus unit coverage in `launch.test.ts > launch_accepted (contract delta §6) > a valid launch logs tool_account_id, platform_id and binding cookie, and no other new field (AC-LA-E5-18-03 at unit level)`) | `pending: Docker window` (UNIT verified) |
+| `AC-LA-E5-18-01` | `K1-SIM` | A rejected login for a known account and unknown `iss` logs `event: "login_rejected"` with `tool_account_id: "<accountId>"` and no `platform_id` field. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-01 .. 03` (`1/1` K1-SIM test passes in `38ms`; `LA-E5-18-k1sim.log`, `lti-service-after-LA-E5-18.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E5-18-02` | `K1-SIM` | A launch that fails check 6 (signature) for a known platform logs `event: "launch_check_failed"` with `check: 6`, `tool_account_id`, and `platform_id`. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-01 .. 03` (`LA-E5-18-k1sim.log`, `lti-service-after-LA-E5-18.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
+| `AC-LA-E5-18-03` | `K1-SIM` | A valid launch logs `event: "launch_accepted"` with `tool_account_id`, `platform_id`, and `binding`. | `protocol-tenant-logs.k1sim.test.ts > AC-LA-E5-18-01 .. 03` (`LA-E5-18-k1sim.log`, `lti-service-after-LA-E5-18.log`, `all-17-k1sim.log`) | **PASS (K1-SIM + UNIT)** |
 | `AC-LA-E5-18-04` | `UNIT` | A rejected login for an unknown `:accountId` path logs no `tool_account_id` field (not `""`, not the raw path string). | `protocol-tenant-logs.k0.test.ts > AC-LA-E5-18-04 (UNIT)`, `launch.test.ts > tenantLogIds > gives each id only when its row is known, never an empty string`, `login.test.ts > tenant ids in login_rejected > a login for an unknown account nobody logs no tool_account_id field: the old field set (AC-LA-E5-18-04)`, `login.test.ts > tenant ids in login_rejected > a login for an unknown account Not-An-Id! logs no tool_account_id field: the old field set (AC-LA-E5-18-04)` | **PASS** |
 
 ---

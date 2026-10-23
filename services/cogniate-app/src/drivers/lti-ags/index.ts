@@ -1,7 +1,7 @@
 // AGS transport and read-back (LA-ADR-03 D5). The outbox owns delivery state.
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
-import { decrypt } from '@cogniate/shared';
 import { agsScoreBody } from '@cogniate/tracking';
+import { SERVICE_KEY_COLUMN, appAad, keyVersionUnavailable, openText } from '../../app/sealing.ts';
 import { LtiServiceError, normalizeRetryAfter, type LtiClient } from '../../clients/lti-client.ts';
 import type { Db } from '../../domain/db.ts';
 import { resolveLineItem } from './line-item.ts';
@@ -25,9 +25,11 @@ export function ltiAgsReporter(deps: { db: Db; lti: LtiClient; masterKey: Buffer
   return { ...ltiAgsPolicy,
     partitionKey: (placement) => platformPartition(deps.db, placement.id),
     async readBack(placement, learnerSubject, ctx) {
-      const target = deps.db.prepare('SELECT resource_link_id, line_item_id, service_key_encrypted FROM resource_link WHERE id = ?').get(placement.id);
+      const target = deps.db.prepare(`SELECT rl.resource_link_id, rl.line_item_id, rl.service_key_encrypted, c.library_id
+        FROM resource_link rl JOIN connection c ON c.id = rl.connection_id WHERE rl.id = ?`).get(placement.id);
       if (!target || target.service_key_encrypted === null) return null;
-      const key = decrypt(deps.masterKey, target.service_key_encrypted as Uint8Array);
+      // LA-E5-22: the service key is bound to its resource link row (a legacy blob also opens).
+      const key = openText(deps.masterKey, target.service_key_encrypted as Uint8Array, appAad(SERVICE_KEY_COLUMN, String(target.library_id), placement.id));
       const lineItem = await resolveLineItem(deps, {
         resourceLinkId: placement.id, platformResourceLinkId: String(target.resource_link_id),
         lineItemId: target.line_item_id === null ? null : String(target.line_item_id),
@@ -42,7 +44,7 @@ export function ltiAgsReporter(deps: { db: Db; lti: LtiClient; masterKey: Buffer
       return result;
     },
     async deliver(dispatch, ctx) {
-      const target = deps.db.prepare(`SELECT rl.resource_link_id, rl.line_item_id, rl.service_key_encrypted, c.channel
+      const target = deps.db.prepare(`SELECT rl.resource_link_id, rl.line_item_id, rl.service_key_encrypted, c.channel, c.library_id
         FROM resource_link rl JOIN connection c ON c.id = rl.connection_id WHERE rl.id = ?`).get(dispatch.placementId);
       if (!target || target.service_key_encrypted === null) return { kind: 'local_failure', text: NO_GRADEBOOK_COLUMN };
       const row = { resourceLinkId: dispatch.placementId, platformResourceLinkId: String(target.resource_link_id),
@@ -50,8 +52,14 @@ export function ltiAgsReporter(deps: { db: Db; lti: LtiClient; masterKey: Buffer
       let posted = false;
       try {
         let serviceKey: string;
-        try { serviceKey = decrypt(deps.masterKey, target.service_key_encrypted as Uint8Array); }
+        // LA-E5-22: the service key is bound to its resource link row (a legacy blob also opens).
+        try { serviceKey = openText(deps.masterKey, target.service_key_encrypted as Uint8Array, appAad(SERVICE_KEY_COLUMN, String(target.library_id), dispatch.placementId)); }
         catch (err) {
+          // A-LA-E5-22-02: the app key ring of this process lacks the key version (or no ring is bound). The operator
+          // fixes the ring, so the outbox tries again later; nothing was sent. The provider logs key_open_failed.
+          if (keyVersionUnavailable(deps.masterKey, target.service_key_encrypted as Uint8Array, err)) {
+            return { kind: 'retryable', uncertain: false, text: lastErrorText(`Temporary error: the app key ring cannot open the service key yet. Cogniate tries again. Give the trace id ${ctx.traceId} to your Cogniate admin.`) };
+          }
           const name = err instanceof Error ? err.name : 'Error';
           // M1 contract value (AGS): the internal_error line of a score send has path score_sync.
           ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: 'score_sync', error: name });

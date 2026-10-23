@@ -16,6 +16,7 @@
 // Source: docs/architecture/ltiaas/tasks/LA-E2-05.md; LA-ADR-01 D2, D5, D6; LA-ADR-02 D1, D4, D8; LA-ADR-05 D4;
 // cogniate-app-api-delta.md §3.3; build-decisions-A1.md BD-A1-78, BD-A1-80, BD-A1-94, BD-A1-95.
 // QA-3 wrote these tests from the spec, contracts and ADRs only (test-first).
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -202,22 +203,31 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
       fs.rmSync(wtDir, { recursive: true, force: true });
     }
 
-    // 2. Also run F2 via npm script at ROOT against baseSha.
-    const f2Head = hasScript('fitness:channel-diff')
-      ? await run('npm', ['run', 'fitness:channel-diff', '--', '--base', baseSha, '--channel', 'brightspace'])
-      : await run('node', [
-          path.join(ROOT, 'infra/scripts/fitness/channel-diff.mjs'),
-          '--base',
-          baseSha,
-          '--channel',
-          'brightspace',
-        ]);
-    artifact('e2-05-ac01-f2-head.log', f2Head.output);
-    expect(f2Head.code, `F2 at HEAD against ${baseSha} exits 0:\n${f2Head.output}`).toBe(0);
-    expect(f2Head.output, 'F2 at HEAD reports core = 0').toMatch(/core\s*=\s*0\b/);
+    // 2. Also run F2 on the LA-E2-05 task commit (a3d9434) via --paths-from /dev/stdin at ROOT.
+    const diffTask = await run('git', ['diff', '--name-status', `${taskSha}^`, taskSha]);
+    expect(diffTask.code).toBe(0);
+    const f2HeadRes = spawnSync(
+      'node',
+      [
+        path.join(ROOT, 'infra/scripts/fitness/channel-diff.mjs'),
+        '--paths-from',
+        '/dev/stdin',
+        '--channel',
+        'brightspace',
+      ],
+      {
+        cwd: ROOT,
+        input: diffTask.output,
+        encoding: 'utf8',
+      },
+    );
+    const f2HeadOut = `${f2HeadRes.stdout ?? ''}${f2HeadRes.stderr ?? ''}`;
+    artifact('e2-05-ac01-f2-head.log', f2HeadOut);
+    expect(f2HeadRes.status, `F2 on ${taskSha} exits 0:\n${f2HeadOut}`).toBe(0);
+    expect(f2HeadOut, 'F2 reports core = 0').toMatch(/core\s*=\s*0\b/);
   });
 
-  it('AC-LA-E2-05-02, AC-LA-E2-05-03, AC-LA-E2-05-09: brightspace folder layout, D2L FieldSpec.default constants, profile traits, legacy flags, 4 AGS scopes (no NRPS), and K0 pass', async () => {
+  it('AC-LA-E2-05-02, AC-LA-E2-05-03, AC-LA-E2-05-09 (and Round 2 BD-A1-85 lti.toolConfiguration = channel): brightspace folder layout, D2L FieldSpec.default constants, profile traits, legacy flags, 4 AGS scopes (no NRPS), and K0 pass', async () => {
     // 1. Folder layout: manifest.ts, lti-profiles.ts, README.md; no app.ts (LA-ADR-02 D4).
     const bsDir = path.join(ROOT, 'packages/channels/brightspace');
     expect(fs.existsSync(path.join(bsDir, 'manifest.ts')), 'brightspace/manifest.ts exists').toBe(true);
@@ -233,21 +243,28 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
       expect(() => kernel.parseManifest!(manifest)).not.toThrow();
     }
 
-    // Registration: manual -> operatorGrant, profile brightspace (Must; DR is LA-E2-06 Should).
-    expect(manifest!.registration).toEqual([
-      {
-        method: 'manual',
-        authority: 'operatorGrant',
-        profiles: ['brightspace'],
-        defaultProfile: 'brightspace',
-      },
-    ]);
+    // Round 2 (BD-A1-85, 6bfb150): lti.toolConfiguration is 'channel' for both brightspace and lti-generic.
+    expect(manifest!.lti?.toolConfiguration, 'brightspace lti.toolConfiguration is channel (BD-A1-85)').toBe('channel');
+    expect(
+      reg.channel('lti-generic')?.lti?.toolConfiguration,
+      'lti-generic lti.toolConfiguration is channel (BD-A1-85)',
+    ).toBe('channel');
+
+    // Registration: manual -> operatorGrant, profile brightspace (and dynamic -> self after LA-E2-06).
+    expect(manifest!.registration).toContainEqual({
+      method: 'manual',
+      authority: 'operatorGrant',
+      profiles: ['brightspace'],
+      defaultProfile: 'brightspace',
+    });
 
     // Guarded family: desire2learn at registration level (LA-ADR-02 D1, D4).
     expect(manifest!.lti?.guardedFamilies).toEqual([{ family: 'desire2learn', level: 'registration' }]);
 
     // AC-LA-E2-05-02: The four D2L defaults in manifest.setup.bindingFields.
-    const bindingByKey = new Map(manifest!.setup.bindingFields.map((f) => [f.key, f]));
+    const bindingByKey = new Map(
+      manifest!.setup.bindingFields.filter((f) => f.method !== 'dynamic').map((f) => [f.key, f]),
+    );
     expect(bindingByKey.get('authenticationEndpoint')?.default, 'D2L auth default').toBe(
       '{siteUrl}/d2l/lti/authenticate',
     );
@@ -274,8 +291,7 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
 
     // AC-LA-E2-05-03 & Scope: capabilities and legacy flags.
     const caps = reg.capabilities('brightspace');
-    expect(caps['registration.dynamic']).toBe(false);
-    expect(caps['binding.authority']).toEqual({ manual: 'operatorGrant' });
+    expect((caps['binding.authority'] as Record<string, unknown>).manual).toBe('operatorGrant');
     expect(caps['deployments.multiple']).toBe(true);
     expect(caps['launch.windowHint']).toBe(true);
     expect(caps['launch.topLevelContinue']).toBe(false);
@@ -289,10 +305,10 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
       'no NRPS scope in brightspace registration.scopes',
     ).toBe(false);
 
-    // AC-LA-E2-05-03: legacy flags: operatorApproval true, addDeployment true, all others false.
+    // AC-LA-E2-05-03: legacy flags: operatorApproval true, addDeployment true, webServices/courseShell/canvasConfiguration false
+    // (dynamicRegistration is false at LA-E2-05 commit a3d9434 and becomes true in LA-E2-06 1b298d9).
     const legacy = reg.legacyCapabilities('brightspace');
-    expect(legacy).toEqual({
-      dynamicRegistration: false,
+    expect(legacy).toMatchObject({
       operatorApproval: true,
       addDeployment: true,
       webServices: false,
@@ -495,7 +511,7 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
       'Load check 6 refuses brightspace with manual -> self',
     ).toThrow();
 
-    // 3. Run unit tests in packages/channels/brightspace and services/cogniate-app/src/kernel/setup/admin-value.test.ts.
+    // 3. Run unit tests in packages/channels/brightspace, services/cogniate-app/src/kernel/setup/admin-value.test.ts, and apps/portal/src/channels/shell.test.tsx.
     const unitRes = await run(
       'npx',
       [
@@ -505,6 +521,7 @@ describe('LA-E2-05 E2-N channel brightspace (manual) and add-channel gate F2 (K0
         '--reporter=verbose',
         'packages/channels/brightspace',
         'services/cogniate-app/src/kernel/setup/admin-value.test.ts',
+        'apps/portal/src/channels/shell.test.tsx',
       ],
       { timeoutMs: 5 * 60_000 },
     );

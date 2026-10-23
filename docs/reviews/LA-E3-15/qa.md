@@ -1,0 +1,52 @@
+Verdict: PASS (K0 + UNIT + K1-SIM AC-01..04 all PASS)
+Round: 2
+
+# LA-E3-15 Canvas Dynamic Registration, staged with an operator grant (`operatorGrant`): QA verification
+
+Tester: QA-3 (Orca task `task_f5ff76d73ce9`, dispatch `ctx_545e35a7e7c7`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E3-15.md` (with `LA-ADR-05` D6, `LA-IC-14`, `cogniate-app-api-delta.md` §3.1/§3.4/§5/§7, and `build-decisions-A1.md` `BD-A1-103`, `BD-A1-104`, `BD-A1-106`, `BD-A1-107`). Suite: `tests/ltiaas/tasks-core/LA-E3-15/` (QA-3 test-first, authored in this round).
+
+Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E3-15/` from `docs/architecture/ltiaas/tasks/LA-E3-15.md`, `LA-ADR-05` D6, `cogniate-app-api-delta.md`, `docs/architecture/ltiaas/tasks/LA-E2-04.md` (lines 38–39), and `build-decisions-A1.md` (`BD-A1-103`, `BD-A1-104`, `BD-A1-106`, `BD-A1-107`) without reading product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (test files `services/cogniate-app/src/app/redemption-admin.test.ts` and `services/cogniate-app/src/tool-pages/register-staged.test.ts` were inspected solely for `testApp` test-harness signatures and test names).
+
+| Item | Value |
+| --- | --- |
+| SHA | `8143e6696bad9acdb8d3cae0d4232ffd3b19de01` (integration `8143e669`, code `49f1ce48`; holds `LA-E3-15` merges `2cc2aa5` / `4a62acb6`, `dc98c43` / `07eab11d`, `a03e15b` / `d32a7a87`, `dfe94ff` / `75d81fad`) |
+| Lane and slot | lane K; no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-LA-E3-15-03` and `AC-LA-E3-15-04` marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/run21/clone`: `git clone --no-hardlinks --no-checkout`, detached at `8143e6696bad9acdb8d3cae0d4232ffd3b19de01`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run21/k0/LA-E3-15/` (umask 077): `vitest.log`, `e3-15-check-clean.log`, `e3-15-ac01-02-manifest.json`, `e3-15-k0.log`, `e3-15-unit.log`, `e3-15-host-api-summary.json`, `~/cogniate-qa-runs/LA/run21/k0/head-sha.txt`, `~/cogniate-qa-runs/LA/run21/k0/status-after.txt` (`0` bytes) |
+
+## Acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E3-15-01 | PASS (K0 + UNIT) | `tests/ltiaas/tasks-core/LA-E3-15/canvas-dr.k0.test.ts > AC-LA-E3-15-01, AC-LA-E3-15-02, BD-A1-103 & BD-A1-104 (K0)` + `packages/channel-kernel/src/registry.test.ts` (34 tests) | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_RUN_DIR=~/cogniate-qa-runs/LA/run21/k0/LA-E3-15 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E3-15/vitest.config.mts --reporter=verbose` | `capabilities('canvas')['binding.authority']` is `{ manual: 'operatorGrant', dynamic: 'operatorGrant' }` and `capabilities('canvas')['registration.dynamic']` is `true`; `manifest.registration` lists both `manual` and `dynamic` (`authority: 'operatorGrant'`, profiles `['canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'canvas-sim-cloud']`, `defaultProfile: 'canvas-cloud-production'`). `e3-15-ac01-02-manifest.json`, `e3-15-unit.log` |
+| AC-LA-E3-15-02 | PASS (K0) | `canvas-dr.k0.test.ts > AC-LA-E3-15-01, AC-LA-E3-15-02, BD-A1-103 & BD-A1-104 (K0)` + `tests/ltiaas/k0/contract.test.ts` (`103` tests) | same | `legacyCapabilities('canvas')` is `{ dynamicRegistration: true, operatorApproval: true, addDeployment: true, canvasConfiguration: true, webServices: false, courseShell: false }` (`dynamicRegistration` flipped to `true`; the other 5 flags unchanged); `npm run test:k0` passes (`145/145` tests in `567ms`). `e3-15-ac01-02-manifest.json`, `e3-15-k0.log` |
+| AC-LA-E3-15-03 | `pending: Docker window` (K1-SIM); PASS (host UNIT + in-process API) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-03` (SIM queued) + `canvas-dr.k0.test.ts > BD-A1-106 & BD-A1-107 UNIT + in-process API/CLI checks` + `services/cogniate-app/src/tool-pages/register-staged.test.ts` (13 tests) | same (host part) | Host API & unit checks pass: `GET /app-api/lms-providers` lists Canvas `methods: ['manual', 'dynamic']`; `POST /app-api/connections` with `lms: 'canvas', method: 'dynamic'` returns `201` with `bindingAuthority: 'operatorGrant'`, `status: 'pending'`, and non-null `registrationUrl` (`BD-A1-106`); `POST /tool/register` stages the inactive Canvas platform (`active: false`), keeps `status: 'pending'` and `bindingAuthority: 'operatorGrant'`, refuses an active `complete` answer on a non-`self` connection (`REGISTRATION_FAILED`, orphan deactivated), and enforces fixed-issuer `registration.url === c.snapshot.issuer` and staged `platform.siteUrl === connection.siteUrl` (`SITE_MISMATCH`, `BD-A1-107`). Live K1-SIM (`canvas-dr.k1sim.test.ts`) queued for the next Docker slot. `e3-15-unit.log`, `e3-15-host-api-summary.json` |
+| AC-LA-E3-15-04 | `pending: Docker window` (K1-SIM); PASS (host UNIT + in-process API/CLI) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-04` (SIM queued) + `canvas-dr.k0.test.ts > BD-A1-106 & BD-A1-107 UNIT + in-process API/CLI checks` + `services/cogniate-app/src/app/redemption-admin.test.ts` (19 tests) | same (host part) | Host API & CLI checks pass (`BD-A1-107`): `app:grant issue` on a staged Canvas connection refuses `--accept-staged` (`bound_values_not_allowed`), checks `client_id_mismatch`, `deployment_mismatch`, and `staged_values_changed`, and issues a fixed-endpoint grant (`boundValues = null`); `PUT /app-api/connections/:id/platform { clientId, deploymentId, grantCode }` returns `200`, adopts and activates the existing staged Canvas platform (`active: true`) without creating a second platform (`platformsCountBeforeAndAfter = [1, 1]`), and sets `status: 'registered'`. Live K1-SIM (`canvas-dr.k1sim.test.ts`) queued for the next Docker slot. `e3-15-unit.log`, `e3-15-host-api-summary.json` |
+
+## Other checks
+
+- **Build decisions verified (`BD-A1-103`, `BD-A1-104`, `BD-A1-106`, `BD-A1-107`):**
+  - `BD-A1-103` & `BD-A1-104` (`07eab11d` / `dc98c43`): `packages/channels/canvas/manifest.ts` `setup.bindingFields` has the three `manual` rows followed by the three `dynamic` rows (`clientId`, `deploymentId`, `grantCode`, each `method: 'dynamic'`, `required: true`), and `packages/channels/canvas/README.md` Registration row states: `` `manual` with a developer key; `dynamic` (Canvas Dynamic Registration), always staged: the platform stays inactive until the operator grant. Both methods bind with authority `operatorGrant` ``.
+  - `BD-A1-106` (`d32a7a87` / `a03e15b`): Every `method: 'dynamic'` connection create issues a registration token regardless of `bindingAuthority`; `stageRegistration` accepts `binding_authority IN ('self', 'operatorGrant')`; `/tool/register` refuses an active `complete` answer when `c.bindingAuthority !== 'self'` (`REGISTRATION_FAILED`, deactivates orphan platform).
+  - `BD-A1-107` (`75d81fad` / `dfe94ff`): Fixed-issuer check on `/tool/register` (`registration.url === c.snapshot.issuer` on GET and POST, and `platform.siteUrl === connection.siteUrl` after `complete`); `app:grant issue` checks the staged platform on fixed-endpoint channels and refuses `--accept-staged` (`bound_values_not_allowed`); staged Canvas redemption (`{ clientId, deploymentId, grantCode }`) skips S1 create, adopts the staged platform in S2 (requiring matching `siteUrl` and `serviceUrl`), and activates it in S3.
+- **R0 `npm run check` at `8143e669` (`e3-15-check-clean.log`):**
+  - Vitest (`test:unit`): `198` files; `3,212` passed, `5` skipped (`44.16s`).
+  - Infra (`test:infra`, `node --test`): `255` pass, `0` fail (`24.15s`).
+  - K0 (`test:k0`): `3` files; `145` passed (`567ms`).
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Measured time:** `LA-E3-15` K0 suite `3.72s` after `npm run check` (`83.04s` including `npm run check`; `3/3` K0 tests passed; `3` unit test files / `66/66` unit tests in `1.82s`).
+
+## Round 2 (Slot 4b K1-SIM on `dc2a1b5e`)
+
+| Item | Value |
+| --- | --- |
+| SHA | `dc2a1b5ef06d1446aaa8225bfcff100248ed070a` (`dc2a1b5e`) |
+| Lane and slot | lane K; Slot 4b Docker SIM (`COMPOSE_PROJECT_NAME=qa3-la-sim-r3`, `PUBLIC_PORT=9453`, `STACK_SUBNET=172.21.0.0/16`) |
+| Artifacts | `~/cogniate-qa-runs/LA/qa3-slot4b-dc2a1b5e/artifacts/qa3-la-sim-r3-dc2a1b5e-2026-10-23T13-33-56-911Z/` (`cmd/08-test-acceptance-LA-E3-15.log`, `container-LA-E3-15/vitest-results.json`, `reports/LA-E3-15.json`) |
+
+| AC | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| AC-LA-E3-15-03 | PASS (K1-SIM + UNIT) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-03: GET /app-api/lms-providers lists Canvas methods ["manual", "dynamic"], and Canvas DR stages platform with active: false while learner launch gets PLATFORM_NOT_ACTIVE` | Live K1-SIM (`194.9 ms`): `GET /app-api/lms-providers` lists Canvas `methods: ["manual", "dynamic"]`; `POST /app-api/connections { lms: "canvas", method: "dynamic", profile: "canvas-sim-cloud", siteUrl: "https://school-a.canvas.sim.test" }` returns `201` with `bindingAuthority: "operatorGrant"`, `status: "pending"`, and a registration URL (`BD-A1-106`); running Canvas DR on `canvas-sim-cloud` stages the platform with `active: false` (`LA-E3-09`) while keeping `status: "pending"` and `bindingAuthority: "operatorGrant"`, and a learner launch gets `403 PLATFORM_NOT_ACTIVE`. `08-test-acceptance-LA-E3-15.log` |
+| AC-LA-E3-15-04 | PASS (K1-SIM + UNIT) | `canvas-dr.k1sim.test.ts > AC-LA-E3-15-04: POST /app-api/connections {lms: "canvas", method: "dynamic"} stores operatorGrant, refuses --accept-staged (BD-A1-107), and grant redemption without bound values activates staged platform so learner launch and score pass` | Live K1-SIM (`1,610.1 ms`): `app:grant issue --accept-staged` on the staged Canvas connection is refused (`"A staged registration with fixed endpoints..."`, `BD-A1-107`); `app:grant issue` without bound values issues an approval code, `PUT /app-api/connections/:id/platform { clientId, deploymentId, grantCode }` returns `200` (`status: "registered"`), activates the staged platform (`active: true`), and a learner launch and score (`9/10`) pass end to end. `08-test-acceptance-LA-E3-15.log` |

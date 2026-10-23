@@ -35,3 +35,14 @@ it.each(['url', 'inline'])('AC-LA-E3-07-02: the JSON with jwk=%s has exactly the
   expect(answer.body.scopes).toEqual(AGS_SCOPES);
   expect(answer.body.scopes).toEqual(manifest.capabilities['registration.scopes']);
 });
+
+it.each([['url', null], ['inline', 'key']])('LA-E6-05: jwk=%s reports the embedded key kid %s to the kernel, outside the JSON body', async (jwk, kid) => {
+  const ctx = {
+    libraryName: 'Library', toolAccountId: 'account',
+    toolUrls: { login: 'https://lti.test/login', launch: 'https://lti.test/launch', keys: 'https://lti.test/keys', register: 'https://lti.test/register', ltiOrigin: 'https://lti.test' },
+    publicToolKeys: async () => ({ ok: true, keys: [{ kty: 'RSA', kid: 'key', alg: 'RS256', use: 'sig', n: 'abc', e: 'AQAB' }, { kty: 'RSA', kid: 'second', alg: 'RS256', use: 'sig', n: 'def', e: 'AQAB' }] }),
+  } as PortContext;
+  const answer = await configurationRoute.handle({ body: null, query: { jwk: jwk! } }, ctx) as { body: Record<string, unknown>; artifactKeyKid?: string | null };
+  expect(answer.artifactKeyKid).toBe(kid);
+  expect(answer.body).not.toHaveProperty('artifactKeyKid');
+});

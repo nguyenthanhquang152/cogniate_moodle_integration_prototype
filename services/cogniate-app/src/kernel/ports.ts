@@ -279,10 +279,13 @@ export interface PortContext {
   sql: ChannelSql;
   /** The shared SSRF-guarded outbound client. */
   outbound: GuardedClient;
-  /** Asynchronously encrypt an extension secret through the kernel key owner. */
-  seal(value: string): Promise<Uint8Array>;
-  /** Asynchronously decrypt a sealed extension secret. */
-  unseal(blob: Uint8Array): Promise<string>;
+  /**
+   * Asynchronously seal an extension secret of the bound connection through the kernel key provider. LA-E5-22: the
+   * value is bound to its `connection` column, the library and the connection (another row cannot open it).
+   */
+  seal(value: string, column: string): Promise<Uint8Array>;
+  /** Asynchronously open a sealed extension secret of the bound connection (also a legacy blob). */
+  unseal(blob: Uint8Array, column: string): Promise<string>;
   /** The call logger; never include secret values. */
   logger: Logger;
   /** Correlation id for this call. */
@@ -336,7 +339,15 @@ export interface ExtensionRoute {
   legacyCapabilityName?: string;
   /** Run after ownership and capability checks; return success or an error the kernel renders. */
   handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
-    { status: number; body: unknown; headers?: Record<string, string> } |
+    {
+      status: number; body: unknown; headers?: Record<string, string>;
+      /**
+       * LA-E6-05 (LA-ADR-08 D5): a setup artifact reports the `kid` of the key snapshot that it embeds, or null when it
+       * embeds no key (it names the key URL). The kernel records it on the connection (`artifact_key_kid`) and never
+       * sends it. Absent: the route is not a setup artifact, and the stored value does not change.
+       */
+      artifactKeyKid?: string | null;
+    } |
     { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;
 }
 /** Read-only publication fields needed by a publish hook. Extension state is read through scoped SQL. */

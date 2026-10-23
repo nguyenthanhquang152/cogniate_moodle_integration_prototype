@@ -3,7 +3,7 @@
 // Each use logs platform_token {platform_id, cache: "hit" | "miss"}; a miss is one outbound request.
 import { randomToken } from '@cogniate/shared';
 import type { Logger, OutboundClient } from '@cogniate/shared';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import { CLAIM } from '../lti/checks.ts';
 import { signToolJwt } from '../lti/tool-jwt.ts';
 import type { ProfileOptions } from '../profiles/index.ts';
