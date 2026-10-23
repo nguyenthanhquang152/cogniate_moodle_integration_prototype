@@ -141,8 +141,8 @@ function makeReport(overrides = {}) {
   assert.ok(brightspace, 'brightspace manifest must exist');
   assert.deepEqual(
     brightspace.registration.map((r) => r.method),
-    ['manual'],
-    'brightspace must expose manual registration only',
+    ['dynamic', 'manual'],
+    'brightspace must expose dynamic and manual registration (LA-E2-06)',
   );
   const defaultedFields = brightspace.setup.bindingFields.filter((f) => typeof f.default === 'string');
   assert.equal(

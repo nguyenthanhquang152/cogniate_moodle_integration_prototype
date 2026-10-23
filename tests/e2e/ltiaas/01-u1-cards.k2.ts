@@ -44,7 +44,9 @@ k2Case(
     await portalSignIn(page, THANH);
     await integrations(page);
 
-    const cardLocators = manifests.map((m) => card(page, m.card.title));
+    const cardLocators = manifests.map((m) =>
+      page.getByRole('article', { name: m.card.title, exact: true }).or(card(page, m.card.title)).first(),
+    );
     for (const [idx, m] of manifests.entries()) {
       await expect(cardLocators[idx], `Card visible for ${m.id} (${m.card.title})`).toBeVisible();
     }
@@ -81,7 +83,7 @@ k2Case(
 
     for (const m of manifests) {
       await integrations(page);
-      const c = card(page, m.card.title);
+      const c = page.getByRole('article', { name: m.card.title, exact: true }).or(card(page, m.card.title)).first();
       await expect(c, `Card for ${m.id}`).toBeVisible();
       await expect(c.getByRole('heading', { name: m.card.title, exact: true })).toBeVisible();
       await expect(c.getByText(m.card.description, { exact: true })).toBeVisible();

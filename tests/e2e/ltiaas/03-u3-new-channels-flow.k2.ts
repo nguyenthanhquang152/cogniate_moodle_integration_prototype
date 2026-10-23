@@ -30,8 +30,9 @@ import {
   portalSignIn,
   publishCourseViaDialog,
   rememberPrivate,
-  requireCourseZip,
+   requireCourseZip,
   saveWizardConnection,
+  selectRegistrationMethod,
   session,
   shot,
   sim,
@@ -62,11 +63,15 @@ k2Case(
     await page.goto(`${APP}/integrations/lti-generic/connect`);
     await page.getByLabel('Connection name').fill(connName);
     await page.getByLabel('LMS site URL', { exact: true }).fill(GENERIC_SIM.siteUrl);
-    await page.getByRole('radio', { name: /^(Automatic|Dynamic)/i }).first().check();
+    await selectRegistrationMethod(page, 'dynamic');
     await next(page);
     await page.waitForURL(/\/integrations\/lti-generic\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
 
+    const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
+    if ((await getRegBtn.count()) > 0) {
+      await getRegBtn.first().click();
+    }
     const copyBtn = page.getByRole('button', { name: /Copy( registration URL)?/i }).first();
     await copyBtn.click();
     const regUrl = await clipboardText(page);
@@ -132,11 +137,15 @@ k2Case(
     await page.goto(`${APP}/integrations/lti-generic/connect`);
     await page.getByLabel('Connection name').fill(connName);
     await page.getByLabel('LMS site URL', { exact: true }).fill(GENERIC_SIM.siteUrl);
-    await page.getByRole('radio', { name: /^(Automatic|Dynamic)/i }).first().check();
+    await selectRegistrationMethod(page, 'dynamic');
     await next(page);
     await page.waitForURL(/\/integrations\/lti-generic\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
 
+    const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
+    if ((await getRegBtn.count()) > 0) {
+      await getRegBtn.first().click();
+    }
     const copyBtn = page.getByRole('button', { name: /Copy( registration URL)?/i }).first();
     await copyBtn.click();
     const regUrl = await clipboardText(page);
@@ -239,7 +248,7 @@ k2Case(
     await page.goto(`${APP}/integrations/lti-generic/connect`);
     await page.getByLabel('Connection name').fill(connName);
     await page.getByLabel('LMS site URL', { exact: true }).fill(GENERIC_SIM.siteUrl);
-    await page.getByRole('radio', { name: /^Manual/i }).first().check();
+    await selectRegistrationMethod(page, 'manual');
     await next(page);
     await page.waitForURL(/\/integrations\/lti-generic\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
@@ -377,6 +386,7 @@ k2Case(
     await page.goto(`${APP}/integrations/brightspace/connect`);
     await page.getByLabel('Connection name').fill(connName);
     await page.getByLabel('Brightspace URL', { exact: true }).fill(BRIGHTSPACE_SIM.siteUrl);
+    await selectRegistrationMethod(page, 'manual');
     await next(page);
     await page.waitForURL(/\/integrations\/brightspace\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;

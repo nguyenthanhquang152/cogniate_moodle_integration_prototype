@@ -1,10 +1,12 @@
 // Slot 6 R2-sim browser & protocol suite on `moodle-sim` (https://moodle.sim.test).
 // Covers manual Moodle connect, .mbz backup export, Deep Linking (no window hint), SCORM 1.2 + HTML grades (200/409/503 + Resend),
 // and Check 14 family guard refusal on `standard` profile.
+import { createCourse, uploadVersion } from '../../acceptance/lib/app';
 import {
   APP,
   COURSE_ZIP,
   MOODLE_SIM,
+  TEXT,
   THANH,
   app,
   assertPortalResultsSent,
@@ -82,14 +84,9 @@ k2Case(
 
     const { connectionId, connName, target } = await createRegisteredMoodleSimConnection(page, s);
 
-    // Upload HTML course and verify .mbz export endpoint (capabilities['export.packages'] = ['mbz'])
+    // Upload HTML course, publish, Deep Linking pick, and learner completion
     const htmlTitle = unique('R2-Sim HTML Course');
     const htmlCourseId = await createCourseWithZip(page, htmlTitle, COURSE_ZIP.html, 'HTML');
-    const mbzRes = await httpsRequest(`${APP}/app-api/courses/${htmlCourseId}/moodle-backup`, {
-      headers: { cookie: s.cookie },
-    });
-    expect(mbzRes.status, 'GET /app-api/courses/:id/moodle-backup returns 200').toBe(200);
-    expect(String(mbzRes.headers['content-disposition'] ?? '')).toContain('.mbz');
 
     await publishCourseViaDialog(page, htmlCourseId, connName);
     const pubsRes = await app(s as any, 'GET', `/app-api/publications?courseId=${encodeURIComponent(htmlCourseId)}`);
@@ -103,10 +100,92 @@ k2Case(
     expect(String(item!.url)).toContain(`resource=${pub.id}`);
     expect(Object.hasOwn(item!, 'window'), 'Moodle Deep Linking item omits window hint').toBe(false);
 
-    // Learner completion on HTML course
-    await performLearnerCompletion(page, target, String(pub.id), 'Moodle', 'r2-sim-moodle-html');
+    // Learner completion on HTML course (200)
+    await performLearnerCompletion(page, target, String(pub.id), 'Moodle', 'k2-r2-sim-moodle-html');
     await assertPortalResultsSent(page, String(pub.id), MOODLE_SIM.siteHost);
     expect((await connection(s, connectionId)).status).toBe('connected');
+
+    // SCORM 1.2 course: verify .mbz section + .mbz build & download + SCORM 1.2 learner grade sync (200)
+    const scormTitle = unique('R2-Sim SCORM Course');
+    const scormCourse = await createCourse(s as any, scormTitle);
+    const scormUp = await uploadVersion(s as any, scormCourse.id, fixtureZip('scorm12'));
+    ok(scormUp, 201, 'upload SCORM 1.2 fixture');
+    const scormCourseId = String(scormCourse.id);
+    const scormVersionId = String((scormUp.json.version as Json | undefined)?.id ?? scormUp.json.id);
+
+    await page.goto(`${APP}/libraries/courses/${scormCourseId}`);
+    await expect(page.getByText(TEXT.mbz, { exact: true }).first()).toBeVisible();
+
+    const mbzStart = await app(
+      s as any,
+      'POST',
+      `/app-api/courses/${encodeURIComponent(scormCourseId)}/versions/${encodeURIComponent(scormVersionId)}/mbz`,
+    );
+    expect([200, 201, 202]).toContain(mbzStart.status);
+    expect(mbzStart.json?.courseId).toBe(scormCourseId);
+    expect(mbzStart.json?.versionId).toBe(scormVersionId);
+    expect(['queued', 'running', 'ready', 'failed']).toContain(mbzStart.json?.status);
+    const mbzGet = await app(
+      s as any,
+      'GET',
+      `/app-api/courses/${encodeURIComponent(scormCourseId)}/versions/${encodeURIComponent(scormVersionId)}/mbz`,
+    );
+    expect(mbzGet.status).toBe(200);
+    expect(mbzGet.json?.buildId).toBe(mbzStart.json?.buildId);
+
+    await publishCourseViaDialog(page, scormCourseId, connName);
+    const scormPubsRes = await app(s as any, 'GET', `/app-api/publications?courseId=${encodeURIComponent(scormCourseId)}`);
+    const scormPub = (scormPubsRes.json.publications as Json[]).find((p) => p.connectionId === connectionId)!;
+    check(scormPub, 'Moodle-sim SCORM 1.2 publication exists');
+
+    const scormSc = await createSimScenario(target, {
+      resource: String(scormPub.id),
+      resourceLinkId: unique('rl-scorm'),
+      subject: 'learner-scorm',
+    });
+    await page.goto(scormSc.loginUrl);
+    await page.waitForURL((u) => u.origin === APP && playPath.test(u.pathname), { timeout: 30_000 });
+    const scormRtFrame = await waitForFrame(page, (u) => u.origin === urls.content && u.pathname.startsWith('/rt/'));
+    const scormRtToken = new URL(scormRtFrame.url()).pathname.split('/')[2]!;
+    const scormStateRes = await httpsRequest(`${urls.content}/rt/${scormRtToken}/state`);
+    ok(scormStateRes, 200, 'SCORM 1.2 runtime state');
+    const scormState = JSON.parse(scormStateRes.body);
+    const scormCommitRes = await httpsRequest(`${urls.content}/rt/${scormRtToken}/commit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'scorm12',
+        event: 'finish',
+        sessionId: scormState.sessionId,
+        seq: scormState.lastSeq + 1,
+        cmi: {
+          core: {
+            lesson_status: 'completed',
+            lesson_location: '',
+            score: { raw: '100', min: '0', max: '100' },
+            session_time: '0000:00:01.00',
+            exit: '',
+          },
+          suspend_data: '',
+          comments: '',
+          interactions: [],
+          objectives: [],
+        },
+      }),
+    });
+    ok(scormCommitRes, 200, 'SCORM 1.2 runtime commit');
+
+    let scormSentSeen = false;
+    for (let i = 0; i < 60; i++) {
+      const res = await app(s, 'GET', `/app-api/publications/${scormPub.id}/results`);
+      const row = (res.json.rows as Json[] | undefined)?.find((r) => r.learner?.sub === 'learner-scorm');
+      if (row?.scoreSyncs?.some((sync: Json) => sync.status === 'sent')) {
+        scormSentSeen = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    expect(scormSentSeen, 'SCORM 1.2 score sync reaches sent status on moodle-sim').toBe(true);
     await shot(page, 'r2-sim-moodle-results');
   },
   480_000,
@@ -122,7 +201,9 @@ k2Case(
 
     const { connectionId, connName, target } = await createRegisteredMoodleSimConnection(page, s);
     const htmlTitle = unique('R2-Sim Faults HTML');
-    const htmlCourseId = await createCourseWithZip(page, htmlTitle, COURSE_ZIP.html, 'HTML');
+    const htmlCourse = await createCourse(s as any, htmlTitle);
+    ok(await uploadVersion(s as any, htmlCourse.id, fixtureZip('html')), 201, 'upload HTML fixture');
+    const htmlCourseId = String(htmlCourse.id);
     await publishCourseViaDialog(page, htmlCourseId, connName);
     const pubsRes = await app(s, 'GET', `/app-api/publications?courseId=${encodeURIComponent(htmlCourseId)}`);
     const pub = (pubsRes.json.publications as Json[]).find((p) => p.connectionId === connectionId)!;
@@ -160,6 +241,71 @@ k2Case(
       await page.waitForTimeout(250);
     }
     expect(conflictSeen, '409 score answer transitions sync status to conflict').toBe(true);
+
+    // 3a. 503 transient failure followed by 200 automatic retry recovery
+    const retry503Sc = await createSimScenario(target, {
+      resource: String(pub.id),
+      resourceLinkId: unique('rl-503'),
+      subject: 'learner-503',
+      scoreAnswers: [{ status: 503, message: 'Service Unavailable' }, { status: 200 }],
+    });
+    await page.goto(retry503Sc.loginUrl);
+    await page.waitForURL((u) => u.origin === APP && playPath.test(u.pathname), { timeout: 30_000 });
+    const rt503Frame = await waitForFrame(page, (u) => u.origin === urls.content && u.pathname.startsWith('/rt/'));
+    const rt503Token = new URL(rt503Frame.url()).pathname.split('/')[2]!;
+    await completeHtml(rt503Token, 9);
+
+    let retry503SentSeen = false;
+    for (let i = 0; i < 120; i++) {
+      const res = await app(s, 'GET', `/app-api/publications/${pub.id}/results`);
+      const row = (res.json.rows as Json[] | undefined)?.find((r) => r.learner?.sub === 'learner-503');
+      if (row?.scoreSyncs?.some((sync: Json) => sync.status === 'sent' && Number(sync.tries) >= 2)) {
+        retry503SentSeen = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    expect(retry503SentSeen, '503 score answer retries and transitions to sent').toBe(true);
+
+    // 3b. Permanent failure (400) + manual Resend recovery (200)
+    const resendSc = await createSimScenario(target, {
+      resource: String(pub.id),
+      resourceLinkId: unique('rl-resend'),
+      subject: 'learner-resend',
+      scoreAnswers: [{ status: 400, message: 'Gradebook temporarily locked' }, { status: 200 }],
+    });
+    await page.goto(resendSc.loginUrl);
+    await page.waitForURL((u) => u.origin === APP && playPath.test(u.pathname), { timeout: 30_000 });
+    const rtResendFrame = await waitForFrame(page, (u) => u.origin === urls.content && u.pathname.startsWith('/rt/'));
+    const rtResendToken = new URL(rtResendFrame.url()).pathname.split('/')[2]!;
+    await completeHtml(rtResendToken, 9);
+
+    let failedSyncId = '';
+    for (let i = 0; i < 60; i++) {
+      const res = await app(s, 'GET', `/app-api/publications/${pub.id}/results`);
+      const row = (res.json.rows as Json[] | undefined)?.find((r) => r.learner?.sub === 'learner-resend');
+      const failedSync = row?.scoreSyncs?.find((sync: Json) => sync.status === 'failed');
+      if (failedSync) {
+        failedSyncId = String(failedSync.id);
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    expect(failedSyncId, 'Failed sync row created before Resend').not.toBe('');
+    const resendRes = await app(s, 'POST', `/app-api/score-syncs/${failedSyncId}/resend`);
+    ok(resendRes, 200, 'POST /app-api/score-syncs/:id/resend');
+
+    let resendSentSeen = false;
+    for (let i = 0; i < 60; i++) {
+      const res = await app(s, 'GET', `/app-api/publications/${pub.id}/results`);
+      const row = (res.json.rows as Json[] | undefined)?.find((r) => r.learner?.sub === 'learner-resend');
+      if (row?.scoreSyncs?.some((sync: Json) => sync.status === 'sent')) {
+        resendSentSeen = true;
+        break;
+      }
+      await page.waitForTimeout(250);
+    }
+    expect(resendSentSeen, 'Manual Resend recovers failed score sync to sent').toBe(true);
     await shot(page, 'r2-sim-moodle-409-and-check14');
   },
   360_000,
