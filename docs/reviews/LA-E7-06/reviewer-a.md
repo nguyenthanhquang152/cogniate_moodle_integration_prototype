@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 3
+Round: 4
 
 ## Round 1
 
@@ -271,3 +271,61 @@ Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
 - Probe source/config and logs remain in the private clone: `reviewer-r3.probe.test.ts`, `reviewer-r3.config.mts`, `reviewer-r3-probes.log`, `reviewer-r3-k0.log`, `reviewer-r3-types.log`. Cleared private `node_modules/.vitest-cache` before each Vitest run.
 - The reviewed QA commit changes only the permitted kit and QA-report files. No product or frozen-test changes, and no LMS name added to core paths. K0's suite-neutrality check passes. Host negative coverage improves, but the executed probes show the behavioral acceptance coverage is incomplete.
 - No Docker, stack, stack-starting host runner, K1-SIM execution or commit. Pending live evidence is not an additional finding in this host-only review. Reviewer-B's file was not opened. Only this review file was changed by this reviewer in integration; concurrent work was left untouched.
+
+## Round 4
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: CHANGES_REQUESTED — 2 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed QA commit `30b5eb244e80e27ee49af657fd7dd93030441044`, integrated at `3a8b0e6f`, with `git diff af36ad31 3a8b0e6f -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. All locations below refer to `3a8b0e6f`. This is the review after the last allowed fix round; the two open findings require the Lead's product-owner escalation under charter-LA §5. No additional fix round or live run is authorized by this review.
+
+### Open Round 3 finding disposition
+
+| Finding | Round 4 status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-06-01 | **CLOSED** | `fixtures.ts:1114` requires an explicit matching suite identity. My current-wave full-run probe rejects anonymous files and reuse of a T3b file for T7, and accepts three correctly named files. The new K0 negatives also pass. |
+| A-LA-E7-06-07 | **OPEN, BLOCKER** | L9 now uses distinct A/B sessions and asserts different library IDs. L7 now waits for both learners and checks shared placement, but retains the invalid comparison with the external resource ID. L4's new selector and expected-family table are wrong for shipped fixtures. Three focused host probes demonstrate those remaining L4/L7 failures below. |
+| A-LA-E7-06-08 | **OPEN, BLOCKER** | Real Moodle/Canvas binding parsers now accept the captured setup bodies; simulator profile selection, the normal picker handoff, flat DTOs and single-object `waitSync` consumption are corrected. The picker helper now fabricates success for a redirect loop, and L10 still cannot consume real storage pages. D3 still posts the wrong picker field. |
+| A-LA-E7-06-09 | **CLOSED** | Both global callers use `selectProtocolControlFixture` (`k1-launch.k1sim.test.ts:702`, `k1-nrps.k1sim.test.ts:148`). My probe selects `lti-generic`/`generic-sim` and rejects missing or duplicate controls. Exact fault names/codes, the valid launch control and no-call checks remain. |
+
+Earlier closed findings A-02, A-03, A-04, A-05, A-06 and A-10 remain closed. The new evidence below continues A-07 and A-08 rather than creating duplicate finding IDs.
+
+### A-LA-E7-06-07 — BLOCKER — L4 and L7 still reject correct product behavior
+
+**Locations:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:188`, `:194`, `:219`, `:396`, `:400`; `tests/ltiaas/kit/lib/fixtures.ts:1568`.
+
+**Problem and evidence:** Predetermining an outcome fixes the prior post-hoc branching only if the selected family and expected outcome are correct. The following failures still prevent the required safety cases from passing under AC-01 / TEST-STRATEGY §2.4:
+
+| Case | Confirmed remaining failure |
+| --- | --- |
+| L4 foreign launch-guarded family | The selector treats `operatorGrant && !registration.dynamic` as the guard trait. Blackboard is the only shipped match, so the Blackboard case excludes itself and gets `undefined`, then dereferences `.sim.family`. A host probe executed the selector expression extracted from the actual suite and confirmed there is no candidate. Canvas is launch-guarded but supports Dynamic Registration, so that predicate wrongly excludes it. |
+| L4 foreign registration-guarded family | On Canvas, the second selector chooses Moodle. The new helper classifies `moodle` as registration-guarded and requires a warning, but the shipped registry has no guarded-family entry for it: the real `familyGuardVerdict` returns `{kind: 'pass'}`. My host probe confirmed that the kit rejects the correct silent 303. The guarded registration family here is `desire2learn`; Dynamic Registration support is not a guard-level indicator. Also, the warning lookup at `:219` defaults to the app log, while this is an LTI-service event (`tests/acceptance/M1/common/client.ts:192`). |
+| L7 shared contextless placement | After validating the shared internal placement, the suite still requires its ID and both result-row IDs to equal `sharedRlId`, the external launch claim. A host probe used the real `upsertResourceLink` and `publicationResults` with an in-memory database. Both learners correctly share one generated `rl_…` ID, different from the external `rl-ctxless-…` value; the new shared-placement validator accepts that result, but the retained suite equality throws. Product sources: `services/cogniate-app/src/domain/launch.ts:62`, `services/cogniate-app/src/domain/results.ts:36`, `:127`. |
+
+**Suggested fix for the escalated work:** Select foreign families using their actual declared guard level and derive expectations from that independent design data. Read the LTI-service warning with a relevant platform/trace filter. Keep L7's per-learner sent checks and shared internal-ID invariant, and remove the external-ID comparisons. The K0 cases must exercise the suite's selectors and final comparisons, not only the new helper functions with hand-built values.
+
+### A-LA-E7-06-08 — BLOCKER — Page and picker callers still use incompatible contracts
+
+**Locations:** `tests/ltiaas/kit/lib/runtime.ts:1245`; `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:584`, `:603`, `:609`; `tests/ltiaas/kit/suites/k1-dl.k1sim.test.ts:156`.
+
+**Problem and evidence:** The repaired request bodies and DTOs do not complete the caller audit. These remaining cases either reject a conforming response or report a response that never occurred:
+
+| Boundary | Evidence |
+| --- | --- |
+| Picker handoff | After following the handoff, `openPickerOnChannel` changes a 303 whose Location points back to the same picker into status 200. My probe supplies that redirect loop: the returned `page.status` is 303, `status` is 200 and HTML is empty. A separate positive control supplies a real 200 picker and passes. Preserve the observed response; a redirect loop is not a successful page. |
+| L10 storage login | It extracts an authorize URL with a regex over raw HTML instead of parsing `lti-storage-data`. The real renderer escapes query separators as `\u0026` in that JSON. A host probe against `storageLoginPage` confirms the extracted URL differs from `authUrl` and has no `state` query parameter; parsing the JSON gives the correct URL. Product: `services/lti-service/src/lti/storage-pages.ts:14`, `:49`. |
+| L10 storage check | It calls `parseForm` on the storage-check HTML, but that page creates its form in JavaScript. The real `storageCheckPage` plus frozen `parseForm` throws `HTML form action present` in a host probe. The actual data block gives `postUrl` and `check`; the endpoint consumes `{check, value}` with the LTI origin, not the suite's `{state}`/`pendingId` fields and absent Origin (`services/lti-service/src/lti/launch.ts:109`). The current positive 303 assertion cannot be reached correctly. |
+| D3 multiple selection | The form sends repeated `publicationIds` (plural) and expects 200. The real picker route reads only repeated `publicationId` (singular), so it sees zero selections and returns `PUBLICATION_NOT_AVAILABLE` (`services/cogniate-app/src/tool-pages/picker.ts:219`, `:226`). The negative single-selection branch uses the same wrong name, so its 400 can be unrelated to the multiple-selection restriction. This is source-confirmed; no SIM run was used. |
+
+The C1 loader no longer throws, but its default “manifest” operand is now read from the same QA fixture (`fixtures.ts:354`) or copied from the supplied fixture (`:363`), rather than from the product manifest. A private mutation probe changed one fixture capability and supplied matching API maps: the purported manifest comparison passed while the real registry capability differed; substituting the real registry map correctly failed. The API-to-fixture checks still run, so this observation does **not** claim those checks were removed. It shows that the additional claimed manifest check is self-comparison and does not establish independent manifest equality.
+
+**Suggested fix for the escalated work:** Preserve HTTP status values, consume the escaped storage JSON and documented storage-check body/origin, and use the real picker form field. Either obtain the manifest operand through the public registry or clearly limit the comparison to the API/fixture contract. Exercise the real page renderers and caller boundaries in host tests. Do not change product or frozen M1 contracts to accommodate the kit.
+
+### Round 4 verification and boundaries
+
+- Private clone `/tmp/la-review-a-29f08bae897a`, made with `git clone --no-hardlinks`, detached at `3a8b0e6f`; dependencies installed only there.
+- Kit K0: `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` — **16/16 PASS**, 1 file, 226 ms. Kit type check: `npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0**.
+- Re-ran my original Round 3 diagnostic source against this pin, changing only its scratch-output path: **6 old-defect assertions no longer hold; 2 still hold**. Those two exercise the unchanged `waitSync` return contract and an inline copy of the obsolete selector, so they are not evidence that the corrected callers still have those two bugs. The old picker mock always returns 303; its changed result exposed the status fabrication above. Full replay output: `reviewer-r3-replay.log`.
+- Re-expressed the eight Round 3 boundaries as current-behavior checks, using the actual new selector and a real-200 picker control, and added seven focused diagnostic checks. `npx --no-install vitest run --reporter=verbose --config reviewer-r4.config.mts` — **15/15 PASS**, 1 file, 322 ms: eight regression checks and seven assertions confirming the remaining defects. This is diagnostic evidence, not K1 acceptance. It uses real binding parsers, public registry/family guard, `waitSync`, placement/result functions and storage-page renderers; network/CLI calls are mocked. The placement probe uses in-memory SQLite. The fixture mutation was confined to the private clone and restored.
+- Private files: `reviewer-r4.probe.test.ts`, `reviewer-r4.config.mts`, `reviewer-r4-probes.log`, `reviewer-r4-k0.log`, `reviewer-r4-types.log`, plus the retained Round 3 replay files. Private `node_modules/.vitest-cache` was cleared before each Vitest run. No additional root or live suite result is claimed.
+- The reviewed QA commit stays within the permitted kit and QA-report paths. No product, simulator or frozen-test changes, and no LMS name added to core paths; the suite-neutrality K0 check passes. The remaining gaps are in the safety oracles and runtime contracts, despite the green static/source-text checks.
+- No Docker, stack, stack-starting host runner, K1-SIM execution or commit. Reviewer-B's file and probes were not opened. Only this review file was changed by this reviewer in integration. Live evidence remains pending, and its absence is not an additional finding in this host-only review.
