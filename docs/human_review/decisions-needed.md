@@ -128,18 +128,23 @@ The charter does not require human permission before the authorized corrections.
 Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
 
 **Current status — 2026-10-23:** G1's blocking design findings are closed. The source implementation passed review.
-M1, M2 and legacy checks are accepted. Final T7 testing and prototype storage acceptance remain pending.
+M1, M2, legacy and final T7 checks are accepted.
+The Lead accepts storage for this prototype only, with the limits below.
+The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE.
+The [E-R8 decision](../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc) records the accepted T7 evidence and storage scope.
 
 M1 has two matching fresh runs of 394 tests, plus 94 separately carried C4 results.
 The carried results include all 72 storage criteria rows. They are not fresh C6 runs.
 The [Architect's evidence assessment](../reviews/M4/architect-conformance.md#r68-review-of-the-qa-carried-evidence-mapping-for-adr-012-about-0417-utc) closes the four precision findings within their stated limits.
 
 G-1 applies only to the measured host and tool identities. Docker volumes have no generation id.
+The negative host test proves fault detection. It does not prove bind-mount locking.
 The `content_check_failed` result has unit evidence. The lost-lock exit has host fault-injection evidence.
 Neither has a corresponding runtime fault result.
+For `operation_lock_invalid`, stop and escalate. No manual recovery is validated.
 
 The [completion audit](../team/prototype-completion-audit-2026-10-23.md) lists the remaining final checks.
-This checkpoint grants no human approval, production acceptance, push or main merge.
+This checkpoint grants no human approval, production or enterprise acceptance, push or main merge.
 
 All G1 records below are historical snapshots. Their queued, UNRESOLVED and "open" statements were true at that time.
 They do not give the current status.

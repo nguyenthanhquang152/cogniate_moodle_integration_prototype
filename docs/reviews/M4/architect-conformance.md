@@ -554,3 +554,96 @@ Lead `msg_623ace81aae9` reported a bridge-only replacement between the accepted 
 - **Static M2/T7 equivalence at C9** (R6.1) now applies to an actual M2 result: "M2 actual run C8; equivalent at C9 for M2 (six-path diff; pure insertion reached only by `mode`; `m1-cli` and `m1-profile` unchanged); product C6".
 - **T7: PENDING.** Grant `msg_d04d641ae347` required the runner to start by 04:33. That did not happen, and the Lead ordered HOLD with no late launch. No LTI Docker window is planned before 07:45 UTC.
 - **AC-M4-06: PENDING** until T7 is accepted and the Lead's final packet and ADR-012 decision arrive. Source APPROVE. Accepted runtime: legacy, host and unit checks, M1 (two equal 394-row rounds plus the 94 carried rows) and M2.
+
+## Round 7 — final AC-M4-06 verdict (2026-10-23, about 16:43–16:47 UTC)
+
+Author: Architect, Claude Code `claude-opus-5-5` (configured xhigh; the effort is not visible in the session). Task `task_5371448834e4`, dispatch `ctx_54860f8750e0`, run `run_ebe671ad72a9`. Authority: Lead `msg_1839db77b9da` (packet) and `msg_c84789ebb2b4` (final T7 acceptance, the ADR-012 prototype decision and the DC-1/DC-2 grant). Independent QA verdict: Gemini `msg_cf25c0118e11`.
+The held prefix (69,686 B, SHA-256 `91dfd24dd8b2854fd6649aa126f7cd30bda469005b4349bc5d41d75a70acc3db`) is unchanged. This section is append-only. I verified the bindings read-only and reran no check. The preparation records are under `R/notes/final-architect-preparation/` (manifest v7 `d4410e0022a88aed578696d0a37d35ca06ac441170a6066e6571280e8bea900f`).
+
+### R7.1 Identities
+
+| Item | Value | Check |
+| --- | --- | --- |
+| Product C6 | `4008afb92fe983d52db33442e060210b929966c8` | C8, C9 and C10 all equal C6 outside `docs/**` and `tests/**`. |
+| Tests C9 (M1) | `9eb504f5bff4be7e291570fde12fdf9919a07fa1`, tree `667e83a9…` | C8 → C9: the six §12 paths. |
+| Tests C10 (T7) | `97b68af439b6565f891042b20497b18aadca6a24`, tree `ec2d86f590902ee99997d6ed2b78599dc3006072` | C9 → C10: four T7-only files (`flows.ts`, `2-scenario-b.spec.ts`, `run-t7.mjs`, `t7-env-secrets.mjs`). Reviews A `bc58a4fc…8912` and B `50a5954a…ce5d83` APPROVE. |
+| Tests C8 (M2) | `5561e8f72a83de36a68877c6b26ffc8288ade735`, tree `65eaefab…` | M2 ran at C8. No file from C8 → C10 is in the M2 import closure. |
+
+Each result keeps its actual run identity. The import closures of M1, M2 and legacy exclude all four C10 files; the typecheck globs include `tests/e2e`, and the C10 typecheck passed. Nothing is relabelled.
+
+### R7.2 Final accepted runtime evidence
+
+| Evidence | Identity | Status and binding |
+| --- | --- | --- |
+| Legacy, 12 groups (304 raw PASS; 251 as the sum of unique IDs per subrun) | C6 / C8 | ACCEPTED, E-R4 (`26797fd`). Index `7b7f63eb…af63`, ledger `12791f35…1480`, report `ee2ba4db…91c6`, W4 `26751ef2…e1d3`. |
+| Host source and unit checks (1,136 + infra 111) | C6 | ACCEPTED. |
+| M1 `sim`, round 1 and round 2 (394 each), and equality | C6 / C9 | ACCEPTED, E-R7. Round 1 cases `71ca7f81…791b`, judge `6a144eff…a253`. Round 2 cases `fd4109c7…33a6`, judge `b772a382…0d41`. Equality `bb42dea4…db5e`: 394 compared, 0 differences. |
+| 94 carried C4 full2 rows | C4 | CARRIED and separate. Mapping `e29e7cc5…15ae6`. All 72 AC-M1-41 rows passed in both rounds. |
+| M2 r7 (64 cases, 13 criteria, seven gates, lane isolation) | C8 / C6 | ACCEPTED, E-R6. Cases `4baa0281…4aef`, lane `0ae9320a…2353`, W4 compare `9978db7b…476f`. |
+| T7, C10 attempt (`t7-attempt-c10-20261023T1615Z`, runner `qa-e2e-m3-r3-97b68af4-2026-10-23T16-26-41-657Z`) | C10 / C6 | **ACCEPTED** (`msg_c84789ebb2b4`; QA `msg_cf25c0118e11`: 15/15 criteria PASS). Runner summary `f9881304…87ab` (SHA C10): runs 1–3 each 17 PASS, 0 FAIL, 1 SKIP (only "DEMO AC-T7-15 after demo"); demo reset 0, prepare 0 in 11.45 s, check 0, DEMO test PASS; both B-T7-01 confirm checks and both A-T7-04 fail-closed checks OK; all 13 steps OK. Gate `8d6d2a8b…2b2b` PASS. |
+| Earlier T7 attempt r8 | C8 / C6 | FAILED (17/0, 9/8, 17/0, plus a `DB_PASS` log scan hit; cleanup PASS). Kept as history. |
+
+Claim: "394 fresh `sim` rows in two equal rounds plus 94 carried C4 rows". There is no "fresh 488" claim.
+
+### R7.3 T7 operational evidence (E-R8; window NOT exclusive)
+
+- **Grant and preflight:**
+  - Grant `msg_28bc7b21d064`, delivery `delivery_df0be9bf28fa`. T0 binds `PREV_W4` (`544142a1…38fd`).
+  - The preflight `w3-start.json` (`474e50d9…8694`) was accepted in `msg_903b04fa87ab`.
+- **Prelaunch guard** (`prelaunch-guard.json`, `ca4640aa…dfca`):
+  - 0 problems, and the built-in Ids are unchanged.
+  - Its 6 raw differences are all attributed by SC or SV: Savoy `sto-` containers and volumes that changed between the preflight and the runtime W3.
+- **Outer pool:** the W4 comparison (`ed635c9b…8b10`) has 0 problems. Its 2 raw problems keep their raw text, and both are attributed in full at formal start: container `sto-proj-bef1221f7fb3` (SC) and volume `f146d301…` (SV). The built-in `bridge` and `host` Ids are unchanged from W3 to W4. W4 is `3c6355d7…cd92`.
+- **Volumes:** `w3-32vol` and `w4-32vol` ok (all 32 byte-equal to the M2 predecessor); the anonymous-volume and original checks ok.
+- **Sampler** (`f5f5386a…1209`): 48 samples, 0 failed, 1 bridge Id, 0 skew violations.
+- **Lane pool:** the lane summary (`dc64ac3b…69ac5`) has teardown, `isolationPass`, `keepVerified` and `teardownOk` all true. It has 0 ownership errors, 0 records not made by this run, the lane empty at the end and Build Runner 0. Its one attributed entry is `sto-proj-e289e7e84d8f` (SC, full record at lane start).
+- **Secret scan** (`c477f68c…b844`): PASS, 162 values, 0 shared hits over 207 text and 550 binary files, including `cmd/03-compose-config-name.log`, so the `DB_PASS` repair is shown. The 1,196 hits in private raw traces stay private.
+- **B-T7-01 (fixed-wait negative row):** `cmd/07-confirm-no-e2e-reset.log` and `cmd/08-confirm-no-test-e2e.log` each show the prompt, then the echoed "no", then "Stopped. Nothing was deleted." This meets §11.6 item 4.
+- **Other bindings:** `map-triggers` `65dd4991…d9a3`; B-TW-02 `run-evidence.json` `5a06fda5…118b` (897 bindings verified by the Lead).
+- **Host and LA:** the host was returned in `msg_d50a68ebaa8b`. LA confirms no LA Docker start or mutation from 16:06:50 to 16:39:03 (`msg_82ece7cbc893`). Its watcher restarted at about 16:18 and replayed from 16:14, with no gap longer than 2 minutes.
+- **C10 visual and 15-criterion judgment (QA `msg_cf25c0118e11`, relayed in `msg_c84789ebb2b4`):**
+  - All 51 tests have no "outside of the viewport" or retrying-click log.
+  - The 12 named PNGs (four per run) were inspected. The A4 SCORM, A4 HTML and B4 forms show the expanded completion conditions with "Add requirements", "Receive a grade" and "Any grade" selected, and the sticky footer visible at 1440×900. B5 shows the full picker.
+  - The residual full-page picker shots are deferred as **A-T7C10-01 (MINOR)**. Each run's trace shows no footer degradation.
+  - All 15 criteria PASS.
+
+### R7.4 Deviations (charter §5) at the final identities
+
+- **Source:** 0 BLOCKER, 0 MAJOR. AR-M4-01 to AR-M4-06 are open NITs, deferred; AR-M4-07 is closed.
+- **Harness and tools:**
+  - AR-M3-SD-01 (MAJOR) is resolved by C9 and two equal M1 rounds.
+  - AR-M2-LW-01 (MAJOR) is resolved by `lane-watch-r4` and the M2 pass.
+  - The T7 cycle-2 interaction between full-page screenshots and the sticky footer, and the `DB_PASS` redaction gap, are resolved by C10. Both reviews approve, and this attempt passes.
+  - The residual picker full-page shot is A-T7C10-01 (MINOR, deferred). Its required trace and PNG check passed.
+- **Deferred MINOR items:** A-T7C10-01, AR-M2-LW-02, AR-M3-T609-01/02, the tracker items, R1-A QA O-1, the storage-harness MINOR items, and the A-DH, B-M1-DH and N1–N7 NITs.
+- **Open BLOCKER or MAJOR: none.**
+
+### R7.5 ADR-012 decision and status edits
+
+The Lead's narrow prototype decision is `msg_c84789ebb2b4`: revisions 3.3–3.7 are accepted for the prototype only, with the mandatory limits of R7.7. Basis: R6.7 and R6.8. DC-1 (ADR-011) and DC-2 (ADR-012) are applied with the exact authorized scope: one new current `Status:` line in each, the old line relabelled `Earlier status (history):` with its other bytes unchanged, and one ADR-012 history bullet. Result:
+  - `ADR-011-multi-lms.md`: 64,386 B `3d580ac5…bde0` became 64,970 B `816df890d510bcab99419d4404c328feaadb06dc2461dfbb09fd6cc87629c741` (+3/−1).
+  - `ADR-012-sqlite-volume-storage.md`: 117,006 B `dfb89e5d…259d` became 118,343 B `27384950b5b641fd4d74f77d659fcf9ffbdcf90f9acbfc410967fa6e91baac24` (+4/−1).
+  - Checked against HEAD `33b5f98c`: the relabelled line keeps its old bytes after the label, and every other byte is unchanged apart from the new Status line, one blank line and, in ADR-012, the one history bullet.
+
+### R7.6 Verdict
+
+**AC-M4-06: APPROVE** for product C6 `4008afb92fe983d52db33442e060210b929966c8`, with the accepted evidence identities above. Basis:
+- source conformance APPROVE;
+- every required runtime row accepted, T7 at C10 included;
+- 0 open BLOCKER and 0 MAJOR.
+This verdict covers the signed-simulation and local real-Moodle prototype scope only.
+
+### R7.7 Limits and future work (not resolved by this verdict)
+
+- All 32 real-LMS rows are UNVERIFIED (AC-M3-05 permits that without authorization; it proves no live interoperability), including L-C14 rotation. Local Canvas is DEFERRED.
+- The portal answers `GRANT_IN_USE`, `DEPLOYMENT_FIXED` and `ISSUER_RESERVED` are not verified at the portal (AR-M4-04; `DEPLOYMENT_FIXED` is a unit test only).
+- The self-hosted Canvas grant-first setup-denial race (A-M0-10 / D-12): prompt rightful redemption narrows it, but reservation or quarantine is future work.
+- `operation_lock_invalid` means STOP and escalate. There is no validated manual recovery.
+- The tracker limits: `pagehide` before `load`, retention, WindowProxy cleanup and the unit model, comments. The nominal 10 ms and 150 ms intervals are not wall-clock guarantees.
+- AR-M3-T609-01/02 (keys typed before route focus settles).
+- After SIGKILL, the app log can lose its last lines. The Docker restart policy after a kill is not measured.
+- The ADR-012 limits: the G-1 measured identities only; no volume generation id; `c-host-negative` proves fault detection only; `content_check_failed` is unit-only; the lost-lock exit has host fault-injection evidence only; SIM on one host.
+- T7 ran on a shared host, under E-R8 attribution. This is not an exclusive-host result.
+- Q19–Q22, and D-1 to D-12 (`docs/human_review/decisions-needed.md`), as enterprise follow-ups.
+- No certification, enterprise-readiness, production-storage or human-approval claim.
+- Next: final guide evidence stamps, independent Gemini Docs QA, two blind Claude reviews, and Lead closure.
