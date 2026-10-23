@@ -510,6 +510,9 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.equal(cand01.G1.acceptance.lmsProviders.lms[1].channelCapabilities['setup.connectionCheck'], true);
   assert.equal(cand01.G1.acceptance.lmsProviders.lms[3].channelCapabilities['setup.connectionCheck'], true);
   assert.equal(cand01.G1.acceptance.lmsProviders.lms[4].channelCapabilities['setup.connectionCheck'], false);
+  assert.equal(cand01.G1.acceptance.lmsProviders.lms[3].channelName, 'LMS');
+  assert.equal(cand01.G1.default.lmsProviders.lms[3].channelName, 'LMS');
+  assert.equal(cand01.G1.lmsProvidersAfter.lms[3].channelName, 'LMS');
   const res01Without = compareCaptures(base, cand01);
   assert.equal(res01Without.ok, false);
   assert.equal(res01Without.differences.length, 259);
@@ -566,6 +569,7 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
     ['missing channel on one connection', (c) => { delete c.G1.connections['moodle-manual-pending'].channel; }],
     ['wrong setup.connectionCheck on canvas', (c) => { c.G1.acceptance.lmsProviders.lms[1].channelCapabilities['setup.connectionCheck'] = false; }],
     ['wrong setup.connectionCheck on lti-generic', (c) => { c.G1.acceptance.lmsProviders.lms[3].channelCapabilities['setup.connectionCheck'] = false; }],
+    ['old lti-generic channelName your LMS', (c) => { c.G1.acceptance.lmsProviders.lms[3].channelName = 'your LMS'; }],
     ['brightspace dynamicRegistration false', (c) => { c.G1.acceptance.lmsProviders.lms[4].capabilities.dynamicRegistration = false; }],
   ]) {
     const mutated = structuredClone(candAll);
