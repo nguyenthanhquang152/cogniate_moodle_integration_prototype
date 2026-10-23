@@ -33,9 +33,9 @@ const manifest = {
     'records.reporters': ['lti-ags'],
     'records.readBack': true,
   },
-  // No product family is guarded: a named channel guards its own family (LA-ADR-02 D1). The kernel adapter gives the
-  // tool rows; 'none' until the K0 kit accepts 'channel' for a channel without app.ts (Lead provisional call, to A1).
-  lti: { guardedFamilies: [], toolConfiguration: 'none' },
+  // No product family is guarded: a named channel guards its own family (LA-ADR-02 D1). 'channel': without app.ts, the
+  // kernel admin-value adapter gives the tool rows (A1 BD-A1-85).
+  lti: { guardedFamilies: [], toolConfiguration: 'channel' },
   setup: {
     createFields: [{ key: 'siteUrl', label: 'LMS site URL', kind: 'origin', required: true }],
     // The strict body of the kernel admin-value adapter (app API delta §3.4). The issuer may have a path; its default

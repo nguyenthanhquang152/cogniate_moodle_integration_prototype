@@ -29,7 +29,7 @@ const staged = pending("dynamic", { id: "plt_staged", issuer: `${SITE}/sakai`, c
 const fetchMock = vi.fn();
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function wizard(connection: Connection, onChanged = vi.fn()) {
-  fetchMock.mockReset().mockImplementation(async () => new Response(JSON.stringify(connection), { headers: { "Content-Type": "application/json" } }));
+  fetchMock.mockReset().mockImplementation(async (url: string) => new Response(JSON.stringify(String(url).endsWith("/tool-configuration") ? [] : connection), { headers: { "Content-Type": "application/json" } }));
   vi.stubGlobal("fetch", fetchMock);
   return render(<MemoryRouter><ManifestWizard manifest={manifest} provider={provider} connection={connection} libraryName="Library" opener="test" onCreated={vi.fn()} onChanged={onChanged} sdk={createPortalSdk(vi.fn())} /></MemoryRouter>);
 }
