@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM and MOODLE-LIVE pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E2-02 E2-K Generic Dynamic Registration fixes and the staged registration: QA verification
 
@@ -38,3 +38,30 @@ Independence: QA-4 authored `tests/ltiaas/tasks-lti/LA-E2-02/` from `docs/archit
 ## Regression and time
 
 R0: PASS (`22.23s` `LA-E2-02` K0 Vitest suite, 3/3 tests; `11.51s` verbose unit & migration run across 76 test files, 1074/1074 tests). `K1-SIM` (`AC-LA-E2-02-02`..`07`, `09`) and `MOODLE-LIVE` (`AC-LA-E2-02-08`) are `pending: Docker window`.
+
+## Round 2
+
+Tester: QA-4 (Orca task `task_1400ed757bff`, dispatch `ctx_1c3f075aac12`), 2026-10-23. Spec & decisions: `docs/architecture/ltiaas/tasks/LA-E2-02.md` with `BD-A1-93` / `BD-A2-86` (`LD-9 LA-IC-21`: a DR update keeps the stored `active` value on both update paths; staged -> `false`; `autoActivate` applies only to a new platform; golden recorded in `19da95e`) and `BD-A2-84` (`A-LA-E2-02-08`: staged DR `complete` with `authorization_server` on a reserved host is refused before anything is sent). Suite: `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k0.test.ts` (updated for `BD-A1-75`, `BD-A1-93`, and `BD-A2-84`).
+
+Independence: QA-4 updated `tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k0.test.ts` from `build-decisions-A1.md` (`BD-A1-93`), `build-decisions-A2.md` (`BD-A2-84`, `BD-A2-86`), and `tasks/LA-E2-02.md` without reading product source files (`services/**`, `packages/**`, `apps/**`) or reviewer files, and verified all `K0` and `UNIT` checks in an isolated `--no-hardlinks` clone of `4db030d` with `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run.
+
+| Item | Value |
+| --- | --- |
+| SHA | `4db030df8691b0923e80d6b2007047097f42b49b` (integration `4db030d`, code `176e823`; holds lane L fix round 2 merge `678eb72`: `f8fa4ff`, `4dfd87d`, and `LA-IC-21` golden `19da95e`) |
+| Lane and slot | lane L; no Docker (`HOST-ONLY`; `K1-SIM` and `MOODLE-LIVE` rows stay `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/r12-4db030d/clone`: `git clone --no-hardlinks --no-checkout`, detached at `4db030df8691b0923e80d6b2007047097f42b49b`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/r12-4db030d/logs/` (umask 077): `tsc.log`, `LA-E2-02-k0-vitest.log`, `unit-lti-verbose.log`, `head-sha.txt`, `status-before.txt`, `status-after.txt` |
+
+### Round 2 verification
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `BD-A1-93` / `BD-A2-86` (`LD-9 LA-IC-21`, `B-LA-E2-02-04` = `A-LA-E2-02-07`): DR update keeps stored `active` value on both paths; `autoActivate` only on create | PASS (UNIT + K0) | `services/lti-service/src/http/routes/registration.test.ts > LA-E2-02 fix round 1: existing platforms on the update paths (BD-A1-88, BD-A1-89, A-LA-E2-02-04) > B-LA-E2-02-04 = A-LA-E2-02-07 (BD-A1-93): an explicit update keeps a switched-off platform off; a new platform takes autoActivate` + `a duplicate client_id for the same issuer updates the platform and deployment in place (even with autoActivate: false)` + `dynamic-registration.k0.test.ts` | On both explicit (`updatePlatformId`) and duplicate-client (`issuer, client_id`) update paths, `active` is `false` when staged (`!endpointsOnIssuerOrigin`) and otherwise keeps the stored `existing.active` value; `autoActivate` (`true` by default) applies only when creating a new platform. `unit-lti-verbose.log`, `LA-E2-02-k0-vitest.log` |
+| `BD-A2-84` (`A-LA-E2-02-08`): staged DR `complete` with `authorization_server` on a reserved host is refused | PASS (UNIT + K0) | `services/lti-service/src/http/routes/registration.test.ts > E2 Dynamic Registration rules per profile (AC-LA-E2-02-01) > A-LA-E2-02-08 (BD-A2-84): a staged complete refuses an authorization_server on a reserved host before anything is sent` + `dynamic-registration.k0.test.ts` | When `authorization_server` is on a reserved host (fixed host or fixed-issuer host of any loaded profile), even a staged DR `complete` (`endpointsOnIssuerOrigin: false`) refuses with `400 PLATFORM_URL_NOT_IN_PROFILE` before sending any outbound registration POST. `unit-lti-verbose.log` |
+| `BD-A1-75` K0 contract alignment | PASS (K0) | `dynamic-registration.k0.test.ts > Static & schema checks` | `services/lti-service/src/platform/token-client.ts` never references `clientAssertionAudArray` and `tests/ltiaas/k0/contract.test.ts` (`19da95e`) no longer asserts `flags.clientAssertionAudArray` on profiles. `LA-E2-02-k0-vitest.log` |
+| F1, F5 and clone cleanliness | PASS (K0) | `dynamic-registration.k0.test.ts > F1 (lms-names) and F5 (rules) checks pass on LA-E2-02 core files and migration 021` | All 9 LA-E2-02 core files and `021_registration_token_kind.sql` pass F1 (`0` hits) and F5 (`0` violations). `status-before.txt` and `status-after.txt` are `0` bytes. |
+
+### Round 2 regression and time
+
+R0: PASS (`13.47s` `LA-E2-02` K0 Vitest suite, 3/3 tests; `11.64s` verbose LTI unit & migration run across 76 test files, 1084/1084 tests). `K1-SIM` (`AC-LA-E2-02-02`..`07`, `09`) and `MOODLE-LIVE` (`AC-LA-E2-02-08`) remain `pending: Docker window`.

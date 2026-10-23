@@ -17,6 +17,7 @@ import { chooseAttempt, createPlaySession } from '../domain/attempts.ts';
 import { publicationOfConnection, upsertResourceLink, useHandoff } from '../domain/launch.ts';
 import { createPicker, linkPickToResourceLink } from '../domain/pickers.ts';
 import { checkLaunchConnection } from '../kernel/launch-router.ts';
+import { appMetricsFor } from '../app/metrics.ts';
 export { checkLaunchConnection } from '../kernel/launch-router.ts';
 export type { ConnectionCheck } from '../kernel/launch-router.ts';
 import type { ChannelText } from '../kernel/ports.ts';
@@ -82,6 +83,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     // A malformed ltik was never used before, so it fails at step 2 (invalid_ltik) without a handoff row.
     if (typeof ltik !== 'string' || !LTIK.test(ltik)) {
       log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik' });
+      if (event === 'launch_rejected') appMetricsFor(db).launchRefused('invalid_ltik', '');
       return { sent: page(req, reply, 'INVALID_LTIK') };
     }
     if (!useHandoff(db, sha256Hex(ltik), now())) {
@@ -93,10 +95,12 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     } catch (err) {
       if (err instanceof LtiServiceError && err.status === 401) {
         log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik', ...ltiErrorFields(err) });
+        if (event === 'launch_rejected') appMetricsFor(db).launchRefused('invalid_ltik', '');
         return { sent: page(req, reply, 'INVALID_LTIK') };
       }
       if (err instanceof LtiServiceError) {
         log.warn(event, { trace_id: req.traceId, reason: 'lti_service_error', ...ltiErrorFields(err) });
+        if (event === 'launch_rejected') appMetricsFor(db).launchRefused('lti_service_error', '');
         return { sent: page(req, reply, 'LTI_SERVICE_ERROR') };
       }
       throw err;
@@ -110,7 +114,9 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     if ('sent' in h) return h.sent;
     const { token } = h;
     let lms = lmsOfToken(token, channels);
+    let channel = channels.channelOfProfile(token.platform.profile ?? 'standard') ?? '';
     const reject = (code: LaunchErrorCode, reason: string, fields: Record<string, unknown> = {}) => {
+      appMetricsFor(db).launchRefused(reason, channel);
       log.warn('launch_rejected', { trace_id: traceId, reason, ...fields });
       return page(req, reply, code, lms);
     };
@@ -125,6 +131,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     if (!checked.ok) return reject(checked.code, checked.reason, checked.fields);
     const { connection, site } = checked;
     lms = channels.textName(connection.channel);
+    channel = connection.channel;
     // Security §4: the publication comes from the signed target only.
     const publicationId = publicationFromTarget(token.launch.target, urls.lti);
     const publication = publicationId ? publicationOfConnection(db, connection.id, publicationId) : undefined;

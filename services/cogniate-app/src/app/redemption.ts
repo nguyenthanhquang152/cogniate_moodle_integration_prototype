@@ -11,6 +11,7 @@
 // No database transaction is open during an LTI call; every call has the normal 5 s timeout of the outbound client.
 // Authority comes ONLY from the approval that phase 2 writes (§6.1).
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { fillText, registrationText } from '@cogniate/channel-kernel';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
@@ -46,6 +47,8 @@ export interface RedemptionDeps {
 const startState = (purpose: GrantPurpose, c: Connection): boolean =>
   purpose === 'initial' ? c.status === 'pending' : c.status === 'registered' || c.status === 'connected';
 const stateError = (purpose: GrantPurpose) => new ApiError(purpose === 'initial' ? 'CONNECTION_NOT_PENDING' : 'CONNECTION_NOT_READY');
+/** BD-A1-97 (app API delta §3.4): the `409 PLATFORM_IN_USE` description when the staged platform is gone. */
+const STAGED_GONE = 'The staged registration of this connection is gone from the LTI service. Make a new connection, or ask your Cogniate operator.';
 
 type CancelReason = 'revoked' | 'replaced' | 'taken_over' | 'connection_changed';
 
@@ -219,11 +222,14 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
-    const inUse = (): never => {
+    const inUse = (stagedGone = false): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
-        : new ApiError('PLATFORM_IN_USE', `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
+        // BD-A1-97, BD-A1-102: the cause in the description and in details.reason (the portal then shows this text).
+        : stagedGone ? new ApiError('PLATFORM_IN_USE', STAGED_GONE, { details: { reason: 'staged_gone' } })
+        // BD-A1-101: the channel's texts.registration.PLATFORM_IN_USE with {LMS} filled, else the core default.
+        : new ApiError('PLATFORM_IN_USE', fillText(registrationText(channels.channel(c.channel), 'PLATFORM_IN_USE'), { LMS: channels.textName(c.channel) }));
     };
     const stagedChanged = (fields: string[]): never => {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
@@ -316,7 +322,8 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
             const guard = s0(c, attempt, grant.id, 'step');
             if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
             if (guard === 'stop') { stop = true; break; }
-            return inUse();
+            // A staged registration has no S1 create, so no record means that its staged platform is gone.
+            return inUse(staged);
           }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;

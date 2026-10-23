@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # LA-E2-03 review: Reviewer-A
 
@@ -88,3 +88,19 @@ The kernel test removes only its own `zz-sim` fixture when comparing the simulat
 - Ownership is respected by the explicit follow-up scope and the three-file L test RQ-2. No QA-owned test, migration, portal product file or baseline LTI profile changed in the reviewed commits. No new LMS dispatch branch or channel-owned protocol path was introduced.
 
 Private evidence: `reviewer-a-extensions.log`, `reviewer-a-real-extension.log`, `reviewer-a-probes.log` and `reviewer-a-mutant-*.log` in the clone; the two extension folders are saved outside its channel root. No Docker, stack, stack-starting runner or commit was used. No other reviewer's file was opened, and only this review file changed in the integration worktree. Stack and live regression remain QA work.
+
+## Follow-ups (E2-K) round 2
+
+Verdict: APPROVE. Round: 4. Reviewer: Codex GPT-6-Astra xhigh. Date: 2026-10-23. **Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+Reviewed `1c60d42` and RQ-2 `d58061f` (merge `053e5c7`) against A-LA-E2-03-03, the task, LA-ADR-01 D4, README §4 N10 and plan §6.1. Verification used a fresh `git clone --no-hardlinks` at `823bb268fbaf2399f95c8d5b5300ad98d186beff`, with its own `npm ci`, in `/tmp/la-review-a-ffc559a1a523`. The clone's `node_modules/.vitest-cache` was deleted before every Vitest run.
+
+**A-LA-E2-03-03 (MAJOR): CLOSED.** The kernel comparison now removes every simulation-only manifest, while retaining the explicit fixture visibility checks. The LTI tests preserve baseline simulation membership and relative order, check the full D4 ordering rule, and exercise a simulation-only channel beside a normal channel with a simulation profile. Storage checks keep frozen baseline values and permit valid added profiles; the registration baseline fixture selects baseline owners rather than excluding one named extension.
+
+- Repeated the two-folder reproduction using current generic manifest/profile data and unique ids: a real channel (`card.order: 5`, `listOrder: 90`) and a simulation-only channel (`card.order: 6`, `listOrder: 90`, `simulation: true`). All nine original suites plus the two other changed suites pass: **311/311 tests in 11 files**.
+- Restoring only the two old assertions reproduces **exactly the original two failures**: the extra simulation-only channel remains on one side of the kernel comparison, and the LTI simulation tail includes the added profile. Other current assertions remain unchanged for this control.
+- A valid change of baseline Blackboard simulation `listOrder` from 60 to 75 makes the revised baseline-order assertion fail. After restoring mutations, the five affected suites pass **140/140** with both extension folders present. Kernel and LTI-service type checks pass.
+
+The commits change only five adjacent unit-test files within the dispatched L/RQ-2 scope. No product behavior, UNIT acceptance criterion, QA-owned test, migration or baseline profile changes; earlier findings -01/-02 remain closed. All tracked mutations in the private clone were restored, and the two canary folders were moved outside its channel root. Evidence is in `reviewer-a-two-extensions.log`, `reviewer-a-old-assertions-isolated.log`, `reviewer-a-baseline-order-mutant.log`, `reviewer-a-restored.log` and `reviewer-a-typecheck.log` there.
+
+Only this review file was written in the integration worktree; no dependency install ran there. No Docker, stack, stack-starting runner, commit or other reviewer's file was used. Stack and live regression remain QA gates.

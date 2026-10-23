@@ -100,8 +100,9 @@ New and changed answers:
 | The LTI service answers `PLATFORM_URL_NOT_IN_PROFILE` or `INVALID_SITE_URL` | `422 INVALID_PLATFORM_VALUES` with the field name, or `422 INVALID_SITE_URL` |
 | A finalized repeat (same `clientId`, `deploymentId` and bound values) | `200`, nothing changes (base rule) |
 | Staged redemption: the staged platform's admin values differ from the grant's bound values (changed after the grant was issued) | `422 GRANT_MISMATCH` with `details.fields`; log `grant_rejected` with reason `mismatch` (BD-A1-97) |
-| Staged redemption: the staged platform is gone | `409 PLATFORM_IN_USE` (existing code; the description says that the staged registration is gone and to make a new connection) (BD-A1-97) |
+| Staged redemption: the staged platform is gone | `409 PLATFORM_IN_USE` (existing code; the description says that the staged registration is gone and to make a new connection) (BD-A1-97), with `details.reason: "staged_gone"` (BD-A1-102). Portal rule: a refusal with one of the five `texts.errors` codes that has `details.reason` names a specific cause, so the portal shows the server description unchanged (no channel or generic text). Today only this case has it; no baseline answer has `details.reason` on these codes |
 | Disconnect or release of a staged connection that was never redeemed | the inactive staged platform in the LTI service is not changed (it stays inactive and cannot launch) (BD-A1-97) |
+| Grant redemption (not staged), every `operatorGrant` channel with an exclusive platform: the LTI service has the platform already, and S2 finds no record that the adoption rule adopts (base §4.7.1) | `409 PLATFORM_IN_USE`; the description is the channel's `texts.registration.PLATFORM_IN_USE` with `{LMS}` filled, else the core default "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator." The Canvas manifest holds today's sentence ("This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator."), so the Canvas bytes do not change; `lti-generic` and `brightspace` get the core default (BD-A1-101). The portal notice is a separate text (`texts.errors.PLATFORM_IN_USE`, else the portal generic text). The staged-platform-gone case above keeps its own description (`da423f9`) |
 
 ### 3.5 `POST /app-api/connections/:id/deployments`
 
@@ -220,22 +221,27 @@ The app CLIs stay shell commands in LA; they do not become clients of an operato
 | `record_dispatch` | info | `dispatch_id`, `reporter`, `status`, `tries`, `phase` | new; for reporters other than `lti-ags` (none in LA) |
 | `dispatch_throttled` | warn | `dispatch_id`, `partition`, `retry_at` | new (`429` handling) |
 | `launch_rejected`, `deep_link_rejected` | warn | `connection_lms` holds the channel id | values widen; names unchanged |
+| `picker_rejected` | warn | unchanged fields: `reason`; plus `lti_status`, `lti_code` when the LTI service answered with an error | values widen (BD-A1-98): new `reason` `placement_not_graded` (the `403` `/tool/*` page `PLACEMENT_NOT_GRADED`, on the picker GET and POST; A2 BD-A2-87, [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md), [security delta §5](../security-delta.md)). The base reasons are unchanged: `not_found`, `used`, `expired`, `publication_not_available`, `lti_service_error`, `return_url_mismatch` (base §12) |
 | `http_request` | info (`debug` for `/healthz`) | `trace_id`, `method`, `path`, `status`, `ms` | changed (BD-A1-62, same rule as the LTI service, A2 BD-A2-61): `path` is the matched route template with no ids filled in and no query, or `<unmatched>` when no route matches; never the raw path, also not after `redactPath`. Both listeners: `app/server.ts` and `content-host/server.ts` |
 
 ## 8a. App metrics (Should, with E5 metrics)
 
-For the runbook signals of A2's [operability §4.3](../operability.md). Same rules as the LTI service metrics ([LA-ADR-06 D10](../adr/LA-ADR-06-service-operability.md)).
+For the runbook signals of A2's [operability §4.3](../operability.md). Same rules as the LTI service metrics ([LA-ADR-06 D10](../adr/LA-ADR-06-service-operability.md)). Build ruling BD-A1-100 records A2's BD-A2-88 (LA-E4-07, lane R) here.
 
 | Item | Rule |
 | --- | --- |
-| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener, default `127.0.0.1:4210`. The proxy does not route it. Same bind rule as the LTI operator listener ([LA-ADR-06](../adr/LA-ADR-06-service-operability.md) D3): only the `acceptance` compose profile binds it on the stack network (`http://cogniate-app:4210`), so the `e2e` container can read it. No session and no tenant data in values. |
-| `app_dispatch_rows` | gauge; labels `reporter`, `status` |
-| `app_dispatch_oldest_pending_seconds` | gauge; label `reporter` |
-| `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) |
-| `app_launch_refusals_total` | counter; labels `reason` (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`, …), `channel` |
-| `app_grant_redemptions_total` | counter; label `result` (`committed`, `cancelled`, `failed`) |
-| `app_grant_compensation_failures_total` | counter |
-| `app_job_runs_total`, `app_job_last_success_timestamp_seconds` | as the LTI service job metrics; label `job` (`record-dispatch`, `retention`) |
+| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener. The proxy does not route it. No session and no tenant data in values. |
+| Listener | `OPERATOR_HOST` (default `127.0.0.1`) and `OPERATOR_PORT` (default `4210`; the LTI listener is `4110`), the same names and bind rule as the LTI operator listener ([LA-ADR-06](../adr/LA-ADR-06-service-operability.md) D3). `production` refuses a non-loopback `OPERATOR_HOST` at start: `config_refused` with reason `operator_bind_not_loopback` and the same fixed message as the LTI service ([operability](../operability.md) refusal table). Only the `acceptance` compose profile binds it on the stack network (`http://cogniate-app:4210`), so the `e2e` container can read it. |
+| `/readyz` | `200 {status:"ready"}` or `503 {status:"not_ready", reasons:[…]}`. Checks only the app: the database (`SELECT 1`), every app migration applied, and the key provider when it exists (LA-E5-22). No LTI service check: an LTI outage must not make the app not ready too (the runbooks check both services). |
+| Topology | The listener runs in the web process only. The send and job series exist only when the web process runs the job runner (`APP_JOB_RUNNER=on`). With a standalone worker (`npm run worker`, LA-ADR-03 D7) they are absent, not zero: the worker has no listener in LA. The store-based series work in both topologies. |
+| `app_dispatch_rows` | gauge; labels `reporter`, `status`. Source: a store query at scrape time. |
+| `app_dispatch_oldest_pending_seconds` | gauge; label `reporter`. Source: a store query at scrape time; no pending row = `0`. |
+| `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`). Source: counted at the commit of the transaction that records the outcome (`afterCommit`), never before. |
+| `app_launch_refusals_total` | counter; labels `reason` (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`, …), `channel`. Source: one increment line in the launch page (`tool-pages/launch.ts`). |
+| `app_grant_redemptions_total` | counter; label `result` (`committed`, `cancelled`, `failed`). Source: a scrape-time count of ended `binding_attempt` rows. This is a true counter only while no job deletes those rows; a change that adds such a job moves this series to a commit observer in the same change. |
+| `app_grant_compensation_failures_total` | counter. Source: the log event `grant_compensation_failed`. |
+| `app_job_runs_total`, `app_job_last_success_timestamp_seconds` | as the LTI service job metrics; labels `job` (`record-dispatch`, `retention`), `result` (runs only). Source: the log event `job_run`. The alert `JobStale` watches the interval jobs (for example `retention`) only: `record-dispatch` logs one run per row, so an idle outbox has no new success; `DispatchBacklog` watches the outbox. |
+| Label guards | A `channel` value that is not a loaded channel id becomes `''`. A `reason` value outside `[a-z][a-z0-9_]{0,63}` becomes `other`. So a label never holds free text. |
 
 Label values are data (channel ids, reasons), not code branches, so they do not break the LMS-name rule.
 

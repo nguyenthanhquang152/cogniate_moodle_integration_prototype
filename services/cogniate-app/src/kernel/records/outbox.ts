@@ -1,5 +1,5 @@
 import { LEGACY_SCORE_INTERRUPTED } from '@cogniate/channel-kernel';
-import type { QueueJob, RecoveryScope } from '@cogniate/shared';
+import { afterCommit, type QueueJob, type RecoveryScope } from '@cogniate/shared';
 import { dispatchResult, nextRetryAt, type SyncStatus } from '@cogniate/tracking';
 import type { Db } from '../../domain/db.ts';
 import { transaction } from '../../domain/db.ts';
@@ -8,6 +8,13 @@ import type { DeliveryOutcome, DispatchView, RecordReporter } from './types.ts';
 
 export interface DispatchItem { id: string; partitionKey: string }
 const WINDOW_MS = 86_400_000;
+
+/** Called once for each delivery outcome that the lease owner records, after that commit (app metrics; LA-E4-07, BD-A2-88). */
+export type DispatchSendObserver = (reporter: string, outcome: DeliveryOutcome['kind']) => void;
+const sendObservers = new WeakMap<Db, DispatchSendObserver[]>();
+export function observeDispatchSends(db: Db, observer: DispatchSendObserver): void {
+  sendObservers.set(db, [...sendObservers.get(db) ?? [], observer]);
+}
 
 /** Only startup may take back a live lease of this instance's previous boot. */
 export function recoverDispatches(db: Db, scope: RecoveryScope): number {
@@ -151,7 +158,9 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
             db.prepare(`UPDATE record_dispatch SET not_before = MAX(COALESCE(not_before, 0), ?)
               WHERE id = ? OR (status = 'pending' AND partition_key = ?)`).run(outcome.retryAt, row.id, row.partitionKey);
           }
-          return recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
+          const recorded = recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
+          afterCommit(db, () => { for (const observe of sendObservers.get(db) ?? []) observe(row.reporter, outcome.kind); });
+          return recorded;
         });
         if (status === null) return;
         if (outcome.kind === 'throttled') ctx.logger.warn('dispatch_throttled', {
