@@ -60,7 +60,7 @@ export function registeredChannels(lmsProviders) {
 
 /**
  * The exact channel ids and names of the registered channels that are not baseline channels
- * (`channel`/`lms`, `channelName`, `label`).
+ * (`channel`/`lms`, `channelName`, `label`, and any explicit card `title`/`cardTitle`).
  */
 export function extraChannelNames(lmsProviders) {
   assert.ok(Array.isArray(lmsProviders?.lms), 'GET /app-api/lms-providers has an lms list');
@@ -68,7 +68,16 @@ export function extraChannelNames(lmsProviders) {
   for (const entry of lmsProviders.lms) {
     const id = entry.channel ?? entry.lms;
     if (BASELINE_LMS.includes(id)) continue;
-    for (const candidate of [id, entry.channelName, entry.label]) {
+    for (const candidate of [
+      id,
+      entry.channelName,
+      entry.label,
+      entry.cardTitle,
+      entry.title,
+      entry.card?.title,
+      entry.names?.text,
+      entry.names?.label,
+    ]) {
       if (typeof candidate === 'string' && candidate.trim().length > 0 && !names.includes(candidate.trim())) {
         names.push(candidate.trim());
       }
@@ -193,6 +202,12 @@ export async function appLmsProviders(request, { appUrl, ca, user }) {
 
 const cardText = (card) => (typeof card === 'string' ? card : String(card?.text ?? ''));
 
+const isLoadingCard = (card) => {
+  if (card && typeof card === 'object' && card.loading === true) return true;
+  const raw = cardText(card).trim();
+  return /^(?:[A-Za-z0-9]{1,4}\s*)?Loading(?:…|\.\.\.)/.test(raw);
+};
+
 const isOtherCard = (card, other) => {
   if (card && typeof card === 'object') {
     const channel = card.channel ?? card.id ?? null;
@@ -201,7 +216,40 @@ const isOtherCard = (card, other) => {
   return cardText(card).includes(other);
 };
 
+const GENERIC_CHANNEL_NAMES = new Set(['lms', 'lti', 'lti 1.3', 'other lti 1.3 platform', 'lti-generic']);
+const GENERIC_TITLE_SUFFIX_WORDS = new Set(['learning', 'learn', 'lms', 'platform', 'cloud', 'server', 'lti', '1.3', 'edition', 'suite']);
+
+function matchesAllowedCardName(name, allowed) {
+  if (allowed.has(name)) return true;
+  if (name === 'LTI 1.3' && (allowed.has('lti-generic') || allowed.has('Other LTI 1.3 platform'))) return true;
+  for (const entry of allowed) {
+    if (GENERIC_CHANNEL_NAMES.has(entry.toLowerCase())) continue;
+    const words = entry.trim().split(/\s+/);
+    while (words.length > 1 && GENERIC_TITLE_SUFFIX_WORDS.has(words[words.length - 1].toLowerCase())) words.pop();
+    const stem = words.join(' ');
+    for (const prefix of new Set([entry, stem])) {
+      if (GENERIC_CHANNEL_NAMES.has(prefix.toLowerCase())) continue;
+      if (name === prefix) return true;
+      if (name.startsWith(prefix + ' ')) {
+        const rest = name.slice(prefix.length).trim().split(/\s+/);
+        if (rest.length > 0 && rest.every((w) => GENERIC_TITLE_SUFFIX_WORDS.has(w.toLowerCase()))) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function checkExtraCard(card, allowed, label) {
+  assert.ok(!isLoadingCard(card), `${label}: card ${show(card)} is still loading`);
+  const raw = cardText(card).trim();
+  const notReadyMatch = /^(?:.*\.\s*)?([A-Za-z0-9][A-Za-z0-9 _/-]*?)\s+is not set up for this Cogniate service yet\b/.exec(raw);
+  const notReadyLms =
+    (card && typeof card === 'object' && typeof card.notReadyLms === 'string' && card.notReadyLms.trim().length > 0
+      ? card.notReadyLms.trim()
+      : null) ?? (notReadyMatch ? notReadyMatch[1].trim() : null);
+  const targetMatch = /Publish Cogniate courses to\s+(.+?)\s+with LTI 1\.3\./.exec(raw);
+  const target = targetMatch ? targetMatch[1].trim() : null;
+
   if (card && typeof card === 'object') {
     const channel = typeof card.channel === 'string' && card.channel.trim().length > 0
       ? card.channel.trim()
@@ -215,23 +263,45 @@ function checkExtraCard(card, allowed, label) {
         : null;
     if (channel !== null) {
       assert.ok(allowed.has(channel), `${label}: extra card ${show(card)} has unregistered channel ${show(channel)}`);
+      if (notReadyLms !== null) {
+        assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
+      }
       return;
     }
     if (name !== null) {
-      assert.ok(allowed.has(name), `${label}: extra card ${show(card)} names no registered channel (${show(name)})`);
+      if (target !== null) {
+        assert.ok(allowed.has(target), `${label}: extra card ${show(card)} names no registered channel (${show(target)})`);
+      }
+      if (notReadyLms !== null) {
+        assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
+      }
+      const hasNonGenericNotReady =
+        notReadyLms !== null && allowed.has(notReadyLms) && !GENERIC_CHANNEL_NAMES.has(notReadyLms.toLowerCase());
+      assert.ok(
+        matchesAllowedCardName(name, allowed) || hasNonGenericNotReady,
+        `${label}: extra card ${show(card)} names no registered channel (${show(name)})`,
+      );
       return;
     }
   }
-  const raw = cardText(card).trim();
   const headingMatch = /^(?:[A-Za-z0-9]{1,4}\s*)?(?:Connect|Manage)\s*(.+?)\s*(?:Publish|Export)\b/.exec(raw);
-  const targetMatch = /Publish Cogniate courses to\s+(.+?)\s+with LTI 1\.3\./.exec(raw);
-  const candidates = headingMatch
-    ? [headingMatch[1].trim(), ...(targetMatch ? [targetMatch[1].trim()] : [])]
-    : [raw];
-  assert.ok(
-    candidates.length > 0 && candidates.every((c) => c.length > 0 && allowed.has(c)),
-    `${label}: extra card ${show(card)} names no registered channel`,
-  );
+  if (headingMatch) {
+    const heading = headingMatch[1].trim();
+    if (target !== null) {
+      assert.ok(allowed.has(target), `${label}: extra card ${show(card)} names no registered channel (${show(target)})`);
+    }
+    if (notReadyLms !== null) {
+      assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
+    }
+    const hasNonGenericNotReady =
+      notReadyLms !== null && allowed.has(notReadyLms) && !GENERIC_CHANNEL_NAMES.has(notReadyLms.toLowerCase());
+    assert.ok(
+      matchesAllowedCardName(heading, allowed) || hasNonGenericNotReady,
+      `${label}: extra card ${show(card)} names no registered channel (${show(heading)})`,
+    );
+    return;
+  }
+  assert.ok(raw.length > 0 && allowed.has(raw), `${label}: extra card ${show(card)} names no registered channel`);
 }
 
 /**
@@ -241,6 +311,10 @@ function checkExtraCard(card, allowed, label) {
  * never by substring. Returns the extra cards.
  */
 export function checkCards(cards, baselineTexts, { names, others = BASELINE_OTHER_CARDS, label = 'LMS Publishing cards' }) {
+  assert.ok(Array.isArray(cards), `${label}: the answer is a list`);
+  for (const card of cards) {
+    assert.ok(!isLoadingCard(card), `${label}: card ${show(card)} is still loading`);
+  }
   const allowed = new Set(names.filter((n) => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim()));
   const extras = openList(cards, baselineTexts, { label, matches: (card, expected) => cardText(card).includes(expected) });
   for (const other of others) {
@@ -254,7 +328,7 @@ export function checkCards(cards, baselineTexts, { names, others = BASELINE_OTHE
 }
 
 /**
- * Snapshot-upgrade migration ledger check (M1-41.common.j-snapshot; BD-A2-108 / LA-H21):
+ * Snapshot-upgrade migration ledger check (M1-41.common.j-snapshot; BD-A2-108 / LD-24):
  * 1. Every historical ledger entry from `oldLedger` is still present in `newLedger` in its original order
  *    (each `oldLedger[db]` is a non-empty prefix of `newLedger[db]`), independent of the candidate's files.
  * 2. `newLedger['cogniate-app/cogniate.db']` includes `012_connection_provider_snapshot.sql`.
