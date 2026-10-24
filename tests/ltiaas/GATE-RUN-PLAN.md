@@ -711,3 +711,83 @@ docker ps -a --filter "name=qalead-la-"
 docker volume ls --filter "name=qalead-la-"
 docker network ls --filter "name=qalead-la-"
 ```
+
+---
+
+## 8b. Slot 8b — Live Moodle Rerun of `T7 × 1`, `T6`, and `T8` on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`la-gate-test-5`)
+
+### (a) Candidate Clone `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-5`
+
+- **Base Clone (`src-wave-end-4` at `la-gate-test-4`):** `$WAVE_TEST_SHA_4` = `6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1` (product tree identical to `$WAVE_SHA_3` = `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`).
+- **Commit A (`LD-9` Addendum R3 — `WE-F7` under `LA-IC-23` & `WE-F8` under `M2` approval `AC-M3-02(b)`):**
+  - `$COMMIT_A_SHA` = `70dc83a3d91dad5f92687a5af20c17be79025f52` (`docs/reviews/LA-E7-08/ld9-addendum-r3.md` / `/Users/quangnguyen/cogniate-qa-runs/LA/qa3-ld9-addendum-r3/ld9-addendum-r3.patch`, `6` files changed, `+54 / -17`):
+    - `tests/acceptance/T6/2-connect.spec.ts`
+    - `tests/acceptance/T6/3-courses.spec.ts`
+    - `tests/acceptance/T6/5-xss-a11y.spec.ts`
+    - `tests/acceptance/T8/2-shell.spec.ts`
+    - `tests/acceptance/lib/portal.ts`
+    - `tests/e2e/lib/steps.ts`
+- **Commit B (`WE-F9` — `c48b76dcd783346e16e52348bef40c12cb27ad0c` rename of `r2-moodle-sim.spec.ts` to `.r2sim.ts`):**
+  - `$COMMIT_B_SHA` = `$WAVE_TEST_SHA_5` = `0700b3962ec063c4c2c3f36cf0ca27a25c97e82e` (tagged `la-gate-test-5`, `3` files changed, `+51 / -12`):
+    - `tests/e2e/ltiaas/r2-moodle-sim.spec.ts` → `tests/e2e/ltiaas/r2-moodle-sim.r2sim.ts`
+    - `tests/e2e/ltiaas/playwright.r2-sim.config.ts`
+    - `tests/e2e/ltiaas/run-k2.mjs`
+- **Diff & Selection Proofs:**
+  - `git diff --stat la-gate-test-4 la-gate-test-5`: `9 files changed, 105 insertions(+), 29 deletions(-)` (only the 6 Addendum R3 files + the 3 `WE-F9` files).
+  - `git diff --exit-code 8fadb828088ffe1b4db02179ab0fa3ab2388a12a la-gate-test-5 -- . ':!tests'`: `0` non-test files differ from `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`.
+  - `QA_SUITE=e2e npx playwright test -c playwright.config.ts --list`: `Total: 18 tests in 6 files` — `diff -u` against `1b17261` (`src-slot7-1b17261`) is empty (`0` lines differ).
+
+### (b) Slot 8b Run Set & Exact Commands (`qalead-la-50..52`, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`, `50 min` Window)
+
+| Compose Project | Suite | Est. Minutes | Purpose |
+| --- | --- | --- | --- |
+| **`qalead-la-50`** | `T7 × 1` (`run-t7.mjs --runs 1`) | **`13 min`** | Proves `WE-F7`, `WE-F8`, and `WE-F9` on live Moodle (`18/18` `T7` cases including `AC-T7-08` and `AC-T7-09` for `AC-LA-E5-13-06` and `DEMO AC-T7-15`). |
+| **`qalead-la-51`** | `T6` (`run-t5.mjs --tasks T5a,T6`) | **`8 min`** | Proves `WE-F7` and `WE-F8` across all `T6` spec files (`AC-T6-07/-09/-12/-13` and full `T5a,T6` run) on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`. |
+| **`qalead-la-52`** | `T8` (`run-t8.mjs`) | **`9 min`** | Proves `WE-F7` and `WE-F8` across all `T8` spec files (`AC-T8-08/-09/-10` and full `T5a,T8` run under `umask 022`) on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`. |
+
+```bash
+set -euo pipefail
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SLOT8B_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B"
+export SRC_WAVE_5="$GATE_DIR/src-wave-end-5"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+WAVE_SHA_3="8fadb828088ffe1b4db02179ab0fa3ab2388a12a"
+export WAVE_SHA_3
+WAVE_TEST_SHA_5="0700b3962ec063c4c2c3f36cf0ca27a25c97e82e"
+export WAVE_TEST_SHA_5
+export PUBLIC_PORT=9543
+export STACK_SUBNET="172.21.0.0/16"
+
+# Run under umask 022 so container pwuser (1000:1000) can read host-mounted infra/.logs and infra/.data
+umask 022
+
+# 1. qalead-la-50: T7 x 1
+COMPOSE_PROJECT_NAME=qalead-la-50 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_5/tests/e2e/host/run-t7.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --runs 1 --replace-e2e \
+  > "$SLOT8B_DIR/logs/qalead-la-50-t7x1.log" 2>&1
+
+# 2. qalead-la-51: T6 (via run-t5.mjs --tasks T5a,T6)
+COMPOSE_PROJECT_NAME=qalead-la-51 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_5/tests/host/run-t5.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --source "$SRC_WAVE_5" \
+  --workdir "$SLOT8B_DIR/qalead-la-51-t6" \
+  --replace-tests --tests-from "$SRC_WAVE_5/tests" \
+  --tasks T5a,T6 \
+  > "$SLOT8B_DIR/logs/qalead-la-51-t6.log" 2>&1
+
+# 3. qalead-la-52: T8 (via run-t8.mjs)
+COMPOSE_PROJECT_NAME=qalead-la-52 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_5/tests/host/run-t8.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --source "$SRC_WAVE_5" \
+  --workdir "$SLOT8B_DIR/qalead-la-52-t8" \
+  --replace-tests --tests-from "$SRC_WAVE_5/tests" \
+  > "$SLOT8B_DIR/logs/qalead-la-52-t8.log" 2>&1
+```
+
