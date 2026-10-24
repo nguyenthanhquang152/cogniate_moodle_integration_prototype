@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 7
+Verdict: APPROVE
+Round: 8
 
 ## Round 1
 
@@ -441,3 +441,26 @@ Private clone `/tmp/la-review-a-f6bdf6a3d468`, created with `git clone --no-hard
 - Independent boundary probes: `node_modules/.bin/vitest run --reporter=verbose --config reviewer-r7.config.mts` — **8/8 diagnostic assertions PASS**, 231 ms (`reviewer-r7.probe.test.ts`, `reviewer-r7-probes.log`). These include detecting controls and assertions that demonstrate the three defects, so they are not K1 acceptance results. Transport is mocked; the audience probe runs only R3's happy segment, while the redirect probe runs the complete L6 callback. The wave probe executes only the two evidence functions extracted from the runner and the real downstream evaluator. Synthetic probe inputs and generated artifacts are in `reviewer-r7-probe-data/`; saved-run metadata is in `reviewer-r7-evidence.json`.
 
 The reviewed diff changes only the permitted kit and QA-report files. No product, simulator or frozen-test edits and no LMS name added to core paths. No Docker, stack, stack-starting runner, fresh K1 run, integration install or commit was performed by this reviewer. Reviewer-B's file and probes were not opened. Only this review file was edited in integration; concurrent changes were left untouched.
+
+## Round 8
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed only the Round 7 fix under LD-27: QA `168d2a2b`, integrated at `d9a4f482`, with `git diff 825cc0c4 d9a4f482 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. Kit tree: `8ad870fa1b33c93268bb0cdfb11dd86289a650c4`. No new finding or requested code change. The three Round 7 findings are closed; earlier closed findings remain closed.
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| **A-LA-E7-06-01** | **CLOSED.** The runner imports the same pure wave producer tested by K0. `lib/wave-producer.mjs:57` requires the host task, phases, required IDs and consistent per-check rows; `:110`, `:128` require T7's counts and exact file/title set, with only the documented demo-test skip allowed. The required T3b/T8 sets match the frozen runners, and the T7 set matches the frozen spec files. My original all-skipped source now produces FAIL and fails the downstream Moodle pass rule; the actual source still passes. Independent removal probes reject each of the 21 required T3b/T8 checks and each of the 18 T7 rows even when counts/rows remain consistent. Renamed and duplicate T7 rows also fail. K0 covers empty, partial, wrongly named, aborted and inconsistent sources through the producer and downstream rule. |
+| **A-LA-E7-06-11** | **CLOSED.** R3 calls `verifyStoredClientAssertionAud` (`suites/k1-reg.k1sim.test.ts:343`; `lib/fixtures.ts:409`) with no expected-value fallback. My actual-caller replay rejects both null and absent generic-profile audience values; the correct value passes and a wrong value fails. The five shipped profile expectations agree with LA-ADR-02 D2, and the storage assertion agrees with D5 item 4 / API delta §4.5. New R3 part 1b (`:360`) also supplies a distinct audience, checks exact storage, and requires pending/operatorGrant/inactive staging as D5 item 10 requires. |
+| **A-LA-E7-06-12** | **CLOSED.** Both L6 branches call `checkPlayerRedirect` (`lib/fixtures.ts:441`) before using the resolved URL. It requires the app origin, no user info and the correct path, as the base app contract's `PUBLIC_APP_URL` rule requires. My complete L6 replay now rejects each foreign-host and downgraded-scheme window redirect; the valid app redirect and wrong-path control retain their expected results. K0 covers both embedded and player forms, relative/absolute valid URLs, foreign origin, wrong scheme/port, user info and missing Location. |
+
+The changed assertions are stricter and follow the cited contracts. BD-A1-121's family-refusal branch is unchanged. The WALK-01 regression runs all other K0 checks with an extra registration-guarded fixture through `QA_KIT_CHANNELS_DIR`; the small copy-path fix makes discovery and fixture reads use that same directory. It passed in my K0 run. The play-retry edit corrects documentation only. No unrelated assertion was weakened.
+
+Verification in new private clone `/tmp/la-review-a-32155ce5fe72`, created with `git clone --no-hardlinks`, detached at `d9a4f482`, with dependencies copied into that clone:
+
+- Kit K0: **32/32 PASS**, 1.18 s (`reviewer-r8-k0.log`), including the child run with the extra fixture. Kit typecheck: **exit 0** (`reviewer-r8-types.log`). Syntax checks of the runner and wave-producer module also pass; neither host runner was executed.
+- Replayed my original Round 7 source with only the moved producer API and new helper dependencies adapted: **5 controls PASS; all 3 old-defect assertions fail at the intended checks** (`reviewer-r7-adapted.probe.test.ts`, `reviewer-r7-adapted.log`). Reviewer-B's probes were not used or opened.
+- Revised those three expectations to require refusal and added the independent missing-case/title probes: **10/10 PASS**, 259 ms (`reviewer-r8.probe.test.ts`, `reviewer-r8-probes.log`). Both null/absent audience variants and both bad redirect variants execute separately. An initial version matched Vitest's shortened exception text; the final version checks the full assertion value. This was a probe diagnostic correction, with no kit edit.
+- Read-only r8 artifact check: **195 unique case IDs, 195 PASS, zero failures/skips/duplicates**, run `kit-run-1792852921605-ngk732`; **196/196 Vitest assertions PASS**, including SUMMARY; all host aggregate entries PASS and no abort. Every tracked kit blob in both the r8 controller and run clone equals the reviewed tree. All three frozen-source digests match, and every retained value in the committed trimmed fixtures equals the original source. Metadata is retained in `reviewer-r8-evidence.json`.
+
+The saved r8 run therefore covers this exact kit tree and can stand as the clean final run under LD-27/LA-H25; this review requests no further live run. The QA commit touches only permitted kit and QA-report paths, with no product, simulator or frozen-test change and no LMS name added to core paths. No Docker, stack, integration install or commit was performed. Only this review file was edited in integration; concurrent work was left untouched.

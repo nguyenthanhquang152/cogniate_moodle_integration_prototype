@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 7
+Verdict: APPROVE
+Round: 8
 
 ## Round 1
 
@@ -387,3 +387,38 @@ Private clone: `/tmp/reviewer-b-la-e706-r7-jlof1hi0/clone`, detached at `825cc0c
 Reproduce the independent probes in the private clone with `LA_LEVEL=k0 npx --no-install vitest run --config reviewer-wave-probes.config.mts --reporter=verbose`. Sources: `reviewer-wave-probes.test.ts`; generated wave inputs and full evaluator reports: `../wave-probes/`. The clone's tracked files match the pin after the canary check.
 
 The observed r7 live result is corroborated, but the two validation gaps block source approval. After the kit fixes, the affected verification and a clean live run of the final kit remain required. No Docker, stack, host runner or live HTTP was started for this review. The QA run folders stayed read-only; only this review file was edited in the integration worktree. No other reviewer's file was read, and no commit was made.
+
+## Round 8
+
+Verdict: **APPROVE**. Reviewer-B: Codex GPT-6-Astra xhigh, 2026-10-24. Fix-only review of `825cc0c4..d9a4f482`, scoped to `tests/ltiaas/kit/**` and `qa.md`, under LD-27 / LA-H25. QA-K fix: `168d2a2b`. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** No new findings.
+
+### Round 7 disposition
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E7-06-01 | **CLOSED.** The host runner now calls the shared pure producer in `lib/wave-producer.mjs:143`, `:168`. It requires the frozen suite's identity, complete case/run set, host phases, consistent counts and results, and only T7's documented demo skip. Original empty/all-skipped T7 and partial T8 inputs now produce FAIL evidence and fail the real final evaluator. Genuine sources and explicit-failure controls still behave correctly. README §3 documents the complete host invocation and wave-spec schema. |
+| B-LA-E7-06-02 | **CLOSED.** R3 calls `verifyStoredClientAssertionAud` (`lib/fixtures.ts:409`) without substituting the expected value. The platform-value trait requires exact storage; the token-endpoint trait retains its documented optional field. Original missing/null-audience counterexamples now fail. New part 1b checks a distinct audience for both applicable profiles, alongside pending/operatorGrant connection state and an inactive platform. |
+| B-LA-E7-06-09 | **CLOSED.** README and QA cause 20 now distinguish response-header retries from play's fixed two-second fallback and single repeat. They match the unchanged runtime. |
+
+Previously closed findings remain closed. The L6 redirect helper checks origin, userinfo and path before the embedded fetch; its scoped K0 controls cover valid relative/absolute targets and invalid scheme, host, port, userinfo and path. F-LA-E7-06-WALK-01 now has a whole-K0 child regression with an added registration-guarded fixture (`kit.k0.test.ts:2528`). The fixture-copy check uses the selected channel directory consistently; no shared fixture-list edit is needed.
+
+### Independent verification
+
+Private `git clone --no-hardlinks`, detached at `d9a4f482`: `/tmp/reviewer-b-la-e706-r8-xsppkycg/clone`. Tracked clone files remain unchanged.
+
+| Check | Result |
+| --- | --- |
+| Shipped kit K0 | **32/32 PASS**, including the canary child run |
+| Kit TypeScript check | **PASS** |
+| Replayed Round 7 probes, adapted only to the extracted producer/helper API | Four controls pass; all four old assertions that invalid evidence passes now fail at the intended checks |
+| Closure probes with rejection expectations, plus the actual new R3 part 1b body | **9/9 PASS**; part 1b covers six observations on each of the two applicable profiles |
+
+The new wave-source fixtures match projections of the original reports, including array order and counts; recorded hashes match the originals. Their source JSON totals 13,114 bytes and contains the validation fields, without request payloads or service logs. Shipped K0 checks the required sets against the frozen runners/specs and exercises positive evidence plus 20 negative source mutations.
+
+Logs: `/tmp/reviewer-b-la-e706-r8-xsppkycg/{kit-k0,kit-typecheck,round7-reproductions,reviewer-closure}.log`. Independent source/config: `clone/reviewer-closure.test.ts` and `clone/reviewer-closure.config.mts`; reproduce with `LA_LEVEL=k0 npx --no-install vitest run --config reviewer-closure.config.mts --reporter=verbose`. Generated producer/evaluator artifacts are in `wave-probes/`.
+
+### Final live evidence and limits
+
+Read-only comparison with `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/k1-r8/run-clone` finds **all 26 tracked kit files identical**. Reviewed and recorded kit tree: `8ad870fa1b33c93268bb0cdfb11dd86289a650c4`. The r8 host summary has no abort and all phases PASS. The final evaluator reports **195/195 PASS**, no failures, skips, duplicates or global errors; the ledger contains 195 unique IDs in run `kit-run-1792852921605-ngk732`. Vitest reports **196/196 PASS**, including SUMMARY; duration is 364,393 ms. Independent comparison record: `/tmp/reviewer-b-la-e706-r8-xsppkycg/live-evidence.json`.
+
+This corroborates the completed r8 run; I did not rerun the stack. The exact-tree live evidence stands under LD-27, with no further code change or live run required by this review. BD-A1-121 remains the recorded LG product follow-up. Fixes stay within kit/QA ownership; product, frozen helpers and simulator are unchanged. No Docker, host runner, live HTTP or commit was used. Blind review maintained; only this review file was edited in the integration worktree.
