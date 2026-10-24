@@ -66,8 +66,12 @@ All commands run from the repo root.
 | `npm run stack:data-import -- --from <folder>` | Put a legacy backup (`--source legacy`) into an empty (`FRESH`) volume pair. | nothing | everything |
 | `npm run stack:data-quarantine -- --out <folder>` | The exit from `rollback_failed`, `journal_inconsistent` or a refusal that you cannot repair. It copies both volumes first. | the stopped `lti-service` and `cogniate-app` containers and the two SQLite volumes (after a verified copy) | the copy in `<folder>` |
 | `npm run stack:storage-compat -- enable\|disable` | Run one of the two old builds on the volumes (ADR-012 §12). | `disable`: the override and its copies | everything else |
-| `npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]` | M1 operator step (once per LTI host): make the shared Blackboard platform. Run it in the container: `docker compose exec lti-service npm run lti:shared-platform -w services/lti-service -- …`. | nothing | everything. Prints `{platformId, created}`; the same client id again changes nothing; another client id: exit 1. |
-| `npm run app:grant -w services/cogniate-app -- issue\|revoke\|list …` / `npm run app:binding -w services/cogniate-app -- suspend\|release …` | M1 operator approval grants and binding containment (app contract §4.8, §4.9). Run in the app container (`docker compose exec cogniate-app …`); not reachable over HTTP. `issue` prints the approval code once. | nothing local except what the command states | everything else |
+| `npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]` | M1 operator step (once per LTI host): make the shared Blackboard platform. Host command: `docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>`. | nothing | everything. Prints `{platformId, created}`; the same client id again changes nothing; another client id: exit 1. |
+| `npm run app:grant -w services/cogniate-app -- issue\|revoke\|list …` / `npm run app:binding -w services/cogniate-app -- suspend\|release …` | M1 operator approval grants and binding containment (app contract §4.8, §4.9); not reachable over HTTP. Host example: `docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>`. `issue` prints the approval code once. | nothing local except what the command states | everything else |
+
+Run these two operator examples on the host, in the repository folder. Replace `<project-name>` with `COMPOSE_PROJECT_NAME` from the root `.env`. Use the same Compose prefix for other `app:grant` and `app:binding` operations.
+
+M1 CLI QA uses `exec -T --workdir /repo` with these npm workspace selectors ([helper](../tests/host/m1-control.mjs), [QA record](../docs/reviews/M1/qa.md)) [SIM AC-M1-28, AC-M1-38, M1-06.blackboard.cli]. The project and file flags follow the existing [Compose helper](scripts/lib.sh).
 
 Advanced helpers in `infra/scripts/`:
 
@@ -125,7 +129,7 @@ These commands hold one lock for the whole command: `stack:up`, `stack:restart`,
 | `operation_in_progress` | Another storage command holds the lock. The command waits up to 120 s, then stops. A lock stays live while any process of its process group runs (for example a Docker client). Wait for it, or end it. |
 | `operation_lock_reentry` | A guarded command started inside another one. Run the commands one after the other. |
 | `storage_writer_active` | A storage container of the project still runs. Wait until it ends, or run `docker stop <name>`. |
-| `operation_lock_invalid` | The lock folder has no valid record for 10 s. Use the manual exit of the operator guide (M4), and only when no storage command of this checkout runs. |
+| `operation_lock_invalid` | The lock folder has no valid record for 10 s. The message says "Follow the manual exit of the operator guide". In this prototype the manual exit is: stop and escalate. No validated manual recovery procedure exists. Do not remove or move the lock folder. Send the message and folder name to the engineering owner ([operator guide](../docs/guides/operator.md#43-storage-lock-messages)). |
 
 - A lock of a command that ended is taken over (`storage_lock_reclaimed`). The old record stays in `.tmp/storage-op.<project>.stale-<runId>/`.
 - Log: `infra/.logs/storage-lock.jsonl`. Self-check without Docker: `bash infra/scripts/storage-oplock.sh selftest`.

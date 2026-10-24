@@ -1,7 +1,7 @@
 // Applied M1 37(v1,v3,v4,v6,v8,v10,v12), 38(i1,i2,i4). Preparation only until a frozen full run.
 import {
   app, assert, connPath, expectStatus, gateEvents, gatePhase, gateReset,
-  logEvents, m1Test, release, session,
+  host, httpsRequest, logEvents, m1Test, poll, release, session, urls,
 } from '../common/client';
 import {
   completed, gateMark, grantList, noRequests, received, refusedWithoutAttempt, redeemedWithOneAttempt,
@@ -13,6 +13,14 @@ import {
 } from './canvas';
 import { applySnapshot, failedVControl, freshCanvasSuccess, prepareVControl, snapshotCanvas } from './snapshot-fixture';
 import { leaseWindow } from './snapshot-oracle.mjs';
+
+/** AC-M1-37 dead handler: SIGKILL, so the old process cannot let its held LTI call time out and clear its lease. */
+async function killApp() {
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await poll(async () => {
+    try { return await httpsRequest(urls.app + '/healthz'); } catch { return { status: 0 }; }
+  }, (r) => r.status === 200, 20_000, 100);
+}
 
 function snapshotCase(ac: number, variant: string, title: string, body: () => Promise<void>) {
   const id = `M1-${ac}.canvas.${variant}`;
@@ -67,7 +75,7 @@ for (const [variant, added] of [['v4', false], ['v6', true]] as const) {
     await watchAll('pass', [{ id: 'canvas-dead-s3', method: 'PATCH', pathRegex: activation, action: 'hold_before', times: 1 }]);
     const started = Date.now(), first = request().catch(() => null);
     const held = await gatePhase('canvas-dead-s3', 'held_before');
-    await restartApp(); await gatePhase('canvas-dead-s3', 'caller_gone', 10_000);
+    await killApp(); await gatePhase('canvas-dead-s3', 'caller_gone', 10_000);
     const firstAnswer = await first;
     assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
       'BLOCKED: the old handler timed out before the restart killed it');

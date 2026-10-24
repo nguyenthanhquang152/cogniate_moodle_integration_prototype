@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { allContainers, cidrOverlap, networkSubnets, portFree, projectResources, readEnv, Redactor, run, secretsInFile, sha256File, walkFiles } from '../../host/lib.mjs';
+import { isCloneEnvSecret } from './t7-env-secrets.mjs';
 
 const { values: opt } = parseArgs({
   options: {
@@ -108,7 +109,7 @@ function step(name, ok, notes = []) {
 
 function addSecretsFromClone() {
   const env = readEnv(path.join(CLONE, '.env')) ?? {};
-  for (const [k, v] of Object.entries(env)) if (/PASSWORD|SECRET|KEY|TOKEN/i.test(k) && typeof v === 'string' && v.length >= 6) redact.add(v);
+  for (const [k, v] of Object.entries(env)) if (isCloneEnvSecret(k, v)) redact.add(v);
   for (const f of walkFiles(path.join(CLONE, 'infra', '.secrets'))) for (const item of secretsInFile(f).items) redact.add(item.value);
 }
 

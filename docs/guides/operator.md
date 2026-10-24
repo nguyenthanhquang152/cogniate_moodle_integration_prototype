@@ -1,17 +1,23 @@
 # Operator guide: Canvas and Blackboard bindings
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Final runtime checks are pending.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels).
 
 This guide is for Cogniate staff with shell access to the Cogniate app service and the LTI service. Design: [ADR-011](../architecture/adr/ADR-011-multi-lms.md) §4a, §4b and §14, and [ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md).
 
 Tags: each step names its evidence label, for example `[SIM AC-M1-38]`. The [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
-Run each command inside its service container. Examples:
+Run `app:grant`, `app:binding` and `lti:shared-platform` inside their service container, from `/repo`. Run `lti:bootstrap` and every `stack:*` command on the host, in the repository folder.
+
+Run these Compose examples on the host, in the repository folder. Replace `<project-name>` with the `COMPOSE_PROJECT_NAME` value from the root `.env`.
 
 ```sh
-docker compose exec cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
-docker compose exec lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
 ```
+
+M1 CLI QA uses `exec -T --workdir /repo` with these npm workspace selectors ([QA helper](../../tests/host/m1-control.mjs), [CLI repair record](../reviews/M1/qa.md)) [SIM AC-M1-28, AC-M1-38]. The [Compose helper](../../infra/scripts/lib.sh) supplies the project and file flags. The [bootstrap wrapper](../../infra/scripts/lti-bootstrap.sh) runs on the host.
 
 NOTE: The commands are not reachable over HTTP. Who may run them is a human decision (Q22, [decisions](../human_review/decisions-needed.md#e-canvas-and-blackboard-decisions)).
 
@@ -77,8 +83,8 @@ The code shows only once. It has 43 characters and works once. It expires after 
 
 ### 2.3 List and revoke
 
-1. Run `app:grant list --connection <con_id>` to see each grant and its state `[SIM AC-M1-28]`.
-2. Run `app:grant revoke --grant <grt_id>` to stop an unused code `[SIM AC-M1-29]`.
+1. From `/repo` inside `cogniate-app`, run `npm run app:grant -w services/cogniate-app -- list --connection <con_id>` `[SIM AC-M1-28]`.
+2. In the same folder, run `npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>` to stop that unused code `[SIM AC-M1-29]`.
 3. Read one line per record: `fenced`, `absent`, `not_owned` or `failed` `[SIM M1-37.canvas.m, M1-37.blackboard.m]`.
 4. If a line is `failed`, run the same `revoke` again `[SIM M1-37.canvas.m, M1-37.blackboard.m]`.
 
@@ -99,7 +105,9 @@ npm run app:binding -w services/cogniate-app -- suspend --connection <con_id> --
 npm run app:binding -w services/cogniate-app -- release --connection <con_id> --note "<evidence reference>"
 ```
 
-Order: always `suspend` first, then `release`. `release` on an active binding exits 1 and changes nothing [SIM M1-38.canvas.b, M1-38.blackboard.b].
+Always run `suspend` before `release`. `release` on an active binding exits 1 and changes nothing [SIM M1-38.canvas.b, M1-38.blackboard.b].
+
+Self-hosted Canvas: use the order of [section 3a](#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release). The library makes the new connection first. Issue its grant before you suspend and release `[SIM M1-39.canvas.operator-order]`.
 
 1. Run `suspend`. It needs no library session `[SIM M1-38.canvas.a, M1-38.blackboard.a]`.
 2. Read one line per record. If a line is `failed`, run `suspend` again `[SIM AC-M1-38]`.
@@ -114,7 +122,7 @@ If `release` says "a redemption may still run; retry after <n> s", wait that tim
 | `fenced` | The command switched off a record of this connection, with a new binding ref. | `[SIM M1-38.canvas.a, M1-38.blackboard.a]` |
 | `absent` | No record exists. Nothing to do. | `[SIM M1-38.blackboard.g-absent]` |
 | `not_owned` | The record belongs to another or newer binding. It stays unchanged. | `[SIM M1-38.blackboard.c]` |
-| `deleted` | Canvas `release` deleted the switched-off platform, with its keys. Its client ID is free again. | `[SIM M1-38.canvas.b, M1-38.canvas.f]` |
+| `deleted` | A Canvas or Moodle `release` deleted the switched-off platform, with its keys. Its client ID is free again. | `[SIM M1-38.canvas.b, M1-38.canvas.f, M1-39.canvas.residual-race]` |
 | `kept_inactive` | Blackboard `release` keeps the switched-off deployment. The next binding gets a new generation, so old keys fail. | `[SIM M1-38.blackboard.b, M1-38.blackboard.c]` |
 | `failed` | An LTI call failed or timed out. Nothing local changed. Run the command again. | `[SIM M1-38.canvas.f-held-delete]` |
 
@@ -126,7 +134,7 @@ Effects:
 
 NOTE: A late record can appear after a cleanup that found nothing. A delayed request of an old attempt can still arrive. It makes only an inactive record without authority. Run the same `suspend` or `release` again: it finds the record through the saved target [SIM M1-38.blackboard.g-absent, M1-38.canvas.g-late-create].
 
-NOTE: To correct a Canvas site or service URL, you do not need a new developer key. Suspend and release the old binding. Then the library makes a new connection with the right values. It redeems a new grant for the same client ID [SIM M1-38.canvas.f; AC-M1-38].
+NOTE: To correct a Canvas site or service URL, you do not need a new developer key. For self-hosted Canvas, follow [section 3a](#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release), with the grant first [SIM M1-39.canvas.operator-order]. For hosted Canvas, suspend and release the old binding. Then the library makes a new connection with the right values. It redeems a new grant for the same client ID [SIM M1-38.canvas.f; AC-M1-38].
 
 ### 3a. Accepted limit D-12: self-hosted Canvas after a release
 
@@ -137,6 +145,8 @@ A new Canvas or Blackboard binding always needs a grant. A Moodle manual connect
 
 Operator order:
 
+Before you issue the grant, the rightful library makes a new connection with the correct values `[SIM M1-39.canvas.operator-order]`.
+
 1. Issue the rightful grant `[SIM M1-39.canvas.operator-order]`.
 2. Suspend the old binding `[SIM M1-39.canvas.operator-order]`.
 3. Release the old binding `[SIM M1-39.canvas.operator-order]`.
@@ -144,7 +154,7 @@ Operator order:
 
 This order makes the window short. It does not close it. Prompt redemption narrows the window but cannot prevent the race.
 
-If the race happens, suspend and release the new Moodle connection. Then repeat the order [SIM M1-39.canvas.residual-race].
+If the race happens, suspend and release the new Moodle connection. The unused code stays valid until it expires. Ask the rightful library to redeem that same code at once after the release [SIM M1-39.canvas.residual-race].
 
 WARNING: An enterprise service must not rely on this workflow before a reserved-identifier or quarantine design exists (D-12, [deferred](../human_review/deferred.md#a-m0-10-d-12-residual-race-after-a-release)).
 
@@ -152,13 +162,19 @@ WARNING: An enterprise service must not rely on this workflow before a reserved-
 
 The full sequences are in [ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback). QA ran them on the local Moodle stack [MOODLE-LIVE AC-M1-23, AC-M1-30]. Use the same checkout, compose project, `.env`, keys and data.
 
+The accepted evidence carries the C4 migration and storage results separately from fresh C6/C9 tests. All 72 storage rows passed in both C4 rounds. The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE. ADR-012 revisions 3.3–3.7 are accepted for this prototype only.
+
+G-1 covers only the measured host and tool identities. Docker volumes have no generation id. The negative host test proves fault detection, not safe bind-mount locking. `content_check_failed` has unit evidence only. The lost-lock exit has host fault-injection evidence only. See the [current G1 checkpoint](../human_review/decisions-needed.md#g1-storage-design-blocking-design-findings-closed) for these limits.
+
+For `operation_lock_invalid`, stop and escalate. No manual recovery is validated. This evidence does not establish production or enterprise storage acceptance.
+
 ### 4.1 Upgrade
 
 1. Stop the Cogniate app and the LTI service with the old revision (`npm run stack:down`) `[MOODLE-LIVE AC-M1-23]`.
 2. Make sure that both containers are stopped `[MOODLE-LIVE AC-M1-23]`.
 3. Switch the checkout to the new revision. Keep both services stopped `[MOODLE-LIVE AC-M1-23]`.
 4. If the storage override was on, run `npm run stack:storage-compat -- disable` `[MOODLE-LIVE AC-M1-23]`.
-5. Install and build. Do not start a service `[MOODLE-LIVE AC-M1-23]`.
+5. Install and build (`npm ci`, then `npm run build`). Do not start a service `[MOODLE-LIVE AC-M1-23]`.
 6. Run `npm run stack:data-backup -- --out <folder outside the checkout>` `[MOODLE-LIVE AC-M1-23]`.
 7. Make sure that the command exits 0. It refuses while a service runs `[MOODLE-LIVE AC-M1-23]`.
 8. Run `npm run stack:up` `[MOODLE-LIVE AC-M1-23]`.
@@ -167,18 +183,20 @@ WARNING: The backup folder contains secrets. Keep it outside the checkout and ou
 
 ### 4.2 Rollback
 
-1. Stop the Cogniate app and the LTI service. Keep the new revision checked out `[MOODLE-LIVE AC-M1-30]`.
+1. Stop the Cogniate app and the LTI service (`npm run stack:down`). Keep the new revision checked out `[MOODLE-LIVE AC-M1-30]`.
 2. Run `npm run stack:data-restore -- --from <backup folder>` `[MOODLE-LIVE AC-M1-30]`.
 3. Make sure that it exits 0. A damaged backup gives exit 1 and changes nothing `[MOODLE-LIVE AC-M1-30]`.
 4. Run `npm run stack:storage-compat -- enable` `[MOODLE-LIVE AC-M1-30]`.
-5. Switch the checkout to the old revision. Install and build it `[MOODLE-LIVE AC-M1-30]`.
+5. Switch the checkout to the old revision. Install and build it (`npm ci`, then `npm run build`) `[MOODLE-LIVE AC-M1-30]`.
 6. Start it with `bash .tmp/storage-compat/storage-compat.sh run -- npm run stack:up` `[MOODLE-LIVE AC-M1-30]`.
 
 If a check of step 6 fails, stop. Do not use the old build.
 
 WARNING: Rollback loses every Cogniate write after the backup. This includes connections, grants, launches, attempts, grade rows and publication changes. Revocations and suspensions after the backup are also undone: a revoked approval code is valid again until it expires. After the rollback, revoke and suspend them again.
 
-QA saw the lost attempt and the kept Moodle grade after a rollback [MOODLE-LIVE AC-M1-30]. The other losses follow from the same restore ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)); no QA case checked them one by one.
+WARNING: Canvas and Blackboard records made after the upgrade stay configured in the LMS. Their launches fail with `UNKNOWN_PLATFORM` after the restore. This consequence is unmeasured ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)).
+
+QA saw the lost attempt and the kept Moodle grade after a rollback [MOODLE-LIVE AC-M1-30]. The other losses and the launch consequence follow from the same restore ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)). No QA case checked them one by one.
 
 While the override is on (rollback mode):
 
@@ -193,16 +211,16 @@ WARNING: Never use `npm run stack:reset` as a recovery step. It deletes the cont
 
 ### 4.3 Storage lock messages
 
-Every storage command takes one lock per checkout. These refusals change no data [HOST-QA; SIM AC-M1-41 lock rows].
+Every storage command takes one lock per checkout. The first three messages are refusals: they change no data [HOST-QA; SIM AC-M1-41 lock rows]. `storage_lock_lost` is not a refusal: your command ran, and it can have changed data ([ADR-012 §7](../architecture/adr/ADR-012-sqlite-volume-storage.md#7-guarded-paths-and-the-operation-lock)).
 
 | Message | Do this |
 | --- | --- |
 | `operation_in_progress` | Another storage command holds the lock. Wait for it, then run your command again. |
 | `storage_writer_active` | A storage container still runs. Wait until it ends, or run `docker stop <name>`. |
-| `operation_lock_invalid` | The lock folder has no valid record. Stop. Do not remove or move the folder. Send the message and the folder name to the engineering owner. The manual recovery procedure is pending Architect and QA validation. |
+| `operation_lock_invalid` | The message says "Follow the manual exit of the operator guide". In this prototype the manual exit is: stop and escalate. No validated manual recovery procedure exists. Do not remove or move the lock folder. Send the message and the folder name to the engineering owner. |
 | Exit 1 with only a `storage_lock_lost` line | Another command took the lock. The result of your command is not proven safe. The event in `infra/.logs/storage-lock.jsonl` names the other owner. Check the result before you continue. |
 
-NOTE: ADR-012 §7 (A3) gives only one condition for a manual exit: no storage command of this checkout runs. QA tested the refusal, not a manual exit. A wrong manual change can break the lock of a running command.
+NOTE: ADR-012 §7 (A3) requires that no storage command of this checkout runs before any manual exit. This condition is not a recovery procedure. QA tested the refusal, not a manual exit. Stop and escalate `operation_lock_invalid`; do not change the lock folder.
 
 NOTE: Known limits ([deferred](../human_review/deferred.md#canvas-and-blackboard-phase-m4)): a lost lock prints no plain-text sentence on stderr (B-RR-02). Some lock releases log no `storage_lock_released` line (R1-A QA O-1). After another release error, stderr can show a raw `EACCES` text with a path. The lock folder then stays until a later command reclaims it (O-A2).
 
@@ -211,9 +229,10 @@ NOTE: Known limits ([deferred](../human_review/deferred.md#canvas-and-blackboard
 Canvas installs that use the key URL need no change. Canvas installs with an inline key do: Canvas does not refresh an inline key [SIM M1-19.canvas.inline-key; DOC F-CV-8].
 
 1. Before the rotation, list the Canvas connections whose admins chose the inline key `[PROCESS]`.
-2. Rotate the key: `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name <name> --rotate-signing-key` `[Not verified by QA]`.
-3. Restart the LTI service to empty its token cache `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
-4. Tell each inline-key Canvas admin to paste a new JSON ([Canvas guide, Procedure 6](canvas-admin.md#procedure-6-after-a-cogniate-key-change-inline-key-only)) `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+2. On the host, rotate the key: `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name <name> --rotate-signing-key` `[Not verified by QA]`.
+3. Outside rollback mode, run `npm run stack:restart -- lti-service` to empty the LTI token cache `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+4. Give each affected library user and Canvas admin the new key id (`kid=` in the `lti:bootstrap` output) `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+5. Ask them to complete [Canvas guide, Procedure 6](canvas-admin.md#procedure-6-after-a-cogniate-key-change-inline-key-only) with a new JSON `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 
 Until the new JSON is in Canvas, Deep Linking and new grade tokens fail for that install. A token that Canvas already issued can still work until it expires [L-C14 UNVERIFIED]. Not yet tested on a real Canvas site.
 

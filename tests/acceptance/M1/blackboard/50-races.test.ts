@@ -102,8 +102,11 @@ race('b', 'lost S1 answer leaves an inactive generation-zero record that retry a
 race('d', 'dead handler retains the lease for 60 seconds and its late S3 loses to the retry', async (p) => {
   await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_before')]);
   const started = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
-  assert.equal((await host('m1-restart', { service: 'cogniate-app' })).code, 0);
-  await gatePhase('activate', 'caller_gone', 10_000); await first;
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await gatePhase('activate', 'caller_gone', 10_000);
+  const firstAnswer = await first;
+  assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+    'BLOCKED: the old handler timed out before the restart killed it');
   assert.ok(Date.now() - started < 55_000, 'Restart leaves time to observe the live lease');
   expectStatus(await apply(p), 409, 'GRANT_IN_USE');
   await pause(Math.max(0, started + 62_000 - Date.now()));
@@ -213,8 +216,11 @@ race('n', 'late compensation loses to a successful replacement binding', async (
 race('o', 'operator suspend fences a dead attempt and release waits for its lease', async (p) => {
   await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_before')]);
   const start = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
-  assert.equal((await host('m1-restart', { service: 'cogniate-app' })).code, 0);
-  await gatePhase('activate', 'caller_gone', 10_000); await first;
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await gatePhase('activate', 'caller_gone', 10_000);
+  const firstAnswer = await first;
+  assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+    'BLOCKED: the old handler timed out before the restart killed it');
   const suspend = await cli('app:binding', ['suspend', '--connection', p.connection.id, '--note', 'M1 race o']);
   assert.equal(suspend.code, 0); assert.match(suspend.stdout, /\bfenced\b/);
   assert.ok(Date.now() - start < 55_000, 'Lease refusal must be observed before 60 seconds');

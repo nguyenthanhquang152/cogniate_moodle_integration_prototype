@@ -29,6 +29,12 @@ async function tabTo(page: Page, name: RegExp, back = false, max = 80) {
   }
   throw new Error(`Keyboard focus never reached ${name}`);
 }
+/** The portal moves focus to the page heading after a route change (App.tsx Frame: a content observer and one
+ *  animation frame). Wait for the move, then for one frame, so no later move can take keystrokes. */
+async function routeFocusSettled(page: Page, heading?: string) {
+  await expect(page.getByRole('heading', heading ? { level: 1, name: heading, exact: true } : { level: 1 }), heading ? `the "${heading}" heading has the focus` : 'the page heading has the focus').toBeFocused();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
 /** Retrying readiness before the first Tab: the form renders after its data loads. No focus, click or fill. */
 async function formReady(page: Page, firstField: string) {
   await expect(page.getByLabel(firstField, { exact: true })).toBeVisible();
@@ -47,19 +53,26 @@ m2Case('M2-11.canvas-keyboard', 'the Canvas wizard works with the keyboard only 
   const s = await session('A'), name = unique('Canvas keyboard');
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/canvas/connect`);
   await formReady(page, 'Connection name');
+  await routeFocusSettled(page, 'Connect Canvas');
   await tabTo(page, /^Connection name/); await page.keyboard.type(name);
+  await expect(page.locator(':focus'), 'the typed connection name stays in the focused field').toHaveValue(name);
   await tabTo(page, /^Canvas URL/); await page.keyboard.type(CLOUD.siteA);
+  await expect(page.locator(':focus'), 'the typed Canvas URL stays in the focused field').toHaveValue(CLOUD.siteA);
   await tabTo(page, /^Canvas type/); await page.keyboard.press('End');
   await tabTo(page, /^Canvas URL/, true); await tabTo(page, /^Next$/);
   await page.keyboard.press('Enter');
   await pendingWizard(page, 'canvas'); // setup and approval together; no second Next (B-M3-01)
+  await routeFocusSettled(page, 'Manage Canvas');
   const c = await newestByName(s, name, 'canvas'), clientId = canvasClientId(), deploymentId = canvasDeploymentId();
   await tabTo(page, /^Client ID/); await page.keyboard.type(clientId);
+  await expect(page.locator(':focus'), 'the typed client ID stays in the focused field').toHaveValue(clientId);
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(deploymentId);
+  await expect(page.locator(':focus'), 'the typed deployment ID stays in the focused field').toHaveValue(deploymentId);
   await tabTo(page, /^Save$/); await page.keyboard.press('Space');
   await liveText(page, ERR.invalidValues);
   const grant = await canvasGrantFor(s, c, clientId, deploymentId);
   await tabTo(page, /^Approval code/, true); await page.keyboard.type(grant.code);
+  await expect.poll(() => page.locator(':focus').evaluate((el, code) => (el as HTMLInputElement).value === code, grant.code), 'the typed approval code stays in the focused field').toBe(true);
   await tabTo(page, /^Save$/); await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: TEXT.canvasStep4 })).toBeVisible({ timeout: 30_000 });
   expect((await connection(s, c.id)).status).toBe('registered');
@@ -69,16 +82,22 @@ m2Case('M2-11.blackboard-keyboard', 'the Blackboard wizard works with the keyboa
   const s = await session('A'), name = unique('Blackboard keyboard');
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/blackboard/connect`);
   await formReady(page, 'Connection name');
+  await routeFocusSettled(page, 'Connect Blackboard');
   await tabTo(page, /^Connection name/); await page.keyboard.type(name);
+  await expect(page.locator(':focus'), 'the typed connection name stays in the focused field').toHaveValue(name);
   await tabTo(page, /^Learn URL/); await page.keyboard.type(BLACKBOARD.siteA);
+  await expect(page.locator(':focus'), 'the typed Learn URL stays in the focused field').toHaveValue(BLACKBOARD.siteA);
   await tabTo(page, /^Next$/); await page.keyboard.press('Enter');
   await pendingWizard(page, 'blackboard'); // setup and approval together; no second Next (B-M3-01)
+  await routeFocusSettled(page, 'Manage Blackboard');
   const c = await newestByName(s, name, 'blackboard'), deploymentId = unique('bb-key');
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(deploymentId);
+  await expect(page.locator(':focus'), 'the typed deployment ID stays in the focused field').toHaveValue(deploymentId);
   await tabTo(page, /^Save$/); await page.keyboard.press('Enter');
   await liveText(page, ERR.invalidValues);
   const grant = await blackboardGrantFor(s, c, deploymentId);
   await tabTo(page, /^Approval code/, true); await page.keyboard.type(grant.code);
+  await expect.poll(() => page.locator(':focus').evaluate((el, code) => (el as HTMLInputElement).value === code, grant.code), 'the typed approval code stays in the focused field').toBe(true);
   await tabTo(page, /^Save$/); await page.keyboard.press('Space');
   await expect(page.getByRole('heading', { name: TEXT.blackboardStep4 })).toBeVisible({ timeout: 30_000 });
   expect((await connection(s, c.id)).status).toBe('registered');
@@ -88,8 +107,11 @@ m2Case('M2-11.add-deployment-keyboard', 'the Canvas add-deployment form works wi
   const grant = await issueGrant(b.s, b.connection, { 'client-id': b.clientId, 'deployment-id': second, 'service-url': b.connection.serviceUrl, purpose: 'add_deployment' });
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/canvas/${b.connection.id}`);
   await formReady(page, 'Deployment ID');
+  await routeFocusSettled(page, 'Manage Canvas');
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(second);
+  await expect(page.locator(':focus'), 'the typed deployment ID stays in the focused field').toHaveValue(second);
   await tabTo(page, /^Approval code/); await page.keyboard.type(grant.code);
+  await expect.poll(() => page.locator(':focus').evaluate((el, code) => (el as HTMLInputElement).value === code, grant.code), 'the typed approval code stays in the focused field').toBe(true);
   await tabTo(page, /^Add deployment ID$/); await page.keyboard.press('Enter');
   await expect(page.getByText(second).first()).toBeVisible({ timeout: 30_000 });
   expect([...(await connection(b.s, b.connection.id)).platform.deploymentIds].sort()).toEqual([b.deploymentId, second].sort());
