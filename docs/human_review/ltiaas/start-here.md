@@ -40,10 +40,10 @@ Read the label of each result. **SIM** means a QA stack with a simulated LMS. A 
 | 12 of 12 browser flows on the simulator, final build (portal, wizards, LTI 1.3 and D2L Brightspace flows, framed launch without the cookie). | K2 (on SIM) | [LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) round 5 |
 | D2L Brightspace changed 0 core files (F2 `core = 0`). | UNIT | [LA-E2-05 qa](../../reviews/LA-E2-05/qa.md) AC-LA-E2-05-01 |
 | The LTI 1.3 and D2L Brightspace channels pass their task checks on their simulators. The full kit run is pending (last row). | SIM | [LA-E2-04 qa](../../reviews/LA-E2-04/qa.md) AC-08; [LA-E2-05 qa](../../reviews/LA-E2-05/qa.md) AC-10 |
-| Service controls (rate limits, tool accounts, operator API, audit, key rotation, key rings, revoke, retries, metrics). | SIM, UNIT | the LA-E5 QA files, for example [LA-E5-03](../../reviews/LA-E5-03/qa.md), [LA-E5-09](../../reviews/LA-E5-09/qa.md), [LA-E5-10](../../reviews/LA-E5-10/qa.md) |
+| Service controls: rate limits, tool accounts, operator API, audit log, key lifecycle (API keys, key rings and re-wrap, signing keys), revoke, safe retries, metrics and readiness, production start rules, backup and restore. | SIM, UNIT | [proof map](service-controls.md): each claim with its QA report (LA-E5-01 to LA-E5-24) and the label of each check |
 | Backup and restore drill; QA recorded the restore time and the backup age. | SIM | [LA-E5-24 qa](../../reviews/LA-E5-24/qa.md) |
 | One tool account cannot read or change the data of another one on the new routes. | SIM | [LA-E5-13 qa](../../reviews/LA-E5-13/qa.md) |
-| The channel kit run for every channel (AC-LA-E7-08-02) and the final double full run (AC-LA-E7-09-05). | pending: wave-end gate | decision LA-H25; [spec-deviations §4](../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-results) |
+| The channel kit run for every channel (AC-LA-E7-08-02) and the final double full run (AC-LA-E7-09-05). | pending: wave-end gate | LA-H25, decided: (a); [spec-deviations §4](../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-results) |
 
 Labels: **UNIT** host tests, no stack. **SIM** a QA stack with simulated LMS platforms. **K2** a browser on that stack. **MOODLE-LIVE** a real Moodle 5.2 site in Docker on the QA host. **LIVE** a real school LMS site: none in LA.
 
@@ -61,7 +61,7 @@ Details: [spec-deviations §5](../../guides/ltiaas/spec-deviations.md#5-wave-end
 ## 5. What is not proven
 
 - **No real Canvas, Blackboard, D2L Brightspace or other LTI 1.3 site took part.** Every result for these LMSs is a simulator result. Some menu names and field names come from vendor documentation. A live proof on an open-source LMS is decision LA-H26 (after LA).
-- **The channel kit run for every channel and the final double full run:** pending: wave-end gate. The kit task (LA-E7-06) used its three fix rounds with open findings. Decision: LA-H25. The timed add-a-channel walkthrough (LA-E8-02) waits for the kit.
+- **The channel kit run for every channel and the final double full run:** pending: wave-end gate. The kit task (LA-E7-06) used its three fix rounds with open findings. The product owner chose option (a) of LA-H25: one extra kit fix round, then review round 5 and the kit K1-SIM run. The timed add-a-channel walkthrough (LA-E8-02) waits for the kit.
 - **Canvas Dynamic Registration for Instructure-hosted Canvas:** refused on purpose until a live Canvas check. Hosted Canvas uses the developer key.
 - **A production host:** the strict production start rules pass their tests, but the LA Docker stack cannot run in production mode. A production host setup is milestone LG.
 - **Load, scale, high availability and 1EdTech certification:** not in LA (certification: LA-H9).
@@ -73,7 +73,7 @@ Details and options: [decisions.md](decisions.md).
 
 | Id | Question | Lead recommendation |
 | --- | --- | --- |
-| LA-H25 | How do we finish the channel kit (LA-E7-06)? | (a) one extra fix round by a fresh QA session, then a fifth review round |
+| LA-H25 | How do we finish the channel kit (LA-E7-06)? | **Decided (product owner, 2026-10-24): (a)**, one extra fix round by a fresh QA session, then a fifth review round and the kit K1-SIM run |
 | LA-H26 | Which real open-source LMS gives the first live proof of the new-channel path? | Open edX first, Sakai as fallback; after LA (LG) |
 | LA-H22 | Do we offer ungraded items? | Yes for Canvas `link_selection` and LTI 1.3; no for Moodle |
 | LA-H4 | Privacy: claims per channel, retention, learner erase | Pseudonymous default; claim policy per tool account |
