@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 4
+Round: 5
 
 # LA-E0-02 — Reviewer-B
 
@@ -93,3 +93,80 @@ Reviewed 2026-10-24 UTC at QA `a456ca03` / integration `61e3ca97`, limited to th
 **B-LA-E0-02-01 stays OPEN, BLOCKER pending R1's report.** AC-04/06/07 still correctly say pending baseline-3. The Lead has started R1, but neither that start nor the approved command handoff supplies its required legacy results and rate measurements. The [LD-9 r8 Round 3 review](../LA-E7-08/ld9-addendum-r8-reviewer-b.md) approves the corrected execution commands without granting live acceptance.
 
 Verification: `/tmp/reviewer-b-ld9-r8-r3-g5mxlvp3/remaining-checks.json` cross-checks the new rows against `/tmp/reviewer-b-ld9-r8-r2-tofad1og/baseline-reconciliation-r3.json` and its cited raw artifacts. No Docker, stack, product/test edit, install, commit or other reviewer's file was used.
+
+## Round 5
+
+Reviewed QA `9614cf03` / integration `35b71b98`, diff from `56261ed6`, against the task ACs, TEST-STRATEGY §4.2 and plan §6.1. **CHANGES_REQUESTED: 1 existing BLOCKER, 1 new MAJOR, 1 new MINOR; 0 NIT.** All ten R1 run counts match their raw summaries. All eleven published rate JSON files reproduce, but the T2/T3 file measures only the final pass. B-LA-E0-02-02 remains closed.
+
+### B-LA-E0-02-01 — BLOCKER — Still open: AC-06/07 omit the pre-reset T2/T3 load
+
+**File:line:** `docs/reviews/LA-E0-02/qa.md:35`, `:36`, `:165`, `:200`.
+
+**Problem / evidence:** AC-04 now has the missing legacy results, but AC-06/07 cannot close on the reported T2/T3 rates. The `qalead-la-123-t2-t3ab.json` input covers only `passC` after `14-stack-reset.log` clears `.logs`. Its two app requests and eight LTI requests omit `passA` and the knob pass. The note acknowledges this limit while the AC table and §8.2 still claim complete coverage and no over-default flag for this group.
+
+The earlier logs are retained in run 123's `container-passA/service-logs/` and `container-knob/service-logs/`; `container-passC/service-logs/` and final `service-logs/` cover the last pass. I combined their `cogniate-app.jsonl` and `lti-service.jsonl` files, deduplicating identical lines from cumulative snapshots, and ran the existing `rate-peaks.mjs` reader. The complete retained record gives:
+
+| Metric | Total | Peak / minute | Peak / 10 s |
+| --- | --- | --- | --- |
+| App requests / LTI requests | 13 / 213 | — | — |
+| App `/tool/launch` | 13 | 6 | 5 |
+| App `/tool/deep-link` | 0 | 0 | 0 |
+| LTI `protocol` | 85 | 34 | 23 |
+| LTI `registration` | 6 | 6 | 6 |
+| LTI `auth_failure` upper bound | 12 | 8 | 8 |
+
+Both `registration` and `registration_account` now have `overDefault: true`: the former exceeds the reader's 5-request burst threshold; the latter includes five starts for `cogniate` in one minute against its soft default of 1/min. Registration-start upper bounds over ten minutes are five for `cogniate` and one with unknown account. These are conservative rate-reader flags, not proof of a token-bucket rejection: address/API-key identity is absent, and rolling counts do not by themselves model token refill. The previously reported T4b `registration_account` flag also remains.
+
+**Required fix:** Publish the complete T2/T3 extraction and its input paths, correct AC-06/07 and §8.2, and record the Lead/A2 disposition of the newly visible over-default upper bounds for the acceptance profile. Do not infer a required configuration change solely from these flags. Existing artifacts suffice; this finding does not require another stack run. Reviewer output: `/tmp/reviewer-b-e002-r5-rsnvkgau/t2-complete-rate-peaks.json`; exact inputs: `t2-rate-sources.json` in that directory.
+
+### B-LA-E0-02-03 — MAJOR — The claimed omitted T8 harness fix does not exist in the cited change
+
+**File:line:** `docs/reviews/LA-E0-02/qa.md:186`; repeated in `docs/reviews/LA-E7-08/qa.md:1360`.
+
+**Problem:** The explanation ties the T8 log-observation failure to a pre-WE-F6 / BD-A1-118 harness state. That attribution is unsupported and would give the differential record a false explanation for baseline FAIL versus candidate PASS.
+
+**Observed evidence:** Run 129's `service-logs/build-runner.jsonl` records `build_hold` for `bld_9024b26e1ff6c7b89d527288` at `18:41:06.818Z`. Its HOLD Playwright result fails after **421,171 ms** at `3-knob-hold.spec.ts:31:50`, with the expected event undefined. The FAIL_AT trace then returns the **same build ID**, and its result fails after **423,075 ms** at `4-knob-fail.spec.ts:23:25`, expecting `failed` but receiving `running`. The runner finally records that held build's failure at step `copy` on stop at `18:55:42.154Z`. The missed event and cascading second failure are supported. A VirtioFS cache or permission cause is not established: `tests/acceptance/lib/lti.ts:207` catches every log-read exception and returns `[]`, so that observation does not distinguish those causes.
+
+**Change/parity evidence:** [LD-9 r2](../LA-E7-08/ld9-addendum-r2.md) changes **`M1-08.canvas.login-redirect` for LA-IC-06**, not T8. `BD-A1-118` (`docs/architecture/ltiaas/build-decisions-A1.md:127`, commit `4c28887d`) records design-document corrections with no product change. The cited `chmod 700` and read-only log mount remain present at baseline and candidate. The two knob specs, `lib/{t8,logs,lti}.ts`, `tests/host/run-t8.mjs` and `host-control.mjs` are identical between baseline test `1ae6716b`, candidate test `794f649c` and run 129's actual clone. The retained D1 run 80/83 and D2 run 99 clones also have identical bytes for these seven files. There is no omitted WE-F6 T8 overlay to apply to baseline under LD-25/29.
+
+The raw per-ID comparison is:
+
+| Test | R1 baseline, run 129 | D1, runs 80/83 | D2, runs 99/105 |
+| --- | --- | --- | --- |
+| AC-T8-03 | FAIL: hold event not observed | PASS | PASS |
+| AC-T8-07 | FAIL: same held build still running | PASS | PASS |
+
+**Required fix:** Remove the nonexistent-fix attribution, retain the observed failure and cascade, and label the initial log-read cause unresolved unless direct evidence establishes it. Keep the FAIL-to-PASS differences explicit for both IDs, and compare D3/D4's actual results separately when available. TEST-STRATEGY §4.2 permits a recorded baseline failure; this finding does not require E0 to fix the product or rerun merely to obtain PASS. It requires an accurate record, without an unsupported equivalence or waiver.
+
+### B-LA-E0-02-04 — MINOR — The companion gate summary has incorrect artifact IDs and rate figures
+
+**File:line:** `docs/reviews/LA-E7-08/qa.md:1351` through its ten-run list at `:1360`.
+
+**Problem / evidence:** None of the ten exact artifact directory names in that list exists under its cited R1 root. For example, run 120 ends in `675Z`, not `810Z`; run 122 is `2026-10-24T17-46-37-886Z`, not `2026-10-24T171226Z`. The rates also disagree with the saved JSON: M1 launch/protocol are **26/184 per minute**, not 30/27; M2 admin is **303/min**, not 24; T4a and T8 launch are **0**, not 14/min and 2/min. The listed `/s` values and `lti.runtime` class are not outputs of the cited reader. A maintainer following this summary cannot retrieve the stated evidence or reproduce its figures.
+
+**Suggested fix:** Regenerate the list from the actual summaries and rate JSON, or link the corrected E0 §8 table as the single numeric source. Use the real artifact IDs below. This correction is independent of the missing T2/T3 input coverage.
+
+### Verified counts and raw paths
+
+Each path below ends in **`/summary.json`**, under `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/artifacts/`. `P/F` means PASS/FAIL; entry counts include host rows, while ID counts use the summary aggregate.
+
+| Exact artifact directory | Entry counts | Unique-ID counts / case detail |
+| --- | --- | --- |
+| `qalead-la-120-78971b03-2026-10-24T17-12-27-675Z` | 400 P | 400 P; M1 ledger 394 P |
+| `qalead-la-121-78971b03-2026-10-24T17-43-47-815Z` | 71 P | 71 P; M2 ledger 64 P |
+| `qalead-la-122-78971b03-2026-10-24T17-46-37-886Z` | 8/8 steps OK | 3 × (17 P, 0 F, 1 demo SKIP); 175/176/176 s |
+| `qalead-la-123-78971b03-2026-10-24T17-55-33-990Z` | 76 P | 64 P |
+| `qalead-la-124-78971b03-2026-10-24T18-03-57-336Z` | 28 P | 28 P |
+| `qalead-la-125-78971b03-2026-10-24T18-05-47-088Z` | 19 P | 15 P |
+| `qalead-la-126-78971b03-2026-10-24T18-07-15-391Z` | 48 P | 40 P |
+| `qalead-la-127-78971b03-2026-10-24T18-12-22-967Z` | 59 P | 48 P |
+| `qalead-la-128-78971b03-2026-10-24T18-28-47-946Z` | 53 P | 46 P |
+| `qalead-la-129-78971b03-2026-10-24T18-35-41-097Z` | 32 P, 4 F | 20 P, 3 F: SUITE, AC-T8-03, AC-T8-07 |
+
+All ten summaries identify product `78971b0300ab171029e8ce94dbba30db37b23dea`; all M1/M2 case rows identify test `1ae6716b7353becc0f053b46fb65e0ba86ff7873`. The recorded group times, T7 demo skips and dedicated knob-pass dispositions agree with the artifacts. Migration/snapshot evidence remains the accepted earlier record, not a new R1 run.
+
+Recalculated all eleven files in `REGATE/slot-r1/rate-peaks/` from their stated inputs. Every saved calculation agrees; only input completeness for T2/T3 is disputed above. Read the rate reader's address/key and registration-start upper-bound limitations. Per-run main-stack memory peaks reproduce to the report's precision; the SIM/Moodle maxima are **1,608.3 / 1,975.2 MiB**. `docker-records/before-volumes-inspect.json` and `after-volumes-inspect.json` contain the same **32** unchanged protected volume records.
+
+Additional T8 raw summaries, under `/Users/quangnguyen/cogniate-qa-runs/LA/`: `RUN-D1/artifacts/qalead-la-80-a8bbac53-2026-10-24T11-37-11-860Z/summary.json`, `RUN-D1/artifacts/qalead-la-83-a8bbac53-2026-10-24T13-04-38-988Z/summary.json`, `RUN-D2/artifacts/qalead-la-99-a8bbac53-2026-10-24T11-32-48-203Z/summary.json`, and `RUN-D2/artifacts/qalead-la-105-a8bbac53-2026-10-24T13-32-48-725Z/summary.json`. Run 129's two `container-knob-BUILD_RUNNER_{HOLD,FAIL_AT}/playwright-results.json` files and their `playwright/*/trace.zip` files establish the errors and build identity above.
+
+Independent accounting is in `/tmp/reviewer-b-e002-r5-rsnvkgau/`: `summary-audit.json`, `rate-audit.json`, `t2-complete-rate-peaks.json`, `t2-rate-sources.json`, `t8-evidence.json`, `d1d2-t8-audit.json`, and `memory-volume-audit.json`. No Docker, stack, install, product/test edit or commit. I changed only this review file. Blind review maintained.
