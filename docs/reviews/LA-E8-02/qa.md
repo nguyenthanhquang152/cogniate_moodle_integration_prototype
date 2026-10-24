@@ -1,5 +1,5 @@
-Verdict: PENDING (4/5 ACs PASS on K0; AC-LA-E8-02-03 pending: Docker window)
-Round: 1
+Verdict: PASS (Round 2: AC-LA-E8-02-03 PASS for acme-lms under its pass rule, 39/39 with K-HYG and the fault matrix; 5/5 ACs PASS; open kit finding F-LA-E7-06-WALK-02 for LA-E7-06)
+Round: 2
 
 # LA-E8-02 Timed walkthrough of the add-channel guide (`acme-lms`): QA verification
 
@@ -127,3 +127,76 @@ Every place where the walker left the guide or needed help outside it (`L1`–`L
 | Finding ID | Target Task & File | Failing Tests in `kit-k0.log` | Root Cause & Required QA-K Fix |
 | --- | --- | --- | --- |
 | `F-LA-E7-06-WALK-01` | **`LA-E7-06`** (`tests/ltiaas/kit/kit.k0.test.ts:1699-1755`) | 1. `A-LA-E7-06-07 / B-LA-E7-06-02 (L4): fixture guard data equals LA-ADR-01 D6, and the L4 selector picks probes from the declared guard levels for every target` (`kit.k0.test.ts:1709`)<br>2. `A-LA-E7-06-07 / B-LA-E7-06-02 (L4): the L4 case body passes on a check-14 fake for every shipped target and fails on wrong product behaviour` (`kit.k0.test.ts:1748`) | When a new channel fixture (`tests/ltiaas/kit/channels/acme-lms.json`) declares a `registration`-level guarded family (`expect.guardedFamilies: [{ family: "acme", level: "registration" }]`), `selectFamilyGuardProbes` in `tests/ltiaas/kit/lib/cases.ts` rightly adds `acme:registration_guarded:warn_passthrough` to the probe list of other channels (such as `brightspace`). However, the two `L4` K0 self-tests in `tests/ltiaas/kit/kit.k0.test.ts:1699-1755` hardcode closed-world expectations assuming `desire2learn` (`brightspace`) is the only `registration`-guarded family in `tests/ltiaas/kit/channels/*.json` (so `table('brightspace')` expects `['canvas:launch_guarded:refuse', 'moodle:unguarded:pass']` with `0` `registration_guarded` probes, and the check-14 fake in `:1720-1755` only logs `family_guard_mismatch` for `desire2learn`). QA-K is making those two `L4` self-tests open-world across all discovered fixtures in `LA-E7-06`. |
+
+## Round 2
+
+Tester: QA-K (Claude Code Opus 5.5 xhigh; Orca task `task_b17ef21ecd13`, dispatch `ctx_88d1b9d39f2d`), 2026-10-24. Scope: AC-LA-E8-02-03, the K1-SIM kit run for the walkthrough channel `acme-lms` (DOCKER-YES, 75 minutes from 2026-10-24T14:51:05Z). Round 1 is unchanged. No file on the walk branch, no kit file and no product file was changed; no product source was read.
+
+### R2.1 Source and kit
+
+| Item | Value |
+| --- | --- |
+| Walk clone | `~/cogniate-qa-runs/LA/LA-E7-06/walk/clone`: `git clone --no-hardlinks` of the `la-walk` worktree, detached at `d6196d5242863e33f76a0b7d06c45554463bec6b` (`337b807d` plus the walker's log; base `3880a1b7` holds product `a8bbac53`) |
+| Kit tree of the walk branch at `d6196d52` | `564f4049991aa9cf577c40d55cbc355940d79ea4` |
+| Kit tree of integration `d9a4f482` (QA-K round 7 fix) | `8ad870fa1b33c93268bb0cdfb11dd86289a650c4` |
+| Copy | `tests/ltiaas/kit/**` replaced by `git archive d9a4f482 tests/ltiaas/kit`, then the walker's `tests/ltiaas/kit/channels/acme-lms.json` restored from `d6196d52` (`cmp`: equal to the walker's file). `diff -r` against the `d9a4f482` kit: only `channels/acme-lms.json` |
+| Kit tree after the copy (the run clone's `KIT` result) | `db27da51d9d88d4e2ee12f19a05c67212cf1a503` |
+| `git status --short` of the walk clone after the copy | ` M` `tests/ltiaas/kit/README.md`, `kit.k0.test.ts`, `lib/cases.ts`, `lib/fixtures.ts`, `lib/runtime.ts`, `suites/k1-ags.k1sim.test.ts`, `suites/k1-cap.k1sim.test.ts`, `suites/k1-dl.k1sim.test.ts`, `suites/k1-launch.k1sim.test.ts`, `suites/k1-nrps.k1sim.test.ts`, `suites/k1-reg.k1sim.test.ts`; `??` `tests/ltiaas/kit/k0-data/`, `lib/wave-producer.d.mts`, `lib/wave-producer.mjs`, `run-k1sim.mjs` (`~/cogniate-qa-runs/LA/LA-E7-06/walk/git-status-after-copy.txt`) |
+| Kit K0 on this kit tree (with `acme-lms`; scratch clone at `d6196d52` with `npm ci`) | **32 of 32 PASS**; `tsc` clean (`~/cogniate-qa-runs/LA/LA-E7-06/walk/kit-k0-acme.log`). F-LA-E7-06-WALK-01 (§3.2) is resolved on `8ad870fa` |
+
+### R2.2 Command: why not `QA_KIT_CHANNELS=acme-lms`
+
+The brief's acme-lms-only command was not possible with the kit runner at tree `8ad870fa`. QA-K did not change any kit code:
+
+- `tests/ltiaas/kit/run-k1sim.mjs:178`: the runner stops at result `WAVE` unless `LA_WAVE_ID` and `LA_K1_WAVE_SPEC` are set, and the producer needs a non-empty spec. The runner needs frozen-suite wave sources for every run. QA-K stopped and asked the Lead.
+- `tests/ltiaas/kit/run-k1sim.mjs:206`: the in-container step sets `QA_KIT_CHANNELS: 'all'`, so a channel selection cannot be passed.
+- `acme-lms` does not use the wave sources. The kit pass rule reads wave evidence only for a capability with a non-empty `coveredBy` (`tests/ltiaas/kit/lib/fixtures.ts:1361`), and `acme-lms` has `coveredBy: {}`. Only Moodle's `coveredBy` (T3b, T7, T8) reads them.
+
+Lead decision (option 1, answer to QA-K's question): the unchanged runner, the round 8 wave spec (the same T3b, T7 and T8 files as LA-E7-06 R8.3), and `QA_KIT_CHANNELS=all` on the walk clone. The run therefore certifies all 6 discovered channels. The `acme-lms` verdict comes from its own pass-rule rows, K-HYG and the global fault matrix. The other 5 channels give a no-regression note. The Lead records the hard-coded channel list as a kit usability item for LG.
+
+### R2.3 Run `qa4-la-walk-r1`
+
+| Item | Value |
+| --- | --- |
+| Lane | project `qa4-la-walk-r1`, `PUBLIC_PORT 9443`, `STACK_SUBNET 172.20.0.0/16`; one stack (QA-3 ran `qa3-la-e404-*` on 9473 and 172.23.0.0/16 at the same time) |
+| Time (`date -u`) | 2026-10-24T14:52:44Z–15:00:08Z; in-container step 390 s |
+| Invocation (from the walk clone) | `COMPOSE_PROJECT_NAME=qa4-la-walk-r1 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 LA_K1_WAVE_SPEC=~/cogniate-qa-runs/LA/LA-E7-06/wave-spec-r8.json LA_WAVE_ID=la-final-wave-a8bbac53 LA_K1_KIT_FROM=<walk clone>/tests/ltiaas/kit node tests/ltiaas/kit/run-k1sim.mjs --sha d6196d52 --source <walk clone> --workdir ~/cogniate-qa-runs/LA/LA-E7-06/walk/r1/run-clone` |
+| In-container command | README §3: `QA_KIT_CHANNELS=all QA_TASK=K1 npm --prefix tests run acceptance:api`, `retries: 0` |
+| Host results | `PRE`, `CLONE`, `KIT` (`db27da51`), `H1`, `SETUP`, `WAVE` (T3b, T7, T8 PASS), `HOSTCTL` (m1-cli 74 of 74 exit 0, m1-restart 12 of 12 exit 0), `TEARDOWN`: PASS. `SUITE` and `PASSRULE`: FAIL (the brightspace finding in R2.5). No host-runner stop, so no rerun |
+| Kit run | run id `kit-run-1792853625241-ozmtxy`; ledger 234 records (234 unique ids, one run id): **232 PASS, 2 FAIL**, 0 skipped, 0 duplicates; Vitest 235 tests (the 234 cases plus `GLOBAL:K-HYG:SUMMARY`): 232 passed, 3 failed |
+| Files | `~/cogniate-qa-runs/LA/LA-E7-06/walk/clone/tests/host/artifacts/qa4-la-walk-r1-d6196d52-2026-10-24T14-52-44-685Z/` (`summary.json`, `kit-run/`, `container-k1/vitest-results.json`, `service-logs/`); run clone `~/cogniate-qa-runs/LA/LA-E7-06/walk/r1/run-clone` |
+
+### R2.4 Verdict for `acme-lms` (AC-LA-E8-02-03)
+
+**PASS.** K1 passes for the new simulator channel under the pass rule (TEST-STRATEGY §2.6). In `k1-kit-summary.json`, `acme-lms` has `ok: true`: 39 expected `RUN` cases, **39 PASS**, no failed, missing or extra case.
+
+| Suite | `acme-lms` cases (all PASS) |
+| --- | --- |
+| K1-REG (6) | `R1`, `R1-DEPLOYMENTS`, `R2`, `R4`, `R5`, `R6` (R3 and R-CHECK are N/A: `registration.dynamic` and `setup.connectionCheck` are false, with their `C2` guards PASS) |
+| K1-CAP (7) | `C1`, `C2:publish.createCourse`, `C2:registration.dynamic`, `C2:setup.artifacts`, `C2:setup.connectionCheck`, `C2:siteApi.token`, `C3` |
+| K1-LAUNCH (10) | `L1`–`L10` (L4: the `launch`-level probe refused; the `desire2learn` registration-level probe passes with the LTI log `family_guard_mismatch`) |
+| K1-DL (8) | `D1`–`D8` (`D5-UNGRADED` N/A: `content.ungraded` is `notBuilt`) |
+| K1-AGS (6) | `A1`–`A6` |
+| K1-NRPS (1) | `N1` |
+| K-HYG (1) | `acme-lms:K-HYG:H2` |
+
+Global cases: `GLOBAL:K1-LAUNCH:L-FAULTS` (the 12-fault matrix, once per run on the protocol-control fixture) PASS, `GLOBAL:K1-NRPS:N2` PASS, `GLOBAL:K-HYG:H1` (secret scan of all logs, simulator records and run artifacts) PASS. `GLOBAL:K-HYG:SUMMARY` fails only because of brightspace (R2.5).
+
+No-regression note for the other 5 channels on the walk base: moodle 37 of 37, canvas 38 of 38, blackboard 39 of 39, lti-generic 39 of 39 PASS; **brightspace 37 of 39** (`K1-REG:R3` and its `K-HYG:H2` FAIL, R2.5). The walker's channel exposed a kit defect on brightspace; it is not a regression of brightspace.
+
+### R2.5 Finding for `LA-E7-06` (kit defect, class (b))
+
+| Finding ID | File | Problem | Evidence | Suggested fix |
+| --- | --- | --- | --- | --- |
+| `F-LA-E7-06-WALK-02` | `tests/ltiaas/kit/lib/fixtures.ts:1848` (`drFamilyGuardRefusedAtComplete`), used by `tests/ltiaas/kit/suites/k1-reg.k1sim.test.ts:440` | The BD-A1-121 branch rule picks the complete-refusal branch (start `303`, `REGISTRATION_FAILED 502`) for every `registration`-level family whose owner is `any-https`. It does not check that the owner channel has Dynamic Registration. BD-A1-121 says the complete-refusal branch applies when "the DR start rule also lets the owner channel pass". The start "applies the loosest rule of any DR profile" (LA-ADR-02 D5, last paragraph). A channel without Dynamic Registration gives no DR rule, so no loaded channel lets the configuration pass, and the start keeps `400 PROVIDER_PROFILE_MISMATCH`. With `acme-lms` loaded (`registration.dynamic: false`, family `acme` guarded at the `registration` level), brightspace's R3 registration-level probe becomes `acme`, and the kit expected the wrong branch | `brightspace:K1-REG:R3` FAIL "family acme (BD-A1-121): expected 400 to be 303". The stack answered the contract answer: LTI log `registration_rejected {code: PROVIDER_PROFILE_MISMATCH, detail: family=acme}` with `GET /lti/register/:account 400` (trace `a42da1fb28e8f2273c3ee167f67099ef`, 14:56:40.805Z). The same run's L4 shows the `acme` family at launch as `family_guard_mismatch` (14:57:28Z), as LA-ADR-01 D6 says. Not a walker or guide defect (the fixture follows the guide and passes its own pass rule); not a product defect (the answer is the contract's `PROVIDER_PROFILE_MISMATCH` page and BD-A1-121's start-refusal branch) | In `drFamilyGuardRefusedAtComplete`, also require `owner.capabilities['registration.dynamic'] === true`. Add a K0 row: an extra fixture copied from the generic fixture with `registration.dynamic: false` and a registration-level family gives the start-refusal branch for brightspace. QA-K did not change the kit because the round 8 reviews are running; reported to the Lead |
+
+### R2.6 Docker records (umask 077: `~/cogniate-qa-runs/LA/LA-E7-06/walk/r1/docker-records/`)
+
+Before and after (`ps -a`, networks, volumes, with inspect), `events-qa4-la-walk-r1.jsonl` (2,582 own-label events), `events-all.jsonl`, `ps-watch.log` (15 s), `compare.txt`. Lane after: 0 containers, 0 volumes, 0 networks; volumes 32 → 32, no inspect changed; protected lines (`qa3-la-*`, `qalead-la-*`, `qa-e2e-*`, `la-g1-diag-*`, `sto-*`) 0 → 0. Teardown: the shared owned-only teardown. QA-K's watchers stopped after the run.
+
+### R2.7 Acceptance criteria after Round 2
+
+| AC | Result |
+| --- | --- |
+| AC-LA-E8-02-01, -02, -04, -05 | PASS (Round 1, unchanged) |
+| AC-LA-E8-02-03 | **PASS** for `acme-lms` (R2.4: 39 of 39, its pass rule `ok: true`, K-HYG H1/H2 and the fault matrix PASS). Open: `F-LA-E7-06-WALK-02` (kit, LA-E7-06), which makes the whole-run SUMMARY fail on brightspace when the new channel is loaded |
