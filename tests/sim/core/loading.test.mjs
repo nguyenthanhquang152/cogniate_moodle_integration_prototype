@@ -403,7 +403,7 @@ async function verifyOpenWorldSimManifest(simDir) {
 
   const folderNames = fs
     .readdirSync(simDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== 'core')
+    .filter((entry) => entry.isDirectory() && entry.name !== 'core' && !entry.name.startsWith('.'))
     .map((entry) => entry.name)
     .sort();
   const folderProviders = [];
@@ -509,6 +509,17 @@ test('HARNESS ONLY: open-world canary — a seventh provider in a scratch copy j
     const baseManifest = loadHostManifest(path.join(SOURCE_DIR, 'hosts.json'));
     const baseAliases = baseManifest.providers.flatMap((p) => p.aliases);
     const baseAllowlist = baseManifest.providers.flatMap((p) => p.allowlist);
+
+    // Dot-directory positive control (B-LA-E7-02-06): ignored by both loadProviders and verifyOpenWorldSimManifest
+    fs.mkdirSync(path.join(scratch, '.review-b-cache'));
+    // Visible folder without index.mjs still fails closed
+    const badVisibleDir = path.join(scratch, 'visible-no-index');
+    fs.mkdirSync(badVisibleDir);
+    await assert.rejects(
+      () => verifyOpenWorldSimManifest(scratch),
+      /Unknown simulator module: visible-no-index|provider folder visible-no-index has index\.mjs/,
+    );
+    fs.rmSync(badVisibleDir, { recursive: true, force: true });
 
     const canaryDir = path.join(scratch, 'canary-lms');
     fs.mkdirSync(canaryDir);

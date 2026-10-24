@@ -56,6 +56,8 @@ if (opt['harness-only']) {
       timeoutMs: 300_000,
     });
     assert.equal(types.code, 0, types.stdout + types.stderr);
+  } else {
+    print('k2-harness: typecheck skipped (no tests/node_modules/.bin/tsc)');
   }
 
   const pw = fs.existsSync(path.join(testsDir, 'node_modules/.bin/playwright'))
@@ -119,7 +121,11 @@ if (opt['harness-only']) {
     'M2 suite case count matches 1b17261 baseline (64 tests)',
   );
 
-  for (const taskEnv of ['T6', 'T5a,T8']) {
+  const expectedAcceptanceCounts = {
+    T6: /Total: 18 tests in 6 files/,
+    'T5a,T8': /Total: 37 tests in 14 files/,
+  };
+  for (const [taskEnv, expectedRe] of Object.entries(expectedAcceptanceCounts)) {
     const acc = await run(pw, ['test', '--list'], {
       cwd: testsDir,
       env: { ...process.env, QA_SUITE: 'acceptance', QA_TASK: taskEnv },
@@ -131,10 +137,15 @@ if (opt['harness-only']) {
       false,
       `Acceptance suite (${taskEnv}) never selects K2, R2-sim, or Slot 8 Moodle-live files`,
     );
+    assert.equal(
+      expectedRe.test(acc.stdout),
+      true,
+      `Acceptance suite (${taskEnv}) count matches 1b17261 baseline (${expectedRe})`,
+    );
   }
 
   print(
-    `HARNESS ONLY: ${manifest.cases.length} K2 browser cases + ${r2Ids.length} R2-sim cases discovered and accounted; T7 (18 tests in 6 files), M2 (64 tests in 9 files), and T6/T8 selections unchanged.`,
+    `HARNESS ONLY: ${manifest.cases.length} K2 browser cases + ${r2Ids.length} R2-sim cases discovered and accounted; T7 (18 tests in 6 files), M2 (64 tests in 1 file from 9 *.m2.ts specs), T6 (18 tests in 6 files), and T5a,T8 (37 tests in 14 files) selections unchanged.`,
   );
   print('No product acceptance, stack or live provider check was executed.');
   process.exit(0);

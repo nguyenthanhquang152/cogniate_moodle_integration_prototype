@@ -434,6 +434,8 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
 
       const knownRuntimeToken = `rt_tok_${crypto.randomBytes(24).toString('base64url')}`;
       const knownPlayId = `ply_${crypto.randomBytes(16).toString('base64url')}`;
+      const hookOnlyToken = `rt_hook_${crypto.randomBytes(24).toString('base64url')}`;
+      const lateFinalToken = `rt_late_${crypto.randomBytes(24).toString('base64url')}`;
       const redact = new Redactor();
       const terminalOutput = [];
 
@@ -459,6 +461,24 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
         artDir,
       });
 
+      // Layer 1 pin (redact.apply hook at la-e5-24-drill.mjs:592):
+      // Append a newly captured token to captured-secrets.jsonl and call redact.apply directly
+      // BEFORE any runStepWithRedaction finally block, finalizeDrillRun, or manual syncSecrets().
+      fs.appendFileSync(
+        capturedSecretsFile,
+        `${JSON.stringify({ label: 'hook_probe_token', value: hookOnlyToken })}\n`,
+        { mode: 0o600 },
+      );
+      const hookedProbe = redact.apply(`layer1-probe=${hookOnlyToken}`);
+      assert.equal(
+        hookedProbe,
+        `layer1-probe=<redacted:${hookOnlyToken.length}>`,
+        `Layer 1 redact.apply hook must sync captured-secrets.jsonl before applying redaction (${mode})`,
+      );
+
+      const stepRawDiagFile = path.join(artDir, 'cmd', '16-step-raw-unredacted.log');
+      const lateRawDiagFile = path.join(artDir, 'cmd', '17-late-raw-unredacted.log');
+
       const simulatedExec = async (name) => {
         // Simulate container step writing newly issued runtime_token & play_id to captured-secrets.jsonl
         // and then failing / timing out / throwing with the raw token in stdout/stderr/error stack.
@@ -466,6 +486,13 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
           capturedSecretsFile,
           `${JSON.stringify({ label: 'runtime_token', value: knownRuntimeToken })}\n` +
             `${JSON.stringify({ label: 'play_id', value: knownPlayId })}\n`,
+          { mode: 0o600 },
+        );
+
+        // Write a raw file directly to artDir (bypassing saveText / Layer 1) to pin Layer 2 step finally scrub.
+        fs.writeFileSync(
+          stepRawDiagFile,
+          `layer2-raw-step-file: /rt/${knownRuntimeToken}/commit and /play/${knownPlayId}\n`,
           { mode: 0o600 },
         );
 
@@ -506,9 +533,49 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
       // Execute the post-restore step and outer drill try/finally, mirroring run-la-e5-24.mjs + core.mjs.
       try {
         try {
-          const postRestoreRes = await liveRedaction.runStepWithRedaction(() =>
-            simulatedExec('e524-post-restore-verify'),
+          let stepErr = null;
+          let postRestoreRes = null;
+          try {
+            postRestoreRes = await liveRedaction.runStepWithRedaction(() =>
+              simulatedExec('e524-post-restore-verify'),
+            );
+          } catch (err) {
+            stepErr = err;
+          }
+
+          // Layer 2 pin (runStepWithRedaction step finally scrub at la-e5-24-drill.mjs:601):
+          // Verify that BEFORE finalizeDrillRun runs, the raw file written inside stepFn (bypassing saveText)
+          // was already scrubbed on disk by runStepWithRedaction's finally block.
+          const stepRawAfterLayer2 = fs.readFileSync(stepRawDiagFile, 'utf8');
+          assert.equal(
+            stepRawAfterLayer2.includes(knownRuntimeToken),
+            false,
+            `Layer 2 runStepWithRedaction finally must scrub runtime token from raw disk file before finalizeDrillRun (${mode})`,
           );
+          assert.equal(
+            stepRawAfterLayer2.includes(knownPlayId),
+            false,
+            `Layer 2 runStepWithRedaction finally must scrub playId from raw disk file before finalizeDrillRun (${mode})`,
+          );
+          assert.ok(
+            stepRawAfterLayer2.includes(`<redacted:${knownRuntimeToken.length}>`) &&
+              stepRawAfterLayer2.includes(`<redacted:${knownPlayId.length}>`),
+            `Layer 2 runStepWithRedaction finally must write <redacted:N> placeholders on disk (${mode})`,
+          );
+
+          // Stage a post-step raw file and newly captured secret to pin Layer 3 (finalizeDrillRun scrub).
+          fs.appendFileSync(
+            capturedSecretsFile,
+            `${JSON.stringify({ label: 'late_final_token', value: lateFinalToken })}\n`,
+            { mode: 0o600 },
+          );
+          fs.writeFileSync(
+            lateRawDiagFile,
+            `layer3-raw-late-file: /rt/${lateFinalToken}/state\n`,
+            { mode: 0o600 },
+          );
+
+          if (stepErr) throw stepErr;
           assert.equal(
             postRestoreRes.code,
             0,
@@ -521,14 +588,27 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
         record('ERROR', 'Runner error', 'FAIL', [e.stack ?? String(e)]);
       }
 
+      // Layer 3 pin (finalizeDrillRun scrub at la-e5-24-drill.mjs:607):
+      // Verify the raw file written AFTER runStepWithRedaction was scrubbed by finalizeDrillRun.
+      const lateRawAfterLayer3 = fs.readFileSync(lateRawDiagFile, 'utf8');
+      assert.equal(
+        lateRawAfterLayer3.includes(lateFinalToken),
+        false,
+        `Layer 3 finalizeDrillRun must scrub late token from raw disk file (${mode})`,
+      );
+      assert.ok(
+        lateRawAfterLayer3.includes(`<redacted:${lateFinalToken.length}>`),
+        `Layer 3 finalizeDrillRun must write <redacted:N> placeholder for late token (${mode})`,
+      );
+
       saveText('summary.json', JSON.stringify({ results }, null, 2));
 
       // Verify external backup folder was cleaned up even on failure.
       assert.equal(fs.existsSync(drillBackupRoot), false, `drillBackupRoot removed on ${mode} path`);
 
-      // Verify every written artifact/log file in artDir has 0 occurrences of knownRuntimeToken or knownPlayId.
+      // Verify every written artifact/log file in artDir has 0 occurrences of knownRuntimeToken, knownPlayId, or lateFinalToken.
       const writtenFiles = walkFiles(artDir);
-      assert.ok(writtenFiles.length >= 2, `Expected cmd log and summary.json in ${artDir}`);
+      assert.ok(writtenFiles.length >= 4, `Expected cmd logs and summary.json in ${artDir}`);
       for (const f of writtenFiles) {
         const content = fs.readFileSync(f, 'utf8');
         assert.equal(
@@ -541,9 +621,10 @@ test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-resto
           false,
           `playId capability must NOT appear in ${path.relative(artDir, f)} on ${mode} path`,
         );
-        assert.ok(
-          content.includes(`<redacted:${knownRuntimeToken.length}>`),
-          `Expected <redacted:${knownRuntimeToken.length}> placeholder in ${path.relative(artDir, f)} on ${mode} path`,
+        assert.equal(
+          content.includes(lateFinalToken),
+          false,
+          `Late final token must NOT appear in ${path.relative(artDir, f)} on ${mode} path`,
         );
       }
 
@@ -577,13 +658,15 @@ test('B-LA-E5-24-02 & A-LA-E5-24-01..03: accurate --help entry point, complete s
   assert.equal(safeRtUrl, 'https://content.cogniate.test:9443/rt/[REDACTED]/state');
   assert.equal(safeRtUrl.includes('tok_secret_'), false);
 
-  const rawPlayUrl = 'https://app.cogniate.test:9443/play/ply_x1h--mMDfTIq3vpfDXp-5Q';
+  const syntheticPlayId = 'ply_synthetic_selftest_token_01';
+  const expectedPlayShaPrefix = crypto.createHash('sha256').update(syntheticPlayId).digest('hex').slice(0, 12);
+  const rawPlayUrl = `https://app.cogniate.test:9443/play/${syntheticPlayId}`;
   const safePlayUrl = sanitizeUrlForError(rawPlayUrl);
   assert.equal(safePlayUrl, 'https://app.cogniate.test:9443/play/[REDACTED]');
 
-  const redactedPlay = redactPlayId('ply_x1h--mMDfTIq3vpfDXp-5Q');
+  const redactedPlay = redactPlayId(syntheticPlayId);
   assert.equal(redactedPlay.playIdRedacted, 'ply_[REDACTED]');
-  assert.equal(redactedPlay.playIdSha256Prefix, '6a303e6cdf1a');
+  assert.equal(redactedPlay.playIdSha256Prefix, expectedPlayShaPrefix);
 
   // 3. A-LA-E5-24-02 & A-LA-E5-24-01: collectCloneSecretCandidates + stageDrillHelpers.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'la-e5-24-selftest-secrets-'));
