@@ -39,7 +39,7 @@ Rules for every row:
 
 ### 1.1 Tool accounts (§1.1)
 
-New account fields (operator API only; never in `/api/*` answers except `GET /api/account`, Should):
+New account fields (operator API only; never in `/api/*` answers; the Should route `GET /api/account` is not built in LA, BD-A2-111):
 
 | Field | Type | Default | Rule |
 | --- | --- | --- | --- |
@@ -88,7 +88,8 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs `details.retryAfter` = whole seconds until the 60 s claim of the running record ends (at least 1), so `Retry-After` is sent (§1.6). Description: "A request with this Idempotency-Key is still running. Retry after the time in Retry-After." The hook never stores this answer (BD-A2-58). | Should |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body Description: "This Idempotency-Key was used in the last 24 hours for a request with another route, path id, target (platform, deployment or course) or body. Use a new key for a new request." (BD-A2-58) | Should |
 | 401 | `INVALID_OPERATOR_AUTHORIZATION_HEADER` | Operator listener: no header, another scheme, an unknown, expired or revoked operator key | Must |
-| 503 | `NOT_READY` | `/readyz` and the operator API when the key provider or the database is not ready; `details.reasons` (list of short codes) Also `POST /operator/v1/key-provider/rewrap` when the job runner is not active (`job_runner_not_active`, BD-A2-50). | Should |
+| 503 | `NOT_READY` | `POST /operator/v1/key-provider/rewrap` and `POST /operator/v1/jobs/:name/run` when the job runner is not active: `details.reasons: ["job_runner_not_active"]`, `retryAfter: 30` (BD-A2-50, BD-A2-69). `/readyz` answers its own body `{status: "not_ready", reasons}` (§2.5), not this error; no other operator route checks readiness (BD-A2-111). | Should |
+| 409 | `OPERATOR_KEY_IN_USE` | `POST /operator/v1/operator-keys/:id/revoke` for the key of the same request (§3) | Must |
 
 New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one action line):
 
@@ -97,6 +98,7 @@ New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one a
 | `RATE_LIMITED` | 429 | login, launch, storage check, registration start | "Too many requests. Wait one minute, then open the activity again from {LMS}." |
 | `TOOL_ACCOUNT_SUSPENDED` | 403 | login, launch, registration start | "This Cogniate tool is switched off. Ask your Cogniate admin." |
 | `REGISTRATION_SESSION_LIMIT` | 409 | registration start | "Too many registrations are open. Wait one hour, or finish the open registration in {LMS}." |
+| `PLATFORM_URL_NOT_IN_PROFILE` | 400 | registration start (the pre-fetch floor, BD-A2-93..95) and `complete` | "The platform configuration uses an address that Cogniate does not accept for {LMS}. Check the {LMS} site address, then start the registration again. If it happens again, give the trace id to your Cogniate contact." |
 
 ### 1.4 Rate-limit classes (new)
 
@@ -146,7 +148,7 @@ Rate limit: class `protocol`. Suspended account: §1.5.
 | --- | --- |
 | State cookie present | as §2.2 |
 | Cookie missing, state record without storage target | as §2.2 (`STATE_COOKIE_MISSING` page) |
-| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self'`; `Referrer-Policy: same-origin`). No ltik yet. |
+| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self' <T>`, `<T>` = the origin of the tool URL of this launch, only a plain https origin, BD-A2-103, BD-A2-104; `Referrer-Policy: same-origin`). No ltik yet. |
 
 New: `POST /lti/launch/{toolAccountId}/storage-check` (form `check`, `value`):
 
@@ -187,7 +189,7 @@ Bearer, `admin` scope. Body `{ "deploymentId"?: string }`. It fetches the platfo
   "limits": null }
 ```
 
-The HTTP answer keeps the name `token` (answers are not redacted); logs and audit details use `token_result` and `tokenResult` (BD-A2-99). `token.detail` values: `invalid_client`, `invalid_scope` (the platform's OAuth answer), `no_granted_scope` (the platform granted no AGS scope, so no token request was made; BD-A2-98), `http_<status>`, or an outbound reason (security §9). `jwks.detail` values: `invalid_jwks` (not a JSON key set with at least one key), `http_<status>`, or an outbound reason. With no `deploymentId`, the platform's first active deployment is checked; an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`. `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
+The HTTP answer keeps the name `token` (answers are not redacted); logs and audit details use `token_result` and `tokenResult` (BD-A2-99). `token.detail` values: `invalid_client`, `invalid_scope` (the platform's OAuth answer), `no_granted_scope` (the platform granted no AGS scope, so no token request was made; BD-A2-98), `invalid_token_response` (a `200` answer with no usable token), `http_<status>`, or an outbound reason (security §9). `jwks.detail` values: `invalid_jwks` (not a JSON key set with at least one key), `http_<status>`, or an outbound reason. With no `deploymentId`, the platform's first active deployment is checked; an unknown `deploymentId` gives `404 UNKNOWN_DEPLOYMENT`. `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED` with `details.retryAfter` only: this limit is not a class of §1.4, so it has no `details.limit`). Log `platform_check {platform_id, jwks, token_result}` (BD-A2-99). The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
 
 ## 3. Operator API (new; paths are ours)
 
@@ -342,8 +344,8 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 | Method and path | Auth | Request | Success |
 | --- | --- | --- | --- |
 | `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). `404 UNREGISTERED_PLATFORM` for an unknown platform or a platform of another account; no match gives `{ revoked: 0 }` (one audit event; BD-A2-47). `contextId: ""` = only the keys of launches without a context (BD-A2-76). |
-| `GET /api/audit` | Bearer `admin` | query as §3 audit, own account only | `200 { events, next? }` |
-| `GET /api/account` | Bearer `admin` | — | `200 { id, name, status, protocolUrls, launchUrl, deepLinkingUrl, registrationUrl }` |
+| `GET /api/audit` (not built in LA, BD-A2-111) | Bearer `admin` | query as §3 audit, own account only | `200 { events, next? }` |
+| `GET /api/account` (not built in LA, BD-A2-111) | Bearer `admin` | — | `200 { id, name, status, protocolUrls, launchUrl, deepLinkingUrl, registrationUrl }` |
 
 ### 4.9 `Idempotency-Key` (Should)
 
@@ -371,7 +373,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `service_setting` (target id `rate_limits`; BD-A2-92) |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
-| `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.counts` = a list of `{table, rows}`; BD-A2-67, BD-A2-82) | `account` |
+| `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.deleted` = a list of `{table, rows}`; BD-A2-67, BD-A2-82, key name as built, BD-A2-111) | `account` |
 | `signing-key-rotation` job (Should) | `signing_key.create`, `signing_key.activate` (actor `system:signing-key-rotation`; BD-A2-68) | `signing_key` |
 | `GET /operator/v1/audit` | `audit.read` | `audit` |
 | `lti:operator init` | `operator_key.issue` (actor `system:bootstrap`) | `operator_key` |
@@ -392,11 +394,18 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `signing_key_changed` | info | `tool_account_id`, `kid`, `status` | create, activate, retire, remove |
 | `key_provider_not_ready` | error | `version` | start or readiness |
 | `key_open_failed` | error | `table` | a sealed value does not open |
-| `job_run` | info | `job`, `ms`, `result`, `counts` | every job run (LA-ADR-03 D7) |
+| `job_run` | info (`warn` for `result: failed`) | `job`, `ms`, `result`, `counts` | every job run (LA-ADR-03 D7) |
+| `account_purged` | info | `tool_account_id`, `counts` (list of `{table, rows}`), `trace_id` | one per purged account (`account-purge` job) |
+| `api_key_expiring` | warn | `tool_account_id`, `api_key_id`, `expires_at`, `trace_id` | an API key expires within the warning window (`api-key-expiry` job, BD-A2-70) |
+| `signing_key_rotation_failed` | warn | `tool_account_id`, `error` (class name), `trace_id` | the rotation of one account failed; the job goes on with the next account |
+| `metrics_observer_failed` | warn | `source` (`audit`, `event`), `error` (class name) | a metrics observer threw; the request or the commit is not affected |
+| `service_stopping`, `service_exit_forced` | info, error | `signal`; `after_ms` | stop start; the 70 s fallback (LA-ADR-06 D11, BD-A2-31, BD-A2-109) |
+| `family_guard_mismatch` | info | `tool_account_id`, `platform_id`, `family` | launch check 14 refused a signed product family (base §9.7) |
+| `channel_registry_invalid` | error | `channel`, `reason`, `check`, `detail` | the channel registry fails its start check; the service does not start (A1, LA-ADR-01) |
 | `platform_check` | info | `platform_id`, `jwks`, `token_result` (the value of the answer's `token` object; not named `token`, because the shared redaction replaces any field named or ending with `token`; BD-A2-99) | §2.6 |
 | `config_refused` | error | `reason` | production profile start refusal |
 
-Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` and `launch_claims_minimized` get `tool_account_id` when it is known (every `launch_*` line, LA-ADR-06 D10; `launch_claims_minimized`: BD-A2-108, a frozen-test change, LA-IC). `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
+Changed: `http_request`, `api_auth_failed` (when the path names the account; not built in LA, BD-A2-111), `login_rejected`, `launch_check_failed`, `launch_accepted` and `launch_claims_minimized` get `tool_account_id` when it is known (every `launch_*` line, LA-ADR-06 D10; `launch_claims_minimized`: BD-A2-108, a frozen-test change, LA-IC). `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
 
 ## 7. Data retention (additions to §6)
 
@@ -417,15 +426,16 @@ Changed: `http_request`, `api_auth_failed` (when the path names the account), `l
 | D24 | API key scopes and lifecycle | One API key per account (dashboard) | Scopes `launch` and `admin`, two active keys, expiry, revoke through our operator API; `403 API_KEY_SCOPE_MISSING` |
 | D25 | Operator API | Dashboard (out of scope, ADR-003) | Our internal operator API `/operator/v1/*` with its own credential; paths are ours |
 | D26 | Account status | — | `403 TOOL_ACCOUNT_SUSPENDED` |
-| D27 | Tool JWKS | — | `active`, `next`, `retired` keys; retention 30 days from retirement |
+| D27 | Tool JWKS | — | `active`, `next`, `retired` keys (lifecycle `next` → `active` → `retired` → `removed`); retention 30 days from retirement |
 | D28 | Platform storage launch | — | A login page instead of `302` when the profile has platform storage and a target exists; `POST /lti/launch/:account/storage-check` (paths are ours) |
 | D29 | Deep Linking additions | — | Empty `contentItems` allowed; `accept_lineitem` enforced; `acceptLineItem`, `acceptMediaTypes` in the token |
 | D30 | Registration `scopes` and `profile` | — | Optional `complete` fields; platform `grantedScopes`, `clientAssertionAud` |
-| D31 | Service key revoke and audit read (Should) | — | `POST /api/service-keys/revoke`, `GET /api/audit`, `GET /api/account` (paths are ours) |
+| D31 | Service key revoke (Should) | — | `POST /api/service-keys/revoke` (path is ours). The tenant reads `GET /api/audit` and `GET /api/account` are not built in LA (BD-A2-111): the audit and the accounts are on the operator API |
 | D32 | `Idempotency-Key` (Should) | — | Optional header on three `POST` routes |
 | D33 | `GET /api/providers` `channel` and traits | — (our addition, §9.3) | Fields `channel`, `endpoints`, `issuerKind`, `endpointOrigins`; `lms` frozen |
 | D34 | Score extras (Should) | — | `submission`, `scoringUserId`, URL-keyed members passed through |
 | D35 | Platform URL rules per profile | Platform `url` and endpoints are admin values (no origin rule in our copy of the public reference) | An **active** admin-value platform keeps its endpoints and the assertion audience on the issuer origin (`PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`). Admin-value profiles with `endpointOrigins: any-https` (`lti-generic`, `brightspace`) accept an issuer with a path and endpoints on other https origins only in a staged create (`active: false`, then activation after an operator grant); reserved issuers and fixed hosts of any profile are refused (§4.5, §4.6.1). |
+| D36 | Platform `trustedAudiences` | — | Optional platform field (default `[]`); an ID token `aud` value other than the client id must be on it, else `401 INVALID_ISSUER_OR_AUDIENCE` (`aud_untrusted`; LA-ADR-05 D10 S-08). Added at the conformance check (BD-A2-111) |
 
 The release claim stays the ADR-003 wording until Q1 / LA-H2.
 

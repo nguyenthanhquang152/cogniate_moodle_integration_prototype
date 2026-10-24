@@ -25,10 +25,10 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE` | LTI, app | unset | file forms of the master keys; required form in `production` | LA-ADR-06 D12 |
 | `APP_KEYRING_FILE` | app | `/run/secrets/app-keys/keyring.json` (host: `infra/.secrets/app-keys/keyring.json`) | app key ring JSON, the same shape and rules as `LTI_KEYRING_FILE` (BD-A2-77: it must hold `legacy`; `APP_MASTER_KEY` next to it must equal it); no file = `APP_MASTER_KEY(_FILE)` as the active version `legacy`. `production` refuses `APP_MASTER_KEY` as an environment value (`app_master_key_in_env`) (BD-A2-91) | LA-ADR-06 D6 |
 | `LTI_RATE_LIMITS` | LTI | built-in table | JSON overrides of the default limits at start; the operator API value (`PATCH /operator/v1/rate-limits`) wins over it | LA-ADR-06 D1 |
-| `TRUSTED_PROXY_CIDRS` | LTI | `proxy` (CIDRs or host names; names resolved every 60 s) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
-| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start with one line | LA-ADR-06 D7 |
+| `TRUSTED_PROXY_CIDRS` | LTI | empty = no forwarded header is trusted; the compose stack sets `proxy` (CIDRs or host names; names resolved every 60 s, and 5 s after a failed lookup) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
+| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start (exit 1; a stack trace, not a `config_refused` line, BD-A2-111) | LA-ADR-06 D7 |
 | `SIGNING_KEY_ROTATE_DAYS` | LTI | `90` | age limit for the alert and for `autoRotate` accounts | LA-ADR-06 D7 A whole number ≥ 8; a bad value stops the start (BD-A2-68). Rotation applies only to accounts with `autoRotate: true` (account field, BD-A2-65). |
-| `AUDIT_RETENTION_DAYS` | both | `400` | audit retention (LA-H4) | LA-ADR-06 D4 |
+| `AUDIT_RETENTION_DAYS` | LTI | `400` | audit retention (LA-H4). The app does not read it: the app `audit_event` table has no retention job in LA (BD-A2-111; follow-up) | LA-ADR-06 D4 |
 | `CLOSED_ACCOUNT_RETENTION_DAYS` | LTI | `30` | days after the close before the `account-purge` job deletes the account's data (the tombstone row and the audit events stay); a whole number ≥ 1; a bad value stops the start (BD-A2-66, LA-H4) | LA-ADR-06 D2 |
 | `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
 | `APP_JOB_RUNNER` | app | `on` | `off` in the web process when `npm run worker` runs apart; `production` refuses both on | LA-ADR-03 D7 |
@@ -36,7 +36,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
-On the LA compose stack (BD-A2-105): `infra/compose.yaml` gives each service a fixed list of settings and has no `env_file`. A setting that is not in that list does not reach the service, and the service uses its default. So in LA these settings of the table do not reach the services: `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`, `LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `APP_JOB_RUNNER`, `OPERATOR_NAME`, `OPERATORS`, `OPERATORS_FILE`, and, for the app only, `AUDIT_RETENTION_DAYS` and `JOB_INSTANCE_ID`. The two key-ring files work, because their defaults are the mounted paths. `TRUSTED_PROXY_CIDRS` is fixed to `proxy`. On the stack:
+On the LA compose stack (BD-A2-105): `infra/compose.yaml` gives each service a fixed list of settings and has no `env_file`. A setting that is not in that list does not reach the service, and the service uses its default. So in LA these settings of the table do not reach the services: `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`, `LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `APP_JOB_RUNNER`, `OPERATOR_NAME`, `OPERATORS`, `OPERATORS_FILE`, and, for the app only, `JOB_INSTANCE_ID` (the app does not read `AUDIT_RETENTION_DAYS` at all). The two key-ring files work, because their defaults are the mounted paths. `TRUSTED_PROXY_CIDRS` is fixed to `proxy`. On the stack:
 
 - Change a rate limit with the operator API (`PATCH /operator/v1/rate-limits`), not with `LTI_RATE_LIMITS`.
 - Give an app CLI its operator settings for one run: `docker compose exec -e OPERATOR_NAME=… -e OPERATORS=… cogniate-app …`.
@@ -156,7 +156,7 @@ The audit log (tables `audit_event` in both services) is the record of who chang
 | `lti_platform_rate_limited_total` | counter | `platform_id` | LMS throttling |
 | `lti_jwks_fetch_failures_total` | counter | `platform_id` | platform key set unreachable |
 | `lti_jwks_cache_age_seconds` | gauge | `platform_id` | near the 24 h maximum age = launches will fail |
-| `lti_signing_key_age_seconds` | gauge | `tool_account_id`, `status` | rotation due; `next` waiting |
+| `lti_signing_key_age_seconds` | gauge | `tool_account_id`, `status` | rotation due; `next` waiting. As built, the age counts from `created_at`, so an active key made with a publish lead looks older by that lead (`SigningKeyOld` can fire up to the lead time early; follow-up: `activated_at`, BD-A2-111) |
 | `lti_api_key_expires_in_seconds` | gauge | `tool_account_id` (smallest value) | expiry soon |
 | `lti_operator_key_expires_in_seconds` | gauge | — (smallest value) | expiry soon |
 | `lti_key_provider_sealed_rows` | gauge | `version` | re-wrap progress |
@@ -173,8 +173,8 @@ Sources (BD-A2-52; LA-E5-17):
 | --- | --- |
 | `lti_rate_limited_total` | an observer in the limiter, before the log sampling: every hard refusal and every soft-class excess |
 | `lti_audit_events_total` | every audit insert counts once when its outermost transaction **commits** (BD-A2-60): `insertAuditEvent` registers `afterCommit(db, fn)` of the shared transaction helper. A savepoint scope keeps its own buffer (`RELEASE` merges it into the parent; `ROLLBACK TO` drops it); the outermost `COMMIT` runs the buffer once after it succeeds; `ROLLBACK` drops it; with no open transaction it counts at once. So `withAudit`, the refused path and the `key-rewrap` end event count the same way, and a rolled-back insert never counts. Not a table count: retention deletes rows. |
-| `lti_platform_token_failures_total`, `lti_jwks_fetch_failures_total` | injected observers in the platform token client (`onTokenResult({platformId, ok})`) and the JWKS cache (`onJwksFetch({platformId, ok, fetchedAt})`). A JWKS event is emitted once per verify call that waited on a fetch (the starter or a single-flight joiner), with that call's own platform id; a cache hit or a caller with no platform id emits none (BD-A2-54). **Pending instrumentation (LA-E5-17 RQ-1, lane L):** not exposed until that commit lands. |
-| `lti_jwks_cache_age_seconds` | at scrape time, not from events: for each stored active platform, its stored JWKS URL and the cache getter `lastSuccessAt(jwksUrl)` give age = now − last success. Every platform that shares a cache entry (for example every Canvas cloud platform, one fixed URL) gets an accurate age, also when all its own calls were cache hits. No entry yet = no series (BD-A2-54). Pending with the same RQ-1. |
+| `lti_platform_token_failures_total`, `lti_jwks_fetch_failures_total` | injected observers in the platform token client (`onTokenResult({platformId, ok})`) and the JWKS cache (`onJwksFetch({platformId, ok, fetchedAt})`). A JWKS event is emitted once per verify call that waited on a fetch (the starter or a single-flight joiner), with that call's own platform id; a cache hit or a caller with no platform id emits none (BD-A2-54). Built (`services/lti-service/src/main.ts`, `lti/jwks.ts`). |
+| `lti_jwks_cache_age_seconds` | at scrape time, not from events: for each stored active platform, its stored JWKS URL and the cache getter `lastSuccessAt(jwksUrl)` give age = now − last success. Every platform that shares a cache entry (for example every Canvas cloud platform, one fixed URL) gets an accurate age, also when all its own calls were cache hits. No entry yet = no series (BD-A2-54). |
 | `lti_http_*`, `lti_launch_*`, `lti_outbound_*`, `lti_platform_rate_limited_total`, `lti_job_*`, `lti_api_auth_failed_total` | the existing log events and the HTTP hook |
 | key gauges (`lti_signing_key_age_seconds`, `lti_api_key_expires_in_seconds`, `lti_operator_key_expires_in_seconds`, `lti_key_provider_sealed_rows`), `lti_ready` | store queries and the readiness checks at scrape time |
 
@@ -256,7 +256,7 @@ Procedure:
 4. Activate B: `POST …/signing-keys/B/activate`.
 5. Check: one teacher "Select content" works on one Moodle site, or on the simulator; the log has `signing_key_changed {kid: B, status: active}`.
 6. Tell the inline-key Canvas admins to paste the new JSON at once (Canvas admin guide, procedure 6).
-7. Do nothing more. After 30 days the `signing-key-cleanup` job removes A from the key set and zeroes its private part. NOTE: until LA-E5-19 registers this job on the runner, A leaves the key set by time (30 days after `retired_at`), but its sealed private part stays in the database. Then, after the 30 days, run `POST …/signing-keys/A/retire {immediate: true}`; it sets `removed` and clears the private part at once (BD-A2-28).
+7. Do nothing more. After 30 days the `signing-key-cleanup` job removes A from the key set and zeroes its private part.
 
 Compromise of the active key:
 
@@ -296,7 +296,7 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
    - `202`: a run started.
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 5 again.
    - `409 JOB_RUNNING`: another run holds the job (a timed run or another request). This request started nothing, and its `traceId` does not find the other run. Wait one minute, then do step 5 again. Repeat until the answer is `202` (BD-A2-107).
-6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run). The log line `key_rewrap_failed {trace_id, error}` with that trace id means that the run did not start after the `202`: do step 5 again (BD-A2-107).
+6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run). The log line `key_rewrap_failed {trace_id, error}` with that trace id means that the run did not start after the `202`: do step 5 again (BD-A2-107).
    - `complete`: check `GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 7.
    - `partial` (`stopReason` `lease`, `stopping` or `legacy_remains`): the run stopped safely. Do step 5 again until the outcome is `complete`.
    - `failed` with `unreadable` above 0: `unreadableVersions` names a key version that the ring does not have. Put that version back from escrow into the key-ring file, restart the LTI service, and do step 5 again.
@@ -388,7 +388,7 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
    - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
    - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).
 4. For `key-rewrap`, follow §6.3 steps 5 and 6 instead (the job end event has the outcome).
-5. For `account-purge`: each purged account has one audit event `account.purge` (`GET /operator/v1/audit?action=account.purge`), with `details.counts` = a list of `{table, rows}`. The `tool_account` row stays as a closed tombstone: `GET /operator/v1/accounts/<id>` still answers `status: closed`, and the id is never used again. Its audit events stay until `audit-retention` removes them.
+5. For `account-purge`: each purged account has one audit event `account.purge` (`GET /operator/v1/audit?action=account.purge`), with `details.deleted` = a list of `{table, rows}` (BD-A2-111). The `tool_account` row stays as a closed tombstone: `GET /operator/v1/accounts/<id>` still answers `status: closed`, and the id is never used again. Its audit events stay until `audit-retention` removes them.
 
 ## 9. Incident first steps
 

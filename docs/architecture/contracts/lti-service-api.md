@@ -426,6 +426,36 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D19 | Claims of Canvas and Blackboard profiles | Passed through | Only an allowlist is stored (§9.8). `/api/idtoken` (also `raw=true`) never shows other claims; `launch.custom` is `{}`. |
 | D20 | Binding generations and binding refs | — | Keys and ltiks of an older binding generation of a shared deployment stop working (§9.14). Platforms and deployments can carry a binding ref, and changes can be conditional on it (§9.15). A conditional `PATCH` must write a new ref (rotation). `POST …/deployments` accepts `active: false` (staged create). |
 | D21 | Signed product family and canonical origins | — | Launch check 14 refuses a Canvas- or Blackboard-signed launch on a non-matching profile, before any claim is stored (§9.7). Site, service and self-hosted issuer URLs are stored and answered in canonical origin form (§9.1). |
+| D22 | Rate limits (LA) | Not in our copy of the public reference | `429 RATE_LIMITED` with `Retry-After` and `details.limit` on every route class: per client address, API key, operator key; the account classes are soft (they log and never refuse). Defaults and classes: LA contract delta §1.4. |
+| D23 | Platform throttling (LA) | — | A platform `429` (or Canvas throttling `403`) gives `429 PLATFORM_RATE_LIMITED` with `Retry-After` and `details.retryAfter`. Before LA: `502 PLATFORM_ERROR`. |
+| D24 | API key scopes and lifecycle (LA) | One API key per account (dashboard) | Scopes `launch` and `admin`, at most two active keys, expiry, revoke through our operator API; `403 API_KEY_SCOPE_MISSING`. |
+| D25 | Operator API (LA) | Dashboard (out of scope, ADR-003) | Our internal operator API `/operator/v1/*` on its own listener (loopback; the `acceptance` QA profile binds the stack network), with its own credential `OPERATOR-AUTH-V1`. Paths are ours. |
+| D26 | Account status (LA) | — | A suspended account gives `403 TOOL_ACCOUNT_SUSPENDED` (API and protocol pages). A closed account is final: its keys answer as unknown, its protocol pages as an unknown account, and operator writes give `409 ACCOUNT_CLOSED`. |
+| D27 | Tool JWKS (LA) | — | The key set holds the `active`, `next` and `retired` keys (lifecycle `next` → `active` → `retired` → `removed`); a retired key stays 30 days. |
+| D28 | Platform storage launch (LA) | — | A login page (`200`) instead of `302` when the profile has platform storage and the login has a target (every Canvas login, `lti_storage_target`); `POST /lti/launch/:account/storage-check` when the launch has no state cookie. Paths are ours. |
+| D29 | Deep Linking additions (LA) | — | Empty `contentItems` allowed (Cancel); `accept_lineitem: false` enforced; `acceptLineItem` and `acceptMediaTypes` in the shaped token. |
+| D30 | Registration `scopes` and platform fields (LA) | — | Optional `complete` fields `scopes` and `profile`; platform fields `grantedScopes` and `clientAssertionAud`. |
+| D31 | Service key revoke (LA, Should) | — | `POST /api/service-keys/revoke` (path is ours). The tenant reads `GET /api/audit` and `GET /api/account` are not built in LA; the audit and the accounts are on the operator API. |
+| D32 | `Idempotency-Key` (LA, Should) | — | Optional header on `POST /api/lineitems`, `POST /api/platforms` and `POST /api/platforms/:id/deployments` (24 hours per tool account). |
+| D33 | `GET /api/providers` `channel` and traits (LA) | — (our addition, §9.3) | Fields `channel`, `endpoints`, `issuerKind`, `endpointOrigins`; `lms` frozen. |
+| D34 | Score extras (LA, Should) | — | `submission`, `scoringUserId` and URL-keyed members passed through. |
+| D35 | Platform URL rules per profile (LA) | Platform `url` and endpoints are admin values (no origin rule in our copy) | An active admin-value platform keeps its endpoints and its assertion audience on the issuer origin (`PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`). `lti-generic` and `brightspace` accept an issuer with a path, and endpoints on other https origins only in a staged create that an operator grant activates. Reserved issuers are refused; for the `any-https` profiles also every fixed host of a loaded profile. |
+| D36 | Platform `trustedAudiences` (LA) | — | Optional platform field (default `[]`). An ID token `aud` value other than the client id must be on it, else `401 INVALID_ISSUER_OR_AUDIENCE` (detail `aud_untrusted`); see §8.1 S-08. |
+
+Rows D22–D36 come from milestone LA (source: `docs/architecture/ltiaas/contracts/lti-service-api-delta.md` §8; QA evidence per row: `docs/guides/ltiaas/spec-deviations.md` §2). The release claim stays the ADR-003 wording until Q1 / LA-H2.
+
+### 8.1 Deliberate deviations from the 1EdTech specs
+
+Each row is allowed by the spec or stricter than the spec (R1 §4; LA-ADR-05 D10). QA evidence per row: `docs/guides/ltiaas/spec-deviations.md` §1.
+
+| Id | Spec | Spec text (short) | Ours | Reason |
+| --- | --- | --- | --- | --- |
+| S-11 | Security Framework 1.0 §5.1.3 | Check `exp`; a small clock skew is allowed | 60 s skew; later gives `TOKEN_EXPIRED` (check 7) | One small fixed skew (security design) |
+| S-10 | Security Framework 1.0 §5.1.3, §6.1 | `alg` RS256 unless agreed otherwise | RS256 only; `none` and `HS256` give `INVALID_ID_TOKEN` (check 4) | One algorithm (ADR-002) |
+| C-06 | LTI Core 1.3 §5.3.6 | `sub` may be absent in an anonymous launch | A launch without `sub` gives `MISSING_CLAIM` (check 11), also without a context | Grades need a learner identity |
+| DR-03 | Dynamic Registration 1.0 §2.1.1 | The tool reads the endpoints from the configuration | `standard`: every endpoint on the issuer origin. `lti-generic`, `brightspace`, Canvas: a value off the issuer origin stages the registration until an operator grant; a fixed host of another profile is refused | The issuer host vouches only for its own origin (I-SELF) |
+| NR-09 | NRPS 2.0 §2.2 | Optional personal fields need the platform's consent | `/api/memberships` never returns personal fields (base D13) | Privacy by default (LA-H4) |
+| S-08 | Security Framework 1.0 §5.1.3 (`aud`, `azp`) | An ID token may carry more than one audience | Each extra `aud` value must be on `trustedAudiences` (D36), else `aud_untrusted`; with several values `azp` must equal the client id | Stricter: an unknown audience is refused (LA-IC-13) |
 
 ---
 
