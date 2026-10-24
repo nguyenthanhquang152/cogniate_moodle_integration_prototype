@@ -8,7 +8,7 @@ Labels:
 
 - **SIM**: QA ran the check on a simulator stack (`K1-SIM` in the QA reports).
 - **UNIT**: a unit test or a host contract test (`UNIT` or `K0` in the QA reports).
-- **U1 route**: a SIM check that upgrades a stack of the intake build to the LA build.
+- **U1 route**: a SIM check that upgrades a stack of an older build to the candidate build. Each QA report names both builds: LA-E5-08 starts from the intake build `1b17261`; LA-E5-22 starts from `48bc1c9e`, the build before the app key ring.
 - **MOODLE-LIVE**: the frozen Moodle suites on the local Moodle 5.2 site.
 
 No row is a result on a real school LMS site.
@@ -16,7 +16,7 @@ No row is a result on a real school LMS site.
 | Claim | Task | QA report | SIM | UNIT | Other |
 | --- | --- | --- | --- | --- | --- |
 | **Rate limits:** a hard bucket gives `429 RATE_LIMITED` with `Retry-After`; the account classes only log; `/healthz` is not limited | LA-E5-03 | [qa](../../reviews/LA-E5-03/qa.md) | AC-01 to AC-09, AC-11, AC-12 | AC-10, AC-13 | — |
-| **Platform throttling:** an LMS `429` gives `429 PLATFORM_RATE_LIMITED`; the record outbox waits | LA-E5-14 | [qa](../../reviews/LA-E5-14/qa.md) | AC-01 to AC-05 | AC-01 to AC-03, AC-05, AC-06 | — |
+| **Platform throttling:** an LMS `429` gives `429 PLATFORM_RATE_LIMITED`; the record outbox waits | LA-E5-14; the outbox wait: LA-E4-03 | [qa](../../reviews/LA-E5-14/qa.md); [qa](../../reviews/LA-E4-03/qa.md) | LA-E5-14: AC-01 to AC-05; LA-E4-03: AC-03 (`[SIM E4-03-03]`: the row stays pending with its tries unchanged, and the next send waits) | LA-E5-14: AC-01 to AC-03, AC-05, AC-06 | — |
 | **Tool accounts:** account status, tool URLs, account resolver | LA-E5-04 | [qa](../../reviews/LA-E5-04/qa.md) | AC-01 to AC-09 | AC-10 to AC-12 | — |
 | **Tool accounts on the LTI pages:** resolver, status pages, session cap | LA-E5-06 | [qa](../../reviews/LA-E5-06/qa.md) | AC-01 to AC-07, AC-10 | AC-01 to AC-10 | — |
 | **Isolation:** one tool account cannot read or change the data of another one on the new routes | LA-E5-13 | [qa](../../reviews/LA-E5-13/qa.md) | AC-01 to AC-03, AC-05 | AC-06 (static) | MOODLE-LIVE: AC-06 (the 6 frozen isolation checks) |
@@ -26,9 +26,9 @@ No row is a result on a real school LMS site.
 | **Audit log (app):** app audit writer, operator policy, `app:audit list` | LA-E5-11 | [qa](../../reviews/LA-E5-11/qa.md) | AC-08 | AC-01 to AC-07 | — |
 | **Audit log (app):** `--operator`, evidence flags and audit events of the app CLIs | LA-E5-12 | [qa](../../reviews/LA-E5-12/qa.md) | AC-01 to AC-07 | AC-01 to AC-08 | — |
 | **Key lifecycle: API keys:** scopes, two active keys, expiry, revoke | LA-E5-07 | [qa](../../reviews/LA-E5-07/qa.md) | AC-01 to AC-05, AC-07, AC-08, AC-11, AC-12 | AC-06, AC-09, AC-10, AC-12 (unit part), AC-13 | — |
-| **Key lifecycle: key ring:** versioned envelopes for the LTI service master keys | LA-E5-08 | [qa](../../reviews/LA-E5-08/qa.md) | AC-01, AC-02 (on the U1 route) | AC-03 to AC-09 | — |
+| **Key lifecycle: key ring:** versioned envelopes for the LTI service master keys | LA-E5-08 | [qa](../../reviews/LA-E5-08/qa.md) | AC-01, AC-02 (on the U1 route from `1b17261`) | AC-03 to AC-09 | — |
 | **Key lifecycle: key ring status and re-wrap:** status, re-wrap job, legacy refusal | LA-E5-09 | [qa](../../reviews/LA-E5-09/qa.md) | AC-01 to AC-05 | AC-06 to AC-08 | — |
-| **Key lifecycle: app key ring** (`APP_MASTER_KEY`) | LA-E5-22 | [qa](../../reviews/LA-E5-22/qa.md) | AC-01 (on the U1 route) | AC-02 to AC-05 | MOODLE-LIVE: AC-06 |
+| **Key lifecycle: app key ring** (`APP_MASTER_KEY`) | LA-E5-22 | [qa](../../reviews/LA-E5-22/qa.md) | AC-01 (on the U1 route from `48bc1c9e`) | AC-02 to AC-05 | MOODLE-LIVE: AC-06 |
 | **Key lifecycle: signing keys:** states `next`, `active`, `retired`; JWKS; rotation | LA-E5-10 | [qa](../../reviews/LA-E5-10/qa.md) | AC-01 to AC-04, AC-06, AC-08, AC-09 | AC-05, AC-07, AC-10 to AC-14 | — |
 | **Revoke:** service key revoke, re-issue epoch, write scope | LA-E5-15 | [qa](../../reviews/LA-E5-15/qa.md) | AC-01 to AC-03, AC-05 to AC-07 | AC-04 | — |
 | **Safe retries:** `Idempotency-Key` | LA-E5-16 | [qa](../../reviews/LA-E5-16/qa.md) | AC-01 to AC-03, AC-05, AC-07 | AC-04, AC-06 | — |
