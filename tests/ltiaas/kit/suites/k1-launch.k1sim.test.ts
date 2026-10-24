@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { launchRefused, runFamilyGuardCase, runPlatformStorageCase } from '../lib/cases.js';
 import {
-  deriveExpectedFamilyGuardOutcome,
+  collectContextlessPlacementObservation,
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
   PROTOCOL_SECURITY_FAULTS,
   selectProtocolControlFixture,
-  validateFamilyGuardLaunchObservation,
   verifyContextlessSharedPlacement,
 } from '../lib/fixtures.js';
 import {
@@ -14,25 +14,21 @@ import {
   AGS,
   app,
   appRequest,
-  beginLaunch,
   ChannelBinding,
   commitGrade,
   denied,
   endConnection,
   ensureKitRunInitialized,
   expectStatus,
-  httpsRequest,
   idToken,
   launchOnChannel,
+  liveKitCaseIo,
   logEvents,
   LTI,
-  ltiRequest,
   noServiceCalls,
   openPickerOnChannel,
   openPlayOnChannel,
-  parseForm,
   poll,
-  preparedLaunch,
   publication,
   PublicationRef,
   records,
@@ -40,9 +36,9 @@ import {
   ROLE_INSTRUCTOR,
   ROLE_LEARNER,
   runKitCase,
-  scenario,
   setupChannelBinding,
   uniqueId,
+  urls,
   waitSync,
 } from '../lib/runtime.js';
 
@@ -119,7 +115,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             resource: pub.id,
             fault: 'unknown-key',
           });
-          denied(unknownKeyRes.response, 'INVALID_SIGNATURE', 400);
+          launchRefused(unknownKeyRes.response, 'INVALID_SIGNATURE');
           await noServiceCalls(cursor1);
 
           // 2. Profile-dependent fault: wrong-issuer -> 400 INVALID_ISSUER_OR_AUDIENCE
@@ -128,7 +124,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             resource: pub.id,
             fault: 'wrong-issuer',
           });
-          denied(wrongIssRes.response, 'INVALID_ISSUER_OR_AUDIENCE', 400);
+          launchRefused(wrongIssRes.response, 'INVALID_ISSUER_OR_AUDIENCE');
           await noServiceCalls(cursor2);
 
           // 3. Rotated signing key (`rotatedKey: true`) succeeds via JWKS refresh
@@ -184,53 +180,18 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
 
       it(`${fixture.id}:K1-LAUNCH:L4 — Signed product family of another channel: launch-guarded family refused (400 PROVIDER_PROFILE_MISMATCH); registration-guarded family refused on standard or logged as family_guard_mismatch`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L4', async () => {
-          // Select one launch-guarded foreign fixture and one registration-guarded foreign fixture
-          const launchGuardedForeign = allFixtures.find(
-            (f) =>
-              f.id !== fixture.id &&
-              f.capabilities['binding.authority'].manual === 'operatorGrant' &&
-              !f.capabilities['registration.dynamic'],
-          )!;
-          const regGuardedForeign = allFixtures.find(
-            (f) =>
-              f.id !== fixture.id &&
-              f.capabilities['registration.dynamic'] &&
-              f.sim.family !== 'generic',
-          )!;
-
-          for (const foreignFamily of [
-            launchGuardedForeign.sim.family,
-            regGuardedForeign.sim.family,
-          ]) {
-            // Derive the exact expected outcome BEFORE sending the launch request (never post-hoc branch on res.status)
-            const expected = deriveExpectedFamilyGuardOutcome(
-              fixture,
-              foreignFamily,
-            );
-            const since = Date.now();
-            const res = await launchOnChannel(binding, {
-              resource: pub.id,
-              claims: {
-                [`${LTI}tool_platform`]: {
-                  product_family_code: foreignFamily,
-                },
-              },
-            });
-            const warnLogs = logEvents('family_guard_mismatch', since);
-            const verified = validateFamilyGuardLaunchObservation(expected, {
-              status: res.response.status,
-              body: res.response.body,
-              warnLogCount: warnLogs.length,
-            });
-            expect(verified.error).toBeUndefined();
-            expect(verified.ok).toBe(true);
-            expect(res.response.status).toBe(expected.expectedStatus);
-            if (expected.expectedOutcome === 'refuse') {
-              denied(res.response, 'PROVIDER_PROFILE_MISMATCH', 400);
-            } else {
-              expect(warnLogs.length).toBeGreaterThanOrEqual(1);
-            }
-          }
+          // Probes and expected outcomes come from the declared guard levels of all fixtures
+          // (expect.guardedFamilies; LA-ADR-01 D6) before any launch is sent (lib/cases.ts).
+          const report = await runFamilyGuardCase(
+            {
+              target: fixture,
+              allFixtures,
+              platformId: binding.platformId,
+              resourceId: pub.id,
+            },
+            { ...liveKitCaseIo(), launch: (patch) => launchOnChannel(binding, patch) },
+          );
+          expect(report.probes.length).toBeGreaterThanOrEqual(2);
         });
       });
 
@@ -354,51 +315,42 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           const commit2 = await commitGrade(play2, 'scorm12', 9, 10);
           expect(commit2.status).toBe(200);
 
-          // Poll until both learners' rows exist and both have scoreSyncs status === 'sent'
+          // Poll until each learner's own row has a sent sync (no unqualified waitSync)
           const rowsAfterBoth = await poll(
-            async () =>
-              (await results(binding, ctxlessPub)) as Array<{
-                learner?: { sub?: string };
-                activity?: { resourceLinkId?: string };
-                scoreSyncs?: Array<{ status?: string }>;
-              }>,
+            async () => results(binding, ctxlessPub),
             (rows) =>
               [learner1, learner2].every((sub) =>
                 rows.some(
                   (r) =>
                     r.learner?.sub === sub &&
-                    r.scoreSyncs?.some((s) => s.status === 'sent'),
+                    (r.scoreSyncs ?? []).some((s: { status?: string }) => s.status === 'sent'),
                 ),
               ),
             20_000,
           );
 
-          const simRecs = (await records(cursorBeforeL7)).records.filter(
-            (r) => r.kind === 'score' && r.resource === ctxlessPub.id,
-          );
-          const scoreRecords = simRecs.map((r) => ({
-            userId: String(
-              (r.body as Record<string, unknown> | undefined)?.userId ?? '',
-            ),
-            resource: String(r.resource ?? ''),
-            path: String(r.path ?? ''),
-          }));
+          // One placement: the publication's resource links (GET /app-api/publications/:id
+          // stats.activities, cogniate-app-api.md §5), read before the no-AGS launches below.
+          const pubDto = await app(binding.session, 'GET', `/app-api/publications/${ctxlessPub.id}`);
+          expectStatus(pubDto, 200);
 
-          const placementCheck = verifyContextlessSharedPlacement({
-            rows: rowsAfterBoth,
-            learner1,
-            learner2,
-            scoreRecords,
-            expectedResourceId: ctxlessPub.id,
-          });
+          // The only final comparison: rows name one internal placement (`activity.resourceLinkId`,
+          // never compared with the launch resource_link.id), one row per learner, one placement,
+          // sent syncs, and each score call goes to that learner's launch line item.
+          const placementCheck = verifyContextlessSharedPlacement(
+            collectContextlessPlacementObservation({
+              rows: rowsAfterBoth,
+              publication: pubDto.json,
+              idToken1: play1.token,
+              idToken2: play2.token,
+              simRecords: (await records(cursorBeforeL7)).records,
+              learner1,
+              learner2,
+              publicationId: ctxlessPub.id,
+            }),
+          );
           expect(placementCheck.errors).toEqual([]);
           expect(placementCheck.ok).toBe(true);
-          expect(placementCheck.sharedResourceLinkId).toBe(sharedRlId);
-
-          const row1 = rowsAfterBoth.find((r) => r.learner?.sub === learner1);
-          const row2 = rowsAfterBoth.find((r) => r.learner?.sub === learner2);
-          expect(row1?.activity?.resourceLinkId).toBe(sharedRlId);
-          expect(row2?.activity?.resourceLinkId).toBe(sharedRlId);
 
           // 3. AP-05-10: Launch without context and without AGS has no serviceKey and records the clear error message on score commit
           const noAgsRlId = uniqueId(`rl-noags-${fixture.id}`);
@@ -454,7 +406,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             resource: ctxlessPub.id,
             omit: ['sub'],
           });
-          denied(noSub.response, 'MISSING_CLAIM', 400);
+          launchRefused(noSub.response, 'MISSING_CLAIM');
         });
       });
 
@@ -553,146 +505,26 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
 
       it(`${fixture.id}:K1-LAUNCH:L10 — Platform storage HTTP level (AP-05-01..07): login without lti_storage_target -> 302, with lti_storage_target -> 200 login page or 302 by profile, and storage-check refusals`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L10', async () => {
-          const scPlain = await scenario(fixture.simProvider, {
-            clientId: binding.clientId,
-            deploymentId: binding.deploymentId,
-            resource: pub.id,
-          });
-          // 1. Login without lti_storage_target -> 302 redirect (AP-05-01; lti-service-api-delta.md §2.1)
-          const loginPlain = await beginLaunch(scPlain);
-          expect(loginPlain.loginResponse.status).toBe(302);
-
-          // 2. Login with lti_storage_target -> 200 storage relay page when platformStorage is configured, else 302 (AP-05-02..03)
-          const storageTarget =
-            fixture.sim.platformStorage?.frameName ?? '_parent';
-          const scStorage = await scenario(fixture.simProvider, {
-            clientId: binding.clientId,
-            deploymentId: binding.deploymentId,
-            resource: pub.id,
-            storageTarget,
-          });
-          const loginWithTarget = await ltiRequest('POST', `/lti/login/${ACCOUNT}`, {
-            form: {
-              ...scStorage.login,
-              lti_storage_target: storageTarget,
-            },
-          });
-
-          if (fixture.sim.platformStorage) {
-            expect(loginWithTarget.status).toBe(200);
-            expect(loginWithTarget.text).toContain('lti.put_data');
-            const authUrlMatch = loginWithTarget.text.match(
-              /https:\/\/[^\s"'<>]+authorize[^\s"'<>]*/,
-            );
-            expect(authUrlMatch).toBeTruthy();
-            const authorizeRes = await httpsRequest(authUrlMatch![0]);
-            expect(authorizeRes.status).toBe(200);
-            const authForm = parseForm(authorizeRes.body);
-
-            // 3. Launch without cookie on storage-enabled login -> 200 storage-check page -> POST /lti/launch/cogniate/storage-check (AP-05-04..07; lti-service-api-delta.md §2.2)
-            const noCookieLaunch = await ltiRequest(
-              'POST',
-              `/lti/launch/${ACCOUNT}`,
-              {
-                headers: { accept: 'text/html' },
-                form: authForm.fields,
-              },
-            );
-            expect(noCookieLaunch.status).toBe(200);
-            expect(noCookieLaunch.text).toContain('lti.get_data');
-            const checkForm = parseForm(noCookieLaunch.text);
-            expect(checkForm.action).toContain(
-              `/lti/launch/${ACCOUNT}/storage-check`,
-            );
-
-            // 3a. Valid storage-check completes launch with 303
-            const validCheck = await ltiRequest('POST', checkForm.action, {
-              headers: { accept: 'text/html' },
-              form: {
-                ...checkForm.fields,
-                state: authForm.fields.state,
-              },
-            });
-            expect(validCheck.status).toBe(303);
-
-            // 3b. Replaying the same pendingId is refused with 400 INVALID_STATE
-            const replayCheck = await ltiRequest('POST', checkForm.action, {
-              headers: { accept: 'text/html' },
-              form: {
-                ...checkForm.fields,
-                state: authForm.fields.state,
-              },
-            });
-            denied(replayCheck, 'INVALID_STATE', 400);
-
-            // 3c. Mismatched state is refused with 400 INVALID_STATE
-            const login2 = await ltiRequest('POST', `/lti/login/${ACCOUNT}`, {
-              form: {
-                ...scStorage.login,
-                lti_storage_target: storageTarget,
-              },
-            });
-            const authUrl2 = login2.text.match(
-              /https:\/\/[^\s"'<>]+authorize[^\s"'<>]*/,
-            )![0];
-            const authForm2 = parseForm((await httpsRequest(authUrl2)).body);
-            const noCookie2 = await ltiRequest('POST', `/lti/launch/${ACCOUNT}`, {
-              headers: { accept: 'text/html' },
-              form: authForm2.fields,
-            });
-            const checkForm2 = parseForm(noCookie2.text);
-            const wrongStateCheck = await ltiRequest('POST', checkForm2.action, {
-              headers: { accept: 'text/html' },
-              form: {
-                ...checkForm2.fields,
-                state: 'wrong-state-value',
-              },
-            });
-            denied(wrongStateCheck, 'INVALID_STATE', 400);
-
-            // 3d. Missing/unknown pendingId on storage-check -> 400 STATE_COOKIE_MISSING
-            const missingPendingCheck = await ltiRequest(
-              'POST',
-              `/lti/launch/${ACCOUNT}/storage-check`,
-              {
-                headers: { accept: 'text/html' },
-                form: {
-                  pendingId: 'pnd_missing',
-                  state: authForm2.fields.state,
-                },
-              },
-            );
-            denied(missingPendingCheck, 'STATE_COOKIE_MISSING', 400);
-          } else {
-            expect(loginWithTarget.status).toBe(302);
-            // Launch without cookie when platformStorage is false -> 400 STATE_COOKIE_MISSING
-            const prep = await preparedLaunch(scPlain);
-            const noCookieLaunch = await ltiRequest(
-              'POST',
-              `/lti/launch/${ACCOUNT}`,
-              {
-                headers: { accept: 'text/html' },
-                form: prep.form.fields,
-              },
-            );
-            denied(noCookieLaunch, 'STATE_COOKIE_MISSING', 400);
-          }
-
-          // 4. Cookie belonging to another login is refused with 400
-          const prep3 = await preparedLaunch(scPlain);
-          const otherLogin = await beginLaunch(scPlain);
-          const wrongCookieLaunch = await ltiRequest(
-            'POST',
-            `/lti/launch/${ACCOUNT}`,
+          // HTTP-level platform storage (AP-05-01, -02, -04, -05, -07; lti-service-api-delta §2.1, §2.2):
+          // the auth URL and the check come from the one JSON block of each page; the storage
+          // check posts {check, value} with the LTI Origin (lib/cases.ts runPlatformStorageCase).
+          const report = await runPlatformStorageCase(
             {
-              headers: {
-                accept: 'text/html',
-                cookie: otherLogin.stateCookie,
+              fixture,
+              launchPatch: {
+                provider: fixture.simProvider,
+                clientId: binding.clientId,
+                deploymentId: binding.deploymentId,
+                siteHost: binding.siteHost,
+                pageHost: binding.pageHost,
+                resource: pub.id,
               },
-              form: prep3.form.fields,
+              ltiUrl: urls.lti,
+              account: ACCOUNT,
             },
+            liveKitCaseIo(),
           );
-          expect(wrongCookieLaunch.status).toBe(400);
+          expect(report.storagePath).toBe(Boolean(fixture.sim.platformStorage));
         });
       });
     });
@@ -731,7 +563,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             resource: faultPub.id,
             fault,
           });
-          denied(result.response, expectedCode, 400);
+          launchRefused(result.response, expectedCode);
           await noServiceCalls(cursor);
         }
       });

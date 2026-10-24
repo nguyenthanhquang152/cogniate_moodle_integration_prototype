@@ -3,16 +3,36 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
+import { parseForm } from '../../acceptance/M1/common/client.js';
+import {
+  followPickerHandoff,
+  HttpResultLike,
+  launchRefused,
+  PlatformStorageCaseIo,
+  readStorageCheckToken,
+  readStoragePageJson,
+  findStorageAuthUrl,
+  runFamilyGuardCase,
+  runPlatformStorageCase,
+  STORAGE_HELP_TEXT,
+  waitForLearnerSync,
+  waitForThrottledDispatch,
+} from './lib/cases.js';
 import {
   auditFixtureSources,
   BASELINE_CHANNEL_IDS,
   BilateralEqualityInput,
+  buildFamilyGuardMap,
   buildOperatorGrantCliArgs,
   buildOperatorGrantNpmArgs,
+  buildPickerSelectionForm,
   CAPABILITY_KEYS,
   ChannelFixture,
+  collectContextlessPlacementObservation,
   computeExpectedCaseList,
   computeExpectedGlobalCaseList,
+  contentItemPublicationIds,
   deriveExpectedFamilyGuardOutcome,
   deriveLegacyFlagsFromCapabilities,
   evaluateChannelPassRule,
@@ -23,12 +43,14 @@ import {
   listChannelFixtureIds,
   loadAllChannelFixtures,
   loadChannelFixture,
-  loadChannelManifestCapabilities,
+  orderByPickerList,
   orderKitSuiteSpecs,
   parseOperatorGrantOutput,
+  PICKER_SELECTION_FIELD,
   PROTOCOL_SECURITY_FAULTS,
   resolveKitLevel,
   resolveSelectedChannelIds,
+  selectFamilyGuardProbes,
   selectProtocolControlFixture,
   validateFamilyGuardLaunchObservation,
   verifyBilateralCapabilities,
@@ -42,6 +64,7 @@ import {
   isK1SimEnabled,
   issueOperatorGrantForChannel,
   loadWaveEvidenceFromRun,
+  LTI,
   readAllExecutedCases,
   recordRedactedEvidence,
   recordSecret,
@@ -111,6 +134,311 @@ export function runShippedChannelsAudit(dir: string = getChannelsDir()): Channel
   return fixtures;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Contract-shaped host fakes for the case bodies of lib/cases.ts (K0 only, no network).
+// ---------------------------------------------------------------------------------------------
+
+// LA-ADR-01 D6 baseline guard table, frozen from the design text (not read from the fixtures):
+// Canvas guards `canvas` and Blackboard guards `blackboardlearn` at the `launch` level; brightspace
+// guards `desire2learn` at the `registration` level (LA-ADR-02 D1/D4); Moodle and lti-generic guard
+// nothing (LA-ADR-02 D3). MANUAL_SELF_LEGACY_CHANNELS has one entry, the Moodle channel (load check 6).
+const DESIGN_FAMILY_GUARDS: Record<string, { channel: string; level: 'launch' | 'registration' }> = {
+  canvas: { channel: 'canvas', level: 'launch' },
+  blackboardlearn: { channel: 'blackboard', level: 'launch' },
+  desire2learn: { channel: 'brightspace', level: 'registration' },
+};
+const DESIGN_MANUAL_SELF_LEGACY = ['moodle'];
+
+function fakeClock() {
+  let t = 1_700_000_000_000;
+  return {
+    now: () => t,
+    sleep: async (ms: number) => {
+      t += ms;
+    },
+    tick: (ms = 1) => {
+      t += ms;
+      return t;
+    },
+  };
+}
+
+function fakeErrorPage(code: string, action = 'Open the activity again.'): HttpResultLike {
+  return {
+    status: 400,
+    headers: { 'content-type': 'text/html' },
+    body: `<main data-error-code="${code}" data-trace-id="tr_k0"><p data-error-action>${action}</p></main>`,
+  };
+}
+
+function fakeLogReader(logs: Array<Record<string, unknown>>) {
+  return (service: string, event: string, since: number, fields: Record<string, unknown> = {}) =>
+    logs.filter(
+      (l) =>
+        l.service === service &&
+        l.event === event &&
+        Number(l.tsMs) >= since &&
+        Object.entries(fields).every(([k, v]) => l[k] === v),
+    );
+}
+
+type Check14Mutant = 'refuseRegistration' | 'appLogOnly' | 'noLog' | 'passLaunchGuard' | 'guardMoodle';
+
+// LTI check 14 and its log as LA-ADR-01 D6 states them, on one platform of `platformChannel`.
+function makeCheck14Fake(platformChannel: string, platformId: string, mutant?: Check14Mutant) {
+  const clock = fakeClock();
+  const logs: Array<Record<string, unknown>> = [];
+  const launched: string[] = [];
+  const io = {
+    now: clock.now,
+    sleep: clock.sleep,
+    logEvents: fakeLogReader(logs),
+    launch: async (patch: Record<string, unknown>) => {
+      const ts = clock.tick(3);
+      const claims = patch.claims as Record<string, { product_family_code?: string }>;
+      const family = String(claims[`${LTI}tool_platform`]?.product_family_code ?? '').toLowerCase();
+      launched.push(family);
+      const guard =
+        mutant === 'guardMoodle' && family === 'moodle'
+          ? { channel: 'zz-other', level: 'registration' as const }
+          : DESIGN_FAMILY_GUARDS[family];
+      const pass = {
+        response: {
+          status: 303,
+          headers: { location: 'https://app.cogniate.test/tool/launch?ltik=k0' },
+          body: '',
+        } as HttpResultLike,
+      };
+      if (!guard || guard.channel === platformChannel) return pass;
+      if (guard.level === 'launch') {
+        return mutant === 'passLaunchGuard' ? pass : { response: fakeErrorPage('PROVIDER_PROFILE_MISMATCH') };
+      }
+      if (DESIGN_MANUAL_SELF_LEGACY.includes(platformChannel) || mutant === 'refuseRegistration') {
+        return { response: fakeErrorPage('PROVIDER_PROFILE_MISMATCH') };
+      }
+      if (mutant !== 'noLog') {
+        logs.push({
+          service: mutant === 'appLogOnly' ? 'cogniate-app' : 'lti-service',
+          event: 'family_guard_mismatch',
+          tsMs: ts,
+          platform_id: platformId,
+          family,
+        });
+      }
+      return pass;
+    },
+  };
+  return { io, logs, launched };
+}
+
+type StorageMutant = 'replayAccepted' | 'wrongValueAccepted' | 'noCheckLog' | 'ignoreTarget';
+
+// LTI login, simulator authorize, launch and storage check as lti-service-api-delta.md §2.1/§2.2 and
+// LA-ADR-05 D1 rules 1, 3, 6-8 state them. Page JSON keys are free (the contract names none); the
+// JSON escapes `<`, `>`, `&` as `\u` sequences; the storage-check page builds its form in script.
+function makeStorageContractFake(opts: {
+  storageProfile: boolean;
+  authEndpoint: string;
+  mutant?: StorageMutant;
+}) {
+  const clock = fakeClock();
+  const ltiUrl = 'https://lti.cogniate.test';
+  const ltiOrigin = new URL(ltiUrl).origin;
+  const launchUrl = `${ltiUrl}/lti/launch/cogniate`;
+  const checkUrl = `${ltiUrl}/lti/launch/cogniate/storage-check`;
+  const sha = (v: string) => crypto.createHash('sha256').update(v).digest('hex');
+  const rnd = () => crypto.randomBytes(24).toString('base64url');
+  const escapeJson = (v: unknown) =>
+    JSON.stringify(v).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
+  const cookieName = (state: string) => `__Host-lti_state_${sha(state).slice(0, 8)}`;
+  const logins = new Map<string, { target: string | null; fault?: string; used: boolean }>();
+  const checks = new Map<string, { stateHash: string; used: boolean }>();
+  const logs: Array<Record<string, unknown>> = [];
+  const checkRequests: Array<{ fields: string[]; origin?: string; status: number }> = [];
+  const pages: string[] = [];
+  const checkLog = (detail: string) => {
+    if (opts.mutant !== 'noCheckLog') {
+      logs.push({
+        service: 'lti-service',
+        event: 'launch_check_failed',
+        tsMs: clock.tick(),
+        check: 'storage',
+        code: 'INVALID_STATE',
+        detail,
+      });
+    }
+  };
+  const io: PlatformStorageCaseIo = {
+    now: clock.now,
+    sleep: clock.sleep,
+    logEvents: fakeLogReader(logs),
+    rememberSecret: () => undefined,
+    beginLaunch: async (patch, loginPatch = {}) => {
+      const state = rnd();
+      const target = (loginPatch.lti_storage_target ?? patch.storageTarget ?? null) as string | null;
+      const authUrl = `${opts.authEndpoint}?${new URLSearchParams({
+        scope: 'openid',
+        response_type: 'id_token',
+        response_mode: 'form_post',
+        prompt: 'none',
+        client_id: String(patch.clientId ?? ''),
+        redirect_uri: launchUrl,
+        login_hint: 'scenario-k0',
+        lti_message_hint: 'message-scenario-k0',
+        state,
+        nonce: rnd(),
+      })}`;
+      const storage = opts.storageProfile && Boolean(target) && opts.mutant !== 'ignoreTarget';
+      logins.set(state, { target: storage ? target : null, fault: patch.fault as string | undefined, used: false });
+      const cookie = `${cookieName(state)}=${state}`;
+      const setCookie = [`${cookie}; Path=/; Max-Age=600; Secure; HttpOnly; SameSite=None; Partitioned`];
+      if (storage) {
+        const body = `<!doctype html><html><head><meta charset="utf-8"><script type="application/json" id="k0-login">${escapeJson({
+          redirectTo: authUrl,
+          key: `cog_state_${sha(state)[0]}`,
+          value: state,
+          frame: target,
+          origin: new URL(opts.authEndpoint).origin,
+        })}</script><script nonce="k0">/* lti.put_data, then location.replace(authUrl) */</script></head><body></body></html>`;
+        pages.push(body);
+        return {
+          login: { status: 200, headers: { 'set-cookie': setCookie, 'content-type': 'text/html' }, body },
+          location: '',
+          cookie,
+        };
+      }
+      return {
+        login: { status: 302, headers: { location: authUrl, 'set-cookie': setCookie }, body: '' },
+        location: authUrl,
+        cookie,
+      };
+    },
+    request: async (url, req = {}) => {
+      const method = req.method ?? 'GET';
+      if (method === 'GET' && url.startsWith(`${opts.authEndpoint}?`)) {
+        const u = new URL(url);
+        const state = u.searchParams.get('state') ?? '';
+        const login = logins.get(state);
+        if (!login || u.searchParams.get('redirect_uri') !== launchUrl) {
+          return { status: 400, headers: {}, body: 'Simulator authorize refused' };
+        }
+        const token = `idt.${login.fault ? 'bad' : 'ok'}.${state}`;
+        return {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+          body: `<form method="post" action="${launchUrl}"><input type="hidden" name="id_token" value="${token}"><input type="hidden" name="state" value="${state}"></form>`,
+        };
+      }
+      if (method === 'POST' && url === checkUrl) {
+        const fields = new URLSearchParams(req.body ?? '');
+        const origin = req.headers?.origin;
+        const answer = (() => {
+          if (origin !== ltiOrigin) return fakeErrorPage('INVALID_STATE');
+          const row = checks.get(fields.get('check') ?? '');
+          if (!row || row.used) {
+            checkLog('storage_check_unknown_used_or_expired');
+            return fakeErrorPage('INVALID_STATE');
+          }
+          if (opts.mutant !== 'replayAccepted') row.used = true;
+          const value = fields.get('value') ?? '';
+          if (value === '') return fakeErrorPage('STATE_COOKIE_MISSING', STORAGE_HELP_TEXT);
+          if (sha(value) !== row.stateHash && opts.mutant !== 'wrongValueAccepted') {
+            checkLog('storage_mismatch');
+            return fakeErrorPage('INVALID_STATE');
+          }
+          return {
+            status: 303,
+            headers: { location: `https://app.cogniate.test/tool/launch?ltik=${rnd()}` },
+            body: '',
+          } as HttpResultLike;
+        })();
+        checkRequests.push({ fields: [...fields.keys()], origin, status: answer.status });
+        return answer;
+      }
+      return { status: 404, headers: {}, body: 'not found' };
+    },
+    formPost: async (url, fields, cookie) => {
+      if (url !== launchUrl) return { status: 404, headers: {}, body: 'not found' };
+      const state = fields.state ?? '';
+      const login = logins.get(state);
+      if (!login || login.used) return fakeErrorPage('INVALID_STATE');
+      login.used = true;
+      const badSignature = !String(fields.id_token ?? '').startsWith('idt.ok.');
+      if (cookie === `${cookieName(state)}=${state}`) {
+        return badSignature
+          ? fakeErrorPage('INVALID_SIGNATURE')
+          : { status: 303, headers: { location: `https://app.cogniate.test/tool/launch?ltik=${rnd()}` }, body: '' };
+      }
+      if (!login.target) return fakeErrorPage('STATE_COOKIE_MISSING');
+      if (badSignature) return fakeErrorPage('INVALID_SIGNATURE');
+      const check = rnd();
+      checks.set(check, { stateHash: sha(state), used: false });
+      const body = `<!doctype html><html><head><script type="application/json" id="k0-check">${escapeJson({
+        check,
+        postUrl: checkUrl,
+        key: `cog_state_${sha(state)[0]}`,
+        origin: new URL(opts.authEndpoint).origin,
+      })}</script><script nonce="k0">/* lti.get_data, then builds and posts the form */</script></head><body></body></html>`;
+      pages.push(body);
+      return { status: 200, headers: { 'content-type': 'text/html', 'referrer-policy': 'same-origin' }, body };
+    },
+  };
+  return { io, ltiUrl, ltiOrigin, checkRequests, pages };
+}
+
+function storageCaseCtx(fixture: ChannelFixture, ltiUrl: string) {
+  return {
+    fixture,
+    launchPatch: {
+      provider: fixture.simProvider,
+      clientId: 'client-k0',
+      deploymentId: fixture.sim.deployments[0],
+      siteHost: fixture.sim.siteHost,
+      pageHost: fixture.sim.pageHost,
+      resource: 'pub_k0',
+    },
+    ltiUrl,
+    account: 'cogniate',
+  };
+}
+
+// L7 answers shaped from the contracts: ResultRow (cogniate-app-api.md §5; `activity.resourceLinkId`
+// is the placement id `rl_...`), the publication DTO with `stats`, two /api/idtoken bodies
+// (lti-service-api.md §3.1) and simulator score records (tests/sim/core/provider.mjs).
+function contractL7Raw() {
+  const lineItem = 'https://generic.sim.test/lti/courses/course-1/lineitems/pub_k0';
+  const row = (sub: string) => ({
+    learner: { sub, label: `Learner ${sub}` },
+    activity: { resourceLinkId: 'rl_9f2c41', contextTitle: '', title: 'QA resource' },
+    preview: false,
+    best: { attemptId: `att_${sub}`, outcome: 'passed', scoreGiven: 8, scoreMaximum: 10 },
+    attempts: [],
+    scoreSyncs: [{ id: `sync_${sub}`, status: 'sent', tries: 1, lastError: null }],
+    gradebook: null,
+  });
+  const score = (sub: string) => ({
+    kind: 'score',
+    provider: 'generic-sim',
+    host: 'generic.sim.test',
+    method: 'POST',
+    path: '/lti/courses/course-1/lineitems/pub_k0/scores',
+    resource: 'pub_k0',
+    body: { userId: sub, scoreGiven: 8, scoreMaximum: 10 },
+  });
+  return {
+    rows: [row('u1'), row('u2')] as Array<Record<string, any>>,
+    publication: { id: 'pub_k0', stats: { activities: 1, learners: 2 } } as Record<string, any>,
+    idToken1: { services: { assignmentAndGrades: { available: true, lineItemId: lineItem } } },
+    idToken2: { services: { assignmentAndGrades: { available: true, lineItemId: lineItem } } },
+    simRecords: [{ kind: 'token', host: 'generic.sim.test' }, score('u1'), score('u2')] as Array<
+      Record<string, any>
+    >,
+    learner1: 'u1',
+    learner2: 'u2',
+    publicationId: 'pub_k0',
+  };
+}
+
 describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
   it('AC-LA-E7-06-01 / F1: zero LMS-name or lti-generic tokens in tests/ltiaas/kit/suites/**', () => {
     const bannedRegex =
@@ -151,6 +479,26 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     const badLegacyAudit = auditFixtureSources(badLegacy);
     expect(badLegacyAudit.ok).toBe(false);
     expect(badLegacyAudit.errors.some((e) => e.includes('dynamicRegistration'))).toBe(true);
+
+    // Negative probes: L4 guard data must be declared, lower case, with a known level and a citation
+    const noGuards = structuredClone(fixtures[0]) as unknown as { expect: Record<string, unknown> };
+    delete noGuards.expect.guardedFamilies;
+    expect(auditFixtureSources(noGuards as unknown as ChannelFixture).errors.join('\n')).toContain(
+      '"expect.guardedFamilies" must be an array',
+    );
+    const badGuard = structuredClone(fixtures[0]);
+    badGuard.expect.guardedFamilies = [
+      { family: 'BlackboardLearn', level: 'launch' },
+      { family: 'x', level: 'site' as 'launch' },
+    ];
+    const badGuardErrors = auditFixtureSources(badGuard).errors.join('\n');
+    expect(badGuardErrors).toContain('non-empty lower-case family');
+    expect(badGuardErrors).toContain('level must be "launch" or "registration"');
+    const noGuardSource = structuredClone(fixtures[0]);
+    delete noGuardSource.sources['expect.guardedFamilies'];
+    expect(auditFixtureSources(noGuardSource).errors.join('\n')).toContain(
+      'source citation for "expect.guardedFamilies"',
+    );
   });
 
   it('B-LA-E7-06-06 / LA-E8-01: open-world channel discovery onboards a new <id>.json fixture and passes runShippedChannelsAudit with zero shared-list edits', () => {
@@ -216,10 +564,6 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     const canvas = loadChannelFixture('canvas');
     const validInput: BilateralEqualityInput = {
       fixture: canvas,
-      manifestCapabilities: structuredClone(canvas.capabilities) as unknown as Record<
-        string,
-        unknown
-      >,
       providerChannelCapabilities: structuredClone(canvas.capabilities) as unknown as Record<
         string,
         unknown
@@ -242,7 +586,6 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     expect(verifyBilateralCapabilities(validInput)).toEqual({ ok: true, errors: [] });
 
     const objectFields = [
-      'manifestCapabilities',
       'providerChannelCapabilities',
       'providerLegacyFlags',
       'connectionChannelCapabilities',
@@ -1071,44 +1414,51 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     }
   });
 
-  it('A-LA-E7-06-07 / A-LA-E7-06-08 / B-LA-E7-06-02 / B-LA-E7-06-07: runtime and suite files use frozen M1 helpers and documented contracts for A3, L7, C2, R6, C1, D1-D6, and K-HYG', () => {
+  it('A-LA-E7-06-07 / A-LA-E7-06-08 / B-LA-E7-06-02 / B-LA-E7-06-07: suites call the tested case bodies; no fixture self-comparison, external placement comparison, plural picker field or fabricated picker status', () => {
     const runtimeSrc = fs.readFileSync(path.join(__dirname, 'lib/runtime.ts'), 'utf8');
-    // Verify frozen M1 helper imports are used instead of bespoke session/route forgery
+    // Frozen M1 helpers are imported, not copied
     expect(runtimeSrc).toContain("from '../../../acceptance/M1/common/client.js'");
     expect(runtimeSrc).toContain("from '../../../acceptance/M1/common/course.js'");
     expect(runtimeSrc).toContain("from '../../../acceptance/lib/paths.js'");
     expect(runtimeSrc).not.toContain('cogniate_staff_session');
     expect(runtimeSrc).not.toContain('x-service-api-key');
-
-    // Verify C2 guard probe asserts both noServiceCalls(cursor) and logEvents('outbound_request', ...)
+    // C2 keeps both no-network oracles
     expect(runtimeSrc).toContain('await noServiceCalls(cursor)');
     expect(runtimeSrc).toContain("logEvents('outbound_request'");
+    // The picker wrapper keeps the observed status (no 303 -> 200 rewrite)
+    expect(runtimeSrc).toContain('followPickerHandoff(');
+    expect(runtimeSrc).not.toMatch(/===\s*pickerUrl\s*\?\s*200/);
 
-    // Verify A3 tests all 5 status mappings including 429 tries === 0 and 409 conflict message
+    const launchSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-launch.k1sim.test.ts'), 'utf8');
+    expect(launchSrc).toContain('runFamilyGuardCase(');
+    expect(launchSrc).toContain('runPlatformStorageCase(');
+    expect(launchSrc).toContain('verifyContextlessSharedPlacement(');
+    expect(launchSrc).toContain('collectContextlessPlacementObservation(');
+    // The external resource_link.id is used only in the launch patches, never in a comparison
+    const sharedRlUses = launchSrc.split('\n').filter((line) => line.includes('sharedRlId'));
+    expect(sharedRlUses.every((line) => /const sharedRlId =|resourceLinkId: sharedRlId,/.test(line))).toBe(true);
+    expect(launchSrc).not.toMatch(/toBe\(sharedRlId\)/);
+    expect(launchSrc).toContain("'No gradebook column: the activity has no AGS line item.'");
+    expect(launchSrc).toContain('expect(bA.library).not.toBe(bB.library)');
+    expect(launchSrc).toContain('selectProtocolControlFixture(allFixtures)');
+    expect(launchSrc).not.toContain('pendingId');
+
+    const dlSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-dl.k1sim.test.ts'), 'utf8');
+    expect(dlSrc).toContain('buildPickerSelectionForm(');
+    expect(dlSrc).not.toContain("'publicationIds'");
+
     const agsSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-ags.k1sim.test.ts'), 'utf8');
     expect(agsSrc).toContain('for (const errStatus of [400, 404, 422])');
     expect(agsSrc).toContain("'has a grade with a newer time'");
-    expect(agsSrc).toContain('expect(sync429?.tries).toBe(0)');
+    expect(agsSrc).toContain('waitForLearnerSync(');
+    expect(agsSrc).toContain('waitForThrottledDispatch(');
     expect(agsSrc).toContain("logEvents('dispatch_throttled'");
+    expect(agsSrc).not.toContain("waitSync(binding, pub503, 'pending')");
 
-    // Verify L7 tests contextless score dispatch, shared resourceLinkId placement via verifyContextlessSharedPlacement, and no-AGS clear message
-    const launchSrc = fs.readFileSync(
-      path.join(SUITES_DIR, 'k1-launch.k1sim.test.ts'),
-      'utf8',
-    );
-    expect(launchSrc).toContain('commitGrade(play1');
-    expect(launchSrc).toContain('verifyContextlessSharedPlacement(');
-    expect(launchSrc).toContain('expect(row1?.activity?.resourceLinkId).toBe(sharedRlId)');
-    expect(launchSrc).toContain('expect(row2?.activity?.resourceLinkId).toBe(sharedRlId)');
-    expect(launchSrc).toContain(
-      "'No gradebook column: the activity has no AGS line item.'",
-    );
-    expect(launchSrc).toContain('expect(bA.library).not.toBe(bB.library)');
-    expect(launchSrc).toContain('deriveExpectedFamilyGuardOutcome(');
-    expect(launchSrc).toContain('validateFamilyGuardLaunchObservation(');
-    expect(launchSrc).toContain('selectProtocolControlFixture(allFixtures)');
+    const capSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-cap.k1sim.test.ts'), 'utf8');
+    expect(capSrc).not.toMatch(/loadChannelManifestCapabilities|manifestCapabilities/);
+    expect(capSrc).not.toContain('toolCfgRes.json.fields');
 
-    // Verify R6 tests off-origin staging (endpointsOnIssuerOrigin: false, active: false, PLATFORM_NOT_ACTIVE) and POST /api/platforms refusals
     const regSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-reg.k1sim.test.ts'), 'utf8');
     expect(regSrc).toContain('expect(previewRes.json.endpointsOnIssuerOrigin).toBe(false)');
     expect(regSrc).toContain('expect(completeRes.json.active).toBe(false)');
@@ -1117,20 +1467,34 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     expect(regSrc).toContain('PLATFORM_URL_NOT_IN_PROFILE');
   });
 
-  it('A-LA-E7-06-08 / B-LA-E7-06-07: loadChannelManifestCapabilities resolves capabilities for all baseline channels without importing product source modules and throws on missing explicit root', () => {
+  it('A-LA-E7-06-08 (C1 operand): C1 compares the registry entry and the connection DTO with the fixture, so a registry capability that differs from the fixture fails', () => {
     for (const fixture of loadAllChannelFixtures()) {
-      const caps = loadChannelManifestCapabilities(fixture);
-      expect(Object.keys(caps).sort()).toEqual([...CAPABILITY_KEYS].sort());
-      expect(caps).toEqual(fixture.capabilities);
-    }
-
-    const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-empty-manifests-'));
-    try {
-      expect(() =>
-        loadChannelManifestCapabilities(loadChannelFixture('moodle'), emptyRoot),
-      ).toThrow(/Channel manifest not found or invalid/);
-    } finally {
-      fs.rmSync(emptyRoot, { recursive: true, force: true });
+      // Registry answer (GET /app-api/lms-providers entry, cogniate-app-api-delta.md §2) and connection
+      // DTO (§1) shaped from the documented example; one registry value differs from the fixture.
+      const registry = structuredClone(fixture.capabilities) as unknown as Record<string, unknown>;
+      registry['launch.windowHint'] = !fixture.capabilities['launch.windowHint'];
+      const input: BilateralEqualityInput = {
+        fixture,
+        providerChannelCapabilities: registry,
+        providerLegacyFlags: { ...fixture.expect.legacyFlags },
+        connectionChannelCapabilities: structuredClone(fixture.capabilities) as unknown as Record<
+          string,
+          unknown
+        >,
+        connectionLegacyFlags: { ...fixture.expect.legacyFlags },
+        toolConfigurationKeys: [...fixture.expect.toolConfigurationKeys],
+      };
+      const res = verifyBilateralCapabilities(input);
+      expect(res.ok).toBe(false);
+      expect(res.errors).toEqual([
+        expect.stringContaining('GET /app-api/lms-providers channelCapabilities["launch.windowHint"]'),
+      ]);
+      // An extra registry key fails the other direction
+      const extra = verifyBilateralCapabilities({
+        ...input,
+        providerChannelCapabilities: { ...structuredClone(fixture.capabilities), 'zz.extra': true },
+      });
+      expect(extra.errors).toEqual([expect.stringContaining('unknown capability key "zz.extra"')]);
     }
   });
 
@@ -1153,139 +1517,351 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     );
   });
 
-  it('A-LA-E7-06-07 / B-LA-E7-06-02: L4 family-guard pre-derived oracle and L7 contextless one-placement validator pass positive controls and reject swapped/duplicate mutants', () => {
-    const moodle = loadChannelFixture('moodle');
+  it('A-LA-E7-06-07 / B-LA-E7-06-02 (L4): fixture guard data equals LA-ADR-01 D6, and the L4 selector picks probes from the declared guard levels for every target', () => {
+    const all = loadAllChannelFixtures();
+    // Fixture guard declarations of the baseline channels equal the frozen design table
+    for (const fixture of all.filter((f) =>
+      (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id),
+    )) {
+      const designed = Object.entries(DESIGN_FAMILY_GUARDS)
+        .filter(([, g]) => g.channel === fixture.id)
+        .map(([family, g]) => ({ family, level: g.level }));
+      expect(fixture.expect.guardedFamilies).toEqual(designed);
+      expect(fixture.capabilities['binding.authority'].manual === 'self').toBe(
+        DESIGN_MANUAL_SELF_LEGACY.includes(fixture.id),
+      );
+    }
+
+    const table = (id: string) =>
+      selectFamilyGuardProbes(loadChannelFixture(id), all).probes.map(
+        (p) => `${p.foreignFamily}:${p.foreignFamilyCategory}:${p.expectedOutcome}`,
+      );
+    // Round 4 counterexamples: Blackboard gets a launch-guarded probe (no undefined), Canvas gets
+    // desire2learn (not moodle) as its registration-guarded probe, and moodle is unguarded.
+    expect(table('moodle')).toEqual([
+      'canvas:launch_guarded:refuse',
+      'desire2learn:registration_guarded:refuse',
+      'generic:unguarded:pass',
+    ]);
+    expect(table('canvas')).toEqual([
+      'blackboardlearn:launch_guarded:refuse',
+      'desire2learn:registration_guarded:warn_passthrough',
+      'moodle:unguarded:pass',
+    ]);
+    expect(table('blackboard')).toEqual([
+      'canvas:launch_guarded:refuse',
+      'desire2learn:registration_guarded:warn_passthrough',
+      'moodle:unguarded:pass',
+    ]);
+    expect(table('lti-generic')).toEqual([
+      'canvas:launch_guarded:refuse',
+      'desire2learn:registration_guarded:warn_passthrough',
+      'moodle:unguarded:pass',
+    ]);
+    expect(table('brightspace')).toEqual(['canvas:launch_guarded:refuse', 'moodle:unguarded:pass']);
+    expect(selectFamilyGuardProbes(loadChannelFixture('brightspace'), all).notes[0]).toContain(
+      'no family that another channel guards at the registration level',
+    );
+    expect(deriveExpectedFamilyGuardOutcome(loadChannelFixture('canvas'), 'moodle', all).expectedOutcome).toBe('pass');
+
+    // Every discovered fixture (open world) gets a launch-guarded probe
+    for (const fixture of all) {
+      expect(selectFamilyGuardProbes(fixture, all).probes[0].foreignFamilyCategory).toBe('launch_guarded');
+    }
+    // Missing launch-guard fixtures give an explicit diagnostic, not a crash on undefined
+    const noLaunchGuards = all.filter((f) => !f.expect.guardedFamilies.some((g) => g.level === 'launch'));
+    expect(() => selectFamilyGuardProbes(loadChannelFixture('moodle'), noLaunchGuards)).toThrow(
+      /no family that another channel guards at the launch level/,
+    );
+    // A family guarded at two levels is a fixture error
+    const conflicting = structuredClone(all);
+    conflicting.find((f) => f.id === 'lti-generic')!.expect.guardedFamilies = [
+      { family: 'canvas', level: 'registration' },
+    ];
+    expect(() => buildFamilyGuardMap(conflicting)).toThrow(/guarded at two levels/);
+
+    // Observation oracle: exact error page, LTI log presence and absence
+    const refuse = deriveExpectedFamilyGuardOutcome(loadChannelFixture('moodle'), 'canvas', all);
+    expect(validateFamilyGuardLaunchObservation(refuse, { status: 400, body: 'PROVIDER_PROFILE_MISMATCH' }).ok).toBe(false);
+    expect(
+      validateFamilyGuardLaunchObservation(refuse, {
+        status: 400,
+        body: '<main data-error-code="PROVIDER_PROFILE_MISMATCH">',
+      }).ok,
+    ).toBe(true);
+  });
+
+  it('A-LA-E7-06-07 / B-LA-E7-06-02 (L4): the L4 case body passes on a check-14 fake for every shipped target and fails on wrong product behaviour', async () => {
+    const all = loadAllChannelFixtures();
+    for (const fixture of all.filter((f) =>
+      (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id),
+    )) {
+      const fake = makeCheck14Fake(fixture.id, `plt_${fixture.id}`);
+      const report = await runFamilyGuardCase(
+        { target: fixture, allFixtures: all, platformId: `plt_${fixture.id}`, resourceId: 'pub_k0' },
+        fake.io,
+      );
+      expect(report.probes.map((p) => p.expected.foreignFamily)).toEqual(fake.launched);
+    }
+
     const canvas = loadChannelFixture('canvas');
-    const blackboard = loadChannelFixture('blackboard');
-    const generic = loadChannelFixture('lti-generic');
-    const brightspace = loadChannelFixture('brightspace');
+    const moodle = loadChannelFixture('moodle');
+    const run = (target: ChannelFixture, mutant: Check14Mutant) =>
+      runFamilyGuardCase(
+        { target, allFixtures: all, platformId: `plt_${target.id}`, resourceId: 'pub_k0' },
+        makeCheck14Fake(target.id, `plt_${target.id}`, mutant).io,
+      );
+    // A registration-level family refused on a non-legacy platform
+    await expect(run(canvas, 'refuseRegistration')).rejects.toThrow(/expected 303/);
+    // The warning only in the app log: L4 reads the LTI service log with the platform filter
+    await expect(run(canvas, 'appLogOnly')).rejects.toThrow(/expected an LTI log family_guard_mismatch/);
+    await expect(run(canvas, 'noLog')).rejects.toThrow(/expected an LTI log family_guard_mismatch/);
+    // A launch-level family that passes on a foreign platform
+    await expect(run(moodle, 'passLaunchGuard')).rejects.toThrow(/expected 400 refusal/);
+    // An unguarded family that the product treats as guarded
+    await expect(run(canvas, 'guardMoodle')).rejects.toThrow(/expected no family_guard_mismatch log/);
+  });
 
-    // 1. Launch-guarded families ('canvas', 'BlackboardLearn') are ALWAYS refused (400 PROVIDER_PROFILE_MISMATCH) on every other channel
-    for (const target of [moodle, blackboard, generic, brightspace]) {
-      const expCanvas = deriveExpectedFamilyGuardOutcome(target, 'canvas');
-      expect(expCanvas.expectedOutcome).toBe('refuse');
-      expect(expCanvas.expectedStatus).toBe(400);
-      expect(expCanvas.expectedCode).toBe('PROVIDER_PROFILE_MISMATCH');
+  it('A-LA-E7-06-07 / B-LA-E7-06-02 (L7): the L7 verdict accepts contract-shaped answers with an internal placement id and rejects the round 4 counterexamples', () => {
+    const ok = verifyContextlessSharedPlacement(collectContextlessPlacementObservation(contractL7Raw()));
+    expect(ok.errors).toEqual([]);
+    expect(ok.ok).toBe(true);
+    // The placement id is the internal `rl_...` value; the launch resource_link.id is not an input
+    expect(ok.placementId).toBe('rl_9f2c41');
 
-      // Positive observation passes; mutant passthrough (303) fails
-      expect(
-        validateFamilyGuardLaunchObservation(expCanvas, {
-          status: 400,
-          body: 'data-error-code="PROVIDER_PROFILE_MISMATCH"',
-        }).ok,
-      ).toBe(true);
-      expect(
-        validateFamilyGuardLaunchObservation(expCanvas, {
-          status: 303,
-          warnLogCount: 1,
-        }).ok,
-      ).toBe(false);
+    const verdict = (mutate: (raw: ReturnType<typeof contractL7Raw>) => void) => {
+      const raw = contractL7Raw();
+      mutate(raw);
+      return verifyContextlessSharedPlacement(collectContextlessPlacementObservation(raw));
+    };
+    // B: a second result row for the same learner and placement
+    const dupRow = verdict((raw) => raw.rows.push(structuredClone(raw.rows[0])));
+    expect(dupRow.ok).toBe(false);
+    expect(dupRow.errors.join('\n')).toContain('duplicate result rows for learner1');
+    // B: both score calls go to another line item of the same publication
+    const otherLineItem = verdict((raw) => {
+      for (const rec of raw.simRecords.filter((r) => r.kind === 'score')) {
+        rec.path = '/lti/courses/course-1/lineitems/other-item/scores';
+      }
+    });
+    expect(otherLineItem.ok).toBe(false);
+    expect(otherLineItem.errors.filter((e) => e.includes('expected the launch line item')).length).toBe(2);
+    // Two placements for the same launch resource link: two internal ids ...
+    const twoIds = verdict((raw) => {
+      raw.rows[1].activity.resourceLinkId = 'rl_77aa01';
+    });
+    expect(twoIds.errors.join('\n')).toContain('name 2 placements');
+    // ... or one shared id with two placements counted on the publication
+    const twoCounted = verdict((raw) => {
+      raw.publication.stats.activities = 2;
+    });
+    expect(twoCounted.errors.join('\n')).toContain('stats.activities is 2');
+    // A learner without a sent sync, or without a score call
+    const unsent = verdict((raw) => {
+      raw.rows[1].scoreSyncs = [{ id: 'sync_u2', status: 'failed', tries: 1 }];
+    });
+    expect(unsent.errors.join('\n')).toContain('learner2 ("u2") has no scoreSyncs entry with status="sent"');
+    const noCall = verdict((raw) => {
+      raw.simRecords = raw.simRecords.filter((r) => r.body?.userId !== 'u2');
+    });
+    expect(noCall.errors.join('\n')).toContain('missing simulator score call for learner2');
+    // A launch without a line item
+    const noLineItem = verdict((raw) => {
+      raw.idToken2 = { services: { assignmentAndGrades: { available: false } } } as never;
+    });
+    expect(noLineItem.errors.join('\n')).toContain('learner2 launch has no valid services.assignmentAndGrades.lineItemId');
+  });
+
+  it('A-LA-E7-06-08 / B-LA-E7-06-07 (L10): the L10 case body completes on a contract-shaped storage fake and sends {check, value} with the LTI Origin', async () => {
+    for (const id of ['canvas', 'lti-generic']) {
+      const fixture = loadChannelFixture(id);
+      expect(fixture.sim.platformStorage).toBeTruthy();
+      const fake = makeStorageContractFake({ storageProfile: true, authEndpoint: fixture.sim.authEndpoint });
+      const report = await runPlatformStorageCase(storageCaseCtx(fixture, fake.ltiUrl), fake.io);
+      expect(report.storagePath).toBe(true);
+      expect(report.steps.length).toBe(9);
+      // Every storage-check request has exactly the documented fields; the accepted one has our Origin
+      expect(fake.checkRequests.every((r) => JSON.stringify(r.fields) === '["check","value"]')).toBe(true);
+      expect(fake.checkRequests.filter((r) => r.status === 303)).toEqual([
+        { fields: ['check', 'value'], origin: fake.ltiOrigin, status: 303 },
+      ]);
     }
-
-    // 2. Registration-guarded families ('moodle', 'desire2learn') are refused (400) ONLY on manual-self legacy ('moodle'), and warn_passthrough (303 + family_guard_mismatch) on all other channels
-    const d2lOnMoodle = deriveExpectedFamilyGuardOutcome(moodle, 'desire2learn');
-    expect(d2lOnMoodle.expectedOutcome).toBe('refuse');
-    expect(d2lOnMoodle.expectedStatus).toBe(400);
-
-    for (const target of [canvas, blackboard, generic]) {
-      const moodleOnTarget = deriveExpectedFamilyGuardOutcome(target, 'moodle');
-      expect(moodleOnTarget.expectedOutcome).toBe('warn_passthrough');
-      expect(moodleOnTarget.expectedStatus).toBe(303);
-      expect(moodleOnTarget.expectedLogEvent).toBe('family_guard_mismatch');
-
-      // Positive observation (303 + warning log) passes; mutant refusal (400) or silent 303 without warning log fails
-      expect(
-        validateFamilyGuardLaunchObservation(moodleOnTarget, {
-          status: 303,
-          warnLogCount: 1,
-        }).ok,
-      ).toBe(true);
-      expect(
-        validateFamilyGuardLaunchObservation(moodleOnTarget, {
-          status: 400,
-          body: 'data-error-code="PROVIDER_PROFILE_MISMATCH"',
-        }).ok,
-      ).toBe(false);
-      expect(
-        validateFamilyGuardLaunchObservation(moodleOnTarget, {
-          status: 303,
-          warnLogCount: 0,
-        }).ok,
-      ).toBe(false);
+    for (const id of ['moodle', 'blackboard', 'brightspace']) {
+      const fixture = loadChannelFixture(id);
+      expect(fixture.sim.platformStorage).toBeNull();
+      const fake = makeStorageContractFake({ storageProfile: false, authEndpoint: fixture.sim.authEndpoint });
+      const report = await runPlatformStorageCase(storageCaseCtx(fixture, fake.ltiUrl), fake.io);
+      expect(report.storagePath).toBe(false);
     }
+  });
 
-    // 3. L7 verifyContextlessSharedPlacement positive control & negative mutants
-    const validL7 = verifyContextlessSharedPlacement({
-      rows: [
-        {
-          learner: { sub: 'u1' },
-          activity: { resourceLinkId: 'rl-shared-1' },
-          scoreSyncs: [{ status: 'sent' }],
-        },
-        {
-          learner: { sub: 'u2' },
-          activity: { resourceLinkId: 'rl-shared-1' },
-          scoreSyncs: [{ status: 'sent' }],
-        },
-      ],
-      learner1: 'u1',
-      learner2: 'u2',
-      scoreRecords: [
-        { userId: 'u1', resource: 'pub-1' },
-        { userId: 'u2', resource: 'pub-1' },
-      ],
-      expectedResourceId: 'pub-1',
+  it('A-LA-E7-06-08 / B-LA-E7-06-07 (L10): escaped JSON pages, script-built check form, and wrong storage behaviour', async () => {
+    const canvas = loadChannelFixture('canvas');
+    const fake = makeStorageContractFake({ storageProfile: true, authEndpoint: canvas.sim.authEndpoint });
+    const plain = await fake.io.beginLaunch({ clientId: 'c1' });
+    const login = await fake.io.beginLaunch({ clientId: 'c1', storageTarget: 'post_message_forwarding' });
+    // Round 4 counterexample: a regex over the raw HTML keeps `&` and loses the state parameter
+    expect(login.login.body).not.toContain('&state=');
+    const legacy = login.login.body.match(/https:\/\/[^\s"'<>]+authorize[^\s"'<>]*/)![0];
+    expect(new URL(legacy).searchParams.get('state')).toBeNull();
+    // Parsing the one JSON block gives the auth URL on the 302 Location's endpoint, with its state
+    const authUrl = findStorageAuthUrl(readStoragePageJson(login.login.body), plain.location);
+    expect(new URL(authUrl).searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    // Round 4 counterexample: the storage-check page has no static form for the frozen parseForm
+    const authorized = parseForm((await fake.io.request(authUrl)).body);
+    const checkPage = await fake.io.formPost(authorized.action, authorized.fields);
+    expect(() => parseForm(checkPage.body)).toThrow(/HTML form action present/);
+    expect(readStorageCheckToken(checkPage.body)).toMatch(/^[A-Za-z0-9_-]{20,}$/);
+    expect(() => readStoragePageJson('<html><body>no block</body></html>')).toThrow(/exactly one/);
+    // Launch check failures: an error page with status 400 or 401 and no redirect (security.md §2.2)
+    const page = (status: number, headers: Record<string, unknown> = {}) => ({
+      status,
+      headers,
+      body: '<main data-error-code="INVALID_SIGNATURE" data-trace-id="tr_k0"></main>',
     });
-    expect(validL7.ok).toBe(true);
-    expect(validL7.sharedResourceLinkId).toBe('rl-shared-1');
+    expect(() => launchRefused(page(400), 'INVALID_SIGNATURE')).not.toThrow();
+    expect(() => launchRefused(page(401), 'INVALID_SIGNATURE')).not.toThrow();
+    expect(() => launchRefused(page(403), 'INVALID_SIGNATURE')).toThrow(/expected 400 or 401/);
+    expect(() => launchRefused(page(400, { location: 'https://app.cogniate.test/' }), 'INVALID_SIGNATURE')).toThrow();
+    expect(() => launchRefused(page(400), 'INVALID_STATE')).toThrow();
 
-    // Mutant A: duplicate placement (second learner created a second resourceLinkId instead of reusing the first)
-    const duplicatePlacement = verifyContextlessSharedPlacement({
-      rows: [
-        {
-          learner: { sub: 'u1' },
-          activity: { resourceLinkId: 'rl-1' },
-          scoreSyncs: [{ status: 'sent' }],
-        },
-        {
-          learner: { sub: 'u2' },
-          activity: { resourceLinkId: 'rl-2' },
-          scoreSyncs: [{ status: 'sent' }],
-        },
-      ],
-      learner1: 'u1',
-      learner2: 'u2',
-    });
-    expect(duplicatePlacement.ok).toBe(false);
+    // Wrong product behaviour fails the case body
+    const run = (fixture: ChannelFixture, storageProfile: boolean, mutant?: StorageMutant) => {
+      const f = makeStorageContractFake({ storageProfile, authEndpoint: fixture.sim.authEndpoint, mutant });
+      return runPlatformStorageCase(storageCaseCtx(fixture, f.ltiUrl), f.io);
+    };
+    await expect(run(canvas, true, 'replayAccepted')).rejects.toThrow();
+    await expect(run(canvas, true, 'wrongValueAccepted')).rejects.toThrow();
+    await expect(run(canvas, true, 'noCheckLog')).rejects.toThrow(/no LTI log launch_check_failed/);
+    await expect(run(canvas, true, 'ignoreTarget')).rejects.toThrow(/expected the 200 login page/);
+    await expect(run(canvas, false)).rejects.toThrow(/expected the 200 login page/);
+    await expect(run(loadChannelFixture('moodle'), true)).rejects.toThrow(/platformStorage-null profile answered 200/);
+  });
+
+  it('A-LA-E7-06-08 / B-LA-E7-06-07 (picker): the picker handoff keeps the observed status; a redirect loop stays 303', async () => {
+    const launch: HttpResultLike = {
+      status: 303,
+      headers: { location: 'https://app.cogniate.test/tool/deep-link?ltik=k0' },
+      body: '',
+    };
+    const app = 'https://app.cogniate.test';
+    const serve = (pages: Record<string, HttpResultLike>) => async (url: string) => {
+      const u = new URL(url);
+      return pages[`${u.pathname}${u.search}`] ?? { status: 404, headers: {}, body: '' };
+    };
+    const handoff: HttpResultLike = { status: 303, headers: { location: '/tool/picker/pck_k0' }, body: '' };
+
+    const normal = await followPickerHandoff(
+      launch,
+      serve({
+        '/tool/deep-link?ltik=k0': handoff,
+        '/tool/picker/pck_k0': { status: 200, headers: {}, body: '<input type="radio" value="pub_1">' },
+      }),
+      app,
+    );
+    expect(normal.status).toBe(200);
+    expect(normal.pickerUrl).toBe(`${app}/tool/picker/pck_k0`);
+
+    const loop = await followPickerHandoff(
+      launch,
+      serve({
+        '/tool/deep-link?ltik=k0': handoff,
+        '/tool/picker/pck_k0': { status: 303, headers: { location: '/tool/picker/pck_k0' }, body: '' },
+      }),
+      app,
+    );
+    expect(loop.status).toBe(303);
+    expect(loop.page.status).toBe(303);
+    expect(loop.html).toBe('');
+
+    const refused = await followPickerHandoff(
+      launch,
+      serve({
+        '/tool/deep-link?ltik=k0': { ...fakeErrorPage('ROLE_NOT_ALLOWED'), status: 403 },
+      }),
+      app,
+    );
+    expect(refused.status).toBe(403);
+    expect(refused.html).toContain('ROLE_NOT_ALLOWED');
+  });
+
+  it('A-LA-E7-06-08 (D3): picker selection uses the repeated publicationId field and keeps the picker list order', () => {
+    expect(PICKER_SELECTION_FIELD).toBe('publicationId');
+    const form = buildPickerSelectionForm(['pub_c', 'pub_a', 'pub_b']);
+    const body = new URLSearchParams(form).toString();
+    // The picker route reads repeated `publicationId` (cogniate-app-api.md §6; LA-ADR-05 D3b)
+    expect(new URLSearchParams(body).getAll('publicationId')).toEqual(['pub_c', 'pub_a', 'pub_b']);
+    // Round 4 counterexample: the plural field gives the route zero ids
+    const plural = new URLSearchParams([['publicationIds', 'pub_a'], ['publicationIds', 'pub_b']]).toString();
+    expect(new URLSearchParams(plural).getAll('publicationId')).toEqual([]);
+
+    const picker =
+      '<label><input type="checkbox" name="publicationId" value="pub_c">C</label>' +
+      '<label><input type="checkbox" name="publicationId" value="pub_a">A</label>' +
+      '<label><input type="checkbox" name="publicationId" value="pub_b">B</label>';
+    expect(orderByPickerList(picker, ['pub_a', 'pub_b', 'pub_c'])).toEqual(['pub_c', 'pub_a', 'pub_b']);
+    expect(() => orderByPickerList(picker, ['pub_x'])).toThrow(/not listed/);
     expect(
-      duplicatePlacement.errors.some((e) =>
-        e.includes('contextless one-placement invariant violated'),
-      ),
-    ).toBe(true);
+      contentItemPublicationIds([
+        { type: 'ltiResourceLink', url: 'https://lti.cogniate.test/lti/launch/cogniate?resource=pub_c' },
+        { type: 'ltiResourceLink', url: 'https://lti.cogniate.test/lti/launch/cogniate?resource=pub_a' },
+      ]),
+    ).toEqual(['pub_c', 'pub_a']);
+  });
 
-    // Mutant B: second learner score sync failed instead of sent
-    const unsentLearner = verifyContextlessSharedPlacement({
-      rows: [
-        {
-          learner: { sub: 'u1' },
-          activity: { resourceLinkId: 'rl-shared-1' },
-          scoreSyncs: [{ status: 'sent' }],
-        },
-        {
-          learner: { sub: 'u2' },
-          activity: { resourceLinkId: 'rl-shared-1' },
-          scoreSyncs: [{ status: 'failed' }],
-        },
-      ],
-      learner1: 'u1',
-      learner2: 'u2',
-    });
-    expect(unsentLearner.ok).toBe(false);
-    expect(
-      unsentLearner.errors.some((e) =>
-        e.includes('learner2 ("u2") has no scoreSyncs entry with status="sent"'),
+  it('B-LA-E7-06-02 (A3): the A3 waits return only after a tried send', async () => {
+    const clock = fakeClock();
+    const row = (tries: number, status = 'pending') => [
+      { learner: { sub: 'u503' }, scoreSyncs: [{ id: 'sync_1', status, tries }] },
+    ];
+    // Round 4 counterexample: a new row is `pending` with tries 0 before its first send
+    const sequence = [[], row(0), row(0), row(1)];
+    let reads = 0;
+    const tried = await waitForLearnerSync(
+      { readRows: async () => sequence[Math.min(reads++, sequence.length - 1)], now: clock.now, sleep: clock.sleep },
+      'u503',
+      (sync) => Number(sync.tries ?? 0) >= 1,
+      'a tried send (tries >= 1)',
+    );
+    expect(sequence[1][0].scoreSyncs[0]).toMatchObject({ status: 'pending', tries: 0 });
+    expect(tried.sync).toMatchObject({ status: 'pending', tries: 1 });
+    expect(tried.reads).toBe(4);
+    await expect(
+      waitForLearnerSync(
+        { readRows: async () => row(0), now: clock.now, sleep: clock.sleep },
+        'u503',
+        (sync) => Number(sync.tries ?? 0) >= 1,
+        'a tried send (tries >= 1)',
       ),
-    ).toBe(true);
+    ).rejects.toThrow(/no score sync of learner "u503" shows a tried send/);
+
+    // 429: the row is pending with tries 0 before and after the send; wait for the score call and event
+    let step = 0;
+    const throttled = await waitForThrottledDispatch(
+      {
+        readRows: async () => [{ learner: { sub: 'u429' }, scoreSyncs: [{ status: 'pending', tries: 0 }] }],
+        readScoreCalls: async () => (step >= 2 ? [{ kind: 'score', body: { userId: 'u429' } }] : []),
+        throttleEvents: () => (step++ >= 2 ? [{ event: 'dispatch_throttled' }] : []),
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+      'u429',
+    );
+    expect(throttled.reads).toBe(3);
+    expect(throttled.scoreCalls.length).toBe(1);
+    expect(throttled.sync).toMatchObject({ status: 'pending', tries: 0 });
+    await expect(
+      waitForThrottledDispatch(
+        {
+          readRows: async () => [{ learner: { sub: 'u429' }, scoreSyncs: [{ status: 'pending', tries: 0 }] }],
+          readScoreCalls: async () => [],
+          throttleEvents: () => [],
+          now: clock.now,
+          sleep: clock.sleep,
+        },
+        'u429',
+      ),
+    ).rejects.toThrow(/no throttled send seen/);
   });
 
   it('AC-LA-E7-06-06 / A-LA-E7-06-03 / B-LA-E7-06-05: K-HYG secret scanner fails on missing inputs and catches leaks in logs, /__sim/records, and nested artifacts', async () => {

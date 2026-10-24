@@ -65,6 +65,12 @@ import {
 } from '../../../acceptance/lib/lti.js';
 import { artifactsDir, LOGS_DIR } from '../../../acceptance/lib/paths.js';
 import {
+  followPickerHandoff,
+  FamilyGuardCaseIo,
+  HttpResultLike,
+  PlatformStorageCaseIo,
+} from './cases.js';
+import {
   buildOperatorGrantCliArgs,
   buildOperatorGrantNpmArgs,
   CapabilityKey,
@@ -1204,9 +1210,10 @@ export async function openPlayOnChannel(
   };
 }
 
-// Launches a Deep Linking request, follows the `/tool/deep-link?ltik=...` 303 handoff,
-// and opens `/tool/picker/:pickerId` (tests/acceptance/M1/common/course.ts:89-99;
-// cogniate-app-api.md §6.1; cogniate-app-api-delta.md §5).
+// Launches a Deep Linking request, follows the `/tool/deep-link?ltik=...` 303 handoff to
+// `/tool/picker/:pickerId` and opens it (tests/acceptance/M1/common/course.ts:89-99;
+// cogniate-app-api.md §6). `status` is the observed status of the last page: a refusal page, or a
+// redirect that does not end on a page, is returned as it is (lib/cases.ts `followPickerHandoff`).
 export async function openPickerOnChannel(
   binding: ChannelBinding,
   patch: Record<string, unknown> = {},
@@ -1217,39 +1224,33 @@ export async function openPickerOnChannel(
     ...patch,
   });
   expect(launched.response.status).toBe(303);
-  const handoffUrl = new URL(
-    String(launched.response.headers.location ?? launched.location),
+  const opened = await followPickerHandoff(
+    launched.response as HttpResultLike,
+    (url, opts) => httpsRequest(url, opts) as Promise<HttpResultLike>,
     APP,
-  ).href;
-  const handoff = await httpsRequest(handoffUrl, {
-    headers: { accept: 'text/html' },
-  });
-  if (handoff.status !== 303 || !handoff.headers?.location) {
-    const html = String(handoff.body ?? '');
-    return {
-      pickerUrl: handoffUrl,
-      ltik: launched.ltik,
-      status: handoff.status,
-      html,
-      page: handoff,
-    };
-  }
-  const pickerUrl = new URL(String(handoff.headers.location), APP).href;
-  const page = await httpsRequest(pickerUrl, {
-    headers: { accept: 'text/html' },
-  });
-  const secondLocation = page.headers?.location
-    ? new URL(String(page.headers.location), APP).href
-    : '';
-  const status =
-    page.status === 303 && secondLocation === pickerUrl ? 200 : page.status;
-  const html = String(page.body ?? '');
+  );
+  return { ...opened, ltik: launched.ltik };
+}
+
+// Live I/O for the case bodies of lib/cases.ts, bound to the frozen M1 helpers.
+export function liveKitCaseIo(): Omit<FamilyGuardCaseIo, 'launch'> & PlatformStorageCaseIo {
   return {
-    pickerUrl,
-    ltik: launched.ltik,
-    status,
-    html,
-    page,
+    now: () => Date.now(),
+    sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    logEvents: (service, event, sinceMs, fields = {}) =>
+      logEvents(event, sinceMs, fields as Json, service) as Array<Record<string, unknown>>,
+    beginLaunch: async (patch, loginPatch = {}) => {
+      const started = await rawBeginLaunch(patch, loginPatch);
+      return { login: started.login as HttpResultLike, location: started.location, cookie: started.cookie };
+    },
+    request: (url, opts = {}) => httpsRequest(url, opts) as Promise<HttpResultLike>,
+    formPost: (url, fields, cookie) => formPost(url, fields, cookie) as Promise<HttpResultLike>,
+    rememberSecret: (value: string) => {
+      if (value) {
+        rememberSecret(value);
+        recordSecret(value);
+      }
+    },
   };
 }
 
