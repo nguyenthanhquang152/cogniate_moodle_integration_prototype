@@ -803,7 +803,7 @@ Result handling:
 | Parent-only `SIGKILL` before creation | the front and plugin processes survived in the original group, and the surviving client created and started its target 0.73 s after the gate. The risk is real, and the group rule sees it: the group was not empty. |
 | Whole-group `SIGKILL` before creation (G-1 shape: `docker compose run --rm -T --name <project>-storage-run-<id> --label org.cogniate.storage.run=<id> target`) | no client survived; from 0.02 s to 30.36 s after the gate, no container by exact name, by run label, as target or as one-off, in any state; no Docker event for them. A positive control with the same filters found an equal run. |
 
-**Identity binding (A-S-14).** The G-1 pass is valid **only** for these recorded identities (from the diagnostics' `client-identity.txt`):
+**Identity binding (A-S-14).** The first G-1 pass (2026-10-20) is valid **only** for these recorded identities (from the diagnostics' `client-identity.txt`); the second pass (G-1 result 2 below) is valid only for its own:
 
 | Identity | Measured value | How it is read |
 | --- | --- | --- |
@@ -814,6 +814,32 @@ Result handling:
 Recorded with them, as context and not as part of the binding: engine 29.9.1 (git `b26fb77`) and `/bin/bash` 3.2.57.
 - QA's run boundary records the same three identities in the same way at the start of each run that counts lock-dependent results, and compares them with the table above.
 - Any difference uses the existing fail-closed path above: implementation acceptance and every runtime gate that relies on the lock's orphan guarantee stay `BLOCKED` until a new, separately authorized G-1 diagnostic passes for the new identities.
+
+**G-1 result 2 (measured 2026-10-24; AUTHOR-DIAGNOSTIC, no acceptance credit; BD-A2-113).** Docker Desktop updated itself on 2026-10-24 (09:19–09:20Z) to 4.96.3. Lane S1 ran the separately authorized G-1 diagnostic (task `task_80baea950e13`, dispatch `ctx_88cca630653a`) in two independent shapes, each with its own scratch project and a watch of at least 30 s. A2 checked the two report hashes, the run manifests and every criterion. Sources:
+- `/Users/quangnguyen/cogniate-author-diag/client-group-20261024T1037Z/public/AUTHOR-DIAGNOSTIC-client-group.md`, SHA-256 `38b98da6b576c0b3e63395c0d115143745193d5f19959be684192efdaf8aa283` (project `la-g1-diag-1`, 10:37:07–10:37:49Z);
+- `/Users/quangnguyen/cogniate-author-diag/client-group-30s-20261024T1038Z/public/AUTHOR-DIAGNOSTIC-client-group-30s.md`, SHA-256 `ebfbcd14c09f790979faacf947c553c77f53b132190340cb85b7501f8be2da48` (project `la-g1-diag-2`, 10:38:33–10:39:17Z).
+
+| Criterion (G-1 above) | Shape `client-group` | Shape `client-group-30s` |
+| --- | --- | --- |
+| Groups: the stub, the `docker` front process and the `docker-compose` plugin process in the stub's own group (trials A, B and the control) | yes; 0 clients outside | yes; 0 clients outside |
+| Parent-only `SIGKILL` before creation | front and plugin survived in the group (the group was not empty); the survivor created the target 0.56 s after the gate | the same; 0.65 s after the gate |
+| Whole-group `SIGKILL` before creation | no client survived; 0 containers by exact name, run label, as target or as one-off, in any state, from 0.0 s to 30.94 s after the gate; no Docker event for them | the same, from 0.0 s to 30.49 s |
+| Positive control, same filters | the run found after 0.99 s by all four filters | after 1.03 s |
+| Result | **PASS** | **PASS** |
+
+| Identity | Measured value (2026-10-24) |
+| --- | --- |
+| OS | macOS 27.0.1, arm64 |
+| Docker CLI | 29.9.2 (git `a82e528`); binary `/Applications/Docker.app/Contents/Resources/bin/docker`, SHA-256 `6bbc39e9f2950720216f64c22d6e38afdd86a4672eee0d4e4389263c40ebd3e3` |
+| Compose plugin | v5.6.1; binary `/Applications/Docker.app/Contents/Resources/cli-plugins/docker-compose`, SHA-256 `31664b8ce83f3900ed3c52b8c2276706832793a0a379d9661defd6f88b386def` |
+
+Recorded with them, as context and not as part of the binding: engine 29.9.2 (git `0367cbe`), `/bin/bash` 3.2.57, image `alpine:3` `sha256:71e9b7bae160ba167fa17414401b94cbcdaf3c32feeab9298bd794a2a0614c35` with `pull_policy: never`.
+
+Rules for the two measured identity sets:
+- The 29.9.1 / 5.6.0 set (first table) stays the record for runs before 2026-10-24 09:19Z. Its 2026-10-20 evidence roots are no longer on this host; the recorded hashes and this section are the record.
+- A run that counts lock-dependent results is valid only when its run-boundary identity equals one measured set in all three values. A run that started on one set and ended on another counts for neither.
+- Each later Docker change (a Docker Desktop update, or a new CLI, Compose plugin or engine) needs its own separately authorized G-1 run before lock-dependent results count on it. Until then, the fail-closed path above applies. The run boundary compares only the three bound values, so a Docker Desktop update counts as a change even when only the engine version moves.
+- The measured scope below applies to both sets unchanged.
 
 **Measured scope only.** These synthetic trials cover one host, these identities, `/bin/bash` 3.2.57 with a `perl setpgrp` stub as the group leader, a pinned image with `pull_policy: never`, a client that waits for a dependency, and `docker compose run` only. **Not measured:** other signals and a terminal close; a kill during the container-create API call; `up`, `exec` and other paths; other callers and shells (for example an interactive zsh job or a Node `detached` spawn); other versions; Linux. Reviewer-A's reasoning about some of these paths (for example, that the container checks of A5 and A6 cover a create-API race) is reasoning, not a measurement. The implementation, its independent review, the lock self-check and every runtime gate stay required.
 
