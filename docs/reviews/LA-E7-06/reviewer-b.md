@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 4
+Verdict: APPROVE
+Round: 5
 
 ## Round 1
 
@@ -286,3 +286,43 @@ Previously closed -03, -04, -05 and -08 remain closed. The explicit protocol-con
 - Replayed my Round 3 harness with only the pin/path updated: **17/18**, with the sole failure being the obsolete expectation that A3's return is an array. A3 now uses the sync object. The original picker stub always returned 303; I separated that into a redirect-loop negative and supplied an actual 200 for the valid-page control. The **17 applicable historical checks pass** in `/tmp/reviewer-b-e706r4-probes.cjs` and `.log`; the unchanged replay is retained as `/tmp/reviewer-b-e706r4-historical-probes.cjs` and `.log`.
 - Additional pinned-source checks, including the actual L4 and L10 callbacks with external clients stubbed: **8 corrective predicates fail, 6 controls pass**. Source and full output: `/tmp/reviewer-b-e706r4-focused-probes.cjs` and `.log`. No HTTP, child-process stack action or K1-SIM execution occurred.
 - QA fix `30b5eb24` stays within kit/QA-report ownership; product, frozen tests and simulator paths are unchanged. The K0 suite-neutrality check passes. Blind review maintained; only this review file was edited in the integration worktree, with no commit. This review follows the last allowed fix round; the two open BLOCKERs require the Lead's product-owner escalation under charter-LA §5.
+
+## Round 5
+
+Verdict: **APPROVE**. Reviewer-B: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed QA-K fixes `7859b25b` and `c07b575c` at integration `1698489bc44138aa3c35c2da33f8a270881f57f9`, using the scoped diff from `3a8b0e6f`. This is the extra round authorized by LA-H25 option (a). **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** No new findings.
+
+### Round 4 disposition
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E7-06-02 | **CLOSED.** Rebuilt and ran the L4, L7 and A3 counterexamples against the corrected helpers used by the suites. All positive controls pass; duplicate rows, duplicate placements, wrong score paths and pre-dispatch retry observations are rejected. Details below. |
+| B-LA-E7-06-07 | **CLOSED.** Rebuilt and ran the picker and L10 counterexamples. Redirect loops retain 303. Both storage-enabled channels complete against a contract-shaped fake that rejects `state`/`pendingId` fields and missing or foreign Origin. Replay and wrong-value acceptance mutants fail. |
+
+Previously closed -01, -03, -04, -05, -06 and -08 remain closed. This approves the source and host evidence; the live K1-SIM acceptance rows remain pending.
+
+### Closure evidence
+
+- **L4:** `lib/fixtures.ts:1685` selects foreign families from cited `expect.guardedFamilies` declarations. Blackboard gets a real Canvas launch-guard probe; Moodle remains unguarded; missing launch-guard input gives an explicit error. The actual case body at `lib/cases.ts:83` passes an independent check-14 fake for all five shipped targets. It reads the LTI service warning with the platform and family filters. `suites/k1-launch.k1sim.test.ts:185` calls this tested body.
+- **L7:** `lib/fixtures.ts:1807` collects the actual result, publication, id-token and simulator shapes. The verdict at `:1848` accepts one internal placement id shared by the two learners, rejects a second row for the same learner/id, requires `stats.activities === 1` (BD-A1-120), and compares each learner's score path and host with that learner's launch line item. My original wrong-line-item mutation now yields two target errors. The suite at `suites/k1-launch.k1sim.test.ts:341` uses this verdict and no longer compares an internal placement id with the external launch id.
+- **A3:** the suite at `suites/k1-ags.k1sim.test.ts:265` uses `waitForLearnerSync` (`lib/cases.ts:488`). My valid queued `pending/tries=0` row is skipped for three reads; the fourth read with `tries=1` is returned. A stream that never attempts a send times out. The 429 wait also requires a learner score call and a throttle event before accepting a zero-try row.
+- **Picker:** `followPickerHandoff` (`lib/cases.ts:144`), called by `openPickerOnChannel`, returns the observed final status. Independent 303 → 200, 303 → 303 loop, and refusal controls preserve 200, 303 and 403 respectively.
+- **L10:** the actual body at `lib/cases.ts:279` passes my separate storage fake for Canvas and LTI 1.3 and the non-storage controls for Moodle, Blackboard and Brightspace. All six check requests contain exactly `check` and `value`; after the deliberate foreign-Origin probe, each carries the LTI Origin. Valid completion, replay, fresh wrong value, empty value, unknown check and bad signature take their intended paths. The check token comes only from the ruled `lti-storage-data` JSON block (BD-A2-112); hidden-input and unnamed-block controls fail. The live suite at `suites/k1-launch.k1sim.test.ts:511` calls this body through the frozen-client adapter.
+
+The other changed paths were also reviewed: C1 compares the two API capability maps with the fixture rather than treating a fixture copy as a manifest; D3 uses repeated `publicationId` fields and the BD-A1-120 refusal plus a successful one-id POST on the same picker. The README describes the new fixture guard data, the case helpers and the correct K1 working directory. The changes stay within kit/QA-report ownership; no product, frozen-helper or simulator edit is included.
+
+### Verification and limits
+
+Private clone: `/tmp/reviewer-b-la-e706-r5-txabcpd_/clone` (`git clone --no-hardlinks`, detached at the reviewed pin). Dependencies, probe files, canary and temporary mutations were confined to this clone.
+
+| Check | Result |
+| --- | --- |
+| Shipped kit: `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` | **24/24 PASS**; **24/24 PASS** again after restoring mutations |
+| Independent reviewer probes: `LA_LEVEL=k0 npx --no-install vitest run --config reviewer-probes.config.mts --reporter=verbose` | **26/26 PASS**; rebuilt from the Round 4 findings because the old `/tmp` probes were lost at reboot |
+| Same shipped kit command with one added `channels/review-canary.json`, copied from the generic fixture with a new id/source | **24/24 PASS**; no shared list or suite edit; canary removed afterward |
+| Root `npm run test:k0` | **149/149 PASS**, three files |
+| `npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` | **PASS** |
+| Six targeted regressions: L4 reads the app log; L7 ignores duplicate rows; L7 ignores score paths; A3 accepts a pre-send row; picker fabricates 200; L10 sends `state` instead of `value` | **6/6 detected by both the shipped suite and the independent probes**, through assertion failures; all mutations restored |
+
+Logs and probe sources are under `/tmp/reviewer-b-la-e706-r5-txabcpd_/`: `kit-k0.log`, `kit-k0-restored.log`, `kit-canary.log`, `root-k0.log`, `kit-typecheck.log`, `reviewer-probes.log`, `mutations.py`, `mutations.json` and `mutant-*.log`; probe source/config are in the clone root. The clone's tracked kit files match the pin after verification. A direct ESLint call on the kit reports that all files are ignored, as documented by TEST-STRATEGY §2.7; it is not counted as a kit lint PASS.
+
+No Docker, stack runner, live HTTP or K1-SIM run was used. AC-LA-E7-06-01, -03, -04, -05, -06 and -08 still require the booked live run and its per-channel evidence. Blind review maintained; only this review file was edited in the integration worktree, with no commit.
