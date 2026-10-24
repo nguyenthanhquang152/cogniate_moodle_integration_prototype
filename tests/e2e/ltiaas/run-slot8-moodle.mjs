@@ -136,13 +136,30 @@ export function loadCapturedSecretsIntoRedactor(cloneDir, redact) {
 }
 
 export function redactSlot8Artifacts(artDir, redact) {
-  if (!fs.existsSync(artDir)) return;
+  if (!fs.existsSync(artDir)) {
+    return { redactedFileCount: 0, replacementCount: 0, redactedFiles: [] };
+  }
+  const redactedFiles = [];
+  let replacementCount = 0;
   for (const f of walkFiles(artDir).filter((n) => /\.(log|json|txt|jsonl|md|html)$/.test(n))) {
     if (/(captured-secrets|m1-secrets\.raw)\.(txt|jsonl)$/.test(f)) continue;
     const text = fs.readFileSync(f, 'utf8');
+    const beforeTags = (text.match(/<redacted:\d+>/g) ?? []).length;
     const clean = redact.apply(text);
-    if (clean !== text) fs.writeFileSync(f, clean);
+    if (clean !== text) {
+      const afterTags = (clean.match(/<redacted:\d+>/g) ?? []).length;
+      const fileReplacements = Math.max(1, afterTags - beforeTags);
+      replacementCount += fileReplacements;
+      const rel = path.relative(artDir, f);
+      redactedFiles.push({ file: rel, replacements: fileReplacements });
+      fs.writeFileSync(f, clean);
+    }
   }
+  return {
+    redactedFileCount: redactedFiles.length,
+    replacementCount,
+    redactedFiles,
+  };
 }
 
 /**
@@ -243,8 +260,13 @@ async function runSelfTest() {
     assert.equal(dirtyScan.hitCount, 2, 'Planted secret probe must count 2 hits');
     assert.equal(dirtyScan.hits.length, 2, 'Planted secret probe must report both files');
 
-    // Probe B: Redacting artifacts and cleaning the service log MUST pass the scan
-    redactSlot8Artifacts(tmpArt, redact);
+    // Probe B: Redacting artifacts and cleaning the service log MUST pass the scan and report redaction counts
+    const redactStats = redactSlot8Artifacts(tmpArt, redact);
+    assert.equal(redactStats.redactedFileCount, 1, 'redactSlot8Artifacts reports 1 redacted artifact file');
+    assert.equal(redactStats.replacementCount, 1, 'redactSlot8Artifacts reports 1 secret replacement');
+    assert.deepEqual(redactStats.redactedFiles, [
+      { file: path.join('docker-logs', 'moodle-probe.log'), replacements: 1 },
+    ]);
     const moodleLogAfterRedact = fs.readFileSync(path.join(tmpArt, 'docker-logs', 'moodle-probe.log'), 'utf8');
     assert.ok(!moodleLogAfterRedact.includes(plantedDynRegRef), 'Moodle registration ref redacted from docker log');
     assert.match(moodleLogAfterRedact, /<redacted:44>/);
@@ -263,6 +285,7 @@ async function runSelfTest() {
         selftest: 'PASS',
         defaults: resolvedDefaults,
         plantedProbe: dirtyScan,
+        redactProbe: redactStats,
         cleanProbe: cleanScan,
       }),
     );
@@ -622,15 +645,19 @@ if (isDirectEntry) {
     }
 
     // 4. Redact all runner artifacts with the complete secret set, then scan infra/.logs and r.ART
-    redactSlot8Artifacts(r.ART, r.redact);
+    const artifactRedaction = redactSlot8Artifacts(r.ART, r.redact);
     const scan = scanSlot8Files({ redact: r.redact, cloneDir: r.CLONE, artDir: r.ART });
-    r.saveText('slot8-secret-scan.json', JSON.stringify(scan, null, 2));
+    const scanReport = {
+      ...scan,
+      artifactRedaction,
+    };
+    r.saveText('slot8-secret-scan.json', JSON.stringify(scanReport, null, 2));
     r.record(
       'M3-07-S8',
       'Secret scan across all Slot 8 service logs (.jsonl), docker-logs, and evidence artifacts',
       r.pass(scan.ok),
       [
-        `scanned ${scan.secretCount} secrets across ${scan.scannedFileCount} files, hits: ${scan.hitCount}`,
+        `scanned ${scan.secretCount} secrets across ${scan.scannedFileCount} files, hits: ${scan.hitCount} (pre-redacted ${artifactRedaction.replacementCount} value(s) in ${artifactRedaction.redactedFileCount} artifact file(s))`,
         ...scan.hits,
       ],
     );
