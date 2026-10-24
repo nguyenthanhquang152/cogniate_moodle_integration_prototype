@@ -4,22 +4,67 @@
 # Host-side options of this wrapper:
 #   --ensure-key-file  make a new API key if infra/.secrets/lti-api-key.<account> is missing (seed uses it)
 #   --quiet            do not print the API key (it is only written to the key file)
-# The CLI runs inside the lti-service container (the database is there). A new or rotated API key is printed ONCE
+#   --replace-operator-key  last choice, only if no operator has a working key (else ask another operator to issue
+#                      you a new key): init --replace revokes EVERY operator key, also the keys of other operators
+#                      and scripts, and saves a replacement for OPERATOR_NAME
+# The CLI calls the operator listener inside the lti-service container. A new or rotated API key is printed ONCE
 # and written to infra/.secrets/lti-api-key.<account> (mode 600). Only its hash is stored in the database.
+# First (LA-ADR-06 D3) it runs `lti:operator init --if-none` for the host's operator (OPERATOR_NAME, else the host
+# user name): a new operator key is written once to infra/.secrets/lti-operator-key (mode 600); an existing key is kept.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_env
 require_running lti-service
-account=""; ensure=no; quiet=no; pass=()
+account=""; ensure=no; quiet=no; replace_operator=no; pass=()
 while (( $# )); do
   case "$1" in
     --account) account="${2:-}"; pass+=("$1" "${2:-}"); shift 2 ;;
     --ensure-key-file) ensure=yes; shift ;;
     --quiet) quiet=yes; shift ;;
+    --replace-operator-key) replace_operator=yes; shift ;;
     *) pass+=("$1"); shift ;;
   esac
 done
 [[ "$account" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]] || { echo "Usage: lti-bootstrap.sh --account <id> [--name <name>] [--rotate-api-key] [--rotate-signing-key]" >&2; exit 2; }
+# LA-ADR-06 D3: the first operator key, before the account. init --if-none changes nothing when an active key exists,
+# so the next run on the same volume works. A new key is the only stdout line; it stays in this shell (printf is a
+# builtin, so never on a command line). Mode 600, the same mode as seed.json, which the e2e container reads.
+op_file="$INFRA_DIR/.secrets/lti-operator-key"
+op_copy="$INFRA_DIR/.secrets/lti/lti-operator-key"
+[[ -s "$op_file" ]] || rm -f "$op_copy"
+op_name="${OPERATOR_NAME:-$(id -un)}"
+op_mode=--if-none
+[[ "$replace_operator" == no ]] || op_mode=--replace
+op_from="${OPERATOR_NAME:+OPERATOR_NAME}"; op_from="${op_from:-the host user name (id -un)}"
+# Exit 2 = the CLI refused the name (its rule: store/operator-keys.ts OPERATOR_NAME); its own line comes first.
+op_out="$(dc exec -T lti-service node src/cli/operator.ts init "$op_mode" --name "$op_name")" || {
+  rc=$?
+  if (( rc == 2 )); then
+    echo "The operator name '$op_name' comes from $op_from. Fix: set OPERATOR_NAME to a valid name, for example" >&2
+    echo "  OPERATOR_NAME=alice npm run seed" >&2
+  fi
+  exit "$rc"
+}
+if [[ "$op_out" =~ ^ltio_[A-Za-z0-9_-]{43}$ ]]; then
+  mkdir -p "$INFRA_DIR/.secrets"; chmod 700 "$INFRA_DIR/.secrets"
+  ( umask 077; printf '%s\n' "$op_out" > "$op_file.tmp"; chmod 600 "$op_file.tmp" ); mv "$op_file.tmp" "$op_file"
+  echo "   new operator key (operator $op_name) written to infra/.secrets/lti-operator-key"
+elif [[ "$op_out" == "operator key exists" ]]; then
+  if [[ ! -s "$op_file" ]]; then
+    rm -f "$op_copy"
+    echo "Operator key file infra/.secrets/lti-operator-key is missing. Put the current key there, or ask another operator to issue you a new key. Only if no operator has a working key, rerun this bootstrap command with --replace-operator-key (init --replace). This revokes every operator key, also the keys of other operators and scripts." >&2
+    exit 1
+  fi
+else
+  echo "lti:operator init gave no key and no 'operator key exists' line. Nothing was written." >&2
+  exit 1
+fi
+op_out=""
+# BD-A2-34: the existing read-only mount exposes only this copy to the LTI container.
+# The temporary file and rename are in one folder; neither argv nor env carries the credential.
+mkdir -p "$(dirname "$op_copy")"; chmod 700 "$(dirname "$op_copy")"
+( umask 077; cat "$op_file" > "$op_copy.tmp"; chmod 600 "$op_copy.tmp" ); mv "$op_copy.tmp" "$op_copy"
+
 key_file="$INFRA_DIR/.secrets/lti-api-key.$account"
 if [[ "$ensure" == yes && ! -s "$key_file" ]]; then pass+=(--rotate-api-key); fi
 out="$(dc exec -T lti-service node src/cli/bootstrap.ts "${pass[@]}")"

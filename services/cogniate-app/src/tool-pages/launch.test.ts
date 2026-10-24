@@ -1,6 +1,8 @@
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { sha256Hex } from '@cogniate/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { SERVICE_KEY_COLUMN, appAad, openText } from '../app/sealing.ts';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import { continuesNewest } from '../domain/attempts.ts';
 import type { TestApp } from '../testkit.ts';
 import { DL_RETURN, INSTRUCTOR, LEARNER, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
@@ -62,6 +64,26 @@ const pageCode = (body: string) => /data-error-code="([A-Z_]+)"/.exec(body)?.[1]
 const playIdOf = (location: unknown) => /\/play\/(ply_[A-Za-z0-9_-]+)/.exec(String(location))?.[1] ?? '';
 const events = (name: string, traceId?: string) => t.logs.filter((l) => l.event === name && (traceId === undefined || l.trace_id === traceId));
 const count = (table: string) => Number(t.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n);
+
+/** The claim state of a picker: used or not, and its pick rows (publication ids, sorted). */
+const claimState = (id: string) => ({
+  used: (t.db.prepare('SELECT used_at FROM picker_session WHERE id = ?').get(sha256Hex(id)) as { used_at: number | null }).used_at !== null,
+  picks: (t.db.prepare('SELECT publication_id FROM picker_pick WHERE picker_id_hash = ? ORDER BY publication_id').all(sha256Hex(id)) as Array<{ publication_id: string }>)
+    .map((r) => r.publication_id),
+});
+
+/**
+ * B-LA-E3-05-01: fail the Deep Linking call itself, not the token lookup before it. `seen` keeps the claim state at the
+ * moment of the call, so a test proves that the release after the error removes a real claim and its picks.
+ */
+function failDeepLinking(id: string) {
+  const seen: Array<ReturnType<typeof claimState>> = [];
+  const spy = vi.spyOn(t.lti.client, 'deepLinking').mockImplementationOnce(async () => {
+    seen.push(claimState(id));
+    throw new LtiServiceError(502, 'PLATFORM_ERROR', '');
+  });
+  return { spy, seen };
+}
 
 /** A learner (or teacher) resource launch: returns the 303 response. */
 async function launch(platformId: string, pub: string, over: Parameters<typeof launchToken>[0] extends infer O ? Partial<O> : never = {}) {
@@ -373,9 +395,12 @@ describe('/tool/deep-link and /tool/picker (app contract §6, flows §6b)', () =
   it('a failed Deep Linking call -> 502 page; the picker is released and a retry works', async () => {
     const w = await world();
     const id = await deepLink(w.a.platformId);
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(id);
     expect(pageCode((await picker(id, w.scorm)).body)).toBe('LTI_SERVICE_ERROR');
+    expect(fault.seen).toEqual([{ used: true, picks: [w.scorm] }]); // the call failed after the claim
+    expect(claimState(id)).toEqual({ used: false, picks: [] });
     expect((await picker(id, w.scorm)).statusCode).toBe(200);
+    expect(fault.spy).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -408,6 +433,13 @@ describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event 
       }, 'picker_rejected', { reason: 'return_url_mismatch' }],
       ['PUBLICATION_WITHDRAWN', async () => { await json('POST', `/app-api/publications/${w.scorm}/withdraw`, w.thanh); return (await launch(w.a.platformId, w.scorm)).res; }, 'launch_rejected', { reason: 'publication_withdrawn' }],
       ['PICKER_EXPIRED', async () => { const id = await deepLink(w.a.platformId); t.clock.now += 23_000; return picker(id, w.html); }, 'picker_rejected', { reason: 'expired' }],
+      ['PLACEMENT_NOT_GRADED', async () => {
+        // LA-E3-05 (LA-ADR-05 D3c): acceptLineItem false on a channel with content.ungraded false (Moodle).
+        const token = launchToken({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest', roles: [INSTRUCTOR] });
+        token.launch.deepLinkingSettings = { acceptLineItem: false };
+        const dl = await get(`/tool/deep-link?ltik=${t.lti.addLaunch(token)}`);
+        return get(new URL(String(dl.headers.location)).pathname);
+      }, 'picker_rejected', { reason: 'placement_not_graded' }],
     ];
     const seen = new Set<string>();
     for (const [code, run, event, fields] of cases) {
@@ -436,8 +468,9 @@ describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event 
   it('A-T4b2-04: a used picker keeps no encrypted ltik; a failed Deep Linking call keeps it for the retry', async () => {
     const w = await world();
     const failed = await deepLink(w.a.platformId);
-    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    const fault = failDeepLinking(failed);
     await picker(failed, w.scorm);
+    expect(fault.seen).toEqual([{ used: true, picks: [w.scorm] }]); // the call failed after the claim
     const len = (id: string) => Number(t.db.prepare('SELECT length(ltik_encrypted) AS n FROM picker_session WHERE id = ?').get(sha256Hex(id))!.n);
     expect(len(failed)).toBeGreaterThan(0);
     expect((await picker(failed, w.scorm)).statusCode).toBe(200);
@@ -507,5 +540,93 @@ describe('tool page security (AC-T4-21, AC-T4-28, AC-T4-32)', () => {
       expect(r.body).toMatch(/<p data-error-action>[^<]+<\/p>/);
       expect(events(event, traceId), event).toHaveLength(1);
     }
+  });
+});
+
+// LA-E3-03 (LA-ADR-05 D2, LA-IC-05): the context claim is optional (LTI Core §5.4.1). The placement key then uses
+// context id "", and a resource link id is unique in its deployment (LTI Core §5.3.5).
+describe('launch without context (LA-E3-03)', () => {
+  /** The launch token of the test kit without launch.context, as GET /api/idtoken gives it for such a launch. */
+  const noContext = (o: Parameters<typeof launchToken>[0]) => {
+    const token = launchToken(o);
+    delete token.launch.context;
+    return token;
+  };
+  const launchNoContext = async (platformId: string, pub: string, over: Partial<Parameters<typeof launchToken>[0]> = {}) => {
+    const ltik = t.lti.addLaunch(noContext({ platformId, target: target(pub), ...over }));
+    return get(`/tool/launch?ltik=${ltik}`);
+  };
+  const links = () => t.db.prepare('SELECT deployment_id, context_id, resource_link_id, context_title, line_item_id, service_key_encrypted FROM resource_link ORDER BY created_at, id').all() as
+    Array<{ deployment_id: string; context_id: string; resource_link_id: string; context_title: string; line_item_id: string | null; service_key_encrypted: Uint8Array | null }>;
+  const externalKeys = () => (t.db.prepare('SELECT external_key FROM placement ORDER BY external_key').all() as Array<{ external_key: string }>).map((r) => r.external_key);
+
+  it('a learner launch with AGS opens the player; the resource link and the placement use context id "" (AC-LA-E3-03-01 at unit level)', async () => {
+    const w = await world();
+    const res = await launchNoContext(w.a.platformId, w.scorm);
+    const traceId = String(res.headers['x-trace-id']);
+    expect(res.statusCode).toBe(303);
+    expect(String(res.headers.location)).toMatch(/\/play\/ply_[A-Za-z0-9_-]{22}$/);
+    expect((await get(`/play/${playIdOf(res.headers.location)}`)).statusCode).toBe(200);
+    expect(events('launch_rejected', traceId)).toEqual([]);
+    expect(events('launch_accepted', traceId)).toEqual([expect.objectContaining({ preview: false })]);
+    expect(links()).toEqual([{
+      deployment_id: '1', context_id: '', resource_link_id: '3', context_title: '',
+      line_item_id: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`, service_key_encrypted: expect.any(Uint8Array),
+    }]);
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '3'])]);
+    // LA-E5-22: the service key has the versioned header and opens only with the associated data of its own row.
+    const row = t.db.prepare('SELECT rl.id, c.library_id, rl.service_key_encrypted AS blob FROM resource_link rl JOIN connection c ON c.id = rl.connection_id').get()!;
+    const blob = row.blob as Uint8Array;
+    expect(Buffer.from(blob.subarray(0, 4)).toString('ascii')).toBe('cgk1');
+    expect(openText(TEST_MASTER_KEY, blob, appAad(SERVICE_KEY_COLUMN, String(row.library_id), String(row.id)))).toBe('s'.repeat(43));
+    expect(() => openText(TEST_MASTER_KEY, blob, appAad(SERVICE_KEY_COLUMN, String(row.library_id), 'rl_other'))).toThrow(/did not open/);
+  });
+
+  it('without AGS and NRPS it still opens the player; no line item and no service key are stored (AC-LA-E3-03-04 at unit level)', async () => {
+    const w = await world();
+    const ltik = t.lti.addLaunch({ ...noContext({ platformId: w.a.platformId, target: target(w.scorm) }), services: {} });
+    const res = await get(`/tool/launch?ltik=${ltik}`);
+    expect(res.statusCode).toBe(303);
+    expect(links()).toEqual([expect.objectContaining({ context_id: '', line_item_id: null, service_key_encrypted: null })]);
+  });
+
+  it('two launches of one activity use one placement; another deployment or a context gives another (AC-LA-E3-03-05 at unit level)', async () => {
+    const w = await world();
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9' })).statusCode).toBe(303);
+    const first = String(events('launch_accepted').at(-1)!.attempt_id);
+    t.db.prepare("UPDATE attempt SET outcome = 'in_progress' WHERE id = ?").run(first);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9' })).statusCode).toBe(303);
+    expect(events('launch_accepted').at(-1)!.attempt_id).toBe(first); // the same activity: the attempt continues
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '9'])]);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9', deploymentId: '2' })).statusCode).toBe(303);
+    expect((await launch(w.a.platformId, w.scorm, { resourceLinkId: '9', contextId: 'c1' })).res.statusCode).toBe(303);
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '9']), JSON.stringify(['1', 'c1', '9']), JSON.stringify(['2', '', '9'])].sort());
+    expect(count('resource_link')).toBe(3);
+  });
+
+  it('a Deep Linking pick without a context goes to the first launch without a context of that course', async () => {
+    const w = await world();
+    const dl = await get(`/tool/deep-link?ltik=${t.lti.addLaunch(noContext({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest', roles: [INSTRUCTOR] }))}`);
+    const pickerId = /\/tool\/picker\/(pck_[A-Za-z0-9_-]+)$/.exec(String(dl.headers.location))![1]!;
+    expect((await picker(pickerId, w.scorm)).statusCode).toBe(200);
+    expect((await json('GET', `/app-api/publications/${w.scorm}`, w.thanh)).json().stats.activities).toBe(1);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '41' })).statusCode).toBe(303);
+    // The launch takes over the pick: still one activity.
+    expect((await json('GET', `/app-api/publications/${w.scorm}`, w.thanh)).json().stats.activities).toBe(1);
+    expect(t.db.prepare('SELECT COUNT(*) AS n FROM picker_session WHERE context_id = ? AND resource_link_id IS NOT NULL').get('')?.n).toBe(1);
+  });
+
+  it.each([
+    ['a deep-linking ltik (AC-LA-E3-03-08)', { type: 'LtiDeepLinkingRequest' as const }],
+    ['a deep-linking ltik without a context', { type: 'LtiDeepLinkingRequest' as const, withoutContext: true }],
+    ['a resource launch without a resource link and without a context', { withoutResourceLink: true, withoutContext: true }],
+  ])('%s on /tool/launch still gives the INVALID_LTIK page with reason not_resource_link', async (_n, o: { type?: 'LtiDeepLinkingRequest'; withoutContext?: boolean; withoutResourceLink?: boolean }) => {
+    const w = await world();
+    const token = (o.withoutContext ? noContext : launchToken)({ platformId: w.a.platformId, target: target(w.scorm), ...(o.type ? { type: o.type } : {}) });
+    if (o.withoutResourceLink) delete token.launch.resourceLink;
+    const r = await get(`/tool/launch?ltik=${t.lti.addLaunch(token)}`);
+    expect([r.statusCode, pageCode(r.body)]).toEqual([401, 'INVALID_LTIK']);
+    expect(events('launch_rejected', String(r.headers['x-trace-id']))).toEqual([expect.objectContaining({ reason: 'not_resource_link' })]);
+    expect(count('resource_link')).toBe(0);
   });
 });

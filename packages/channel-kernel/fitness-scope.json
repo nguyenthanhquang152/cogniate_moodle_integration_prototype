@@ -1,0 +1,34 @@
+{
+  "source": "docs/architecture/ltiaas/README.md §4 Scope. That table is the authoritative list: if this file and the table differ, the table wins.",
+  "precedence": ["coreExceptions", "channel", "notCore", "sharedBuild", "core"],
+  "classes": {
+    "channel": {
+      "description": "Channel folders (not core)",
+      "globs": ["packages/channels/*/**"]
+    },
+    "core": {
+      "description": "All other product code (also packages/channel-kernel/src/**)",
+      "globs": ["services/*/src/**", "packages/*/src/**", "apps/*/src/**"]
+    },
+    "coreExceptions": {
+      "description": "Allowed exceptions inside core (closed list)",
+      "globs": [
+        "packages/channel-kernel/src/legacy-wire.ts",
+        "services/cogniate-app/src/domain/migrations/*.sql",
+        "services/lti-service/src/db/migrations/*.sql"
+      ],
+      "notes": {
+        "services/cogniate-app/src/domain/migrations/*.sql": "applied SQL migrations only (history, ADR-006)",
+        "services/lti-service/src/db/migrations/*.sql": "applied SQL migrations only (history, ADR-006)"
+      }
+    },
+    "sharedBuild": {
+      "description": "Shared build files (core for F2)",
+      "globs": ["package.json", "package-lock.json", "tsconfig*.json", "eslint.config.js", "vitest.config.ts", "infra/**"]
+    },
+    "notCore": {
+      "description": "Not core",
+      "globs": ["tests/**", "docs/**"]
+    }
+  }
+}

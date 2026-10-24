@@ -7,6 +7,7 @@ ENV_FILE="$REPO_ROOT/.env"
 CERTS_DIR="$INFRA_DIR/.certs"
 LOGS_DIR="$INFRA_DIR/.logs"
 KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"   # written by stack-restart.sh
+SIM_HOSTS_COMPOSE_FILE="$REPO_ROOT/.tmp/compose.sim-hosts.yaml"   # generated, acceptance only
 COURSE_FIXTURES_DIR="${COURSE_FIXTURES_DIR:-$REPO_ROOT/docs/raw/data/courses}"
 
 # Stack identity. On the first gen-env these come from the shell (or the defaults); gen-env then saves them
@@ -79,31 +80,133 @@ saved_profile() {
 # M1 (M3 §3.1, §3.3, LTI contract §9.13), acceptance only: the simulation profiles of the LTI service
 # (LTI_PROVIDER_SIMULATION=on), the simulator hosts that the LTI service calls, and the app's /api/* route through the
 # transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
-SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
-  school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
-SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
 GATE_HOST=lti-gate.test
+# LA-E7-03: QA owns the manifest. Read it once per source for aliases, SANs and the LTI allowlist.
+# LA-E7-02 supplies the manifest. A missing file follows the same rules as any other bad file.
+load_sim_hosts() {
+  local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
+  SIM_ALIASES=(lms-sim.test); SIM_LTI_HOSTS=(); SIM_HOSTS_ERROR=""
+  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" 2>&1 <<'NODE'
+const fs = require('node:fs');
+const [file, ...reserved] = process.argv.slice(2);
+const fail = (message) => { throw new Error(message); };
+const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const knownKeys = (value, keys, at) => {
+  const unknown = Object.keys(value).find((key) => !keys.includes(key));
+  if (unknown !== undefined) fail(`${at} has unknown key ${JSON.stringify(unknown)}`);
+};
+const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.sim.test') &&
+  host.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+try {
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch { fail('cannot read valid JSON'); }
+  if (!object(manifest) || manifest.version !== 1 || !Array.isArray(manifest.providers)) {
+    fail('expected version 1 and a providers array');
+  }
+  knownKeys(manifest, ['version', 'providers'], 'manifest');
+  const ids = new Set();
+  const aliases = new Set(['lms-sim.test']); // the simulator control alias stays
+  const allowlist = new Set();
+  for (const [index, provider] of manifest.providers.entries()) {
+    const at = `providers[${index}]${object(provider) ? ` (id ${JSON.stringify(provider.id)})` : ''}`;
+    if (!object(provider) || typeof provider.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(provider.id) || ids.has(provider.id)) {
+      fail(`${at} needs a unique id matching ^[a-z0-9][a-z0-9-]*$`);
+    }
+    ids.add(provider.id);
+    knownKeys(provider, ['id', 'aliases', 'allowlist'], at);
+    if (!Array.isArray(provider.aliases) || provider.aliases.length === 0 || !Array.isArray(provider.allowlist)) {
+      fail(`${at} needs a non-empty aliases array and an allowlist array`);
+    }
+    for (const host of [...provider.aliases, ...provider.allowlist]) {
+      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has invalid host ${JSON.stringify(host)}; expected a DNS name ending in .sim.test`);
+    }
+    for (const host of provider.aliases) {
+      if (aliases.has(host)) fail(`${at} repeats alias ${JSON.stringify(host)}; each alias must occur once in the file`);
+      aliases.add(host);
+    }
+    for (const host of provider.allowlist) {
+      if (!provider.aliases.includes(host)) fail(`${at} allowlist host ${JSON.stringify(host)} must be in its aliases`);
+      if (allowlist.has(host)) fail(`${at} repeats allowlist host ${JSON.stringify(host)}`);
+      allowlist.add(host);
+    }
+  }
+  for (const host of aliases) console.log(`alias ${host}`);
+  for (const host of allowlist) console.log(`allow ${host}`);
+} catch (error) {
+  console.error(`Invalid simulator host manifest tests/sim/hosts.json: ${error.message}.`);
+  process.exitCode = 1;
+}
+NODE
+)"; then
+    SIM_HOSTS_ERROR="$rows"
+    return 1
+  fi
+  SIM_ALIASES=(); SIM_LTI_HOSTS=()
+  while read -r kind host; do
+    case "$kind" in
+      alias) SIM_ALIASES+=("$host") ;;
+      allow) SIM_LTI_HOSTS+=("$host") ;;
+    esac
+  done <<< "$rows"
+}
+# BD-A1-08: loading a bad file gives no provider hosts and does not stop recovery commands.
+if load_sim_hosts; then
+  unset SIM_HOSTS_ERROR_WARNED
+elif [[ "${SIM_HOSTS_ERROR_WARNED:-}" != "$REPO_ROOT:$SIM_HOSTS_ERROR" ]]; then
+  printf '%s\n' "$SIM_HOSTS_ERROR" >&2
+  export SIM_HOSTS_ERROR_WARNED="$REPO_ROOT:$SIM_HOSTS_ERROR"   # one warning across child scripts
+fi
+
+# Only acceptance up/restart refuse a bad manifest. The error line was printed when the file was loaded.
+require_sim_hosts() {
+  [[ "${1:-$ACTIVE_STACK_PROFILE}" != acceptance || -z "$SIM_HOSTS_ERROR" ]]
+}
+
+# JSON is valid YAML. No tracked file changes when a provider adds or removes a host.
+write_sim_compose() {
+  node - "$SIM_HOSTS_COMPOSE_FILE" "${SIM_ALIASES[@]}" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const [file, ...aliases] = process.argv.slice(2);
+const config = { services: { 'lms-sim': { networks: { default: { aliases } } } } };
+fs.mkdirSync(path.dirname(file), { recursive: true });
+const temp = `${file}.${process.pid}.tmp`;
+fs.writeFileSync(temp, JSON.stringify(config, null, 2) + '\n');
+fs.renameSync(temp, file);
+NODE
+}
+
 apply_profile() {
   ACTIVE_STACK_PROFILE="$1"
   if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
-    ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA=""
+    if [[ -n "${SIM_LTI_HOSTS[*]:-}" ]]; then
+      ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    fi
     ACCEPTANCE_APP_ALLOWLIST_EXTRA=",$GATE_HOST"
     ACCEPTANCE_LTI_SIMULATION=on
     ACCEPTANCE_LTI_API_URL="https://$GATE_HOST"
+    ACCEPTANCE_OPERATOR_HOST=0.0.0.0   # LA-ADR-06 D3: the e2e container reaches http://lti-service:4110 (no proxy route)
   else
     COMPOSE_PROFILES=""; ACCEPTANCE_ALLOWLIST_EXTRA=""
     ACCEPTANCE_LTI_ALLOWLIST_EXTRA=""; ACCEPTANCE_APP_ALLOWLIST_EXTRA=""; ACCEPTANCE_LTI_SIMULATION=""; ACCEPTANCE_LTI_API_URL=""
+    ACCEPTANCE_OPERATOR_HOST=""
   fi
   export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA ACCEPTANCE_LTI_ALLOWLIST_EXTRA ACCEPTANCE_APP_ALLOWLIST_EXTRA \
-    ACCEPTANCE_LTI_SIMULATION ACCEPTANCE_LTI_API_URL
+    ACCEPTANCE_LTI_SIMULATION ACCEPTANCE_LTI_API_URL ACCEPTANCE_OPERATOR_HOST
 }
 apply_profile "$(saved_profile)"
 
 # docker compose for this stack: project $COMPOSE_PROJECT_NAME, env from the repo root .env,
-# plus the test-knob override file if stack:restart made one.
+# plus simulator aliases in acceptance and the test-knob override if stack:restart made one.
 dc() {
   local args=(--project-directory "$INFRA_DIR" -p "$COMPOSE_PROJECT_NAME" -f "$INFRA_DIR/compose.yaml")
+  if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
+    write_sim_compose || return 1
+    args+=(-f "$SIM_HOSTS_COMPOSE_FILE")
+  fi
   [[ -f "$KNOBS_FILE" ]] && args+=(-f "$KNOBS_FILE")
   [[ -f "$ENV_FILE" ]] && args+=(--env-file "$ENV_FILE")
   docker compose "${args[@]}" "$@"
@@ -222,6 +325,10 @@ prepare_e2e() {
   # T2b: QA's qa-platform.test files (writable in e2e, served read-only by qa-platform). Another folder: QA_PLATFORM_DIR.
   [[ -n "${QA_PLATFORM_DIR:-}" ]] || mkdir -p "$REPO_ROOT/tests/fixtures/qa-platform"
   write_public_env
+  # The mount points of the tmpfs mounts that hide the key rings in the e2e container (compose.yaml). They must exist on
+  # the host, because the read-only bind of infra/.secrets cannot make them.
+  mkdir -p "$INFRA_DIR/.secrets/lti"; chmod 700 "$INFRA_DIR/.secrets/lti"
+  mkdir -p "$INFRA_DIR/.secrets/app-keys"; chmod 700 "$INFRA_DIR/.secrets/app-keys"   # LA-E5-22 (BD-A2-91)
   # Public certificates only, for /repo/infra/.certs in the e2e container (read-only, no keys).
   mkdir -p "$REPO_ROOT/.tmp/public-certs"
   find "$REPO_ROOT/.tmp/public-certs" -mindepth 1 -delete
@@ -287,7 +394,9 @@ build_runner_running() {
 # B-T8-02: report "started" only when the runner really runs: the process is alive and its heartbeat
 # (infra/.data/build-queue/status/runner.json) appears. Its log is JSON lines: infra/.logs/build-runner.jsonl.
 start_build_runner() {
-  mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
+  mkdir -p -m 700 "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  chmod 700 "$BUILD_QUEUE_DIR" "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  mkdir -p "$LOGS_DIR" "$REPO_ROOT/.tmp"
   if build_runner_running; then return 0; fi
   rm -f "$BUILD_QUEUE_DIR/status/runner.json"
   # ADR-012 §7: the runner gets its OWN process group (set -m for this one job), so it never keeps a storage lock

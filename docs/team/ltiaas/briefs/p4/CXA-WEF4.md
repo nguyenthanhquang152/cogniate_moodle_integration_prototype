@@ -1,0 +1,16 @@
+# Review dispatch: Reviewer-A (Codex, same session), two small items (WE-F4 fix; lanes R and S1)
+
+Item 1: LA-E4-02 fix (lane R; la-r 549a21b4, integration merge 739c51ad): services/cogniate-app/src/main.ts close() now uses stopService() in services/cogniate-app/src/kernel/records/shutdown.ts (+ shutdown.test.ts). Diff: `git diff 739c51ad^1 739c51ad`.
+Item 2: LA-E5-19 fix (lane S1; la-s1 d219ce40, integration merge 93ab0c50): services/lti-service/src/main.ts close() and main.test.ts. Diff: `git diff 93ab0c50^1 93ab0c50`.
+Rule: A2 BD-A2-109 (build-decisions-A2.md; LA-ADR-06 D11; operability §3). Why: wave-end finding WE-F4: the frozen M1-37 dead-handler cases restart cogniate-app while a request is held; after BD-A2-31 the old handler lived until the 70 s fallback (77 s on wave-end vs 63 s and 10.5 s on baseline 1b17261). QA reruns the 7 M1-37 rows in the re-gate.
+Lens A: both close() paths follow the one stop order exactly (listeners stop at once and runner.stop() starts at the same time; in-flight HTTP cut after HTTP_DRAIN_MS 3,000; database closes only after the listeners closed and the runner returned; a failed step still exits 1; 70 s fallback, 60 s grace and 75 s compose grace unchanged); tests (a) and (b) would fail on the old order; no request can write after the database closes; a cut request leaves no partial state that the ADR-011 lease and compensation rules do not cover; ownership (matrix §5: is services/cogniate-app/src/kernel/records/shutdown.ts lane R's file?).
+Small diffs, short review. Write docs/reviews/LA-E4-02/reviewer-a.md and docs/reviews/LA-E5-19/reviewer-a.md: add "## Round <next>" (WE-F4 fix) to each; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===

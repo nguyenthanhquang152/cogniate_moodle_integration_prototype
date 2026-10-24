@@ -12,12 +12,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { CreateConnection } from "./connect/CreateConnection.tsx";
-import { ManualSetup } from "./connect/ManualSetup.tsx";
-import { MoodleSteps } from "./connect/MoodleSteps.tsx";
-import { ConnectionReady } from "./connect/ConnectionStatus.tsx";
 import { readFileSync } from "node:fs";
-import steps from "./connect/moodle-steps.json";
 import { ApiError } from "./api.ts";
 import {
   CopyButton,
@@ -30,8 +25,19 @@ import { Integrations } from "./Integrations.tsx";
 import { NewCourse } from "./courses/Courses.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { ResultTableRow, Results } from "./results/Results.tsx";
-import { validatePlatform } from "./connect/validation.ts";
-import type { Connection, Course, ResultRow, ToolRow } from "./types.ts";
+import type { Connection, Course, LmsProvider, ResultRow, ToolRow } from "./types.ts";
+import { channelRegistry, visibleChannels } from "./channels/registry.ts";
+
+import type { ComponentType } from "react";
+const moved = import.meta.glob<Record<string, unknown>>("../../../packages/channels/moodle/portal/*.{ts,tsx,json}", { eager: true });
+const entry = (file: string) => moved[`../../../packages/channels/moodle/portal/${file}`]!;
+const CreateConnection = entry("CreateConnection.tsx").CreateConnection as ComponentType<{ onCreated(connection: Connection): void; opener?: string }>;
+const ManualSetup = entry("ManualSetup.tsx").ManualSetup as ComponentType<{ connection: Connection; libraryName: string; onRegistered(connection: Connection): void }>;
+const MoodleSteps = entry("MoodleSteps.tsx").MoodleSteps as ComponentType<{ method: "dynamic" | "manual"; libraryName: string }>;
+const ConnectionReady = entry("index.tsx").MoodleReady as ComponentType<{ connection: Connection; libraryName: string }>;
+const validatePlatform = entry("validation.ts").validatePlatform as (siteUrl: string, values: Record<string, string>) => Record<string, string>;
+type Step = { id: string; text: string; optional: boolean };
+const steps = entry("MoodleSteps.tsx").moodleSteps as { format: string; dynamic: Step[]; manual: Step[] };
 
 const connection: Connection = {
   id: "con_test",
@@ -271,7 +277,7 @@ describe("Moodle connection wizard", () => {
       "https://moodle.test/",
     );
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await waitFor(() => expect(created).toHaveBeenCalledWith(connection.id));
+    await waitFor(() => expect(created).toHaveBeenCalledWith({ ...connection, method: "dynamic" }));
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
       name: "Example Moodle",
       siteUrl: connection.siteUrl,
@@ -361,9 +367,10 @@ describe("portal forms and contract states", () => {
       ),
     ).toBeTruthy();
   });
-  it("shows eleven cards, filters them, and shows the newest connection error", async () => {
+  it("shows the static and channel cards, filters them, and shows the newest connection error", async () => {
+    const providers = [{ lms: "moodle", profiles: [{ ready: true }] }] as unknown as LmsProvider[];
     fetchMock.mockImplementation(async (path: string) =>
-      path.endsWith("/lms-providers") ? json({ lms: [] }) : json({
+      path.endsWith("/lms-providers") ? json({ lms: providers }) : json({
         connections: [
           {
             ...connection,
@@ -382,7 +389,13 @@ describe("portal forms and contract states", () => {
     );
     inRouter(h(Integrations));
     await screen.findByRole("link", { name: /Manage/ });
-    expect(screen.getAllByRole("article")).toHaveLength(11);
+    // Open world (plan LD-1): the eight static cards and one card per visible registry channel. The baseline is
+    // eleven cards: the static cards and Moodle, Canvas and Blackboard. A new channel folder adds one card.
+    const staticCards = ["Kajabi", "Figma", "Collins", "Anthropic", "Open AI", "MIT", "Canva", "Loom"];
+    const channelCards = visibleChannels(channelRegistry, providers).map((manifest) => manifest.card.title);
+    expect(channelCards).toEqual(expect.arrayContaining(["Moodle", "Canvas", "Blackboard"]));
+    for (const name of [...staticCards, ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(staticCards.length + channelCards.length);
     expect(
       screen.getByText(
         "Go back in Moodle and choose Register as a new external tool.",
@@ -392,10 +405,42 @@ describe("portal forms and contract states", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("tab", { name: "LMS Publishing" }));
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    // Kajabi and every channel card (baseline: four).
+    for (const name of ["Kajabi", ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(1 + channelCards.length);
     expect(
       screen.getByRole("link", { name: /Connect another site/ }),
     ).toBeTruthy();
+  });
+  it("marks every channel card with data-channel-id in every state, and no static card (BD-A1-119)", async () => {
+    const staticCards = ["Kajabi", "Figma", "Collins", "Anthropic", "Open AI", "MIT", "Canva", "Loom"];
+    const marked = () => [...document.querySelectorAll("article[data-channel-id]")].map((card) => card.getAttribute("data-channel-id"));
+    const expectMarks = (providers: LmsProvider[]) => {
+      expect(marked()).toEqual(visibleChannels(channelRegistry, providers).map((manifest) => manifest.id));
+      for (const name of staticCards) expect(screen.getByRole("article", { name }).hasAttribute("data-channel-id")).toBe(false);
+      expect(screen.getAllByRole("article")).toHaveLength(staticCards.length + marked().length);
+    };
+    // Loading: the providers and connections do not answer yet.
+    fetchMock.mockImplementation(() => new Promise(() => {}));
+    let view = inRouter(h(Integrations));
+    expectMarks([]);
+    view.unmount();
+    const providers = (ready: boolean): LmsProvider[] => channelRegistry.channels().map((manifest) => ({
+      lms: manifest.id, channel: manifest.id, label: manifest.names.label, methods: manifest.registration.map((entry) => entry.method),
+      capabilities: channelRegistry.legacyCapabilities(manifest.id),
+      profiles: [{ id: manifest.registration[0]!.defaultProfile, label: "Profile", simulation: false, ready, clientId: null }],
+    }));
+    // Not ready (Connect disabled), ready, and ready with a connection (Manage).
+    for (const [ready, connections] of [[false, []], [true, []], [true, [connection]]] as const) {
+      const list = providers(ready);
+      fetchMock.mockImplementation(async (path: string) => path.endsWith("/lms-providers") ? json({ lms: list }) : json({ connections }));
+      view = inRouter(h(Integrations));
+      if (!ready) await screen.findAllByText(/is not set up for this Cogniate service yet/);
+      else if (connections.length) await screen.findByRole("link", { name: /Manage/ });
+      else await screen.findAllByRole("link", { name: "Connect" });
+      expectMarks(list);
+      view.unmount();
+    }
   });
   it("keeps course titles as literal text and sends a title without markup interpretation", async () => {
     fetchMock.mockResolvedValue(json({ id: "crs_test" }, 201));
@@ -558,7 +603,7 @@ describe("portal forms and contract states", () => {
         h(
           "tbody",
           null,
-          h(ResultTableRow, { row, busy: false, onResend: resend }),
+          h(ResultTableRow, { row, busy: false, onResend: resend, lms: "moodle" }),
         ),
       ),
     );
@@ -780,6 +825,7 @@ describe("T5 results integration", () => {
             row: { ...row, preview: true, scoreSyncs: [] },
             busy: false,
             onResend: vi.fn(),
+            lms: "moodle",
           }),
         ),
       ),
@@ -788,6 +834,40 @@ describe("T5 results integration", () => {
     expect(screen.getByText("Preview — no grade sent")).toBeTruthy();
     expect(screen.getByText("Not applicable")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
+  });
+  // BD-A1-65: no default LMS. The publication gives the channel; the rows wait for it.
+  const neutral: ResultRow = {
+    ...row,
+    learner: { sub: "7", label: "Learner 7" },
+    activity: { ...row.activity, contextTitle: "Course" },
+    gradebook: { resultScore: 40, resultMaximum: 100, readAt: "2026-10-18T00:00:00Z" },
+    gradebookDiffers: true,
+    scoreSyncs: [{ ...row.scoreSyncs[0]!, status: "conflict", lastError: null }],
+  };
+  it("renders no rows while the publication and so its channel are unknown", async () => {
+    fetchMock.mockImplementation(async (path: string) =>
+      path.endsWith("/results")
+        ? json({ rows: [neutral] })
+        : json({ details: { message: "NOT_FOUND", description: "Publication not found in this library." } }, 404),
+    );
+    inRouter(h(Results));
+    expect(await screen.findByText("Publication not found in this library.")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Passed 100")).toBeNull();
+    expect(screen.queryByText(/Moodle/)).toBeNull();
+  });
+  it("names the publication's channel in the rows", async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path.endsWith("/results")) return json({ rows: [neutral] });
+      if (path.includes("/versions/")) return json({ report: { scorm: null } });
+      return json({ courseId: "crs_live", versionId: "ver_live", lms: "canvas", connectionName: "Test Canvas" });
+    });
+    inRouter(h(Results));
+    expect(await screen.findByText("Canvas has a grade with a newer time")).toBeTruthy();
+    expect(screen.getByText("Canvas keeps another grade, for example a teacher override")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Canvas sync" })).toBeTruthy();
+    expect(screen.queryByText(/Moodle/)).toBeNull();
   });
 });
 

@@ -9,14 +9,16 @@
 # then the release (EXIT trap).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+profile="${REQUESTED_PROFILE:-default}"
+case "$profile" in default|acceptance) ;; *) echo "STACK_PROFILE must be default or acceptance, got '$profile'" >&2; exit 2 ;; esac
+require_sim_hosts "$profile"   # before any Docker call, including compose version and config
 storage_compat_guard
 storage_lock_acquire "stack:up"
 require_docker
 "$INFRA_DIR/scripts/gen-env.sh"
 source "$(dirname "$0")/lib.sh"   # load the new .env
 require_env
-profile="${REQUESTED_PROFILE:-default}"
-case "$profile" in default|acceptance) ;; *) echo "STACK_PROFILE must be default or acceptance, got '$profile'" >&2; exit 2 ;; esac
+require_sim_hosts "$profile"   # gen-env reloads the manifest too
 apply_profile "$profile"
 mkdir -p "$(dirname "$PROFILE_FILE")"; echo "$profile" > "$PROFILE_FILE"
 if [[ "$profile" == acceptance ]]; then
@@ -30,6 +32,10 @@ warn_knobs
 check_public_port
 mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$LOGS_DIR"
 chmod 700 "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$LOGS_DIR"   # the Node services run as the host user (HOST_UID)
+# Make infra/.secrets/lti and infra/.secrets/app-keys before compose up. The e2e tmpfs mounts need these folders under the
+# read-only secrets bind.
+mkdir -p "$INFRA_DIR/.secrets/lti"; chmod 700 "$INFRA_DIR/.secrets/lti"   # LA-ADR-06 D6: key ring mount source (else Docker makes it as root)
+mkdir -p "$INFRA_DIR/.secrets/app-keys"; chmod 700 "$INFRA_DIR/.secrets/app-keys"   # LA-E5-22 (BD-A2-91): the app key ring mount source
 # ADR-012 §4: the content folders (nested-bind sources) before any compose command that can start a service.
 prepare_content_folders
 # T8: the Build Runner queue folders exist before compose mounts them (else Docker makes them as root).

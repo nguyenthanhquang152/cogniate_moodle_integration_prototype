@@ -7,7 +7,7 @@ import { toIdToken } from './idtoken.ts';
 
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: 'https://moodle.test', clientId: 'c', name: 'Moodle seed', authEndpoint: '', tokenEndpoint: '',
-  jwksUrl: '', productFamilyCode: null, active: true, deploymentIds: ['1'],
+  jwksUrl: '', productFamilyCode: null, active: true, deploymentIds: ['1'], trustedAudiences: [], clientAssertionAud: null, grantedScopes: null,
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
 const launch = (claims: Record<string, unknown>, messageType = 'LtiResourceLinkRequest'): LaunchRecord =>
@@ -27,7 +27,16 @@ describe('toIdToken', () => {
     const l = t.launch as Record<string, unknown>;
     expect(l.resourceLink).toBeUndefined();
     expect(l.deepLinkingSettings).toEqual({ acceptTypes: ['ltiResourceLink'], acceptMultiple: false });
+    expect(l.deepLinkingSettings).not.toHaveProperty('acceptLineItem');
+    expect(l.deepLinkingSettings).not.toHaveProperty('acceptMediaTypes');
     expect(t.services).toMatchObject({ deepLinking: { available: true } });
+  });
+
+  it.each([true, false])('keeps accept_lineitem %s and accept_media_types exactly in the shaped settings', (accept_lineitem) => {
+    const token = toIdToken(launch({ [CLAIM.deepLinkingSettings]: {
+      accept_lineitem, accept_media_types: 'text/html,image/png',
+    } }, 'LtiDeepLinkingRequest'), platform);
+    expect((token.launch as Record<string, unknown>).deepLinkingSettings).toEqual({ acceptLineItem: accept_lineitem, acceptMediaTypes: 'text/html,image/png' });
   });
 
   it('services.serviceKey only when the caller gives one (T3a, contract §3.3)', () => {

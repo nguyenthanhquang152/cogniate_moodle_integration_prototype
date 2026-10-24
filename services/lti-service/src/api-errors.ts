@@ -2,12 +2,14 @@
 // (B-T2a-02, B-T2b-02). The mechanism is generic in @cogniate/shared; the table is the service's own.
 import type { ApiErrorOptions } from '@cogniate/shared';
 import { ApiErrorBase, defineErrorTable } from '@cogniate/shared';
+import { KEY_ERRORS } from './http/key-errors.ts';
 
 export { apiErrorBody } from '@cogniate/shared';
 export type { ApiErrorBody } from '@cogniate/shared';
 
-/** Contract §1.3, in table order. */
+/** Contract §1.3, in table order, then the LA codes (contract delta §1.3). */
 export const API_ERRORS = defineErrorTable({
+  ...KEY_ERRORS,
   INVALID_REQUEST: { status: 400, description: 'The request is not valid.' },
   INVALID_LINE_ITEM_ID: { status: 400, description: 'The line item id does not match the line items URL of the launch.' },
   INVALID_URL_PARAMETER: { status: 400, description: 'The url parameter does not match the service URL of the launch.' },
@@ -44,6 +46,17 @@ export const API_ERRORS = defineErrorTable({
   PLATFORM_ERROR: { status: 502, description: 'The platform answered with an error.' },
   PLATFORM_TIMEOUT: { status: 504, description: 'The platform did not answer in time.' },
   INTERNAL_ERROR: { status: 500, description: 'Internal error.' },
+  // LA (contract delta §1.3)
+  INVALID_OPERATOR_AUTHORIZATION_HEADER: { status: 401, description: 'Missing or invalid operator key.' },
+  OPERATOR_KEY_IN_USE: { status: 409, description: 'An operator cannot revoke the key of its own request.' },
+  TOOL_ACCOUNT_SUSPENDED: { status: 403, description: 'This tool account is suspended.' },
+  ACCOUNT_ALREADY_EXISTS: { status: 409, description: 'This tool account already exists.' },
+  ACCOUNT_CLOSED: { status: 409, description: 'This tool account is closed and cannot change.' },
+  PLATFORM_RATE_LIMITED: { status: 429, description: 'The platform asked us to wait before another request.' },
+  RATE_LIMITED: { status: 429, description: 'Too many requests.' },
+  IDEMPOTENCY_KEY_REUSED: { status: 422, description: 'This Idempotency-Key was used in the last 24 hours for a request with another route, path id, target (platform, deployment or course) or body. Use a new key for a new request.' },
+  // BD-A2-58: details.retryAfter = seconds until the 60 s claim of the running request ends.
+  IDEMPOTENCY_IN_PROGRESS: { status: 409, description: 'A request with this Idempotency-Key is still running. Retry after the time in Retry-After.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;

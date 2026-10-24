@@ -2,7 +2,7 @@
 // The service defaults absent/null resource URLs and maps null custom data to an empty object.
 import type { JWTPayload } from 'jose';
 import { escapeHtml, randomToken } from '@cogniate/shared';
-import type { PublicUrls } from '@cogniate/shared';
+import type { ProtocolUrls } from './target.ts';
 import { ApiError } from '../api-errors.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { profileDefinition } from '../profiles/index.ts';
@@ -10,7 +10,7 @@ import type { Platform } from '../store/platforms.ts';
 import { findDeployment, siteOriginOf } from '../store/platforms.ts';
 import { CLAIM } from './checks.ts';
 import { isHttpsUrl } from './platform-rules.ts';
-import { isOwnLaunchTarget, launchUri } from './target.ts';
+import { isOwnLaunchTarget } from './target.ts';
 
 export const DL_CLAIM = {
   contentItems: 'https://purl.imsglobal.org/spec/lti-dl/claim/content_items',
@@ -28,6 +28,28 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
 const bad = (index: number | null, why: string) => new ApiError('INVALID_CONTENT_ITEM', index === null ? why : `contentItems[${index}]: ${why}`);
 
+/** An https URL (WHATWG parse). The platform opens it as given, so a fragment is valid here. */
+const isHttpsItemUrl = (v: unknown): boolean => {
+  if (typeof v !== 'string') return false;
+  try {
+    return new URL(v).protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Required fields per item type (Deep Linking 2.0 content item types, LA-ADR-05 D3e): link, file and image need an
+ * https url; html needs a string html. The service adds no value to these types.
+ */
+function checkTypeFields(item: Obj, type: string, i: number): void {
+  if (type === 'html') {
+    if (typeof item.html !== 'string') throw bad(i, 'type html needs a string html');
+    return;
+  }
+  if (!isHttpsItemUrl(item.url)) throw bad(i, `type ${type} needs an https url`);
+}
+
 export interface DeepLinkingOptions {
   message?: string;
   log?: string;
@@ -37,12 +59,13 @@ export interface DeepLinkingOptions {
 
 /**
  * The checked content items (contract §3.2 rules). `settings` = the deep_linking_settings claim of the launch.
- * Rules: 1 to 20 items, exactly 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
- * URL (set when missing or null); lineItem.scoreMaximum > 0; custom values are strings.
+ * Rules: 0 to 20 items, at most 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
+ * URL (set when missing or null); link, file and image url = https; html item html = string; lineItem.scoreMaximum > 0;
+ * custom values are strings.
  */
-export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrls, accountId: string): Obj[] {
-  if (!Array.isArray(items) || items.length < 1 || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 1 to ${MAX_CONTENT_ITEMS} content items`);
-  if (settings.accept_multiple === false && items.length !== 1) throw bad(null, 'the platform accepts exactly one content item (accept_multiple is false)');
+export function checkContentItems(items: unknown, settings: Obj, urls: Pick<ProtocolUrls, 'launch'>): Obj[] {
+  if (!Array.isArray(items) || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 0 to ${MAX_CONTENT_ITEMS} content items`);
+  if (settings.accept_multiple === false && items.length > 1) throw bad(null, 'the platform accepts at most one content item (accept_multiple is false)');
   const accepted = Array.isArray(settings.accept_types) ? settings.accept_types.filter((t): t is string => typeof t === 'string') : [...CONTENT_ITEM_TYPES];
   return items.map((input, i) => {
     if (!isObj(input)) throw bad(i, 'must be an object');
@@ -55,15 +78,19 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
       throw bad(i, 'custom values must be strings');
     }
     if (item.lineItem !== undefined) {
+      if (settings.accept_lineitem === false) throw bad(i, 'the platform does not accept line items');
       const li = item.lineItem;
       if (!isObj(li) || typeof li.scoreMaximum !== 'number' || !Number.isFinite(li.scoreMaximum) || li.scoreMaximum <= 0) {
         throw bad(i, 'lineItem.scoreMaximum must be a number > 0');
       }
     }
-    if (type !== 'ltiResourceLink') return { ...item };
+    if (type !== 'ltiResourceLink') {
+      checkTypeFields(item, type, i);
+      return { ...item };
+    }
     // ltiaas-0.0.4 tolerance (contract §8 D14): a null resource URL uses the default launch URL.
-    if (item.url === undefined || item.url === null) return { ...item, url: launchUri(urls, accountId) };
-    if (!isOwnLaunchTarget(item.url, urls, accountId)) throw bad(i, `url must start with ${launchUri(urls, accountId)}`);
+    if (item.url === undefined || item.url === null) return { ...item, url: urls.launch };
+    if (!isOwnLaunchTarget(item.url, urls)) throw bad(i, `url must start with ${urls.launch}`);
     return { ...item };
   });
 }
@@ -76,7 +103,7 @@ export function deepLinkingResponse(
   launch: LaunchRecord,
   platform: Platform,
   body: { contentItems?: unknown; options?: unknown },
-  urls: PublicUrls,
+  urls: Pick<ProtocolUrls, 'launch'>,
 ): { claims: JWTPayload; target: string } {
   const settings = launch.claims[CLAIM.deepLinkingSettings];
   if (launch.messageType !== 'LtiDeepLinkingRequest' || !isObj(settings) || typeof settings.deep_link_return_url !== 'string') {
@@ -89,7 +116,7 @@ export function deepLinkingResponse(
   if (!isHttpsUrl(target) || new URL(target).origin !== siteOrigin) {
     throw new ApiError('INVALID_DEEP_LINK_RETURN_URL');
   }
-  const items = checkContentItems(body.contentItems, settings, urls, launch.toolAccountId);
+  const items = checkContentItems(body.contentItems, settings, urls);
   const options: DeepLinkingOptions = isObj(body.options) ? (body.options as DeepLinkingOptions) : {};
   const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v.slice(0, 2000) : undefined);
   const claims: JWTPayload = {

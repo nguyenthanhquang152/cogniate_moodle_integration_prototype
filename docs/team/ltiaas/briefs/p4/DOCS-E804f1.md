@@ -1,0 +1,7 @@
+Docs lane (same Claude session; new dispatch): LA-E8-04 fix round 1. Your runbook (c4efc406) and admin guides (167851d3) are merged (b207706d, 985f8f6f). LA-E8-04 r1 (docs/reviews/LA-E8-04/reviewer-a.md and reviewer-b.md):
+- Reviewer-A BLOCKER: the three shell helpers (op, probe, tenant) print complete credentials in their error output when a key is malformed (the reviewer reproduced 4 malformed-key cases with a loopback fake server). Fix: never echo a key, token or header value; on failure print only the step, the HTTP status and a fixed reason; add a short note on the rule. Re-test with the reviewer's malformed cases against a local fake server (never a stack).
+- Reviewer-A MINOR: incorrect evidence labels (fix each to the real QA row, or 'pending').
+- Reviewer-B MAJOR: busy or skipped jobs lack a usable completion path: give the operator the exact recovery steps (how to see that a job is busy or skipped, when to wait, how to re-run it, what proves it finished), from operability and the job contract.
+- Reviewer-B MINOR x2: the operator-key branching and the expiry evidence labels (fix or name them as pending).
+Also, A2 BD-A2-105 aligned operability §6.2 (the app key copy) and added a compose stack note to operability §2: keep the runbook consistent. Merge quang/ltiaas-milestone into your branch first.
+Commit "LA-E8-04 fix round 1: helper errors print no secrets; job recovery path; labels (A/B findings)". Status + worker_done with the SHA.

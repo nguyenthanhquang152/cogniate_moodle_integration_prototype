@@ -1,7 +1,8 @@
 // M1 LTI service behaviour (contract §9, ADR-011): profiles, platforms, deployments, binding refs, login and launch
 // changes, claim allowlist, generations and the providers API. Canvas profile DATA is owned by the Canvas
-// implementer; these engine tests use a test copy of the two Canvas rows they need (vi.mock below).
-import { createLogger } from '@cogniate/shared';
+// implementer; these engine tests select only the two Canvas rows they need (vi.mock below).
+import { createLocalKeyProvider, createLogger, legacyKeyRing } from '@cogniate/shared';
+import type * as Kernel from '@cogniate/channel-kernel';
 import { decodeJwt } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 import type { Harness } from '../../testkit.ts';
@@ -9,22 +10,31 @@ import { CLIENT_ID, ISSUER, LAUNCH, MASTER_KEY, URLS, harness, postLaunch, sign 
 import { CLAIM } from '../../lti/checks.ts';
 import { deriveServiceKey } from '../../store/service-keys.ts';
 import { createPlatform } from '../../store/platforms.ts';
-import { ensureSharedPlatform } from '../../cli/shared-platform.ts';
+import { buildOperatorApp } from '../operator/index.ts';
+import { issueOperatorKey } from '../../store/operator-keys.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { COOKIE_HELP, protocolAction } from '../../lti/codes.ts';
 
-vi.mock('../../profiles/canvas.ts', () => {
-  const flags = { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true };
-  const base = { lms: 'canvas', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas', flags, sources: ['test'] };
+vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
+  const kernel = await importOriginal<typeof Kernel>();
   return {
-    CANVAS_PROFILES: [
-      { ...base, id: 'canvas-self-hosted', label: 'Canvas, self-hosted (test copy)', simulation: false, issuer: '{siteUrl}',
-        authenticationEndpoint: '{siteUrl}/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
-        jwksUrl: '{siteUrl}/api/lti/security/jwks', refusedHostSuffixes: ['instructure.com', 'canvaslms.com'] },
-      { ...base, id: 'canvas-sim-cloud', label: 'Canvas cloud (test copy)', simulation: true, issuer: 'https://canvas.sim.test',
-        authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
-        jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks' },
-    ],
+    ...kernel,
+    // Keep the original two-profile engine fixture while the loader also checks manifest references.
+    loadChannelFolders: async (...args: Parameters<typeof kernel.loadChannelFolders>) => {
+      const entries = await kernel.loadChannelFolders(...args);
+      return entries.map((entry) => {
+        const manifest = entry.manifest as Kernel.ChannelManifest;
+        if (manifest.id !== 'canvas') return entry;
+        const ids = ['canvas-self-hosted', 'canvas-sim-cloud'];
+        return {
+          ...entry,
+          manifest: { ...manifest, registration: manifest.registration.map((method) => ({
+            ...method, profiles: ids, defaultProfile: ids[0],
+          })) },
+          ltiProfiles: entry.ltiProfiles?.filter((value) => ids.includes((value as { id: string }).id)),
+        };
+      });
+    },
   };
 });
 
@@ -80,15 +90,20 @@ describe('GET /api/providers and the simulation gates (§9.3, §9.13)', () => {
   it('lists profiles in order; simulation profiles only when on; sharedPlatform follows the platform', async () => {
     const off = await harness();
     const ids = (await api(off, 'GET', '/api/providers')).json.profiles.map((p: Json) => p.id);
-    expect(ids).toEqual(['standard', 'canvas-self-hosted', 'blackboard']);
+    // Open world: the baseline entries first; every new real profile follows.
+    expect(ids.slice(0, 3)).toEqual(['standard', 'canvas-self-hosted', 'blackboard']);
+    expect(ids).toContain('lti-generic');
     expect((await off.app.inject('/healthz')).json().simulation_profiles).toEqual([]);
     for (const profile of ['blackboard-sim', 'canvas-sim-cloud', 'nope']) {
       expect(code(await api(off, 'POST', '/api/platforms', { profile, clientId: 'x', name: 'x', siteUrl: SCHOOL_A, deploymentIds: ['d'] }))).toBe('UNKNOWN_PROFILE');
     }
     const on = await harness({ simulationProfiles: true });
     const list = (await api(on, 'GET', '/api/providers')).json.profiles;
-    expect(list.map((p: Json) => p.id)).toEqual(['standard', 'canvas-self-hosted', 'blackboard', 'blackboard-sim', 'canvas-sim-cloud']);
-    expect((await on.app.inject('/healthz')).json().simulation_profiles).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+    const onIds = list.map((p: Json) => p.id);
+    expect(onIds.slice(0, ids.length)).toEqual(ids);
+    const simulations = onIds.slice(ids.length);
+    expect(simulations).toEqual(expect.arrayContaining(['blackboard-sim', 'canvas-sim-cloud']));
+    expect((await on.app.inject('/healthz')).json().simulation_profiles).toEqual(simulations);
     const bbSim = () => api(on, 'GET', '/api/providers').then((r) => r.json.profiles.find((p: Json) => p.id === 'blackboard-sim'));
     expect((await bbSim()).sharedPlatform).toBeNull();
     const created = await api(on, 'POST', '/api/platforms', { profile: 'blackboard-sim', clientId: BB_CLIENT, name: 'Cogniate' });
@@ -474,24 +489,35 @@ describe('Deep Linking and the token client per profile (§9.10)', () => {
   });
 });
 
-describe('lti:shared-platform CLI rules (§9.12)', () => {
-  it('creates once; the same client id prints the same id; another client id fails and changes nothing', async () => {
+describe('shared-platform operator rules (§9.12)', () => {
+  it('creates once; the same client id returns the same id; another client id fails and changes nothing', async () => {
     const h = await harness({ simulationProfiles: true });
-    const opts = { simulation: true };
     const lines: Array<Record<string, unknown>> = [];
     const logger = createLogger({ service: 'lti-service', dir: '', write: (l) => lines.push(JSON.parse(l) as Record<string, unknown>) });
-    const first = ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger);
-    expect(first).toMatchObject({ ok: true, created: true });
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger)).toEqual({ ok: true, platformId: (first as { platformId: string }).platformId, created: false });
-    // One platform_created line (§9.4 fields), only for the create.
-    expect(lines.map(({ ts: _ts, trace_id: _t, ...rest }) => rest)).toEqual([
-      { level: 'info', service: 'lti-service', event: 'platform_created', platform_id: (first as { platformId: string }).platformId, profile: 'blackboard-sim' },
-    ]);
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: 'other' }).ok).toBe(false);
-    expect(ensureSharedPlatform(h.db, { simulation: false }, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }).ok).toBe(false);
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'standard', clientId: BB_CLIENT }).ok).toBe(false);
-    const view = (await api(h, 'GET', '/api/platforms?profile=blackboard-sim')).json.platforms;
-    expect(view.map((p: Json) => p.clientId)).toEqual([BB_CLIENT]);
+    const deps = { db: h.db, keys: createLocalKeyProvider(legacyKeyRing(MASTER_KEY)), urls: URLS, logger };
+    const app = await buildOperatorApp({ ...deps, simulationProfiles: true });
+    const normal = await buildOperatorApp({ ...deps, simulationProfiles: false });
+    const { operatorKey } = issueOperatorKey(h.db, { operator: 'unit', expiresAt: Date.now() + 3600_000 }, Date.now());
+    const request = (clientId = BB_CLIENT, profile = 'blackboard-sim', server = app) => server.inject({
+      method: 'POST', url: '/operator/v1/accounts/cogniate/shared-platforms',
+      headers: { authorization: `OPERATOR-AUTH-V1 ${operatorKey}` }, payload: { profile, clientId },
+    });
+    try {
+      const first = await request();
+      expect(first.statusCode).toBe(201);
+      const again = await request();
+      expect(again.statusCode).toBe(200);
+      expect(again.json().id).toBe(first.json().id);
+      // One platform_created line (§9.4 fields), only for the create.
+      expect(lines.filter((line) => line.event === 'platform_created').map(({ ts: _ts, trace_id: _t, ...rest }) => rest)).toEqual([
+        { level: 'info', service: 'lti-service', event: 'platform_created', platform_id: first.json().id, profile: 'blackboard-sim' },
+      ]);
+      expect((await request('other')).statusCode).toBe(409);
+      expect((await request(BB_CLIENT, 'blackboard-sim', normal)).statusCode).toBe(400);
+      expect((await request(BB_CLIENT, 'standard')).statusCode).toBe(400);
+      const view = (await api(h, 'GET', '/api/platforms?profile=blackboard-sim')).json.platforms;
+      expect(view.map((p: Json) => p.clientId)).toEqual([BB_CLIENT]);
+    } finally { await app.close(); await normal.close(); }
   });
 });
 

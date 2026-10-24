@@ -1,0 +1,13 @@
+# Review dispatch: Reviewer-A (Codex, same session), one item (gate test overlay, round 3)
+
+Item 1: the gate overlay round 3 (lead QA LD-1 fix round 2; la-qa ea203472, integration 3f2d8a63): docs/reviews/LA-E7-08/ld9-addendum-r5.md "## Round 2" (the regenerated diff on la-gate-test-6, 9de01429). The lead QA reports: lmsCardTexts polls until card loading settles and checkCards rejects unsettled loading cards (A-LA-E0-04-03); channel identity kept for disabled ready:false cards with a distinct title, while unregistered cards in the same state are still rejected (B-LA-E0-04-02); LD-24 named and the cogniate.db migration count corrected (A-LA-E0-04-04). K0 ld1 44/44; the Lead re-ran K0 149/149 and the ld1 node tests 44/44 at 3f2d8a63.
+Check that your round 2 findings are closed (rerun your browser DOM probe and the not-ready probe), apply the patch with `git apply --check` on a private clone at la-gate-test-6, and look for new defects. Read only; no Docker. This is the review after fix round 2 of 3 (charter-LA §5). Add "## Round 3" to docs/reviews/LA-E0-04/reviewer-a.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===

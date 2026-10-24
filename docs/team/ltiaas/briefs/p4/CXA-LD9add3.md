@@ -1,0 +1,13 @@
+# Review dispatch: Reviewer-A (Codex, same session), one item (LD-9 addendum round 3: source procedure only)
+
+Item 1: your round 2 MAJOR on the src-wave-end-2 procedure. The lead QA rebuilt the source (integration 1b5469f7; tests/ltiaas/GATE-RUN-PLAN.md §3C): a fresh clone at 93ab0c50 (the new WAVE-END SHA: WE-F4 fixes merged, Lead check green), commit 1 bf815340 by `git restore --source=8ad12926... --staged --worktree -- tests` under `set -euo pipefail`. The Lead checked read-only in /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-2: `git rev-parse bf815340:tests` = `git rev-parse 8ad12926:tests` = f42d4150b7b11ba2b2e63898ee317e6dea3f9430, and `git diff --name-only 93ab0c50 bf815340 -- . ':!tests'` is empty. Commit 2 (the approved addendum) is not made yet.
+Confirm or refute with your own read-only checks (GIT_OPTIONAL_LOCKS=0; never write in that folder), and check that §3C now stops on each failure and keeps two separate commits. Read only; no Docker. Add "## Round 3" to docs/reviews/LA-E7-08/ld9-addendum-r1-reviewer-a.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===

@@ -4,11 +4,14 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import { CLAIM } from '../../lti/checks.ts';
 import { deepLinkingForm } from '../../lti/deep-linking.ts';
 import type { LineItemInput } from '../../platform/ags.ts';
+import { urlKeyedMembers } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
-import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
+import { checkServiceKeyWriteScope } from '../auth.ts';
+import { agsContext, claimObject, deploymentIdOf, platformOf, signedDeepLink } from '../service-context.ts';
 import { decodeLineItemId, invalid } from '../validation.ts';
 
 const text = z.string().min(1).max(2048);
@@ -25,45 +28,53 @@ const MembershipsQuerySchema = z.object({
 const parseItem = (body: unknown): LineItemInput => {
   const parsed = LineItemBody.safeParse(body);
   if (!parsed.success) throw invalid(parsed.error);
-  return parsed.data;
+  return { ...parsed.data, ...urlKeyedMembers(body as Record<string, unknown>) };
 };
 type ItemParams = { Params: { lineItemId: string } };
 
 export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): void {
-  app.post('/api/deeplinking/message', async (req) => signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body));
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
+  app.post('/api/deeplinking/message', async (req) => signedDeepLink(ctx, resolver, (await ctx.auth(req, ['ltik'])), req.body));
   app.post('/api/deeplinking/form', async (req) => {
-    const response = await signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body);
+    const response = await signedDeepLink(ctx, resolver, (await ctx.auth(req, ['ltik'])), req.body);
     return { form: deepLinkingForm(response) };
   });
   app.post('/api/lineitems', async (req, reply) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    return reply.code(201).send(await ctx.ags.createLineItem(agsContext(ctx, caller, req.traceId), parseItem(req.body)));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    return reply.code(201).send(await ctx.ags.createLineItem((await agsContext(ctx, caller, req.traceId)), parseItem(req.body)));
   });
   app.put<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx, caller, req.traceId), decodeLineItemId(req.params.lineItemId), parseItem(req.body)));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    const ags = (await agsContext(ctx, caller, req.traceId));
+    const lineItemId = decodeLineItemId(req.params.lineItemId);
+    const item = parseItem(req.body);
+    await checkServiceKeyWriteScope(ctx, caller, ags, lineItemId);
+    return reply.code(201).send(await ctx.ags.updateLineItem(ags, lineItemId, item));
   });
   app.delete<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    await ctx.ags.deleteLineItem(agsContext(ctx, caller, req.traceId), decodeLineItemId(req.params.lineItemId));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    const ags = (await agsContext(ctx, caller, req.traceId));
+    const lineItemId = decodeLineItemId(req.params.lineItemId);
+    await checkServiceKeyWriteScope(ctx, caller, ags, lineItemId);
+    await ctx.ags.deleteLineItem(ags, lineItemId);
     return reply.code(204).send();
   });
   app.get('/api/memberships', async (req) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    const platform = platformOf(ctx, caller);
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    const platform = (await platformOf(ctx, caller));
     const parsed = MembershipsQuerySchema.safeParse(req.query ?? {});
     if (!parsed.success) {
       if (parsed.error.issues.some((i) => i.path[0] === 'url')) throw new ApiError('INVALID_URL_PARAMETER');
       throw invalid(parsed.error);
     }
     return ctx.nrps.listMemberships({
-      platform, traceId: req.traceId,
+      platform, traceId: req.traceId, deploymentId: deploymentIdOf(caller),
       nrpsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.nrps]) : caller.serviceKey?.nrpsClaim ?? null,
     }, parsed.data);
   });
   for (const path of ['/api/oauth/:platformId/access_token', '/api/oauth/:platformId/access_token/refresh']) {
     app.post(path, async (req) => {
-      ctx.auth(req, ['bearer']);
+      (await ctx.auth(req, ['bearer']));
       throw new ApiError('NOT_IMPLEMENTED', `OAuth2 is not implemented. Trace id: ${req.traceId}`);
     });
   }

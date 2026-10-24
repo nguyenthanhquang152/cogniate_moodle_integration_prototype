@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from '../testkit.ts';
 import { randomToken, sha256Hex } from '@cogniate/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { GrantPurpose } from '../domain/bindings.ts';
@@ -5,7 +6,8 @@ import { getGrant, insertGrant } from '../domain/bindings.ts';
 import type { Connection } from '../domain/connections.ts';
 import { createConnection, disableConnection, getConnection, markLaunched, markRegistered } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
-import type { LmsType } from '../providers/types.ts';
+import type { ChannelId } from '../kernel/ports.ts';
+import { testSetupOf } from '../testkit.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, THANH, testApp } from '../testkit.ts';
 
@@ -23,11 +25,11 @@ beforeEach(async () => {
 });
 afterEach(async () => { await t?.app.close(); });
 
-function connection(lms: LmsType = 'canvas', libraryName = THANH.library) {
+function connection(lms: ChannelId = 'canvas', libraryName = THANH.library) {
   const library = ensureLibrary(t.db, libraryName, t.clock.now);
   return createConnection(t.db, library.id, {
-    name: 'School', siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', lms, profile: 'canvas-sim-cloud',
-  }, null, t.clock.now);
+    name: 'School', siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: lms === 'canvas' ? 'canvas-sim-cloud' : lms === 'moodle' ? 'standard' : 'blackboard',
+  }, null, t.clock.now, TEST_CHANNELS, testSetupOf(lms)!.sharingOf);
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/deployments`;
 const body = { deploymentId: 'deployment-two', grantCode: 'g'.repeat(43) };
@@ -46,7 +48,7 @@ function ready(c = connection(), status: 'registered' | 'connected' = 'registere
 function grant(c: Connection, purpose: GrantPurpose, deploymentId: string) {
   const code = randomToken();
   const id = insertGrant(t.db, {
-    libraryId: c.libraryId, connectionId: c.id, lms: c.lms, profile: c.profile,
+    libraryId: c.libraryId, connectionId: c.id, channel: c.channel, profile: c.profile,
     siteUrl: c.siteUrl, serviceUrl: c.serviceUrl, clientId: 'canvas-client', deploymentId,
     purpose, note: 'Canvas route self-check fixture', expiresAt: t.clock.now + 60_000,
   }, sha256Hex(code), t.clock.now);

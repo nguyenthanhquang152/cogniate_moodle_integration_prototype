@@ -44,6 +44,7 @@ export const BOOT_TRACE_ID = `boot-${randomBytes(6).toString('hex')}`;
 // Key names that hold secrets (README security §11). Compared after normalising: lower case, no "_" or "-".
 // So "apiKey", "api_key" and "API-KEY" all match "apikey".
 const SECRET_KEYS = new Set([
+  'storagevalue', // LTI postMessage storage values are credentials (LA-E3-02).
   'authorization', 'proxyauthorization', 'cookie', 'setcookie', 'password', 'passwd', 'secret', 'token', 'jwt',
   'ltik', 'ref', 'apikey', 'servicekey', 'masterkey', 'privatekey', 'idtoken', 'accesstoken', 'refreshtoken',
   'registrationtoken', 'runtimetoken', 'clientassertion', 'key',
@@ -53,9 +54,11 @@ const SECRET_SUFFIXES = ['token', 'secret', 'password', 'key', 'assertion', 'coo
 // Secret-looking values inside strings.
 const VALUE_PATTERNS: Array<[RegExp, string]> = [
   [/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*/g, '[redacted-jwt]'],
-  [/\b(Bearer|LTIK-AUTH-V2|SERVICE-AUTH-V1)\s+[^\s"']+/gi, '$1 [redacted]'],
+  [/\b(Bearer|LTIK-AUTH-V2|SERVICE-AUTH-V1|OPERATOR-AUTH-V1)\s+[^\s"']+/gi, '$1 [redacted]'],
   [/\b(ltik|ref|token|wstoken|registration_token|access_token|id_token)=[^&\s"']+/gi, '$1=[redacted]'],
   [/\bltis_[A-Za-z0-9_-]{8,}/g, '[redacted-api-key]'],
+  // Operator key (LA-ADR-06 D3): any value that starts with ltio_ and has more characters.
+  [/\bltio_[A-Za-z0-9_-]+/g, '[redacted-operator-key]'],
 ];
 const REDACTED = '[redacted]';
 const MAX_DEPTH = 6;

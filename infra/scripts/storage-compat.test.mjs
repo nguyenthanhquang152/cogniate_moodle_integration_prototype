@@ -128,7 +128,7 @@ describe('the candidate guard (ADR-012 §12)', () => {
       assert.ok(guarded(file), file);
     }
     // Every other stack:data-*, demo* and test:* script is in one of the lists above (host-only unit runs excepted).
-    for (const name of Object.keys(scripts).filter((n) => /^(stack:data-|demo|test:)/.test(n) && !['test:unit', 'test:infra'].includes(n))) {
+    for (const name of Object.keys(scripts).filter((n) => /^(stack:data-|demo|test:)/.test(n) && !['test:unit', 'test:infra', 'test:k0'].includes(n))) {
       assert.ok(viaGuard(name) || name in SCRIPT_OF, name);
     }
   });

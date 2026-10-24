@@ -1,7 +1,14 @@
 import { expect, it } from 'vitest';
-import { CANVAS_PROFILES } from './canvas.ts';
 import { findProfile, listProfiles, profileEndpoints, reservedIssuerOrigins, siteRulesFor } from './index.ts';
 import { checkSiteUrl } from '@cogniate/shared';
+
+/** LA-ADR-05 D6: Canvas Dynamic Registration with the profile values, an opaque token and the three extension members. */
+const CANVAS_DR = {
+  issuerRule: 'profile', registrationToken: 'opaque-bearer',
+  toolConfigurationExtensions: {
+    'https://canvas.instructure.com/lti/privacy_level': 'anonymous', 'https://canvas.instructure.com/lti/tool_id': 'cogniate', 'https://canvas.instructure.com/lti/vendor': 'Cogniate',
+  },
+};
 
 it('defines the reviewed hosted endpoints, flags and simulation gate in registry order', () => {
   const rows = [
@@ -11,18 +18,31 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
     ['canvas-sim-cloud', 'https://canvas.sim.test', 'https://sso.canvas.sim.test'],
   ];
   for (const [id, issuer, sso] of rows) {
-    const profile = CANVAS_PROFILES.find((p) => p.id === id)!;
+    const profile = findProfile(id!, { simulation: true })!;
     expect(profile).toMatchObject({
       issuer, authenticationEndpoint: `${sso}/api/lti/authorize_redirect`, jwksUrl: `${sso}/api/lti/security/jwks`,
-      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
-      flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true },
+      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', privacyFloor: 'allowlist', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
+      flags: { deepLinkingResponseSub: false, serviceOriginCheck: true },
+      clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' },
     });
+    expect(profile.dynamicRegistration).toEqual(CANVAS_DR);
     expect(profile.sources.length).toBeGreaterThan(0);
   }
-  expect(listProfiles({ simulation: false }).map((p) => p.id)).toEqual([
-    'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
-  ]);
-  expect(listProfiles({ simulation: true }).slice(-2).map((p) => p.id)).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+  // Open world: the baseline real profiles first; every new real profile follows (lti-generic since LA-E2-03).
+  const real = listProfiles({ simulation: false });
+  expect(real.slice(0, 6).map((p) => p.id)).toEqual(['standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard']);
+  expect(real.map((p) => p.id)).toContain('lti-generic');
+  expect(real.some((p) => p.simulation)).toBe(false);
+  // Open world (N10, BD-A1-95): a new channel may add simulation profiles after the baseline ones. Check membership,
+  // the relative order of the baseline simulations and the LA-ADR-01 D4 rule, not a fixed tail.
+  const all = listProfiles({ simulation: true });
+  const allIds = all.map((p) => p.id);
+  expect(allIds.filter((id) => ['blackboard-sim', 'canvas-sim-cloud'].includes(id))).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+  for (let i = 1; i < all.length; i++) {
+    const [before, after] = [all[i - 1]!, all[i]!];
+    const rank = Number(before.simulation) - Number(after.simulation) || before.listOrder - after.listOrder || (before.id < after.id ? -1 : 1);
+    expect(rank, `${before.id} before ${after.id}`).toBeLessThan(0);
+  }
   expect(findProfile('canvas-sim-cloud', { simulation: false })).toBeNull();
   expect(reservedIssuerOrigins({ simulation: false })).toContain('https://canvas.instructure.com');
   expect(reservedIssuerOrigins({ simulation: false })).not.toContain('https://canvas.sim.test');

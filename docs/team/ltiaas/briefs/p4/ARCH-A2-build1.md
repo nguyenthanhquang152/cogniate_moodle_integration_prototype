@@ -1,0 +1,5 @@
+## Your task (A2): ratify build-time design calls
+
+1. Audit atomicity (LA-ADR-06 D4 rule 1, LA-E5-02 AC-08): Lead call (RQ-2 for S1) = packages/shared/src/migrations.ts transaction() runs fn in a SAVEPOINT when a transaction is already open (RELEASE on success; ROLLBACK TO + RELEASE on error, rethrow); outside a transaction it is unchanged (BEGIN IMMEDIATE ... COMMIT); store/audit.ts withAudit wraps "change + audit insert" in one transaction() so no lane edits store/platforms.ts. Ratify or change; record it in LA-ADR-06 D4 (and note any risk, for example async callbacks inside a SAVEPOINT, or reentrancy).
+2. A-LA-E5-01-01 = B-LA-E5-01-01: align LA-ADR-06 (:160, :436) and operability.md (:249): the operator key is made by seed (infra/scripts/lti-bootstrap.sh runs `lti:operator init --if-none`), not by stack:up; and stack:reset now removes infra/.secrets/lti-operator-key.
+3. Secret visibility (A-LA-E5-08-03, fixed by S1): the e2e container must not see infra/.secrets/lti (an empty tmpfs on /repo/infra/.secrets/lti in the e2e service; infra/.secrets/lti must exist before compose up). Record the rule in security-delta.md (A-T1-03 extension) and operability.md.

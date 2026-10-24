@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from './testkit.ts';
 // Integration tests of the runtime path (T5a SCORM, T5b HTML): launch (app) -> content host (/pkg, /rt) -> commit rules -> score sync worker
 // -> results. Outside src/content-host on purpose: the ADR-008 import fence of that folder also covers its files.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -14,7 +15,7 @@ import { LtiServiceError } from './clients/lti-client.ts';
 import { runtimeTokenFor } from './tool-pages/launch-rules.ts';
 import type { TestApp } from './testkit.ts';
 import { INSTRUCTOR, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from './testkit.ts';
-import { createScoreSyncWorker } from './worker/score-sync.ts';
+import { createDispatchHarness } from './kernel/records/dispatch.testkit.ts';
 import { openDb } from './domain/db.ts';
 import { buildContentApp, packageFilePath, parseRange } from './content-host/server.ts';
 
@@ -61,7 +62,7 @@ async function world(opts: Parameters<typeof testApp>[0] = {}) {
   const playerDir = join(t.dataDir, 'player');
   mkdirSync(playerDir, { recursive: true });
   writeFileSync(join(playerDir, 'runtime.js'), 'export {};');
-  content = await buildContentApp({
+  content = await buildContentApp({ channels: TEST_CHANNELS,
     logger: createLogger({ service: 'cogniate-content', level: 'debug', write: (l) => contentLogs.push(JSON.parse(l) as LogLine) }),
     urls: TEST_URLS, profile: 'default', knobs: [], outboundAllowlist: [], db: t.db, dataDir: t.dataDir, playerDir, now: () => t.clock.now,
   });
@@ -101,7 +102,7 @@ async function commit(token: string, event: 'commit' | 'finish' | 'unload', c: R
   });
 }
 const attemptOf = (token: string) => t.db.prepare('SELECT a.* FROM attempt a JOIN play_session ps ON ps.attempt_id = a.id WHERE ps.runtime_token_hash = ?').get(sha256Hex(token))!;
-const syncs = () => t.db.prepare('SELECT * FROM score_sync ORDER BY created_at, rowid').all();
+const syncs = () => t.db.prepare('SELECT *, learner_subject AS user_sub FROM record_dispatch ORDER BY created_at, seq').all();
 
 describe('content origin (app contract §7, security §7)', () => {
   it('AC-T5-01: package file with nosniff and frame-ancestors {content} {app}; raw ../ and %2e%2e/ -> 400 or 404', async () => {
@@ -291,7 +292,7 @@ describe('results and score sync (app contract §5, §10)', () => {
     const w = await world();
     const { playId, token } = await launch(w.platformId, w.scorm);
     await commit(token, 'finish', cmi({ status: 'passed', raw: '100' }));
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
     expect(t.lti.scores).toEqual([{ serviceKey: 's'.repeat(43), lineItemId: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`, body: { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 100, scoreMaximum: 100 } }]);
     expect(t.logs).toContainEqual(expect.objectContaining({ event: 'score_sync', status: 'sent', tries: 1 }));
@@ -309,13 +310,13 @@ describe('results and score sync (app contract §5, §10)', () => {
 
   it('answers: 409 -> conflict, 400 -> failed (lastError), 502 -> retry in 5 s, no service key -> failed; a missing line item is looked up', async () => {
     const w = await world();
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     const run = async (sub: string, fail: { status: number; code: string } | null) => {
       const { token } = await launch(w.platformId, w.scorm, { sub });
       await commit(token, 'finish', cmi({ status: 'passed', raw: '100' }));
       t.lti.failNext = fail;
       await worker.kick();
-      return t.db.prepare('SELECT * FROM score_sync WHERE user_sub = ?').get(sub)!;
+      return t.db.prepare('SELECT *, learner_subject AS user_sub FROM record_dispatch WHERE learner_subject = ?').get(sub)!;
     };
     expect((await run('11', { status: 409, code: 'PLATFORM_CONFLICT' })).status).toBe('conflict');
     const rejected = await run('12', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
@@ -324,21 +325,21 @@ describe('results and score sync (app contract §5, §10)', () => {
     expect([retry.status, retry.tries, Number(retry.next_try_at) - t.clock.now]).toEqual(['pending', 1, 5000]);
     t.clock.now += 5000;
     await worker.kick();
-    expect(t.db.prepare("SELECT status FROM score_sync WHERE user_sub = '13'").get()!.status).toBe('sent');
+    expect(t.db.prepare("SELECT status FROM record_dispatch WHERE learner_subject = '13'").get()!.status).toBe('sent');
     // Missing line item (a launch without the AGS lineitem claim): GET /api/lineitems?resourceLinkId=.
     const l14 = await launch(w.platformId, w.scorm, { sub: '14' });
     t.db.prepare('UPDATE resource_link SET line_item_id = NULL').run();
     t.lti.lineItems.set('3', [`${TEST_URLS.moodle}/lineitems/9/lineitem`]);
     await commit(l14.token, 'finish', cmi({ status: 'passed', raw: '100' }));
     await worker.kick();
-    expect([t.db.prepare("SELECT status FROM score_sync WHERE user_sub = '14'").get()!.status, t.lti.scores.at(-1)!.lineItemId]).toEqual(['sent', `${TEST_URLS.moodle}/lineitems/9/lineitem`]);
+    expect([t.db.prepare("SELECT status FROM record_dispatch WHERE learner_subject = '14'").get()!.status, t.lti.scores.at(-1)!.lineItemId]).toEqual(['sent', `${TEST_URLS.moodle}/lineitems/9/lineitem`]);
     expect(t.db.prepare('SELECT line_item_id AS l FROM resource_link').get()!.l).toBe(`${TEST_URLS.moodle}/lineitems/9/lineitem`);
     t.db.prepare('UPDATE resource_link SET service_key_encrypted = NULL').run();
     const { token } = await launch(w.platformId, w.scorm, { sub: '15' });
     t.db.prepare('UPDATE resource_link SET service_key_encrypted = NULL').run();
     await commit(token, 'finish', cmi({ status: 'passed', raw: '100' }));
     await worker.kick();
-    expect(t.db.prepare("SELECT status, last_error FROM score_sync WHERE user_sub = '15'").get()).toEqual({ status: 'failed', last_error: 'No gradebook column: the activity has no AGS line item.' });
+    expect(t.db.prepare("SELECT status, last_error FROM record_dispatch WHERE learner_subject = '15'").get()).toEqual({ status: 'failed', last_error: 'No gradebook column: the activity has no AGS line item.' });
     expect(LtiServiceError).toBeDefined();
   });
 });
@@ -351,8 +352,8 @@ async function progress(token: string, event: 'progress' | 'unload', p: { seenPa
     payload: JSON.stringify({ kind: 'html', event, sessionId: st.sessionId, seq: st.lastSeq + 1, progress: { answers: {}, ...p } }),
   });
 }
-const quietWorker = () => createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
-const rowOf = (sub: string) => t.db.prepare('SELECT * FROM score_sync WHERE user_sub = ? ORDER BY created_at DESC, rowid DESC').get(sub)!;
+const quietWorker = () => createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+const rowOf = (sub: string) => t.db.prepare('SELECT *, learner_subject AS user_sub FROM record_dispatch WHERE learner_subject = ? ORDER BY created_at DESC, seq DESC').get(sub)!;
 
 describe('P2 durable score confirmation', () => {
   const sub = 'p2-recovery';
@@ -378,7 +379,7 @@ describe('P2 durable score confirmation', () => {
     const file = join(t.dataDir, 'restart.db');
     t.db.prepare('VACUUM INTO ?').run(file);
     const db = openDb(file);
-    const worker = createScoreSyncWorker({ db, lti: t.lti.client,
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => t.logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     return { db, worker };
@@ -391,11 +392,11 @@ describe('P2 durable score confirmation', () => {
       t.clock.now += 4999;
       await worker.kick();
       expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90]);
-      expect(db.prepare('SELECT status, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
+      expect(db.prepare('SELECT status, sent_at FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
       t.clock.now += 1;
       await worker.kick();
-      expect(db.prepare('SELECT status, tries, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2, sent_at: t.clock.now });
-      expect(db.prepare('SELECT status, delivery_uncertain FROM score_sync WHERE id = ?').get(lowId)).toEqual({ status: 'superseded', delivery_uncertain: 0 });
+      expect(db.prepare('SELECT status, tries, sent_at FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2, sent_at: t.clock.now });
+      expect(db.prepare('SELECT status, delivery_uncertain FROM record_dispatch WHERE id = ?').get(lowId)).toEqual({ status: 'superseded', delivery_uncertain: 0 });
       t.clock.now += 90_000;
       await worker.kick();
       expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 90]);
@@ -426,13 +427,13 @@ describe('P2 durable score confirmation', () => {
     const highId = String(rowOf(sub).id);
     const recovered = restartSnapshot();
     try {
-      expect(recovered.db.prepare('SELECT status, tries, delivery_uncertain, send_started_at FROM score_sync WHERE id = ?').get(lowId))
+      expect(recovered.db.prepare('SELECT status, tries, delivery_uncertain, send_started_at FROM record_dispatch WHERE id = ?').get(lowId))
         .toEqual({ status: 'superseded', tries: 1, delivery_uncertain: 1, send_started_at: null });
       await recovered.worker.kick();
-      expect(recovered.db.prepare('SELECT status, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
+      expect(recovered.db.prepare('SELECT status, sent_at FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
       t.clock.now += 5000;
       await recovered.worker.kick();
-      expect(recovered.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2 });
+      expect(recovered.db.prepare('SELECT status, tries FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2 });
     } finally {
       recovered.db.close();
       timeout.resolve();
@@ -483,7 +484,7 @@ describe('P2 durable score confirmation', () => {
       expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90]);
       t.clock.now += 1;
       await restarted.worker.kick();
-      expect(restarted.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
+      expect(restarted.db.prepare('SELECT status, tries FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
       expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 90]);
     } finally { restarted.db.close(); }
   });
@@ -559,12 +560,12 @@ describe('P2 durable score confirmation', () => {
     finish.resolve();
     await interrupted;
     try {
-      expect(restarted.db.prepare('SELECT status, tries, sent_at, next_try_at, delivery_uncertain FROM score_sync WHERE id = ?').get(highId))
+      expect(restarted.db.prepare('SELECT status, tries, sent_at, next_try_at, delivery_uncertain FROM record_dispatch WHERE id = ?').get(highId))
         .toEqual({ status: 'pending', tries: 2, sent_at: null, next_try_at: t.clock.now + 30_000, delivery_uncertain: 1 });
       await restarted.worker.kick();
       t.clock.now += 30_000;
       await restarted.worker.kick();
-      expect(restarted.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
+      expect(restarted.db.prepare('SELECT status, tries FROM record_dispatch WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
       expect(t.logs).toContainEqual(expect.objectContaining({ event: 'score_sync', sync_id: highId, status: 'sent', phase: 'confirmation', tries: 3 }));
     } finally { restarted.db.close(); }
   });
@@ -651,13 +652,13 @@ describe('P2 durable score confirmation', () => {
     // Model a final attempt whose sync row is absent. Keep the lower row pending so the attempt guard is exercised.
     t.db.prepare("UPDATE attempt SET outcome = 'passed', score_given = ?, score_maximum = 100 WHERE id = ?")
       .run(phase === 'confirmation' ? 95 : 80, String(attempt.id));
-    expect(t.db.prepare('SELECT id FROM score_sync WHERE attempt_id = ?').get(String(attempt.id))).toBeUndefined();
+    expect(t.db.prepare('SELECT s.id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id WHERE r.attempt_id = ?').get(String(attempt.id))).toBeUndefined();
     const callsBefore = t.lti.calls.length;
     t.clock.now += 5000;
     await worker.kick();
     expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual(sentBefore);
     expect(t.lti.calls).toHaveLength(callsBefore);
-    expect(t.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(lowerId)).toEqual({ status: 'pending', tries: 1 });
+    expect(t.db.prepare('SELECT status, tries FROM record_dispatch WHERE id = ?').get(lowerId)).toEqual({ status: 'pending', tries: 1 });
   });
 });
 
@@ -754,7 +755,7 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
       }
       return postScore(...args);
     };
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     const running = worker.kick();
     await inFlight;
     try {
@@ -807,7 +808,7 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
       apply();
     };
     const logs: LogLine[] = [];
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
@@ -981,7 +982,7 @@ describe('A-T5a-01 / -02 / -06: ordering, cookies, worker errors', () => {
     await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
     t.db.prepare("UPDATE resource_link SET service_key_encrypted = X'00112233'").run();
     const logs: LogLine[] = [];
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
@@ -1042,7 +1043,7 @@ describe('T5b round 2: only the best result is ever sent; strict refresh; late b
     const high = await launch(w.platformId, w.scorm, { sub: '74' });
     await commit(high.token, 'finish', cmi({ status: 'passed', raw: '80' }));
     expect(t.db.prepare("SELECT score_given FROM attempt WHERE user_sub = '74' ORDER BY rowid").all()).toEqual([{ score_given: 60 }, { score_given: 80 }]);
-    t.db.prepare('DELETE FROM score_sync WHERE id = ?').run(String(rowOf('74').id)); // simulate a missing best-score row
+    t.db.prepare('DELETE FROM record_dispatch WHERE id = ?').run(String(rowOf('74').id)); // simulate a missing best-score row
     const r = await resend(w, low.id);
     expect([r.statusCode, r.json().details.message]).toEqual([409, 'SYNC_NOT_RESENDABLE']);
     expect(rowOf('74').status).toBe('failed');

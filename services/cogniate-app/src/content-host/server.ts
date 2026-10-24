@@ -8,15 +8,17 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { apiErrorBody, redactPath, sha256Hex } from '@cogniate/shared';
+import { apiErrorBody, escapeHtml, sha256Hex } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../domain/attempts.ts';
+import type { ChannelRegistry, RuntimeSession } from '../domain/attempts.ts';
 import { applyCommit, findRuntimeSession, packageStoragePath, runtimeState } from '../domain/attempts.ts';
 
 export const CONTENT_SERVICE_NAME = 'cogniate-content';
 
 export interface ContentServerDeps {
+  channels: ChannelRegistry;
   logger: Logger;
   urls: PublicUrls;
   profile: string;
@@ -82,7 +84,7 @@ export function parseRange(header: string | undefined, size: number): [number, n
 
 const NOT_FOUND_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Not found</title></head><body><p>Not found.</p></body></html>';
 
-/** The runtime page. M1: `data-lms-name` on the body for the player texts (Moodle, Canvas or Blackboard). */
+/** The runtime page. `data-lms-name` on the body: the `{LMS}` text name of the player texts (LA-ADR-01 D12). */
 const runtimePage = (lmsName: string): string => `<!doctype html>
 <html lang="en">
 <head>
@@ -91,7 +93,7 @@ const runtimePage = (lmsName: string): string => `<!doctype html>
 <link rel="stylesheet" href="/_rt/assets/runtime.css">
 <script type="module" src="/_rt/assets/runtime.js"></script>
 </head>
-<body data-lms-name="${lmsName}">
+<body data-lms-name="${escapeHtml(lmsName)}">
 <p id="cogniate-runtime-message" role="status" hidden></p>
 <iframe id="cogniate-package" title="Course content"></iframe>
 </body>
@@ -117,7 +119,8 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
     reply.removeHeader('set-cookie');
   });
   app.addHook('onResponse', async (req, reply) => {
-    const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');
+    // BD-A1-62 (app API delta §8): the route template (no ids, no query), or "<unmatched>"; never the raw path.
+    const path = req.routeOptions.url ?? '<unmatched>';
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', { trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime) });
   });
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
@@ -168,20 +171,24 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
 
   // ---------------------------------------------------------------- runtime (app contract §7)
   type TokenParams = { Params: { token: string } };
-  /** The session of a runtime token: 'unknown' (404), 'expired' (410) or the session. */
-  const sessionOf = (req: FastifyRequest<TokenParams>) => {
-    if (!RUNTIME_TOKEN.test(req.params.token)) return 'unknown' as const;
-    const s = findRuntimeSession(db, sha256Hex(req.params.token));
-    if (!s) return 'unknown' as const;
-    return s.expiresAt <= now() ? ('expired' as const) : s;
+  /** A runtime token with no live session: unknown (404), or expired (410, with the `{LMS}` text name of its channel). */
+  type NoSession = { expired: false } | { expired: true; lmsName: string };
+  /** The live session of a runtime token, or why there is none. */
+  const sessionOf = (req: FastifyRequest<TokenParams>): RuntimeSession | NoSession => {
+    if (!RUNTIME_TOKEN.test(req.params.token)) return { expired: false };
+    const s = findRuntimeSession(db, sha256Hex(req.params.token), deps.channels);
+    if (!s) return { expired: false };
+    return s.expiresAt <= now() ? { expired: true, lmsName: s.lmsName } : s;
   };
-  const tokenError = (reply: FastifyReply, kind: 'unknown' | 'expired') => kind === 'unknown'
-    ? reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown runtime token.'))
-    : reply.code(410).send(apiErrorBody(410, 'RUNTIME_EXPIRED', 'The runtime session expired. Open the activity again in Moodle.'));
+  const live = (s: RuntimeSession | NoSession): s is RuntimeSession => !('expired' in s);
+  // LA-IC-19 (BD-A1-57): the 410 text names the channel of the session; a Moodle session keeps the M1 bytes.
+  const tokenError = (reply: FastifyReply, s: NoSession) => s.expired
+    ? reply.code(410).send(apiErrorBody(410, 'RUNTIME_EXPIRED', `The runtime session expired. Open the activity again in ${s.lmsName}.`))
+    : reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown runtime token.'));
 
   app.get<TokenParams>('/rt/:token', async (req, reply) => {
     const s = sessionOf(req);
-    if (typeof s === 'string') return reply.code(404).type('text/html; charset=utf-8').send(NOT_FOUND_HTML);
+    if (!live(s)) return reply.code(404).type('text/html; charset=utf-8').send(NOT_FOUND_HTML);
     return reply.code(200).headers({
       'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
       // A-T5a-02: packages share this origin; each launch clears the cookies that a package script may have set.
@@ -192,13 +199,13 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
 
   app.get<TokenParams>('/rt/:token/state', async (req, reply) => {
     const s = sessionOf(req);
-    if (typeof s === 'string') return tokenError(reply, s);
+    if (!live(s)) return tokenError(reply, s);
     return reply.code(200).header('cache-control', 'no-store').send(runtimeState(db, s));
   });
 
   app.post<TokenParams>('/rt/:token/commit', async (req, reply) => {
     const s = sessionOf(req);
-    if (typeof s === 'string') return tokenError(reply, s);
+    if (!live(s)) return tokenError(reply, s);
     let body: unknown = req.body;
     if (typeof body === 'string') {
       try {

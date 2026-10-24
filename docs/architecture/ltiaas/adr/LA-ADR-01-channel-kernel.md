@@ -30,8 +30,10 @@ packages/channels/<id>/
                      admin-value setup adapter serves the channel (D5).
   app/               optional: extension code that needs storage (Moodle web services, .mbz exporter).
   portal/index.tsx   optional portal module (P11, D5). Portal entry.
-  *.test.ts(x)       unit tests next to the code (run by the root Vitest).
+  *.test.ts(x)       unit tests next to the code (run by the root Vitest): *.test.ts at the root and in app/,
+                     *.test.tsx in portal/.
   README.md          channel facts with sources (the "Source" column of ADR-011 §6), and the live status.
+                     No other file kind: a helper goes into app/ or portal/ (BD-A1-16).
 packages/channel-kernel/   new workspace package: manifest types and schema, capability catalog,
                            registry builder, text fill, legacy wire projection. Pure, no I/O.
 ```
@@ -65,10 +67,10 @@ flowchart LR
 
 | Tool | Rule |
 | --- | --- |
-| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/manifest.ts`, `*/lti-profiles.ts`, `*/app.ts`, `*/app/**`) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
+| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/*.ts`, that is the root entries and root tests, and `*/app/**`; BD-A1-16) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
 | Unit tests | The root `vitest.config.ts` includes `packages/channels/*/**/*.test.{ts,tsx}`; portal-side tests use the portal's jsdom setup by file pattern. |
 | Lint | `eslint.config.js` gets one block per channel glob: the import table below (F3) and the LMS-name rule scope (F1). |
-| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal";` (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
+| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal/**/*.{ts,tsx}";` (the file-glob form, as built in LA-E1-11; the folder form did not scan the moved styles) (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` (as built: the repository root, dev server only; BD-A1-118) and the alias `@cogniate/portal-sdk` (P11). |
 | Profile data | Registry load check 7 (D4) validates every profile against one `ProviderProfile` schema with a closed trait set. |
 
 QA probe (with the canary): a type error and a failing unit test in a scratch channel folder each fail `npm run check`.
@@ -79,11 +81,13 @@ Import rules (ESLint `no-restricted-imports`, added in E1 step S2):
 | --- | --- |
 | `packages/channels/*/manifest.ts` | `@cogniate/channel-kernel` types only |
 | `packages/channels/*/lti-profiles.ts` | kernel types, its own `manifest.ts` |
-| `packages/channels/*/app.ts` | kernel types and the app port types (`services/cogniate-app/src/kernel/ports.ts`) only. `app.ts` is pure: no database, no LTI call, no context. |
-| `packages/channels/*/app/**` | the same, plus `@cogniate/shared` and its own files. Its functions get a `PortContext` (D5) from the kernel at call time. |
+| `packages/channels/*/app.ts` | kernel types, the app port types (`services/cogniate-app/src/kernel/ports.ts`), values from the pure kernel setup sub-path `@cogniate/channel-kernel/setup` (`toolName`, `PRINTABLE_ID`, `GRANT_CODE`, `parseStrictBody`; BD-A1-40), values from `@cogniate/shared/channel` and types from `@cogniate/shared` (A2 BD-A2-11; A1 BD-A1-18: the pure helpers, for example the site rules of the Moodle six-value parser), its own `manifest.ts` and its own `app/**` (BD-A1-16, for the P5–P7 handlers of D5). No `fetch`, `WebSocket` or `process`. `app.ts` is pure: no database, no LTI call, no context. An `app/**` module does no work when it loads (no I/O and no timer at top level); its functions get the `PortContext` at call time. |
+| `packages/channels/*/app/**` | the same, and its own files. From `@cogniate/shared`: values only through the allow-list sub-path `@cogniate/shared/channel`, the root only with `import type`, no other sub-path ([security delta §8](../security-delta.md#8-tenant-isolation), channel import fence; BD-A2-11). No `fetch`, `WebSocket` or `process`. Its functions get a `PortContext` (D5) from the kernel at call time. |
 | `packages/channels/*/portal/**` | kernel types, `@cogniate/portal-sdk` (the folder `apps/portal/src/sdk/`, P11), its own manifest, React. Never other portal code. |
 | `apps/portal/src/sdk/**` | portal code (UI kit, API client, hooks, DTO types, error helpers). It is the one portal folder that a channel module may import. |
 | A channel folder | never another channel folder; never `services/**/domain/**` directly |
+| Every file under `packages/channels/<id>/` (tests too; BD-A1-16) | Base fence that every entry rule keeps: no `@cogniate/cogniate-app`, `@cogniate/lti-service`, `@cogniate/portal` or `@cogniate/player` (or any sub-path); `@cogniate/shared` values only from `@cogniate/shared/channel` and only where the file's row allows them (BD-A2-11); and no path under `services/` or `apps/`, except `services/cogniate-app/src/kernel/ports.ts` (from `app.ts` and `app/**`) and `apps/portal/src/sdk/**` (from `portal/**`). No runtime dynamic loading: no `import()` expression, no `require()`, no `import x = require()`, no `createRequire`. A type-position `import('…')` follows the table row of the file. A non-test file never imports a test file. A file that is not one of the layout kinds above is an error. A root test imports its own channel files, kernel types and test tools. |
+| Specifiers (all code) | A template literal with no `${…}` counts as a string specifier, so a core `import()` of a channel path is an error (N4); only the three registry loaders build channel paths at run time. |
 | Core | never a channel folder by path. Only the three registry loaders read channel folders (D4). |
 
 ### D2. Channel manifest
@@ -96,11 +100,12 @@ export interface ChannelManifest {
   id: string;                                   // channel id, ^[a-z][a-z0-9-]{1,31}$, equals the folder name
   family: 'lti13';                              // LA; the schema reserves 'catalog-file' | 'xapi' | 'vendor-api' | 'package'
   names: {
-    text: string;                               // fills {LMS} in every text ("Moodle", "Canvas", "your LMS")
+    text: string;                               // fills {LMS} in every text ("Moodle", "Canvas", "LMS"); a bare name (BD-A1-111)
     label: string;                              // provider list label ("Blackboard Learn")
   };
   card: {
     title: string; description: string; mark: string; color: string;
+    icon?: 'graduation-cap';                     // BD-A1-49: a closed list of named icons; the shell draws it instead of `mark`
     category: 'LMS Publishing'; order: number;  // Integrations page (D9)
   };
   availability: 'ga' | 'preview' | 'simulation-only';  // simulation-only: loaded only when simulations are on
@@ -113,13 +118,18 @@ export interface ChannelManifest {
   capabilities: Partial<CapabilitySet>;         // D3; absent = false or empty
   lti?: {
     guardedFamilies: Array<{ family: string; level: 'launch' | 'registration' }>;  // D6; family in lower case
-    toolConfiguration: 'channel' | 'none';      // rows from app.ts (show step), or none
+    toolConfiguration: 'channel' | 'none';      // 'channel': the channel's rows (show step), from app.ts or, for a channel
+                                                // without app.ts, from the kernel admin-value adapter (BD-A1-85); 'none': no rows
   };
   setup: {                                      // "show, collect, verify, enable" (D9)
     createFields: FieldSpec[];                  // POST /app-api/connections extras (siteUrl, serviceUrl, profile)
     bindingFields: FieldSpec[];                 // PUT …/platform body keys (strict), per method
     // No verify field: the shell takes the verify step from the binding authority (D9; Reviewer-B B-LAD-20).
-    connectionCheck?: boolean;                // the "Check connection" panel (A2 LA-ADR-08 D4, Could)
+    connectionCheck?: boolean;                // the "Check connection" panel (A2 LA-ADR-08 D4, Could); a core route, no app.ts member (BD-A1-110)
+    toolRows?: readonly { key: string; label: string; value: string }[];  // BD-A1-78: rows of the kernel admin-value
+                                              // adapter; value = literal text + {toolName} {loginUrl} {launchUrl} {keysUrl}
+                                              // {deepLinkingUrl} {ltiHost} {scopes}; absent = the generic set (app delta §3.3);
+                                              // an E2-K kernel field (BD-A1-94), so a named kind A LMS adds only data
   };
   storage?: {                                   // D5 "Tables": what the channel's app/ SQL may name (Q-LAD-25)
     tables: string[];                           // Moodle: ['mbz_build']
@@ -130,6 +140,11 @@ export interface ChannelManifest {
   texts: {
     adminSteps: string[]; teacherSteps: string[];
     disconnect: string; notReady: string | null; // all with {LMS}, {tool}, {site} placeholders only
+    registered?: string;                         // status text of a registered connection; default "Registered" (BD-A1-25)
+    registration?: Partial<Record<'UNKNOWN_TOOL_ACCOUNT' | 'INVALID_REQUEST' | 'ISSUER_MISMATCH' | 'INVALID_OPENID_CONFIGURATION' | 'TOOL_MAY_EXIST'
+      | 'REGISTRATION_UPDATE_NOT_ALLOWED' | 'UPDATE_NOT_ALLOWED' | 'PLATFORM_IN_USE', string>>;  // BD-A1-59: DR help sentences with LMS menu paths; BD-A1-101: PLATFORM_IN_USE = the API description at grant redemption
+    errors?: Partial<Record<'SITE_RULE_1' | 'SITE_RULE_5' | 'PLATFORM_IN_USE' | 'DEPLOYMENT_IN_USE'
+      | 'DEPLOYMENT_FIXED', string>>;            // BD-A1-63: portal error texts that name an LMS; else a generic core text
   };
 }
 export interface FieldSpec { key: string; label: string; kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice'; required: boolean; method?: 'dynamic' | 'manual';
@@ -173,7 +188,7 @@ Every LA channel has `records.reporters` and `records.readBack`, so no LA channe
 | `addDeployment` | `deployments.multiple` |
 | `canvasConfiguration` | `setup.artifacts` contains `developer-key-json` |
 
-A guard that existed in M1 keeps its `details.capability` value (`webServices`, `courseShell`, `addDeployment`, `canvasConfiguration`, `dynamicRegistration`, `operatorApproval`). A new guard uses the capability id. The legacy names live only in `packages/channel-kernel/src/legacy-wire.ts` (D10).
+A guard that existed in M1 keeps its `details.capability` value (`webServices`, `courseShell`, `addDeployment`, `canvasConfiguration`, `dynamicRegistration`, `operatorApproval`). A new guard uses the capability id. The legacy names live only in `packages/channel-kernel/src/legacy-wire.ts` (D10); the frozen `details.capability` strings of the M1 guards (`dynamicRegistration`, `operatorApproval`, `addDeployment`) may also stay at their guard sites, because they name no LMS and never change (BD-A1-118).
 
 ### D4. Channel registry
 
@@ -185,7 +200,7 @@ A guard that existed in M1 keeps its `details.capability` value (`webServices`, 
   4. Every capability id is in the catalog; `publish.createCourse` needs `siteApi.token`.
   5. Every `registration[].profiles` entry exists in the channel's `lti-profiles.ts` (LTI service) or in `GET /api/providers` (app, at first use).
   6. A method whose profile has `sharing: shared` must not use authority `self` (A2 [LA-ADR-07 D2](LA-ADR-07-security-and-tenancy.md) rule A4). A `manual` method must not use `self` either (rule A3), unless its channel id is in the frozen legacy list `MANUAL_SELF_LEGACY_CHANNELS` of `legacy-wire.ts`. That list has one entry, the Moodle channel (no behaviour change); a new entry needs an ADR revision and a security review.
-  7. Every profile passes one `ProviderProfile` schema with a closed trait set; `issuerKind` agrees with `issuer` (LA-ADR-02 D2); `wireLms` (D6) is allowed only on the baseline profiles.
+  7. Every profile passes one `ProviderProfile` schema with a closed trait set; `issuerKind` agrees with `issuer` (LA-ADR-02 D2); `wireLms` (D6) is allowed only on the baseline profiles. The baseline profiles are the keys of the frozen map `BASELINE_PROFILE_WIRE_LMS` of `legacy-wire.ts` (eight pairs). A baseline profile must have `wireLms` equal to its map value, and every other profile must not have `wireLms` (build ratification BD-A1-06, [build decisions A1](../build-decisions-A1.md)). `privacyFloor: 'none'` is allowed only on a profile in the frozen list `PRIVACY_FLOOR_NONE_PROFILES` of `legacy-wire.ts` (one entry: `standard`); every other profile has `allowlist` (BD-A1-22, ratified by A2 as BD-A2-21; LA-ADR-07 T18). A new non-baseline profile has a `listOrder` above every baseline `listOrder` (BD-A1-23). The E2 traits are optional and get the strictest default (LA-ADR-02 D2, BD-A1-74); a given value must agree with the profile: `issuerKind` with `issuer`; `endpointOrigins` is `null` exactly when `endpoints` is `fixed`, and `any-https` only with `endpoints: admin`; the flag `clientAssertionAudArray` is removed (LA-E2-02, merge `78ffce1`; BD-A1-75, BD-A1-99), so a profile that still sets it fails the closed flag set (unknown flag); an absent `clientAssertionAud` is `{ value: '{tokenEndpoint}', form: 'string' }`.
   8. A `launch`-level guard (D6) is allowed only on a channel in the frozen list `LAUNCH_GUARD_CHANNELS` of `legacy-wire.ts` (the Canvas and Blackboard channels).
 - `availability: 'simulation-only'` channels load only when the LTI service runs with simulations on (LTI contract §9.13).
 - **Extra root.** The loader takes its roots only as a function argument. Product code passes exactly one root, a constant path to `packages/channels/` (built from `import.meta.url`). No environment variable, knob or runtime setting can add a root. Tests pass a second root for the canary channel (D10).
@@ -222,7 +237,7 @@ export interface ChannelRegistry {
 
 The portal builds the same `LoadedChannel[]` from `import.meta.glob` and calls `buildChannelRegistry`. The app runs load check 5 against `GET /api/providers` at first use, through `channelOfProfile` (a profile of a method that the LTI service does not report makes the method unavailable, log `channel_profile_unknown`).
 - Channel order: by `card.order`, then by id (moodle, canvas, blackboard for the baseline).
-- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`. A new channel's profiles take `listOrder` values above the baseline values, so they come after the baseline real profiles and before every simulation profile (A2 [lti-service-api-delta §4.7](../contracts/lti-service-api-delta.md)).
+- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`. A new channel's profiles take `listOrder` values above the baseline values, so they come after the baseline real profiles and before every simulation profile (A2 [lti-service-api-delta §4.7](../contracts/lti-service-api-delta.md)). Load check 7 enforces it (BD-A1-23): a profile whose id is not a key of `BASELINE_PROFILE_WIRE_LMS` needs a `listOrder` above the largest `listOrder` of the baseline profiles, simulation profiles included (70 today), computed from the profile definitions whatever the simulation setting.
 
 ### D5. Ports
 
@@ -250,25 +265,37 @@ export interface ConnectionSetup {
   toolConfiguration(ctx: ToolConfigurationContext): ToolRow[]; // show step (unchanged signature)
   // Collect: the strict body of PUT …/platform or POST …/deployments; `adminValues` only for `endpoints: admin` profiles.
   parseBindingBody(body: unknown, ctx: PlatformBodyContext & { purpose: GrantPurpose }):
-    { ok: true; values: PlatformBodyValues & { adminValues?: AdminValues } } | { ok: false; fields: string[] };
+    { ok: true; values: PlatformBodyValues & { adminValues?: AdminValues } } | { ok: false; fields: string[]; reason?: 'origin' | 'issuerOrigin' };  // BD-A1-35, BD-A1-118
   // `self` authority with typed values (Moodle six values): the platform create, no grant.
   selfCreate?(values: AdminValues & { deploymentId: string }, ctx: CreateRequestContext): StagedCreate;
   // `operatorGrant` authority (unchanged names): the redemption target and its staged create.
   initialTarget?(ctx: InitialTargetContext): BindingTarget;
   createRequest?(target: BindingTarget, ctx: CreateRequestContext): StagedCreate;
+  // Per-profile app data (BD-A1-29): replaces profileLabel, acceptsServiceUrl and siteRuleSuffixes.
+  readonly profiles: Readonly<Record<string, AppProfileData>>;
+  sharingOf(profileId: string): PlatformSharing | null;      // as built: a required member, read from `profiles` (BD-A1-118)
   // Optional extension ports P5–P7.
   extensionRoutes?: readonly ExtensionRoute[];
   publishHooks?: readonly PublishHook[];
   packageExporters?: readonly PackageExporter[];
 }
 export interface AdminValues { issuer: string; authenticationEndpoint: string; accessTokenEndpoint: string; jwksUrl: string; tokenAudience?: string }
+export interface AppProfileData {               // plain data per offered profile (BD-A1-29)
+  sharing: 'exclusive' | 'shared'; serviceUrl: boolean;
+  label: string;                               // app-only: the frozen GET /app-api/lms-providers label (for example 'Moodle site')
+  refusedHostSuffixes?: readonly string[];     // site rule 5
+}
 ```
 
-The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
+**Contract surface for K0 (build ruling BD-A1-20, [build decisions A1](../build-decisions-A1.md)).** The kit's K-ADAPTER case uses only the names and result shapes of this sketch: `channel`; `checkCreate` → `{ ok: true, siteUrl, serviceUrl }` or `{ ok: false, field, rule? }`; `toolConfiguration` → an array of rows; `parseBindingBody` → `{ ok: true, values }` or `{ ok: false, fields, reason? }` (a refusal is a value, never a throw; `reason` is absent or `'origin'`, BD-A1-35); `selfCreate?`, `initialTarget?`, `createRequest?`; `extensionRoutes?`, `publishHooks?`, `packageExporters?`. Required members, and a missing one fails the case: `channel`, `checkCreate`, `toolConfiguration` and `parseBindingBody` for every channel with `app.ts`; `selfCreate` when a registration entry is `manual` with `self`; `initialTarget` and `createRequest` when an entry has `operatorGrant`; an extension port whose capability is true. Until LA-E1-07 creates `kernel/ports.ts`, the kit relies only on these names, the arity and the result discriminants, not on the context field names. A channel with `lti.toolConfiguration: 'channel'` and no `app.ts` (BD-A1-85) has no `ConnectionSetup` of its own: the case does not require `app.ts`, checks through the LTI profile registry API that every profile of the channel has `endpoints: admin`, and expects no adapter members from the channel (the kernel admin-value adapter serves it). `setup.connectionCheck` needs no adapter member (BD-A1-110): the check is the core route `POST /app-api/connections/:id/check` → LTI `POST /api/platforms/:id/check` and uses no `ConnectionSetup` member, so it does not make `app.ts` required; for a channel without `app.ts`, the case expects `setup.connectionCheck` in the registry capabilities to equal the manifest value. The capabilities that do need `app.ts` are those of the extension ports: `siteApi.token`, `publish.createCourse`, a non-empty `setup.artifacts` or `export.packages`.
+
+The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. Refusal texts (BD-A1-35): core owns the `422 INVALID_PLATFORM_VALUES` descriptions. No `reason` gives "Some values are missing or not valid."; `reason: 'origin'` gives "The URLs must be https and on the {LMS} site of this connection." with the channel text name, so the Moodle text stays byte for byte. A channel sets `reason: 'origin'` only for a URL-origin failure and never supplies a text. As built, the kernel admin-value adapter adds the closed reason `'issuerOrigin'` (an issuer whose origin is not the site URL; Reviewer-B B-LA-E2-03-03): "The issuer must have the same https origin as the site URL of this connection." (core text; BD-A1-118). `profileLabel`, `acceptsServiceUrl` and `siteRuleSuffixes` become the plain-data map `profiles` of the port (BD-A1-29): one entry per offered profile. A unit test keeps `sharing`, `serviceUrl` and `refusedHostSuffixes` equal to the same profile in the channel's `lti-profiles.ts`, and every manifest registration profile has an entry; `label` is app-only. A profile that `GET /api/providers` reports but `profiles` does not list stays ignored (LA-ADR-04 D1 S1). The kernel admin-value adapter gives `sharing: 'exclusive'`, `serviceUrl: false`, the LTI profile label and no suffixes.
+
+**Published ports (BD-A1-28).** `services/cogniate-app/src/kernel/ports.ts` (LA-E1-07) is the reference for the context types: `ToolConfigurationContext { urls, libraryName, sharedClientId }`; `PlatformBodyContext { siteUrl, clientId?, sharedClientId }` with `purpose: GrantPurpose` (`'initial' | 'add_deployment'`); `InitialTargetContext { connection, values, profile, sharedPlatform }`; `CreateRequestContext { libraryName }`; `selfCreate` values add `clientId`. Once the file is on the integration branch, K0 imports these types (`import type`) and fills every required field. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
 
 `services/cogniate-app/src/kernel/ports.ts` holds every type that these sketches name (`ToolConfigurationContext`, `PlatformBodyContext`, `CreateRequestContext`, `InitialTargetContext`, `StagedCreate`, `BindingTarget`, `GrantPurpose`, `ToolRow`, `ProfileView`, `PlatformBodyValues`, `PortContext`, …). It is a public interface file with no logic: QA may read it and import its types (types only) as soon as step S5 creates it (QA Q-LAD-19).
 
-**Kernel admin-value setup adapter (E2-K; Reviewer-B B-LAD-05).** One kernel `ConnectionSetup` for channels whose profiles all have `endpoints: admin` and that have no `app.ts`: tool configuration rows from the manifest `setup` data; the strict body `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience?`, `grantCode` (field defaults from `FieldSpec.default`); the `exclusive_platform` target with the admin values; the staged create. `lti-generic` and `brightspace` use it, so neither has an `app.ts`.
+**Kernel admin-value setup adapter (E2-K; Reviewer-B B-LAD-05).** One kernel `ConnectionSetup` for channels whose profiles all have `endpoints: admin` and that have no `app.ts`: tool configuration rows from `setup.toolRows` (placeholders filled from the context `toolUrls` and `toolAccountId`; no row data = the generic row set of app delta §3.3; BD-A1-78); the strict body `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`, `tokenAudience?`, `grantCode` (field defaults from `FieldSpec.default`: literal text with the only placeholder `{siteUrl}`, filled with the connection site URL when the field is absent; a posted value always wins; the grant's bound values and the LTI profile rules still check the filled value; BD-A1-80); the `exclusive_platform` target with the admin values; the staged create; the profile label is the manifest `names.label` (as built; every kernel-served channel has one profile in LA, so a channel with several admin profiles needs the profile label first; BD-A1-118). `lti-generic` and `brightspace` use it, so neither has an `app.ts`. The app gives this adapter to every channel without `app.ts`; the LTI service refuses admin values on a `fixed` profile at create, and from LA-E2-04 the app's first-use check (load check 5) makes a method unavailable when its profile reports `endpoints: fixed` (BD-A1-79).
 
 **Extension ports and the port context (P5–P7; Reviewer-B B-LAD-03).** Sketch, same file:
 
@@ -278,9 +305,15 @@ export interface PortContext {                 // made by the kernel per call; a
   connectionId: string | null;                 // null for course-version ports (P7)
   sql: ChannelSql;                             // no raw database handle
   outbound: GuardedClient;                     // the shared SSRF-guarded client (security §9)
-  seal(value: string): Promise<Uint8Array>; unseal(blob: Uint8Array): Promise<string>;  // async, as the key provider (LA-ADR-06 D6)
+  seal(value: string, column: string): Promise<Uint8Array>;  // async, as the key provider (LA-ADR-06 D6)
+  unseal(blob: Uint8Array, column: string): Promise<string>;  // A2 BD-A2-91 (LA-E5-22): associated data app:connection:<column>:<libraryId>:<connectionId>,
+                                               // from this context (never from the channel); column = a sealed column of `connection`; throws when connectionId is null
   logger: Logger; traceId: string; now(): number;
+  // BD-A1-37 (P5): public values and the public tool keys, for setup artifacts such as the Canvas JSON.
+  urls: PublicUrls; libraryName: string; toolAccountId: string;
+  publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;  // public members only, active key first
 }
+export interface PublicJwk { kty: string; kid: string; alg: string; use: string; n: string; e: string }
 export interface ChannelSql {                  // the kernel binds :library_id (and :connection_id when not null)
   get<T>(statement: string, params?: Record<string, unknown>): T | undefined;
   all<T>(statement: string, params?: Record<string, unknown>): T[];
@@ -289,21 +322,34 @@ export interface ChannelSql {                  // the kernel binds :library_id (
 export interface ExtensionRoute {              // P5: mounted under /app-api/connections/:id/
   method: 'GET' | 'PUT' | 'POST'; path: string;              // a frozen legacy path (D8) or `x/<name>`
   capability: CapabilityId; legacyCapabilityName?: string;   // the guard and its frozen details.capability value
-  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
+  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
+    | { status: number; body: unknown; headers?: Record<string, string> }
+    | { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;  // BD-A1-37: the kernel renders the standard error body
 }
 export interface PublishHook {                 // P6: runs after POST /app-api/publications
   option: string;                              // the frozen body flag that turns it on (`createMoodleCourse`)
   capability: CapabilityId;                    // publish.createCourse
-  afterPublish(p: PublicationView, ctx: PortContext): Promise<void>;
+  parseOptions(value: unknown): { ok: true; options: unknown } | { ok: false; fields: string[] };  // BD-A1-37: the body flag value, checked before any change
+  afterPublish(p: PublicationView, options: unknown, ctx: PortContext): Promise<void>;
   dtoFields(p: PublicationView, ctx: PortContext): Record<string, unknown>;  // only frozen field names (D8)
 }
 export interface PackageExporter {             // P7: course-version level, no connection
   id: string;                                  // 'mbz'
   formats: readonly string[];                  // ['scorm12']
-  start(v: CourseVersionView, ctx: PortContext): Promise<ExportBuildView>;
-  latest(v: CourseVersionView, ctx: PortContext): ExportBuildView | null;
-  download(v: CourseVersionView, ctx: PortContext): Promise<{ path: string; mediaType: string; filename: string } | null>;
+  start(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView>;
+  latest(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView | null>;   // BD-A1-37: async (refreshes the runner status)
+  download(v: CourseVersionView, ctx: ExporterContext): Promise<{ artifact: string; mediaType: string; filename: string } | null>; // the kernel streams it
 }
+export interface ExporterContext extends PortContext { buildQueue: BuildQueue }
+export interface BuildQueue {                  // BD-A1-37: a kernel service on BUILD_QUEUE_DIR; a channel never sees a path
+  submit(buildId: string, request: Record<string, unknown>): Promise<void>;  // requests/<id>.json, atomic, mode 0600
+  status(buildId: string): Promise<unknown | null>;   // status/<id>.json, parsed, size-capped; null when absent
+  runner(): Promise<unknown | null>;                  // status/runner.json
+  pending(buildId: string): Promise<boolean>;         // BD-A1-47: requests/<id>.json is still a regular file (lstat, no read)
+}
+// PublicationView, CourseVersionView, ExportBuildView (today's mbz build DTO fields), ProfileView: explicit interfaces
+// in kernel/ports.ts with the fields a channel may read; ports.ts imports types only from @cogniate/channel-kernel and
+// @cogniate/shared, never from domain/**, clients/** or app/** (BD-A1-37, BD-A1-38).
 ```
 
 | Rule | Detail |
@@ -312,17 +358,28 @@ export interface PackageExporter {             // P7: course-version level, no c
 | Tables | Channel SQL may name only the tables and columns that its manifest lists in `storage` (Moodle: `mbz_build`; `connection.ws_*`; `publication.moodle_course_*`, `shell_*`). Fitness check F5 refuses other names in channel SQL. A2's "no database handle" rule (LA-ADR-07 D1) means no raw handle; `ChannelSql` is the bound handle. |
 | DTO fields | A channel cannot add a field to a core DTO in LA. The frozen publication fields `moodleCourse`, `shellStatus`, `shellError` come from the Moodle hook's `dtoFields`; the kernel accepts only names in `legacy-wire.ts`. |
 | Body flags | The kernel publish route parses the frozen flag `createMoodleCourse` (a `legacy-wire.ts` name) and calls the hook whose `option` equals it; a channel without the capability gets the M1 guard (`409 CAPABILITY_NOT_SUPPORTED`, `courseShell`). |
+| Port context values (BD-A1-37) | `urls`, `libraryName` and `toolAccountId` are the values of the call's library. `publicToolKeys()` asks the LTI service for that tool account only and copies only `kty`, `kid`, `alg`, `use`, `n`, `e`; on an LTI error it gives `{ ok: false }`, and the route answers its own frozen error through the `error` result. NOT_FOUND and the capability guard run in the kernel before `handle`. Security review: A2. |
+| Build queue (BD-A1-37) | `buildQueue` exists only on the P7 context. The kernel accepts a build id only when it matches `[A-Za-z0-9_-]{1,64}`, uses only the `requests/`, `status/` and `out/` folders of `BUILD_QUEUE_DIR`, writes only `requests/` (mode `0600`, write then rename), caps the size of a status file before it parses it, and streams `out/<buildId>.<ext>` for `download`. `pending(buildId)` is true only while `requests/<buildId>.json` exists as a regular file (no symlink follow, no content read); like `status`, it is bound to the call's library, so another library's build id gives `false` (A2 BD-A2-39; BD-A1-47). Known limit in LA (BD-A1-58; Reviewer-B B-LA-E1-08-04): the queue serves the `.mbz` exporter only (its status steps, its hold file and the ownership query `EXPORT_BUILD_SCOPE_SQL` on `mbz_build`); a second exporter needs a kernel change of the ownership table and the status steps. Channel files never import `node:fs` or `node:path` (BD-A1-16). Security review: A2. |
+| Contract file (BD-A1-38) | `kernel/ports.ts` holds only the channel contract, with one doc comment per member and the required rules of BD-A1-20 and BD-A1-28. Kernel-internal types (for example `SetupRouteDeps` with the database, the LTI client and the master key) live in a kernel-internal module that channel files cannot import. Channel files also refuse `eval`, implied eval and `new Function` (lint). |
+| Setup helpers (BD-A1-40; A2 BD-A2-37) | Deployment and tenant values come through the contexts, built by the kernel: the P2 contexts (`ToolConfigurationContext`, `CreateRequestContext`) and the P5 `PortContext` carry `toolAccountId` and `toolUrls` (`login`, `launch`, `keys`, `register`, `ltiOrigin`). A channel file holds no tool account id and no protocol path. The pure helpers `toolName`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody` have one definition in `@cogniate/channel-kernel/setup` (`packages/channel-kernel/src/setup.ts`, package export `./setup`), which the app kernel admin-value adapter uses too. The BD-A2-11 conditions apply: pure, export names pinned by a unit test, a list change is a Reviewer-A item. None of them is on `@cogniate/shared/channel`. |
+| Channel storage (BD-A1-42) | The manifest `storage` list names every table and column that channel SQL touches, also the neutral key columns it scopes or joins on (for example `connection.id`, `library_id`, `site_url`, `updated_at`; `publication.id`, `connection_id`, `updated_at`); no wildcard; F5 `channel-sql-tables` checks it. Core data such as export metadata comes through the explicit views (`CourseVersionView`), never through channel SQL on core course tables. The `rowid` pseudo-column is never in a storage list; the rule has exact allow entries (file, exact statement text, reason) only for the three pre-LA `mbz_build` statements that move 1:1 into `packages/channels/moodle/app/builds.ts` (A2 BD-A2-46; BD-A1-52); any other `rowid` in channel SQL fails. |
 
 **Portal module (P11; Reviewer-B B-LAD-02).** Sketch, `apps/portal/src/sdk/index.ts` (alias `@cogniate/portal-sdk`):
 
 ```ts
 export interface ChannelUiModule {
-  Wizard?: ComponentType<ChannelWizardProps>;                  // replaces the whole shell wizard (Canvas, Blackboard, Moodle)
+  Wizard?: ComponentType<ChannelWizardProps>;                  // replaces the whole shell wizard (Canvas, Blackboard, Moodle); it must pick its
+                                                               // verify step from connection.bindingAuthority (BD-A1-44)
   steps?: Partial<Record<'show' | 'collect' | 'verify' | 'enable', ComponentType<ChannelWizardProps>>>;
   TeacherSteps?: ComponentType;                                // shown after publication
   connectionPanels?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>[];  // Moodle web services, Canvas JSON
-  coursePanels?: ComponentType<{ course: CourseView; sdk: PortalSdk }>[];             // Moodle .mbz and course shell
+  coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[]; // Moodle .mbz
+  // BD-A1-25: optional slots; the shell has a default for each and never tests a channel id.
+  publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[]; // Moodle course shell
+  ConnectionError?: ComponentType<ConnectionErrorProps & { Default: ComponentType<ConnectionErrorProps> }>; // BD-A1-32: renders <Default/> for errors it does not handle
+  ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>; // replaces the default detail block and its "Open {LMS}" link
 }
+export interface ConnectionErrorProps { connection: ConnectionView; error: ApiErrorView; libraryName: string; sdk: PortalSdk }
 export interface ChannelWizardProps {        // today's ProviderWizardProps (wizard-types.ts:11-18) plus the SDK
   provider: ProviderView; connection: ConnectionView | null; libraryName: string; opener: string;
   onCreated(c: ConnectionView): void; onChanged(c: ConnectionView): void; sdk: PortalSdk;
@@ -332,7 +389,8 @@ export interface PortalSdk {                 // re-exports of today's portal cod
   useApi: typeof useApi; navigate(to: string): void;
   ui: PortalUiKit;                           // Button, Card, Tabs, ErrorNotice, Loading, ConnectionBadge, provider error texts
 }
-// ProviderView, ConnectionView, CourseView = today's DTO types of apps/portal/src/types.ts, re-exported.
+// ProviderView, ConnectionView, CourseView, CourseVersionView, PublicationView, ApiErrorView = today's DTO types of
+// apps/portal/src/types.ts, re-exported.
 ```
 
 S8 first moves the needed helpers into `apps/portal/src/sdk/`, then moves the modules. A module that needs more than the SDK gives an SDK addition in S8, not a deep import.
@@ -341,14 +399,16 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 
 ### D6. LTI profiles in the LTI service
 
-- Each channel's `lti-profiles.ts` exports its profiles. `services/lti-service/src/profiles/index.ts` stays the one profile registry API (`listProfiles`, `findProfile`, `profileDefinition`, …). It reads the profiles from the channel registry instead of three imports (`profiles/index.ts:5-7`).
+- Each channel's `lti-profiles.ts` exports its profiles. The type `ProfileSource` (types only, no schema) is in `@cogniate/channel-kernel`; `lti-profiles.ts` uses `import type { ProfileSource } from '@cogniate/channel-kernel'` and `satisfies readonly ProfileSource[]`. The schema of load check 7 stays in the LTI service and is typed against the kernel type (`satisfies z.ZodType<ProfileSource>`), so the two cannot drift (BD-A1-21). `services/lti-service/src/profiles/index.ts` stays the one profile registry API (`listProfiles`, `findProfile`, `profileDefinition`, …). It reads the profiles from the channel registry instead of three imports (`profiles/index.ts:5-7`).
 - `ProfileLms` (`profiles/types.ts:5`) is replaced by `channel: string` (the owning channel, set by the loader). The driver never compares a channel id.
 - Trait `endpoints: 'admin' | 'fixed'` replaces `isStandardProfile` in rules (R3 S68: `http/routes/platforms.ts:102,165,172-177,245`, `http/service-context.ts:40`). The `standard` id stays the default value for old rows (`store/platforms.ts:98`).
-- **Generic check 14.** Let F be the signed `tool_platform.product_family_code`, lower case. If a channel guards F at the `launch` level, the platform profile must belong to that channel; else `PROVIDER_PROFILE_MISMATCH` with `detail family=F`. A `registration`-level guard is checked at Dynamic Registration (LA-ADR-02 D5 item 5) and in the app's create step. At launch it refuses only a platform whose profile belongs to a channel in `MANUAL_SELF_LEGACY_CHANNELS` (the typed-value `self` path; Reviewer-A A-LAD-19), before any claim is stored; for every other platform it only logs `family_guard_mismatch {platform_id, family}` (info) and does not refuse (Reviewer-B B-LAD-04: a new named channel must not break live `lti-generic` or `standard` connections of its LMS). New channels use `registration`; `launch` stays for Canvas and Blackboard (load check 8), where it guards against kind B issuers and the self-hosted Canvas path of ADR-011 §4 rule 4. A change of a guard to `launch` level needs an ADR revision with a move plan for the live connections. A missing F, or an F that no channel guards, passes. Baseline manifests: Canvas guards `canvas` and Blackboard guards `blackboardlearn`, both at the `launch` level; Moodle guards nothing. So the refused set equals today's (`lti/checks.ts:246-251`).
+- **Generic check 14.** Let F be the signed `tool_platform.product_family_code`, lower case. If a channel guards F at the `launch` level, the platform profile must belong to that channel; else `PROVIDER_PROFILE_MISMATCH` with `detail family=F`. A `registration`-level guard is checked at Dynamic Registration (LA-ADR-02 D5 item 5), in the LTI service, on the configuration's `product_family_code`; no app create input carries a signed family, so the app has no registration-phase check (BD-A1-55). At launch it refuses only a platform whose profile belongs to a channel in `MANUAL_SELF_LEGACY_CHANNELS` (the typed-value `self` path; Reviewer-A A-LAD-19), before any claim is stored; for every other platform it only logs `family_guard_mismatch {platform_id, family}` (info) and does not refuse (Reviewer-B B-LAD-04: a new named channel must not break live `lti-generic` or `standard` connections of its LMS). New channels use `registration`; `launch` stays for Canvas and Blackboard (load check 8), where it guards against kind B issuers and the self-hosted Canvas path of ADR-011 §4 rule 4. A change of a guard to `launch` level needs an ADR revision with a move plan for the live connections. A missing F, or an F that no channel guards, passes. Baseline manifests: Canvas guards `canvas` and Blackboard guards `blackboardlearn`, both at the `launch` level; Moodle guards nothing. So the refused set equals today's (`lti/checks.ts:246-251`).
+- **Registration-phase answer (BD-A1-121).** The verdict `refuse` at the registration phase gives the `PROVIDER_PROFILE_MISMATCH` page at the DR start page. At `complete` (when the start page passed because the owning channel is loaded too), it gives `400 INVALID_REQUEST` with `details.reason` `family=<family>`, and the app shows `REGISTRATION_FAILED`: a recorded deviation, fixed in LG.
+- **One verdict function (BD-A1-39, BD-A1-54).** `familyGuardVerdict(registry, family, profileChannel, phase)` in `@cogniate/channel-kernel`, pure; `phase` is the call phase `'registration' | 'launch'` (the guard level comes from the registry, never from the caller); `family` is the signed family code, lower case. It gives `pass` when the family is absent or empty, when no channel guards it, or when the guarding channel is `profileChannel`. In phase `registration` (Dynamic Registration in the LTI service; the only call site, BD-A1-55) a guard of another channel at either level gives `refuse`. In phase `launch` (check 14 and the app launch router) a `launch`-level guard of another channel gives `refuse`; a `registration`-level guard of another channel gives `refuse` only when `profileChannel` is in `MANUAL_SELF_LEGACY_CHANNELS`, else `log`. Result: `{ kind: 'pass' }`, `{ kind: 'refuse', family, guardChannel }` or `{ kind: 'log', family, guardChannel }`; the callers keep today's output byte for byte (`PROVIDER_PROFILE_MISMATCH` with `detail family=F`; `family_guard_mismatch {platform_id, family}` at info).
 - Text names: `lmsNameOf` and `lmsNameOfFamily` (`profiles/index.ts:96-107`) become registry lookups of `names.text`. A profile with no channel text (impossible after load check 2) uses the `standard` channel text, as today.
-- `GET /api/providers` adds the field `channel`. The field `lms` stays frozen. Its value comes from the profile field `wireLms` (QA Q-LAD-17): the baseline profiles keep today's values (`standard`: `null`; Canvas profiles: `canvas`; Blackboard profiles: `blackboard`); a profile without `wireLms` shows its channel id. So no channel name is in core. A2 records the wire change in [lti-service-api-delta](../contracts/lti-service-api-delta.md).
+- `GET /api/providers` adds the field `channel`. The field `lms` stays frozen. Its value comes from the profile field `wireLms` (QA Q-LAD-17): the baseline profiles keep today's values (`standard`: `null`; Canvas profiles: `canvas`; Blackboard profiles: `blackboard`); a profile without `wireLms` shows its channel id. The same eight values are frozen in `legacy-wire.ts` (`BASELINE_PROFILE_WIRE_LMS`), and load check 7 compares the profile data with them (BD-A1-06). So no channel name is in core outside `legacy-wire.ts`. A2 records the wire change in [lti-service-api-delta](../contracts/lti-service-api-delta.md).
 - New profile traits for E2 (token audience, client assertion `deployment_id`, DR endpoint policy) are in [LA-ADR-02](LA-ADR-02-generic-lti-channel.md).
-- Trait `privacyFloor` (`allowlist` \| `none`) keeps today's effect of `minimizeClaims` (`profiles/types.ts:19`): `allowlist` for every Canvas and Blackboard profile, `none` for `standard`. A2's claim policy per tool account ([LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md), E3 Should) can remove more claims, never fewer. Until the claim policy exists, the floor alone decides, so E1 changes nothing.
+- Trait `privacyFloor` (`allowlist` \| `none`, required) keeps today's effect of `minimizeClaims` (`profiles/types.ts:19`): `allowlist` for every Canvas and Blackboard profile, `none` for `standard`. BD-A1-22 (ratified by A2 as BD-A2-21): `none` only on the profiles of the frozen list `PRIVACY_FLOOR_NONE_PROFILES` (load check 7); the launch keeps every claim only when the value is exactly `none` and minimizes for any other value (fail closed). A raise of `standard` to `allowlist` changes Moodle launches, so it needs its own `LA-IC-nn` (plan LD-9). The claim policy of LA-E3-10 composes fail closed: a claim stays only when both the profile floor and the account policy allow it. A2's claim policy per tool account ([LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md), E3 Should) can remove more claims, never fewer. Until the claim policy exists, the floor alone decides, so E1 changes nothing.
 
 ### D7. App adapters, authority and routing
 
@@ -361,6 +421,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 | `operatorGrant` | the two-phase grant redemption (app contract §4.7.1), target kind from the adapter | `approved_deployment` (`domain/connections.ts:204-206`) | fence-out with refs | `CONNECTION_DISABLED` without a POST (`domain/score-syncs.ts:29`) |
 
 - The target kind is stored on each binding attempt, so revoke cleanup and fence-out pick the record kind without an LMS test (R3 S9, S12).
+- Source of `sharing` in the app (build ratification BD-A1-12, [build decisions A1](../build-decisions-A1.md)): code that works on an existing binding reads the stored `binding_attempt.target_kind`. A new binding (redemption phase 1, which makes no LTI call) takes the target kind from the app adapter, which declares `sharing` per profile that it offers as plain data. A unit test keeps that data equal to the `sharing` trait of the same profile in the channel's `lti-profiles.ts`. The app never infers `sharing` from a channel id or a target snapshot.
 - The manifest may combine `dynamic` with `operatorGrant` (A2's Canvas Dynamic Registration, D-1, Should, [LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md)). Then the registration only stages an **inactive** platform with a binding ref, and the normal grant redemption adopts and activates it (adoption rule A3 of app contract §4.7.1). The strategy table above does not change. The same staging applies when a `self` DR method on an `any-https` profile meets a configuration that breaks the self invariant I-SELF ([LA-ADR-02 D2a, D5 item 10](LA-ADR-02-generic-lti-channel.md#decision)): the pending connection's stored authority changes once from `self` to `operatorGrant`.
 - Core reads the channel only through `connection.channel` and the registry. Core never reads `connection.lms` ([LA-ADR-04 D4](LA-ADR-04-refactor-and-migration.md#decision)).
 
@@ -384,15 +445,19 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 ### D9. Portal rendering from the manifest
 
 - **Cards.** The Integrations page shows one card per channel from `manifest.card`, plus the static cards that are not channels (Kajabi, Figma, …, `Integrations.tsx:21-108`). The baseline manifests keep today's title, text, mark and colour.
+- **Card identity (BD-A1-119).** Every card of a channel that the page shows carries `data-channel-id="<manifest id>"` on its `article` in every state (loading, not ready, disabled Connect, ready, connected); a static card has no such attribute. Tests read the channel of a card from this attribute, never from its texts. The expected set is the `channel` values of `GET /app-api/lms-providers`.
 - **Routes.** One route pair: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`. An unknown channel id, or a connection of another channel, shows "not found" (app contract §4.2 rule). The app server allowlist uses the same pattern with the registry (`app/portal.ts:29-30`).
-- **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
-- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled.
+- **Wizard.** The shell renders the four steps of every channel that has no module `Wizard` (BD-A1-44; in LA the Moodle, Canvas and Blackboard modules keep their own `Wizard`, with no visible change), from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels, or replace the whole wizard; every wizard, shell or module, selects its verify step by this authority rule (BD-A1-24, BD-A1-44). The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
+- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled (`texts.registered` for the registered status, BD-A1-25). The logo comes from `manifest.card` (`mark`, `color`, and the optional `icon` from a closed list of named icons, BD-A1-49; never a component, a URL or an SVG string); no module supplies a logo. Code that needs connection, error or publication context is an optional P11 slot (`ConnectionError`, `ConnectionDetails`, `publicationPanels`, `coursePanels`), each with a shell default. Every slot is a `ComponentType`. When a module gives `ConnectionError`, the shell always renders it and passes its own `DefaultConnectionError` as the prop `Default`; the module renders `<Default {...props} />` for every error that it does not handle (BD-A1-32). No slot result is inspected.
+- **Readiness (BD-A1-51).** A `ga` or `preview` channel renders at once from fallback profiles built from its manifest; when `GET /app-api/lms-providers` answers, the shell honours an explicit `ready: false` (it shows `texts.notReady`) and the configured values in the answer (for example the Blackboard Client ID). A failing or slow call never hides a `ga` or `preview` card. The server still decides: the app create step refuses a method whose profile the LTI service does not report (load check 5).
+- **Availability.** The portal discovers every manifest at build time. A `simulation-only` channel gets a card and routes only when `GET /app-api/lms-providers` lists it; `ga` and `preview` channels show at once. A direct route to a `simulation-only` channel waits for the list, then shows "not found" when the channel is absent (BD-A1-26).
 - **Ready rule.** `ready` comes from `GET /app-api/lms-providers` (profile ready) for every channel. The Moodle-only rule `lms === "moodle"` (`Integrations.tsx:157`) goes away; the Moodle profile is always ready, so the result does not change.
 
 ### D10. "No LMS name in core"
 
 - **Rule.** Core code has no channel id, no LMS product name and no LMS-named identifier in code tokens. Core finds channel behaviour only through the registry, capabilities and profile traits.
 - **Allowed exceptions (closed list, reviewed):** `packages/channel-kernel/src/legacy-wire.ts` (frozen wire names and values of [LA-ADR-04 D2](LA-ADR-04-refactor-and-migration.md#decision), also the frozen error codes, the behaviour-class values and the lists `MANUAL_SELF_LEGACY_CHANNELS` and `LAUNCH_GUARD_CHANNELS`); applied SQL migrations (history, ADR-006 checksum rule); `packages/shared/src/config.ts` until step S3. S3 removes `moodle` from `PublicUrls`: no service reads it, and the infra scripts read `PUBLIC_MOODLE_URL` from their own environment (Reviewer-B B-LAD-19). `infra/**` is not core code for this rule ([README §4](../README.md#4-rules-that-keep-core-channel-neutral)).
+- **Frozen names in other core code (BD-A1-64):** core code that needs a frozen wire name (also the portal) imports it from `@cogniate/channel-kernel` (`legacy-wire.ts` exports: constants such as `PUBLICATION_OPTION`, types such as `LegacyCapabilities` and `LegacyPublicationFields`) and uses computed keys or type extension; it never repeats the name. Channel-specific texts are manifest data (`texts.*`, BD-A1-63). There is no second file exception.
 - **Enforcement:** the LMS-name lint with a ratchet, the add-channel gate, and the canary channel. Scope, patterns and baseline: [README §4](../README.md#4-rules-that-keep-core-channel-neutral). QA owns the test design ([`tests/ltiaas/TEST-STRATEGY.md`](../../../../tests/ltiaas/TEST-STRATEGY.md) §3).
 
 ### D11. Wire compatibility
@@ -404,6 +469,16 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 ### D12. Texts
 
 Every text that names an LMS uses `{LMS}` with the manifest text name: tool pages, player, `packages/tracking` status texts (`packages/tracking/src/status-text.ts:19`), LTI service error and registration pages, portal texts. The Moodle text name is `Moodle`, so Moodle texts stay byte for byte. Closed name unions (`'Moodle' | 'Canvas' | 'Blackboard'`, 22 lines in 13 files, R3 §1) become `string`.
+
+Build rulings (BD-A1-30, BD-A1-31, [build decisions A1](../build-decisions-A1.md)):
+
+- A text that belongs to a frozen code stays a frozen text, not an `{LMS}` template: `pendingToolText` of `MOODLE_TOOL_MAY_EXIST` (Moodle UI words "Manage tools", "Pending tool") moves byte for byte into `legacy-wire.ts` (LA-ADR-04 D2). Where the channel is known, the recovery sentence comes from `texts.registration.TOOL_MAY_EXIST` (BD-A1-87): the Moodle manifest holds today's sentence with `{LMS}` and `{tool}` (same bytes); other channels get the core default "{LMS} may have saved the Cogniate tool already. If {LMS} shows the tool '{tool}', delete it there, then connect again." The codes do not change (`PLATFORM_ERROR` with `tool_may_exist` in the LTI service; `MOODLE_TOOL_MAY_EXIST` on the app page for every channel).
+- M1 default texts that name an LMS and that a baseline flow still sends as a table default (`PLATFORM_IN_USE`, `DEPLOYMENT_IN_USE`, `DEPLOYMENT_FIXED`) become frozen values in `legacy-wire.ts`, byte for byte; app table entries with no app throw site leave the app table (the Moodle channel sends those codes from its own table) (BD-A1-56).
+- A text whose channel is known uses that channel's name, also when today's text says "Moodle" for every channel: the `410 RUNTIME_EXPIRED` body names the session's channel (LA-IC-19, BD-A1-57). `textName(null)` (the no-context name) is only for pages with no known channel.
+- Dynamic Registration help sentences that hold LMS menu paths come from the channel manifest `texts.registration` (keys: the codes `UNKNOWN_TOOL_ACCOUNT`, `INVALID_REQUEST`, `ISSUER_MISMATCH`, `INVALID_OPENID_CONFIGURATION` (BD-A1-68), `REGISTRATION_UPDATE_NOT_ALLOWED`, `UPDATE_NOT_ALLOWED`), with `{LMS}` filled. A key holds the sentence that the page shows (for `ISSUER_MISMATCH` the registration help line, which replaces the code's action on the DR page); a code action that no page shows keeps no menu path. The Moodle manifest holds today's sentences byte for byte. A channel with no sentence for a key gets a core default with no menu path. When the channel is not known yet (an invalid registration URL), the sentences of the no-context channel apply (the channel whose name `textName(null)` gives; today Moodle), so Moodle bytes never change (BD-A1-59).
+- A text name (`names.text`) is a bare name with no article and no possessive (BD-A1-111): core templates put it after "your" and "this" and before a noun ("your {LMS} administrator", "this {LMS} site"), and the Moodle bytes of those templates are frozen, so the name must fit them. The generic channel uses `LMS`. The kernel fallback for an unknown channel id (`GENERIC_TEXT_NAME`) is not a channel name and does not change. A channel's own texts are written for its own name, so a channel with a generic name adds "your" where it needs an article ("In your {LMS}, …", BD-A1-112). A new core template with no frozen bytes puts `{LMS}` before a noun or after "your"; the LA portal check texts that use a bare `{LMS}` ("Cogniate can reach LMS.") are accepted in LA.
+- The `409 PLATFORM_IN_USE` description of a grant redemption collision (app API delta §3.4) comes from `texts.registration.PLATFORM_IN_USE` with `{LMS}` filled, else the core default "This LMS tool registration is already connected to Cogniate. Make a new tool registration for this library, or ask your Cogniate operator." (BD-A1-101). The Canvas manifest holds today's Canvas sentence, so its bytes stay. It is an API text, not the portal notice: the portal notice stays `texts.errors.PLATFORM_IN_USE` (BD-A1-63), except for an answer with `details.reason` (for example `staged_gone`), where the portal shows the server description (BD-A1-102). A core default names no LMS when the words around the name would not read well for every text name (for example `your LMS`).
+- A text that lists several LMSs takes the names from data: the `ISSUER_RESERVED` action ("Connect it as Canvas or Blackboard in the Cogniate portal.") names the channels that own the reserved-issuer profiles (the same profiles as `reservedIssuerOrigins`), each once, in profile order (real before simulation, then `listOrder`, then id), joined as "X", "X or Y" or "X, Y or Z". Today this gives "Canvas or Blackboard" byte for byte. It is not derived from `LAUNCH_GUARD_CHANNELS`, which is a different, frozen concept.
 
 ## Alternatives considered
 

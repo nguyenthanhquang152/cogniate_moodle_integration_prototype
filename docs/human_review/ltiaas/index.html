@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LTI as a Service v1 (milestone LA): review pack</title>
+<!--
+  One self-contained file. No CDN, no web font, no script, no image file, no network request. Open it from disk (file://).
+  Owner: Docs (LA-E8-05). Sources: docs/guides/ltiaas/spec-deviations.md, docs/reviews/LA-*/qa.md, docs/team/ltiaas/plan.md §6.2.
+  Status: final for LA, except three labels: "pending: kit round 8 (LD-27)" (2 rows) and "round 5 review pending" (the add-a-channel guide).
+-->
+<style>
+  :root {
+    --bg: hsl(252 20% 5%);
+    --fg: hsl(0 0% 98%);
+    --card: #16161d;
+    --line: hsl(240 15% 26%);
+    --primary: hsl(270 70% 72%);
+    --secondary: hsl(240 15% 16%);
+    --muted: hsl(0 0% 72%);
+    --ok: hsl(140 55% 60%);
+    --warn: hsl(38 85% 62%);
+    --no: hsl(0 0% 55%);
+    --radius: .75rem;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--font); }
+  a { color: var(--primary); }
+  code { font: .88em var(--mono); background: var(--secondary); border-radius: .3rem; padding: .05em .35em; }
+  :focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--card); padding: 8px 12px; border-radius: .5rem; }
+  .skip:focus { left: 8px; }
+  header, main, footer { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  header { padding-top: 28px; }
+  h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  h2 { margin: 0 0 10px; font-size: 1.2rem; }
+  h3 { margin: 0 0 6px; font-size: 1rem; }
+  .lead { color: var(--muted); margin: 0 0 12px; }
+  .badge { display: inline-block; border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 2px 12px; font-size: .85rem; margin: 0 6px 6px 0; }
+  .badge.ok { border-color: var(--ok); color: var(--ok); }
+  .badge.no { border-color: var(--no); color: var(--no); }
+  nav ul { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  nav a { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; text-decoration: none; color: var(--fg); }
+  nav a:hover { border-color: var(--primary); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin: 18px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; border-top: 1px solid var(--line); padding: 7px 8px; }
+  th { color: var(--muted); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .box { border: 1px solid var(--line); border-radius: .6rem; padding: 12px 14px; background: var(--secondary); }
+  .box p { margin: 0; color: var(--muted); font-size: .93rem; }
+  .note { border-left: 4px solid var(--warn); padding: 8px 12px; background: var(--secondary); border-radius: .4rem; margin: 12px 0 0; }
+  .lbl { font: .8rem var(--mono); border: 1px solid var(--line); border-radius: .3rem; padding: 0 .35em; white-space: nowrap; }
+  .lbl.sim { border-color: var(--primary); color: var(--primary); }
+  .lbl.live { border-color: var(--ok); color: var(--ok); }
+  .lbl.pend { border-color: var(--warn); color: var(--warn); }
+  svg { max-width: 100%; height: auto; }
+  svg text { fill: var(--fg); font: 13px var(--font); }
+  svg .sub { fill: var(--muted); font-size: 11.5px; }
+  svg .core { fill: #1d1a2a; stroke: var(--primary); stroke-width: 1.5; }
+  svg .chan { fill: #16161d; stroke: hsl(0 0% 60%); stroke-width: 1.2; }
+  svg .new { fill: none; stroke: var(--ok); stroke-width: 1.5; stroke-dasharray: 5 4; }
+  svg .done { fill: #14251a; stroke: var(--ok); stroke-width: 1.5; }
+  svg .pend { fill: #2a2214; stroke: var(--warn); stroke-width: 1.5; }
+  svg .none { fill: #1b1b1f; stroke: var(--no); stroke-width: 1.5; stroke-dasharray: 4 4; }
+  svg .wire { stroke: hsl(0 0% 50%); stroke-width: 1.2; fill: none; }
+  footer { color: var(--muted); font-size: .85rem; padding-bottom: 32px; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header>
+  <h1>LTI as a Service v1 (milestone LA): review pack</h1>
+  <p class="lead">2026-10-24. Final product SHA <code>a8bbac53</code>. Read time: about 10 minutes.</p>
+  <span class="badge ok">Final for LA</span>
+  <span class="badge">1 gate row pending: the channel kit (kit round 8)</span>
+  <span class="badge no">No real LMS site tested in LA</span>
+  <nav aria-label="Sections">
+    <ul>
+      <li><a href="#what">What LA is</a></li>
+      <li><a href="#built">What LA built</a></li>
+      <li><a href="#proved">What QA proved</a></li>
+      <li><a href="#gate">Gate and final runs</a></li>
+      <li><a href="#notproved">What is not proven</a></li>
+      <li><a href="#decisions">Your decisions</a></li>
+      <li><a href="#more">Read more</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="main">
+
+<section id="what" aria-labelledby="what-h">
+  <h2 id="what-h">1. What LA is</h2>
+  <p>Milestone LA turns the Cogniate LTI service into an "LTI as a service" product. Each LMS is now one channel: one folder of data and settings. A new LTI LMS needs no change in the core code. LA also adds the controls that a paid service needs: rate limits, tool accounts, an operator API, an audit log, key rotation and backups.</p>
+  <p>LA keeps Moodle, Canvas and Blackboard as they were, and adds two new channels: a generic <strong>LTI 1.3</strong> channel for any LMS of the same kind (for example Sakai or Open edX) and <strong>D2L Brightspace</strong>.</p>
+  <svg viewBox="0 0 760 250" role="img" aria-labelledby="fig1-t fig1-d">
+    <title id="fig1-t">One folder per LMS</title>
+    <desc id="fig1-d">The core in the middle has no LMS name. Five channel folders connect to it: Moodle, Canvas, Blackboard, LTI 1.3 and D2L Brightspace. A sixth dashed box shows that a new LMS is one more folder.</desc>
+    <rect class="core" x="270" y="95" width="220" height="64" rx="10"/>
+    <text x="380" y="122" text-anchor="middle">Core: kernel, LTI service, app</text>
+    <text class="sub" x="380" y="142" text-anchor="middle">no LMS name in the code</text>
+    <g>
+      <rect class="chan" x="20" y="20" width="150" height="46" rx="8"/><text x="95" y="48" text-anchor="middle">Moodle</text>
+      <rect class="chan" x="20" y="102" width="150" height="46" rx="8"/><text x="95" y="130" text-anchor="middle">Canvas</text>
+      <rect class="chan" x="20" y="184" width="150" height="46" rx="8"/><text x="95" y="212" text-anchor="middle">Blackboard</text>
+      <rect class="chan" x="590" y="20" width="150" height="46" rx="8"/><text x="665" y="41" text-anchor="middle">LTI 1.3</text><text class="sub" x="665" y="58" text-anchor="middle">new in LA</text>
+      <rect class="chan" x="590" y="102" width="150" height="46" rx="8"/><text x="665" y="123" text-anchor="middle">D2L Brightspace</text><text class="sub" x="665" y="140" text-anchor="middle">new in LA</text>
+      <rect class="new" x="590" y="184" width="150" height="46" rx="8"/><text x="665" y="205" text-anchor="middle">next LMS</text><text class="sub" x="665" y="222" text-anchor="middle">one more folder</text>
+    </g>
+    <path class="wire" d="M170 43 L270 112 M170 125 L270 127 M170 207 L270 142 M590 43 L490 112 M590 125 L490 127 M590 207 L490 142"/>
+  </svg>
+</section>
+
+<section id="built" aria-labelledby="built-h">
+  <h2 id="built-h">2. What LA built</h2>
+  <div class="grid">
+    <div class="box"><h3>Channels</h3><p>One folder per LMS, found by discovery. Moodle, Canvas and Blackboard moved in with no behaviour change. New: LTI 1.3 (generic) and D2L Brightspace. The D2L channel changed 0 core files.</p></div>
+    <div class="box"><h3>LTI Advantage</h3><p>Launches in a frame without third-party cookies (platform storage), launches without a course context, Deep Linking with Cancel and several items, no NRPS scope in any channel, Canvas Dynamic Registration with an approval code, score extras, trusted extra audiences.</p></div>
+    <div class="box"><h3>Grades and records</h3><p>Placements and learning records, one send queue with leases, fair waiting when an LMS throttles, an optional separate worker process.</p></div>
+    <div class="box"><h3>Operations and security</h3><p>Rate limits, tool accounts (tenants), an operator API with its own keys, an audit log, API key and signing key rotation, key rings for the master keys, service key revoke, safe retries, metrics and readiness checks, strict production start rules.</p></div>
+    <div class="box"><h3>Onboarding (Could)</h3><p>A "Check connection" panel (Canvas, LTI 1.3) and a connection health view in the portal. The record of launch refusals (LA-E6-06) is deferred.</p></div>
+    <div class="box"><h3>Tests and gates</h3><p>A contract suite (K0), a simulator with six LMS providers, a channel kit (K1), browser checks (K2), lint rules that keep LMS names out of the core, an add-channel gate (F2), a local CI script.</p></div>
+    <div class="box"><h3>Guides</h3><p>Operator runbook, admin guides (LTI 1.3, D2L Brightspace, LA changes for Moodle, Canvas and Blackboard), the add-a-channel guide, and the list of spec deviations.</p></div>
+  </div>
+</section>
+
+<section id="proved" aria-labelledby="proved-h">
+  <h2 id="proved-h">3. What QA proved</h2>
+  <p>Each result has a label. The label tells you where QA ran it. Read the labels: a <span class="lbl sim">SIM</span> result comes from a simulated LMS. It is not a result on a real LMS site.</p>
+  <svg viewBox="0 0 760 120" role="img" aria-labelledby="fig2-t fig2-d">
+    <title id="fig2-t">Evidence levels in LA</title>
+    <desc id="fig2-d">Five levels from left to right. Unit tests: done. Simulator stack: done. Browser on the simulator: done. Local Moodle site: done. Real school LMS sites: not done in LA.</desc>
+    <rect class="done" x="10" y="20" width="135" height="60" rx="8"/><text x="77" y="45" text-anchor="middle">UNIT / K0</text><text class="sub" x="77" y="64" text-anchor="middle">host tests: done</text>
+    <rect class="done" x="160" y="20" width="135" height="60" rx="8"/><text x="227" y="45" text-anchor="middle">SIM</text><text class="sub" x="227" y="64" text-anchor="middle">simulator stack: done</text>
+    <rect class="done" x="310" y="20" width="135" height="60" rx="8"/><text x="377" y="45" text-anchor="middle">K2</text><text class="sub" x="377" y="64" text-anchor="middle">browser on SIM: done</text>
+    <rect class="done" x="460" y="20" width="135" height="60" rx="8"/><text x="527" y="45" text-anchor="middle">MOODLE-LIVE</text><text class="sub" x="527" y="64" text-anchor="middle">local Moodle 5.2: done</text>
+    <rect class="none" x="610" y="20" width="140" height="60" rx="8"/><text x="680" y="45" text-anchor="middle">LIVE</text><text class="sub" x="680" y="64" text-anchor="middle">real LMS sites: none</text>
+    <text class="sub" x="380" y="108" text-anchor="middle">Each step to the right is closer to a real school. LA reached the green steps.</text>
+  </svg>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Result</th><th>Label</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>The frozen Moodle, Canvas and Blackboard regression suites give the baseline results: M1 394 of 394 rows and M2 64 of 64 browser cases, on the wave-end build <code>8fadb828</code> and again on the final build in both milestone-end runs.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §8, §12, §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
+      <tr><td>The API, log and page outputs of the baseline channels equal the frozen golden outputs, except the 13 approved intended changes (G1–G4 EQUAL, final build).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12</td></tr>
+      <tr><td>An upgrade from the intake build keeps the data: migration 12 of 12 (a real Moodle score before and after), snapshot upgrade 6 of 6, upgrade route U1 37 of 37.</td><td><span class="lbl live">MOODLE-LIVE</span> <span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12.4; <a href="../../reviews/LA-E5-08/qa.md">LA-E5-08 qa</a></td></tr>
+      <tr><td>The full Moodle scenario test (T7): 3 runs of 17 checks on the wave-end build, 1 run of 17 on the final build. The demo check is skipped, as in the baseline.</td><td><span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §11, §12; <a href="../../reviews/LA-E7-09/qa.md">LA-E7-09 qa</a></td></tr>
+      <tr><td>The legacy Moodle test groups T2a–T8 give the baseline result per test id.</td><td><span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §7–§10</td></tr>
+      <tr><td>Two milestone-end full runs (D1 and D2) on the final build, SIM and Moodle lanes: M1, M2, golden outputs, T7 and T2a–T8 all PASS in each run. Three recorded findings failed first and passed on their rerun: a test race in T8 (WE-F13, fixed in the test) and two load flakes in run D2.</td><td><span class="lbl sim">SIM</span> <span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
+      <tr><td>12 browser flows on the simulator, final build: portal cards, setup wizards, the LTI 1.3 and D2L Brightspace flows (registration, approval code, Deep Linking, score), and a framed launch without the cookie.</td><td><span class="lbl sim">K2</span></td><td><a href="../../reviews/LA-E7-07/qa.md">LA-E7-07 qa</a> (round 5)</td></tr>
+      <tr><td>A new LTI LMS (D2L Brightspace) changed 0 core files (F2 <code>core = 0</code>).</td><td><span class="lbl">UNIT</span></td><td><a href="../../reviews/LA-E2-05/qa.md">LA-E2-05 qa</a>, AC-LA-E2-05-01</td></tr>
+      <tr><td>The LTI 1.3 and D2L Brightspace channels pass their task checks (launch, Deep Linking, grades, registration, capabilities) on their simulators. The full channel kit run with its pass rule is pending: kit round 8 (LD-27) (row below).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E2-04/qa.md">LA-E2-04 qa</a> (AC-08); <a href="../../reviews/LA-E2-05/qa.md">LA-E2-05 qa</a> (AC-10)</td></tr>
+      <tr><td>Service controls: rate limits, tool accounts, the operator API, the audit log, the key lifecycle (API keys, key rings and re-wrap, signing keys), service key revoke, safe retries, metrics and readiness, production start rules, backup and restore.</td><td><span class="lbl sim">SIM</span> <span class="lbl">UNIT</span></td><td><a href="service-controls.md">proof map</a>: each claim with its QA report (LA-E5-01 to LA-E5-24) and the label of each check</td></tr>
+      <tr><td>Backup and restore drill: the restored stack works; QA recorded the restore time and the backup age.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E5-24/qa.md">LA-E5-24 qa</a></td></tr>
+      <tr><td>One tool account cannot read or change the data of another one on the new routes.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E5-13/qa.md">LA-E5-13 qa</a></td></tr>
+      <tr><td>A walker who was new to the repository added the simulator LMS <code>acme-lms</code> as a new channel in 8 min 49 s (plan §4 measure 5). The F2 gate, K0, <code>npm run check</code> and the simulator checks pass.</td><td><span class="lbl">UNIT</span></td><td><a href="../../reviews/LA-E8-02/qa.md">LA-E8-02 qa</a> (AC-01, -02, -04, -05)</td></tr>
+      <tr><td>The <code>acme-lms</code> kit K1 run on the simulator (LA-E8-02 AC-03).</td><td><span class="lbl pend">pending: kit round 8 (LD-27)</span></td><td><a href="../../reviews/LA-E8-02/qa.md">LA-E8-02 qa</a></td></tr>
+      <tr><td>The channel kit run for every channel (AC-LA-E7-08-02). The live run r7 on the final build gave 195 of 195 expected cases PASS on all 5 channels, but the round 7 reviews ask for kit oracle fixes before they accept it.</td><td><span class="lbl pend">pending: kit round 8 (LD-27)</span></td><td><a href="../../reviews/LA-E7-06/qa.md">LA-E7-06 qa</a> (round 7); <a href="../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-and-milestone-end-results">spec-deviations §4</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Labels: <span class="lbl">UNIT</span> host tests, no stack. <span class="lbl sim">SIM</span> a QA stack with simulated LMS platforms. <span class="lbl sim">K2</span> a browser on that stack. <span class="lbl live">MOODLE-LIVE</span> a real Moodle 5.2 site in Docker on the QA host. <span class="lbl">LIVE</span> a real school LMS site: none in LA.</p>
+  <p class="note">Environment note: Docker Desktop updated itself on the QA host during run D1. A new storage-lock diagnostic (G-1) passed on the new version before the runs went on (<a href="../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-and-milestone-end-results">spec-deviations §4</a>).</p>
+</section>
+
+<section id="gate" aria-labelledby="gate-h">
+  <h2 id="gate-h">4. Wave-end gate and milestone-end runs</h2>
+  <p>The gate ran the frozen suites on the wave-end build and again on the final build. Then two milestone-end full runs (D1 and D2) ran on the final build. 10 of 11 gate checks pass. One waits: the channel kit run (pending: kit round 8 (LD-27)).</p>
+  <p>QA found 13 differences (WE-F1 to WE-F13) and two load flakes. Each one has a recorded decision:</p>
+  <ul>
+    <li><strong>2 product fixes:</strong> a higher default rate limit for <code>admin</code> API calls (WE-F1), and a faster stop of open HTTP requests at shutdown (WE-F4).</li>
+    <li><strong>The new behaviour is right, and the frozen test changes:</strong> five findings, each test change approved by two reviewers (WE-F2, -F3, -F6, -F7, -F8).</li>
+    <li><strong>A test or harness problem, not an LA difference:</strong> WE-F5, -F9, -F10, -F11, -F13.</li>
+    <li><strong>Two load flakes in run D2</strong> (T7 under two Moodle stacks, one M2 keyboard case): each rerun passed. A flaky run never counts as PASS.</li>
+    <li><strong>One flake stays open:</strong> WE-F12. One grade test fails sometimes, on the intake build too. Test hardening comes after LA.</li>
+  </ul>
+  <p>Details: <a href="../../guides/ltiaas/spec-deviations.md#5-wave-end-and-milestone-end-findings-we-f1-to-we-f13-and-the-d2-flakes">spec-deviations §5</a>.</p>
+</section>
+
+<section id="notproved" aria-labelledby="notproved-h">
+  <h2 id="notproved-h">5. What is not proven</h2>
+  <ul>
+    <li><strong>No real Canvas, Blackboard, D2L Brightspace or other LTI 1.3 site took part.</strong> Every result for these LMSs is a simulator result. Their menu names and some field names come from vendor documentation. A live proof on an open-source LMS is decision LA-H26 (after LA).</li>
+    <li><strong>The channel kit run for every channel:</strong> pending: kit round 8 (LD-27). The product owner chose LA-H25 option (a), then a narrow fix, then a live fix-and-rerun window. The live run r7 gave 195 of 195, and the round 7 reviews ask for kit oracle fixes first. The <code>acme-lms</code> kit run of the walkthrough (LA-E8-02 AC-03) waits for the same round.</li>
+    <li><strong>Known limit (BD-A1-121):</strong> a Dynamic Registration of a <code>desire2learn</code> site on a Moodle or LTI 1.3 connection is refused with the page <code>REGISTRATION_FAILED</code>, not with the page that names D2L Brightspace. Nothing is sent and nothing is stored. The fix is in LG (<a href="../../guides/ltiaas/spec-deviations.md#7-recorded-product-deviation-known-limit">spec-deviations §7</a>).</li>
+    <li><strong>Canvas Dynamic Registration for Instructure-hosted Canvas:</strong> refused on purpose until a live Canvas check. Hosted Canvas uses the developer key.</li>
+    <li><strong>A production host:</strong> the strict production start rules exist and pass their tests, but the LA Docker stack cannot run in production mode. A production host setup is milestone LG.</li>
+    <li><strong>Load, scale, high availability and 1EdTech certification:</strong> not in LA (certification shape: LA-H9).</li>
+    <li><strong>Not built:</strong> the tenant reads <code>GET /api/audit</code> and <code>GET /api/account</code> (Should; no task had them); ungraded items (LA-H22); a claim policy per tool account (LA-H4); the verified admin launch (LA-H24); the record of launch refusals (LA-E6-06, deferred).</li>
+  </ul>
+</section>
+
+<section id="decisions" aria-labelledby="decisions-h">
+  <h2 id="decisions-h">6. Your decisions</h2>
+  <p>Details and options: <a href="decisions.md">decisions.md</a>.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Id</th><th>Question</th><th>Lead recommendation</th><th>What waits</th></tr></thead>
+    <tbody>
+      <tr><td>LA-H25</td><td>The channel kit (LA-E7-06) used 3 fix rounds with open findings. How do we finish it?</td><td><strong>Decided (product owner, 2026-10-24): (a)</strong>, then a narrow fix, then a live fix-and-rerun window for the kit (LD-27)</td><td>kit round 8: the kit gate row and the <code>acme-lms</code> kit run</td></tr>
+      <tr><td>LA-H26</td><td>Which real open-source LMS gives the first live (not SIM) proof of the new-channel path?</td><td>Open edX first, Sakai as fallback; after LA (LG)</td><td>the first LIVE row for a new channel</td></tr>
+      <tr><td>LA-H22</td><td>Do we offer ungraded items?</td><td>Yes for Canvas <code>link_selection</code> and LTI 1.3; no for Moodle</td><td>3 tasks (LA-IC-07)</td></tr>
+      <tr><td>LA-H4</td><td>Privacy: which claims may a channel receive; retention; learner erase</td><td>Pseudonymous by default; a claim policy per tool account</td><td>1 task (LA-IC-08)</td></tr>
+      <tr><td>LA-H24</td><td>Do we build the verified admin launch, after a security review?</td><td>Only if there is capacity</td><td>2 tasks</td></tr>
+      <tr><td>LA-H9</td><td>1EdTech membership, and which product to certify</td><td>Certify the service with a reference tool</td><td>the reference tool (LA-E7-11)</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="more" aria-labelledby="more-h">
+  <h2 id="more-h">7. Read more</h2>
+  <ul>
+    <li><a href="start-here.md">start-here.md</a>: the same story as plain text.</li>
+    <li><a href="service-controls.md">service-controls.md</a>: the proof map of the service controls.</li>
+    <li><a href="../../guides/ltiaas/spec-deviations.md">Spec deviations, LTIAAS API differences, the status of each intended change (LA-IC), the gate results and findings</a></li>
+    <li><a href="../../guides/ltiaas/operator-runbook.md">Operator runbook</a></li>
+    <li><a href="../../guides/ltiaas/lti-generic-admin.md">LTI 1.3 admin guide</a>, <a href="../../guides/ltiaas/brightspace-admin.md">D2L Brightspace admin guide</a>, <a href="../../guides/ltiaas/baseline-admin-changes.md">LA changes for Moodle, Canvas and Blackboard</a></li>
+    <li><a href="../../guides/ltiaas/add-a-channel.md">Add a new LTI channel</a>, with the walkthrough fix (integration <code>77f58f62</code>): round 5 review pending</li>
+    <li><a href="../../team/ltiaas/plan.md">LA plan</a> (§6.2: human decisions)</li>
+  </ul>
+</section>
+
+</main>
+<footer>
+  <p>Final for LA. Owner: Docs (LA-E8-05). Sources are the QA files under <code>docs/reviews/</code>. This page makes no network request.</p>
+</footer>
+</body>
+</html>

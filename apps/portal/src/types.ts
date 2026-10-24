@@ -1,13 +1,9 @@
 // Browser DTOs follow docs/architecture/contracts/cogniate-app-api.md. No service imports.
-export type Lms = "moodle" | "canvas" | "blackboard";
-export interface LmsCapabilities {
-  dynamicRegistration: boolean;
-  operatorApproval: boolean;
-  webServices: boolean;
-  courseShell: boolean;
-  addDeployment: boolean;
-  canvasConfiguration: boolean;
-}
+import type { BindingAuthority, CapabilitySet, ChannelManifest, LegacyCapabilities, LegacyPublicationFields } from "@cogniate/channel-kernel";
+
+export type Lms = string;
+/** The six M1 capability flags; the frozen names come from the kernel (BD-A1-64). */
+export type LmsCapabilities = LegacyCapabilities;
 export interface LmsProfile {
   id: string;
   label: string;
@@ -16,6 +12,11 @@ export interface LmsProfile {
   clientId: string | null;
 }
 export interface LmsProvider {
+  channel?: string;
+  channelName?: string;
+  family?: ChannelManifest["family"];
+  channelCapabilities?: CapabilitySet;
+  registration?: Omit<ChannelManifest["registration"][number], "defaultProfile">[];
   lms: Lms;
   label: string;
   methods: ("dynamic" | "manual")[];
@@ -25,16 +26,22 @@ export interface LmsProvider {
 export interface LmsProvidersResponse {
   lms: LmsProvider[];
 }
-export type ConnectionCreateBody =
-  | { name: string; siteUrl: string; method: "dynamic" | "manual"; lms?: "moodle"; profile?: "standard" }
-  | { name: string; siteUrl: string; method: "manual"; lms: "canvas"; profile: string; serviceUrl?: string }
-  | { name: string; siteUrl: string; method: "manual"; lms: "blackboard"; profile: string };
-export interface CanvasPlatformBody {
+export interface ConnectionCreateBody {
+  name: string;
+  siteUrl: string;
+  method: "dynamic" | "manual";
+  channel?: string;
+  lms?: string;
+  profile?: string;
+  serviceUrl?: string;
+  [key: string]: unknown;
+}
+export interface ClientBindingBody {
   clientId: string;
   deploymentId: string;
   grantCode: string;
 }
-export interface BlackboardPlatformBody {
+export interface DeploymentBindingBody {
   deploymentId: string;
   grantCode: string;
   clientId?: string;
@@ -43,7 +50,7 @@ export interface AddDeploymentBody {
   deploymentId: string;
   grantCode: string;
 }
-export interface CanvasConfigurationSnapshot {
+export interface ConfigurationSnapshot {
   text: string;
   keyId: string | null;
 }
@@ -52,6 +59,10 @@ export interface Session {
   library: { id: string; name: string };
 }
 export interface Connection {
+  channel?: string;
+  channelName?: string;
+  channelCapabilities?: CapabilitySet;
+  bindingAuthority?: BindingAuthority | "verifiedAdminLaunch";
   id: string;
   name: string;
   siteUrl: string;
@@ -83,6 +94,27 @@ export interface Connection {
     traceId: string;
     at: string;
   } | null;
+}
+/** POST /app-api/connections/:id/check (app API delta §3.7, LA-ADR-08 D4). */
+export interface ConnectionCheckAnswer {
+  result: "ok" | "failed";
+  checkedAt: string;
+  details: {
+    jwks: { ok: boolean; keys?: number; detail?: string };
+    token: { ok: boolean; scope?: string; detail?: string };
+    platform: { active: boolean; deploymentActive: boolean };
+    limits: "shared-application" | null;
+  };
+}
+/** GET /app-api/connections/:id/health (app API delta §3.7, LA-ADR-08 D5). */
+export interface ConnectionHealth {
+  status: Connection["status"];
+  lastLaunchAt: string | null;
+  lastLaunchRefusal: { reason: string | null; at: string } | null;
+  dispatch: { pending: number; oldestPendingAt: string | null; lastSentAt: string | null; failedLast24h: number; lastError: { code: string | null; at: string } | null };
+  keys: { activeKid: string | null; nextKid: string | null; artifactKeyKid: string | null; artifactKeyCurrent: boolean | null };
+  lastCheck: { at: string; jwks: boolean; token: boolean } | null;
+  events: { kind: string; code: string | null; at: string }[];
 }
 export interface ToolRow {
   key: string;
@@ -150,7 +182,8 @@ export interface MbzBuild {
   finishedAt: string | null;
   downloadUrl: string | null;
 }
-export interface Publication {
+/** The frozen extension fields (moodleCourse, shellStatus, shellError) come from the kernel (BD-A1-64). */
+export interface Publication extends LegacyPublicationFields {
   id: string;
   lms: Lms;
   connectionName: string;
@@ -163,9 +196,6 @@ export interface Publication {
   status: "available" | "withdrawn";
   createdAt: string;
   updatedAt: string;
-  moodleCourse: { id: number; idnumber: string; url: string } | null;
-  shellStatus: "created" | "exists" | "failed" | null;
-  shellError: string | null;
   stats: {
     activities: number;
     learners: number;
@@ -226,6 +256,8 @@ export interface ErrorDetails {
   fields?: Record<string, string> | string[];
   field?: string;
   rule?: number;
+  /** A specific cause of a refusal, for example "staged_gone" (BD-A1-102). The portal then keeps the server description. */
+  reason?: string;
   capability?: keyof LmsCapabilities;
   reasons?: RejectReason[];
   traceId?: string;

@@ -1,4 +1,4 @@
-// The claim allowlist (ADR-011 §9, LTI contract §9.8): for profiles with `minimizeClaims`, only these claims and
+// The claim allowlist (ADR-011 §9, LTI contract §9.8): for profiles with privacyFloor `allowlist`, only these claims and
 // members are stored. It runs after every launch check (also check 14) and before the launch is stored.
 import type { Claims } from './checks.ts';
 import { CLAIM } from './checks.ts';

@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // The app listener (PUBLIC_APP_URL): /healthz, the portal API /app-api/* (contract cogniate-app-api §1-§5), the tool
 // pages /tool/*, the player shell /play/* (§6), and the built portal SPA.
 import { randomBytes } from 'node:crypto';
@@ -5,8 +6,8 @@ import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import type { Limits } from '@cogniate/package-inspector';
 import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
-import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { ApiErrorBase, redactPath } from '@cogniate/shared';
+import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
+import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
@@ -17,17 +18,15 @@ import { registerLaunchPages } from '../tool-pages/launch.ts';
 import { registerPickerPages } from '../tool-pages/picker.ts';
 import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.ts';
 import { registerRegisterPages } from '../tool-pages/register.ts';
-import { registerCanvasConfigurationRoutes } from './canvas-configuration.ts';
-import { registerCanvasDeploymentRoutes } from './canvas-deployments.ts';
 import { createBindingCleanup } from './binding-cleanup.ts';
 import type { connectionJson } from './connections.ts';
 import { connectionDto, registerConnectionRoutes } from './connections.ts';
+import { registerConnectionCheckRoutes } from './connection-check.ts';
+import { registerConnectionHealthRoutes } from './connection-health.ts';
 import { createRedemptionEngine } from './redemption.ts';
 import { registerCourseRoutes } from './courses.ts';
-import type { MoodleWsClient } from '../clients/moodle-ws.ts';
-import { registerMbzRoutes } from './mbz.ts';
+import { registerDeploymentRoutes, registerExtensionRoutes, registerExporterRoutes } from '../kernel/extensions.ts';
 import { registerPublicationRoutes } from './publications.ts';
-import { registerWebServiceRoutes } from './web-services.ts';
 import { registerResultRoutes } from './results.ts';
 import { registerPortal } from './portal.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
@@ -46,6 +45,7 @@ declare module 'fastify' {
 }
 
 export interface AppApiDeps {
+  channels: ChannelRegistry;
   db: Db;
   urls: PublicUrls;
   logger: Logger;
@@ -74,8 +74,8 @@ export interface AppApiDeps {
   /** T8: the Build Runner queue folder (BUILD_QUEUE_DIR) and the knobs passed to each build request. */
   buildQueueDir?: string;
   buildKnobs?: { hold: boolean; failAt: string };
-  /** T8: Moodle web services client (course shell). */
-  moodleWs?: MoodleWsClient;
+  /** Guarded network access for channel extensions. */
+  outbound: OutboundClient;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -105,8 +105,8 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     reply.header('x-content-type-options', 'nosniff');
   });
   app.addHook('onResponse', async (req, reply) => {
-    // Route pattern (no ids, no query); a request without a route logs the redacted path.
-    const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');
+    // BD-A1-62 (app API delta §8): the route template (no ids, no query), or "<unmatched>"; never the raw path.
+    const path = req.routeOptions.url ?? '<unmatched>';
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', {
       trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime),
     });
@@ -128,7 +128,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   }));
 
   // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
-  const engine = createRedemptionEngine({ db: deps.db, lti: deps.lti, logger: log, now });
+  const engine = createRedemptionEngine({ urls: deps.urls, channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
   const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
@@ -152,29 +152,31 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
       reply.header('cache-control', 'no-store');
     });
     registerSessionRoutes(api, { db: deps.db, now });
-    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, ...(deps.buildQueueDir ? { buildQueueDir: deps.buildQueueDir } : {}) });
-    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
-    // Provider route modules (Canvas configuration and deployments): one shared deps object with the common engine.
+    const extensions = { ...deps, now };
+    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, extensions });
+    registerConnectionRoutes(api, { channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
+    registerConnectionCheckRoutes(api, { channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
+    registerConnectionHealthRoutes(api, { db: deps.db, lti: deps.lti, logger: log, now });
+    // Deployment route dependencies share the common redemption engine.
     const providerDeps = {
-      db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
-      redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, libraryName),
+      channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
+      redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, deps.channels, libraryName),
     };
-    registerCanvasConfigurationRoutes(api, providerDeps);
-    registerCanvasDeploymentRoutes(api, providerDeps);
-    registerPublicationRoutes(api, { db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
-    if (deps.buildQueueDir) registerMbzRoutes(api, { db: deps.db, now, buildQueueDir: deps.buildQueueDir, buildKnobs: deps.buildKnobs ?? { hold: false, failAt: '' } });
-    if (deps.moodleWs) registerWebServiceRoutes(api, { db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });
-    registerResultRoutes(api, { db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
-    registerPlayStatusRoute(api, { db: deps.db, now });
+    registerDeploymentRoutes(api, providerDeps);
+    registerExtensionRoutes(api, extensions);
+    registerPublicationRoutes(api, extensions);
+    registerExporterRoutes(api, extensions);
+    registerResultRoutes(api, { channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
+    registerPlayStatusRoute(api, { channels: deps.channels, db: deps.db, now });
   }, { prefix: '/app-api' });
 
   // Tool pages (app contract §6): server-rendered, no cookies; their own headers and Origin rule.
-  const pageDeps = { db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now };
+  const pageDeps = { channels: deps.channels, db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now };
   registerRegisterPages(app, pageDeps);
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);
   registerPlayPages(app, { ...pageDeps, playerDir: deps.playerDir });
-  registerPortal(app, { db: deps.db, now });
+  registerPortal(app, { channels: deps.channels, db: deps.db, now });
 
   return app;
 }

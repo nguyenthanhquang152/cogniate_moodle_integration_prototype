@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "start": "node src/main.ts",
+    "worker": "node src/worker-main.ts",
     "dev": "node --watch src/main.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "app:grant": "node src/cli/grant.ts",
-    "app:binding": "node src/cli/binding.ts"
+    "app:binding": "node src/cli/binding.ts",
+    "app:audit": "node src/cli/audit.ts",
+    "app:keys": "node src/cli/keys.ts"
   },
   "dependencies": {
+    "@cogniate/channel-kernel": "*",
     "@cogniate/package-inspector": "*",
     "@cogniate/shared": "*",
     "@cogniate/tracking": "*",

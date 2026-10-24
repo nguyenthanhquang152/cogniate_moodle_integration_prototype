@@ -58,6 +58,7 @@ export function toIdToken(launch: LaunchRecord, platform: Platform, serviceKey?:
       custom: obj(c[CLAIM.custom]) ?? {},
       deepLinkingSettings: isDeepLinking && dl ? compact({
         acceptTypes: dl.accept_types, acceptMultiple: dl.accept_multiple, acceptPresentationDocumentTargets: dl.accept_presentation_document_targets,
+        acceptLineItem: dl.accept_lineitem, acceptMediaTypes: dl.accept_media_types,
         autoCreate: dl.auto_create, title: dl.title, text: dl.text,
       }) : undefined,
     }),

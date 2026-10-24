@@ -7,18 +7,23 @@ import { createCliLogger, createOutboundClient, parseAllowlist } from '@cogniate
 import { createBindingCleanup } from '../app/binding-cleanup.ts';
 import { createOperator } from '../app/operator.ts';
 import { createLtiClient } from '../clients/lti-client.ts';
+import { loadAppChannelRegistry } from '../kernel/registry.ts';
+import { loadAppKeyProvider } from '../app/sealing.ts';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../domain/db.ts';
 
-export function operatorRuntime() {
-  const config = loadConfig();
-  const db = openDb(join(config.dataDir, 'cogniate.db'));
+export async function operatorRuntime() {
   const logger = createCliLogger({ service: 'cogniate-app' });
+  const config = loadConfig(process.env, logger);
+  const db = openDb(join(config.dataDir, 'cogniate.db'));
+  // LA-E5-22: the same key ring as the app process (app:keys reads and re-wraps with it).
+  const keys = await loadAppKeyProvider({ db, masterKey: config.masterKey, ring: config.keyRing, logger });
+  const channels = await loadAppChannelRegistry(logger);
   const outbound = createOutboundClient({ logger, allowlist: parseAllowlist(process.env.OUTBOUND_PRIVATE_HOST_ALLOWLIST) });
   const lti = createLtiClient({ outbound, ltiUrl: config.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
   const cleanup = createBindingCleanup({ db, lti, logger, now: Date.now });
-  const operator = createOperator({ db, lti, logger, cleanup, now: Date.now });
-  return { db, operator, traceId: randomBytes(16).toString('hex') };
+  const operator = createOperator({ channels, db, lti, logger, cleanup, now: Date.now });
+  return { db, operator, keys, logger, traceId: randomBytes(16).toString('hex') };
 }
 
 /** Print the lines and exit with the command's code. */

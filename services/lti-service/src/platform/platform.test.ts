@@ -8,9 +8,10 @@ import { ensureAccount } from '../store/accounts.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { CLIENT_ID, ISSUER, MASTER_KEY, URLS, capturingLogger } from '../testkit.ts';
-import { AGS_SCOPES, createAgsClient, parseScore } from './ags.ts';
+import { AGS_SCOPES, createAgsClient, parseScore, preflightCreateLineItem } from './ags.ts';
 import { outboundFailureError, platformResponseError, shortPlatformMessage } from './error-mapping.ts';
 import { parseLinkHeader } from './link-header.ts';
+import { createNrpsClient } from './nrps.ts';
 import { createScoreClock } from './score-clock.ts';
 import { createTokenClient } from './token-client.ts';
 
@@ -123,8 +124,9 @@ async function setup() {
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.UTC(2026, 9, 17, 10, 0, 0) };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
-  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
-  return { db, platform, calls, answers, lines, clock, tokens, ags };
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now), logger });
+  const nrps = createNrpsClient({ outbound, tokens, logger });
+  return { db, platform, calls, answers, lines, clock, tokens, ags, nrps };
 }
 
 const AGS_CLAIM = {
@@ -133,6 +135,27 @@ const AGS_CLAIM = {
   lineitem: 'https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1',
 };
 const LINE_ITEM = AGS_CLAIM.lineitem;
+
+describe('AGS and NRPS throttle warnings (A-LA-E5-14-01)', () => {
+  it.each([
+    ['ags', 429], ['ags', 403], ['nrps', 429], ['nrps', 403],
+  ] as const)('%s emits one safe warning for a %i service response', async (client, status) => {
+    const s = await setup();
+    s.answers.push(() => res(status, 'student@example.test: Rate Limit Exceeded', { 'retry-after': '120' }));
+    const context = { platform: s.platform, traceId: 'trace-throttle' };
+    const operation = client === 'ags'
+      ? s.ags.getLineItem({ ...context, agsClaim: AGS_CLAIM }, LINE_ITEM)
+      : s.nrps.listMemberships({ ...context, nrpsClaim: { context_memberships_url: 'https://moodle.test/memberships' } }, {});
+    await expect(operation).rejects.toMatchObject({ code: 'PLATFORM_RATE_LIMITED', status: 429, details: { retryAfter: 120 } });
+    expect(s.calls).toHaveLength(2);
+    expect(s.lines.filter((line) => line.event === 'platform_rate_limited')).toEqual([expect.objectContaining({
+      level: 'warn', trace_id: 'trace-throttle', platform_id: s.platform.id, status, retry_after_s: 120,
+    })]);
+    expect(JSON.stringify(s.lines)).not.toContain('student@example.test');
+    expect(JSON.stringify(s.lines)).not.toContain('tok-1');
+    s.db.close();
+  });
+});
 
 describe('platform token client (contract §4, security §2.3)', () => {
   it('signs a client assertion (iat 30 s in the past, 300 s life), caches per scope set until 60 s before expiry', async () => {
@@ -209,6 +232,50 @@ describe('AGS client (contract §3.5, §3.6)', () => {
     expect(s.calls).toEqual([]);
   });
 
+  it('preflightCreateLineItem (BD-A2-71): the create checks in order, with no I/O; createLineItem uses them', async () => {
+    const s = await setup();
+    const writer = { ...AGS_CLAIM, scope: [AGS_SCOPES.lineitemReadonly, AGS_SCOPES.lineitem] };
+    expect(preflightCreateLineItem(ctx(s, writer))).toEqual({ url: AGS_CLAIM.lineitems, scope: AGS_SCOPES.lineitem });
+    const refusals: Array<[Record<string, unknown> | null, string, number, string]> = [
+      // (1) No line items URL (a claim with only `lineitem` cannot create). (2), the base URL, cannot fail after (1).
+      [null, 'SERVICE_NOT_AVAILABLE', 403, 'The launch has no AGS line items URL.'],
+      [{ ...writer, lineitems: undefined }, 'SERVICE_NOT_AVAILABLE', 403, 'The launch has no AGS line items URL.'],
+      [{ ...writer, lineitems: 42 }, 'SERVICE_NOT_AVAILABLE', 403, 'The launch has no AGS line items URL.'],
+      // (3) The service URL rule, before the scope check.
+      [{ ...writer, lineitems: 'http://moodle.test/mod/lti/services.php/2/lineitems?type_id=1' }, 'INVALID_LINE_ITEM_ID', 400, 'The line item id does not match the line items URL of the launch.'],
+      [{ ...AGS_CLAIM, lineitems: 'https://moodle.test/mod/lti/services.php/2/%2e%2e/lineitems?type_id=1' }, 'INVALID_LINE_ITEM_ID', 400, 'The line item id does not match the line items URL of the launch.'],
+      // (4) The lineitem scope; lineitem.readonly is not enough.
+      [AGS_CLAIM, 'SERVICE_NOT_AVAILABLE', 403, 'The launch has no AGS scope for this call.'],
+      [{ ...writer, scope: undefined }, 'SERVICE_NOT_AVAILABLE', 403, 'The launch has no AGS scope for this call.'],
+    ];
+    for (const [claim, code, status, description] of refusals) {
+      expect(() => preflightCreateLineItem(ctx(s, claim))).toThrow(expect.objectContaining({ code, status, description }));
+      await expect(s.ags.createLineItem(ctx(s, claim), { label: 'QA', scoreMaximum: 10 })).rejects.toMatchObject({ code, status, description });
+    }
+    expect(s.calls).toEqual([]);
+    s.answers.push(() => res(200, { id: LINE_ITEM, label: 'QA', scoreMaximum: 10 }));
+    expect(await s.ags.createLineItem(ctx(s, writer), { label: 'QA', scoreMaximum: 10 })).toEqual({ id: LINE_ITEM, label: 'QA', scoreMaximum: 10 });
+    expect(s.calls[1]).toMatchObject({ url: AGS_CLAIM.lineitems, req: { method: 'POST', body: JSON.stringify({ label: 'QA', scoreMaximum: 10 }) } });
+  });
+
+  it('BD-A2-83: needScope takes the first scope in the launch claim AND the platform grant; fixed refusal texts', async () => {
+    const s = await setup();
+    const both = { ...AGS_CLAIM, scope: [AGS_SCOPES.lineitemReadonly, AGS_SCOPES.lineitem] };
+    const granted = (scopes: string[] | null) => ({ platform: { ...s.platform, grantedScopes: scopes }, agsClaim: both, traceId: 'trace-g' });
+    expect(preflightCreateLineItem(granted([AGS_SCOPES.lineitem]))).toEqual({ url: AGS_CLAIM.lineitems, scope: AGS_SCOPES.lineitem });
+    expect(() => preflightCreateLineItem(granted([AGS_SCOPES.lineitemReadonly]))).toThrow(expect.objectContaining({
+      code: 'SERVICE_NOT_AVAILABLE', status: 403, description: 'The platform did not grant the scope for this call.',
+    }));
+    expect(() => preflightCreateLineItem({ ...granted(null), agsClaim: { ...AGS_CLAIM, scope: [AGS_SCOPES.score] } })).toThrow(expect.objectContaining({
+      code: 'SERVICE_NOT_AVAILABLE', description: 'The launch has no AGS scope for this call.',
+    }));
+    s.answers.push(() => res(200, { id: LINE_ITEM, label: 'QA' }));
+    await s.ags.getLineItem(granted([AGS_SCOPES.lineitem]), LINE_ITEM);
+    expect(new URLSearchParams(String(s.calls[0]!.req.body)).get('scope')).toBe(AGS_SCOPES.lineitem);
+    await expect(s.ags.postScore(granted([AGS_SCOPES.lineitem]), LINE_ITEM, { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded' }))
+      .rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', description: 'The launch has no AGS scope for this call.' });
+  });
+
   it('lists line items with the filter parameters and the paging links; reads one line item', async () => {
     const s = await setup();
     s.answers.push(() => res(200, [{ id: LINE_ITEM, label: 'QA DL', scoreMaximum: 100, resourceLinkId: '3', extra: 'x' }], { link: '<https://moodle.test/mod/lti/services.php/2/lineitems?type_id=1&page=2>; rel="next"' }));
@@ -238,5 +305,26 @@ describe('AGS client (contract §3.5, §3.6)', () => {
     await expect(s.ags.postScore(ctx(s), LINE_ITEM, score)).rejects.toMatchObject({ code: 'PLATFORM_CONFLICT', status: 409 });
     s.answers.push(() => res(200, 'not json'));
     await expect(s.ags.getLineItem(ctx(s), LINE_ITEM)).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
+  });
+});
+
+describe('NRPS service versions (LA-E3-12)', () => {
+  it.each([[], ['1.0'], ['2'], null, '2.0', 2].map((service_versions) => ({ service_versions })))('refuses unsupported service_versions $service_versions before any outbound request', async ({ service_versions }) => {
+    const s = await setup();
+    await expect(s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: 'https://moodle.test/memberships', service_versions } }, {}))
+      .rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', status: 403 });
+    expect(s.calls).toEqual([]);
+    s.db.close();
+  });
+
+  it.each([{}, { service_versions: ['2.0'] }, { service_versions: ['1.0', '2.0'] }])('accepts an absent version or a list with 2.0: %j', async (version) => {
+    const s = await setup();
+    const url = 'https://moodle.test/memberships';
+    s.answers.push(() => res(200, { id: url, context: { id: '2' }, members: [] }));
+    expect(await s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: url, ...version } }, {})).toEqual({ id: url, context: { id: '2' }, members: [] });
+    expect(s.calls).toHaveLength(2);
+    s.db.close();
   });
 });

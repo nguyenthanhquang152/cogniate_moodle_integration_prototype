@@ -1,8 +1,97 @@
 import type { OutboundClient } from '@cogniate/shared';
 import { OutboundError } from '@cogniate/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fakeOutbound, makeKey, moodleClaims, sign } from '../testkit.ts';
 import { PlatformKeyError, createPlatformKeys } from './jwks.ts';
+import type { JwksFetchObserver } from './jwks.ts';
+
+describe('JWKS fetch observer (LA-E5-17 RQ-1)', () => {
+  it('reports each waiting call with its own platform and the shared fetch time; reads cache age by URL', async () => {
+    const key = await makeKey('observer-key');
+    const token = await sign(key, moodleClaims());
+    const clock = { now: 1_000_000 };
+    let fail = false;
+    const request = vi.fn<OutboundClient['request']>(async () => {
+      clock.now += 7;
+      if (fail) throw new Error('network failed');
+      const body = Buffer.from(JSON.stringify({ keys: [key.publicJwk] }));
+      return { status: 200, headers: {}, body, text: () => body.toString(), json: () => JSON.parse(body.toString()) as unknown };
+    });
+    const observe = vi.fn<JwksFetchObserver>();
+    const keys = createPlatformKeys({ allowlist: [], request }, () => clock.now, observe);
+    const url = 'https://platform.test/jwks';
+    expect(keys.lastSuccessAt(url)).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+    await Promise.all([
+      keys.verify(token, url, 'first', 'plt_first'),
+      keys.verify(token, url, 'second', 'plt_second'),
+      keys.verify(token, url, 'third', 'plt_first'),
+    ]);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(observe).toHaveBeenCalledTimes(3);
+    expect(observe.mock.calls.map(([event]) => event).sort((a, b) => a.platformId.localeCompare(b.platformId))).toEqual([
+      { platformId: 'plt_first', ok: true, fetchedAt: 1_000_007 },
+      { platformId: 'plt_first', ok: true, fetchedAt: 1_000_007 },
+      { platformId: 'plt_second', ok: true, fetchedAt: 1_000_007 },
+    ]);
+    expect(keys.lastSuccessAt(url)).toBe(1_000_007);
+    await keys.verify(token, url, 'cached', 'plt_second');
+    expect(observe).toHaveBeenCalledTimes(3);
+
+    clock.now += 11 * 60_000;
+    fail = true;
+    // The cached key remains usable after this failed shared refresh.
+    await Promise.all([
+      keys.verify(token, url, 'refresh', 'plt_second'),
+      keys.verify(token, url, 'waiter', 'plt_first'),
+    ]);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(observe).toHaveBeenCalledTimes(5);
+    expect(observe.mock.calls.slice(3).map(([event]) => event).sort((a, b) => a.platformId.localeCompare(b.platformId))).toEqual([
+      { platformId: 'plt_first', ok: false, fetchedAt: 1_660_014 },
+      { platformId: 'plt_second', ok: false, fetchedAt: 1_660_014 },
+    ]);
+    expect(keys.lastSuccessAt(url)).toBe(1_000_007);
+    await keys.verify(token, url, 'cached-after-failure', 'plt_first');
+    expect(observe).toHaveBeenCalledTimes(5);
+
+    const coldFailures = await Promise.allSettled([
+      keys.verify(token, 'https://platform.test/other-jwks', 'cold-failure', 'plt_first'),
+      keys.verify(token, 'https://platform.test/other-jwks', 'cold-waiter', 'plt_second'),
+    ]);
+    for (const result of coldFailures) expect(result).toMatchObject({ status: 'rejected', reason: { detail: 'jwks_unavailable' } });
+    expect(observe).toHaveBeenCalledTimes(7);
+    expect(observe.mock.calls.slice(5)).toEqual([
+      [{ platformId: 'plt_first', ok: false, fetchedAt: 1_660_021 }],
+      [{ platformId: 'plt_second', ok: false, fetchedAt: 1_660_021 }],
+    ]);
+    expect(keys.lastSuccessAt('https://platform.test/other-jwks')).toBeNull();
+
+    // A legacy caller has no stored id. Its URL must never become a metric label.
+    await expect(keys.verify(token, 'https://platform.test/legacy', 'legacy')).rejects.toMatchObject({ detail: 'jwks_unavailable' });
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(observe).toHaveBeenCalledTimes(7);
+  });
+
+  it('preserves verification with the default observer and with an observer that throws', async () => {
+    const key = await makeKey('observer-default');
+    const token = await sign(key, moodleClaims());
+    for (const observe of [undefined, () => { throw new Error('observer failed'); }]) {
+      const clock = { now: 1_000_000 };
+      let fail = false;
+      const out = fakeOutbound(() => { if (fail) throw new Error('network failed'); return [key.publicJwk]; });
+      const keys = createPlatformKeys(out, () => clock.now, observe);
+      const verify = () => keys.verify(token, 'https://platform.test/jwks', 'trace', 'plt_first');
+      await expect(verify()).resolves.toHaveProperty('protectedHeader.kid', 'observer-default');
+      fail = true;
+      clock.now += 11 * 60_000;
+      await expect(verify()).resolves.toHaveProperty('protectedHeader.kid', 'observer-default');
+      clock.now += 24 * 60 * 60_000;
+      await expect(verify()).rejects.toMatchObject({ detail: 'jwks_unavailable' });
+      expect(keys.lastSuccessAt('https://platform.test/jwks')).toBe(1_000_000);
+    }
+  });
+});
 
 describe('platform JWKS cache', () => {
   it('fetches once, keeps 10 min, and refetches an unknown kid at most once per minute', async () => {

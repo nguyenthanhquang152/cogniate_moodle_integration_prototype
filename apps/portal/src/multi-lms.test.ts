@@ -7,8 +7,9 @@ import { App, Portal } from "./App.tsx";
 import { Integrations } from "./Integrations.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { DisconnectDialog } from "./connect/DisconnectDialog.tsx";
-import { BLACKBOARD_NOT_READY } from "./lms.ts";
+const BLACKBOARD_NOT_READY = "Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.";
 import type { Connection, Course, Lms, LmsProvidersResponse, Publication, Session } from "./types.ts";
+import { channelRegistry, visibleChannels } from "./channels/registry.ts";
 
 const session: Session = { user: { id: "usr_a", name: "Author", email: "author@example.test", role: "owner" }, library: { id: "lib_a", name: "Library A" } };
 function connection(lms: Lms, id: string = lms, status: Connection["status"] = "registered"): Connection {
@@ -69,7 +70,11 @@ it("isolates newest card status by LMS with equal names/times and a stable id ti
     expect(card.getByText(status!)).toBeTruthy();
   }
   fireEvent.click(screen.getByRole("tab", { name: "LMS Publishing" }));
-  expect(screen.getAllByRole("article")).toHaveLength(4);
+  // Open world (plan LD-1): Kajabi and one card per visible registry channel (baseline: four). A new channel adds one.
+  const channelCards = visibleChannels(channelRegistry, providers.lms).map((manifest) => manifest.card.title);
+  expect(channelCards).toEqual(expect.arrayContaining(["Moodle", "Canvas", "Blackboard"]));
+  for (const name of ["Kajabi", ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+  expect(screen.getAllByRole("article")).toHaveLength(1 + channelCards.length);
 });
 
 it("disables Blackboard creation with the operator readiness explanation", async () => {
@@ -113,7 +118,7 @@ it("mounts the ready Blackboard wizard from its card through creation, approval 
   fireEvent.change(screen.getByLabelText("Learn URL"), { target: { value: "https://learn.school.edu" } });
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
   await screen.findByRole("heading", { name: "Register Cogniate in Blackboard Learn" });
-  expect(screen.getByText("qa-bb-app")).toBeTruthy();
+  expect(await screen.findByText("qa-bb-app")).toBeTruthy();
   expect(screen.queryByLabelText("Client ID")).toBeNull();
   fireEvent.change(screen.getByLabelText("Deployment ID"), { target: { value: "bb-deployment" } });
   fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "b".repeat(43) } });
@@ -147,7 +152,7 @@ it("shows canonical Canvas values and deployment ids with only Canvas capabiliti
   expect(screen.getByText("https://canvas.school.test")).toBeTruthy();
   expect(screen.getByText("Canvas service URL: https://canvas.service.test")).toBeTruthy();
   expect(screen.getByText("dep_canvas")).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Open Canvas/ }).getAttribute("href")).toBe("https://canvas.school.test");
+  expect((await screen.findByRole("link", { name: /Open Canvas/ })).getAttribute("href")).toBe("https://canvas.school.test");
   expect(screen.queryByText(/Web services/)).toBeNull();
   expect(screen.queryByText(/activate in Moodle/)).toBeNull();
   expect(await screen.findByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
