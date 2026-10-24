@@ -1,6 +1,6 @@
 # Guide: add a new LTI channel (kind A LMS)
 
-Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **draft for review**, walkthrough fix: the 14 findings of the LA-E8-02 timed walkthrough ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) §3.1), after fix round 4 ([Reviewer-A](../../reviews/LA-E8-01/reviewer-a.md), [Reviewer-B](../../reviews/LA-E8-01/reviewer-b.md)). Docs rechecked the K0 channel list, the simulator self-tests and the kit host check at integration head `f497e803`. QA checks pending: QA follows this guide on a scratch branch (AC-LA-E8-01-02), and the kit simulator rows of LA-E7-06 are pending a Docker window.
+Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **approved** (LA-E8-01 round 5: [Reviewer-A](../../reviews/LA-E8-01/reviewer-a.md) and [Reviewer-B](../../reviews/LA-E8-01/reviewer-b.md) APPROVE). After round 5, Docs fixed the L4 sentence (the round 5 MINORs) and added the R3 text of step 9 (finding F-LA-E7-06-WALK-02); the LA-E8-05 reviews check these. The kit K1 run passed for the five shipped channels and for the walkthrough channel `acme-lms` ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Rounds 8 and 9; [LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) round 3). AC-LA-E8-01-02, a QA run of this guide on a scratch branch, has no separate QA record; the LA-E8-02 walkthrough ran the same commands for `acme-lms` (F2, K0 and K1 PASS).
 
 This guide is for a developer or an agent who is new to the repository. It adds one LMS of kind A as a named channel. The work is one channel folder, one simulator module, one host manifest entry and one kit fixture. No core file changes. The target time is less than one working day (plan §4 measure 5). In the LA-E8-02 walkthrough, a walker who was new to the repository added the simulator LMS `acme-lms` in 8 min 49 s ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) §2).
 
@@ -10,11 +10,7 @@ The path follows the proven D2L Brightspace channel (LA-E2-05, LA-E2-06). Each e
 
 ### 0.1 Evidence labels
 
-The labels are the labels of the [operator runbook §0.1](operator-runbook.md#01-evidence-labels): `[SIM …]` (QA ran it on a simulator stack), `[K2 …]` (browser), `[UNIT …]` (unit or contract test, also K0), and **pending verification**. This guide adds one label:
-
-| Label | Meaning |
-| --- | --- |
-| **pending QA SIM (AC-…)** | Only a simulator row that QA has not run yet proves this step. The step is part of the design; do not rely on its result before QA runs that row. |
+The labels are the labels of the [operator runbook §0.1](operator-runbook.md#01-evidence-labels): `[SIM …]` (QA ran it on a simulator stack), `[K2 …]` (browser), `[UNIT …]` (unit or contract test, also K0), and **pending verification**.
 
 ### 0.2 Is your LMS kind A?
 
@@ -329,7 +325,7 @@ Use the template below. The module returns **one** provider. Do not copy `tests/
 
    Expected: all tests pass, 0 failed (the summary line `ℹ fail 0`). The tests read the host manifest open-world, so a new provider needs no test edit.
 
-Evidence: one module folder and one `hosts.json` entry add a simulator LMS with no edit of `tests/sim/server.mjs` [UNIT E7-02-02] (host-only); on a stack: pending QA SIM (AC-LA-E7-02-02). The D2L provider served a full launch, Deep Linking and score flow [SIM E2-05-04]. In the LA-E8-02 walkthrough, the discovery check of item 5 showed the new provider `acme-lms-sim`, and the self-tests of item 6 passed with it [UNIT E8-02-02] ([qa](../../reviews/LA-E8-02/qa.md) §1.2).
+Evidence: one module folder and one `hosts.json` entry add a simulator LMS with no edit of `tests/sim/server.mjs` [UNIT E7-02-02] (host-only); on a stack [SIM E7-02-02] ([qa](../../reviews/LA-E7-02/qa.md)). The D2L provider served a full launch, Deep Linking and score flow [SIM E2-05-04]. In the LA-E8-02 walkthrough, the discovery check of item 5 showed the new provider `acme-lms-sim`, and the self-tests of item 6 passed with it [UNIT E8-02-02] ([qa](../../reviews/LA-E8-02/qa.md) §1.2).
 
 ## Step 8: Add the host manifest entry (`tests/sim/hosts.json`)
 
@@ -371,8 +367,8 @@ A guard of your channel (step 4) takes part in the kit's L4 family-guard case. F
 
 The kit's registration case R3 (K1-REG) also sends a Dynamic Registration that signs a guarded family to the other channels. The expected answer depends on the channel that owns the family:
 
-- The owner channel has no Dynamic Registration (`registration.dynamic: false`, as for a manual-only channel from this guide): no loaded channel lets the configuration pass, so the start page refuses it with `400 PROVIDER_PROFILE_MISMATCH`.
-- The owner channel has Dynamic Registration, and the target channel takes admin endpoints (for example `moodle` or `lti-generic`): the start page passes, and `complete` refuses the registration. The app then shows `REGISTRATION_FAILED` (the known limit BD-A1-121, [spec-deviations §7](spec-deviations.md#7-recorded-product-deviation-known-limit)).
+- The start page passes, and `complete` refuses the registration, only when all four of these conditions are true: the family is guarded at the `registration` level; the owner channel has Dynamic Registration (`registration.dynamic: true`); the owner's profile accepts endpoints on any https origin (`endpointOrigins: 'any-https'`); and the target channel takes admin endpoints (for example `moodle` or `lti-generic`). The app then shows `REGISTRATION_FAILED` (the known limit BD-A1-121, [spec-deviations §7](spec-deviations.md#7-recorded-product-deviation-known-limit)).
+- In every other case, the start page refuses it with `400 PROVIDER_PROFILE_MISMATCH`. Examples: the owner channel has no Dynamic Registration (`registration.dynamic: false`, as for a manual-only channel from this guide); the family is guarded at the `launch` level (Canvas); the target channel has a fixed profile (`canvas`).
 
 The kit computes this from the fixtures, so you edit no kit file ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 9, finding F-LA-E7-06-WALK-02). With the manual-only walkthrough channel `acme-lms` added, the 6-channel kit run passed 234 of 234 ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) round 3). Docs ran the kit host check at `f497e803` with a temporary channel folder and fixture that guard a new family at the `registration` level: all tests pass, 0 failed. Docs removed the files after the run.
 
@@ -400,9 +396,9 @@ If you run F2 before the commit, it prints `F2 PASS: core = 0, paths = 0`. That 
 | Simulator discovery (host only) | the command of step 7, item 5 | the existing provider ids and one new id `<id>-sim` | `[UNIT E8-02-02]` (`acme-lms-sim`, [qa](../../reviews/LA-E8-02/qa.md) §1.2) |
 | Simulator self-tests (host only) | the command of step 7, item 6 | all tests pass, 0 failed | `[UNIT E8-02-02]` |
 | Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | all tests pass, 0 failed, with your fixture discovered and its sources audited | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; with a real sixth fixture: [LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 4 |
-| K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | from `/repo` (the working directory of the `e2e` container): `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 npm --prefix tests run acceptance:api` ([kit README §3](../../../tests/ltiaas/kit/README.md#full-k1-sim-run-during-a-booked-docker-window); see the note below the table) | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | pending QA SIM (AC-LA-E7-06-01, AC-LA-E7-06-03, AC-LA-E7-06-04). The full kit passed for `brightspace` on the D2L simulator [SIM E2-05-10]. |
+| K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | from `/repo` (the working directory of the `e2e` container): `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 npm --prefix tests run acceptance:api` ([kit README §3](../../../tests/ltiaas/kit/README.md#full-k1-sim-run-during-a-booked-docker-window); see the note below the table) | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | the kit passed on the 5 shipped channels, 195 of 195 cases ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 8; again in the re-gate on `4f10c5fd`, [LA-E7-08 qa](../../reviews/LA-E7-08/qa.md#145-five-channel-kit-recovery-144) §14.5), and on 6 channels with the walkthrough channel `acme-lms`, 234 of 234 ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) round 3). Run it again for each new channel. |
 
-K1 command note: the runner `tests/acceptance/run-api.mjs` starts Vitest with the paths `node_modules/vitest/vitest.mjs` and `ltiaas/kit/vitest.config.mts`. Both are relative to the working directory, so the runner must start in `tests/`. `npm --prefix tests run acceptance:api` runs the `acceptance:api` script of `tests/package.json` in `tests/`, and it keeps the three variables. Do not use `node tests/acceptance/run-api.mjs` from `/repo`: it looks for `/repo/ltiaas/kit/vitest.config.mts`, which does not exist. Another correct form: `cd /repo/tests`, then `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 node acceptance/run-api.mjs`. Docs checked the paths of both forms on the host with a stub in place of Vitest (no stack, no test run); the K1 run itself is pending QA SIM. The [kit README §3](../../../tests/ltiaas/kit/README.md#full-k1-sim-run-during-a-booked-docker-window) gives the same two forms (QA-K fix, integration `29fcb01d`).
+K1 command note: the runner `tests/acceptance/run-api.mjs` starts Vitest with the paths `node_modules/vitest/vitest.mjs` and `ltiaas/kit/vitest.config.mts`. Both are relative to the working directory, so the runner must start in `tests/`. `npm --prefix tests run acceptance:api` runs the `acceptance:api` script of `tests/package.json` in `tests/`, and it keeps the three variables. Do not use `node tests/acceptance/run-api.mjs` from `/repo`: it looks for `/repo/ltiaas/kit/vitest.config.mts`, which does not exist. Another correct form: `cd /repo/tests`, then `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 node acceptance/run-api.mjs`. Docs checked the paths of both forms on the host with a stub in place of Vitest (no stack, no test run). QA ran the kit with the `npm --prefix tests run acceptance:api` form ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 8). The [kit README §3](../../../tests/ltiaas/kit/README.md#full-k1-sim-run-during-a-booked-docker-window) gives the same two forms (QA-K fix, integration `29fcb01d`).
 
 Check that the K0 suite loaded your channel (host only). The K0 suite makes one group of contract tests for each channel folder that it finds, named `K0 product channel contract: <id>`. This command lists those groups:
 
@@ -436,4 +432,4 @@ Skip this step for an LMS that exists only on the simulator: it has no admin scr
 - [ ] `npm run check` passes.
 - [ ] F2 lists your committed files and prints `F2 PASS: core = 0`.
 - [ ] `npm run test:k0` passes, and the check of step 10.2 lists your channel id.
-- [ ] QA ran the K1 kit for the channel (pending QA SIM for the kit).
+- [ ] QA ran the K1 kit for the channel, and every applicable case passed (step 10.2).
