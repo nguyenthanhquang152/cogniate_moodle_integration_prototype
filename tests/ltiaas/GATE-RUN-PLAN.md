@@ -984,177 +984,263 @@ Two fresh gate source clones (`git clone --no-hardlinks`, explicit commits, `0` 
 | **Slot R1** (`baseline-3` Moodle) | `qalead-la-127` | **Lead QA 1** | Moodle (`9543`, `172.21.0.0/16`) | `78971b03`, `src-baseline-3` (`baseline-3`) | `T5a, T5b` (`run-t5.mjs --tasks T5a,T5b`) + `rate-peaks.mjs --suite t5a-t5b` | `17 min` (solo, `0` overlaps) | Closes `A-LA-E0-02-01` & `B-LA-E0-02-01`: records baseline result, wall time, and `app`/`LTI` rate peaks for `T5a, T5b` on `78971b03` (includes B/C `4008afb9` player fix + `r4` `seenPages` wait). |
 | **Slot R1** (`baseline-3` Moodle) | `qalead-la-128` | **Lead QA 1** | Moodle (`9543`, `172.21.0.0/16`) | `78971b03`, `src-baseline-3` (`baseline-3`) | `T5a, T6` (`run-t5.mjs --tasks T5a,T6`) + `rate-peaks.mjs --suite t5a-t6` | `8 min` (solo, `0` overlaps) | Closes `A-LA-E0-02-01` & `B-LA-E0-02-01`: records clean `PASS` baseline result, wall time, and `app`/`LTI` rate peaks for `T6` on `78971b03` (includes B/C `e1a057be`+`620c03d0`+`5561e8f7` + `r4`/`r8`). |
 | **Slot R1** (`baseline-3` Moodle) | `qalead-la-129` | **Lead QA 1** | Moodle (`9543`, `172.21.0.0/16`) | `78971b03`, `src-baseline-3` (`baseline-3`) | `T8` (`run-t8.mjs`) + `rate-peaks.mjs --suite t8` | `9 min` (solo, `0` overlaps) | Closes `A-LA-E0-02-01` & `B-LA-E0-02-01`: records clean `PASS` baseline result, wall time, and `app`/`LTI` rate peaks for `T8` on `78971b03` (includes B/C `e1a057be`+`620c03d0` + `r7`/`r8`). |
-| **Phase R3-A** (`D3` Moodle #1) | `qalead-la-130` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T7 × 3` (`run-t7.mjs --runs 3 --replace-e2e`) | `11 min` (**Overlap #1** with `150..151`) | `D3` (run 1 of double full run on `4f10c5fd`, `LD-29` / `AC-LA-E7-09-01, -05`). Wave output `run1/tests.json` feeds `D3` `K1-SIM` (`qalead-la-141`). |
-| **Phase R3-A** (`D3` Moodle #2) | `qalead-la-131` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T2a, T2b, T3a, T3b` (`run-t2.mjs --tasks T2a,T2b,T3a,T3b`) | `10 min` (**Overlap #1** with `151`) | `D3` legacy Moodle LTI core & Dynamic Registration (`AC-LA-E7-09-02, -05`). Wave output `container-T3b/vitest-results.json` feeds `D3` `K1-SIM` (`qalead-la-141`). |
+| **Phase R3-A** (`D3` Moodle #1) | `qalead-la-130` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T7 × 3` (`run-t7.mjs --runs 3 --replace-e2e`) | `11 min` (**Overlap #1** with `150..151`) | `D3` (run 1 of double full run on `4f10c5fd`, `LD-29` / `AC-LA-E7-09-01, -05`). Wave output `$SRC_FINAL_3/tests/e2e/artifacts/runs/qalead-la-130-*/summary.json` (`suite: "T7"`) feeds `D3` `K1-SIM` (`qalead-la-141`). |
+| **Phase R3-A** (`D3` Moodle #2) | `qalead-la-131` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T2a, T2b, T3a, T3b` (`run-t2.mjs --tasks T2a,T2b,T3a,T3b`) | `10 min` (**Overlap #1** with `151`) | `D3` legacy Moodle LTI core & Dynamic Registration (`AC-LA-E7-09-02, -05`). Wave output `$SRC_FINAL_3/tests/host/artifacts/qalead-la-131-*/summary.json` (`suite: "T3b"`) feeds `D3` `K1-SIM` (`qalead-la-141`). |
 | **Phase R3-A** (`D3` Moodle #3) | `qalead-la-132` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T3c` (`run-t3c.mjs`) | `3 min` (**Overlap #1** with `151`) | `D3` legacy Moodle compatibility (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-A** (`D3` Moodle #4) | `qalead-la-133` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T4a` (`run-t4a.mjs`) | `2 min` (**Overlap #1** with `151`) | `D3` legacy Moodle Deep Linking API (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-A** (`D3` Moodle #5) | `qalead-la-134` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T4b1, T4b2` (`run-t4b.mjs --tasks T4b1,T4b2`) | `6 min` (**Overlap #1** with `151` first `2m`, then solo) | `D3` legacy Moodle connect/isolation/adoption (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-A** (`D3` Moodle #6) | `qalead-la-135` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T5a, T5b` (`run-t5.mjs --tasks T5a,T5b`) | `17 min` (solo after `151` finishes) | `D3` legacy Moodle SCORM/HTML player & conflict resend (`AC-LA-E7-09-02, -05`; tests `4008afb9` + `r4` `WE-F10`). |
 | **Phase R3-A** (`D3` Moodle #7) | `qalead-la-136` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T5a, T6` (`run-t5.mjs --tasks T5a,T6`) | `8 min` (solo) | `D3` legacy Moodle portal & courses (`AC-LA-E7-09-02, -05`; tests `r8` combined `T6/3-courses.spec.ts` & `T6/5-xss-a11y.spec.ts`). |
-| **Phase R3-A** (`D3` Moodle #8) | `qalead-la-137` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T8` (`run-t8.mjs`) | `9 min` (solo) | `D3` legacy Moodle course shell (`AC-LA-E7-09-02, -05`; tests `r8` combined `T8/2-shell.spec.ts`). Wave output `container-T8/playwright-results.json` feeds `D3` `K1-SIM` (`qalead-la-141`). |
+| **Phase R3-A** (`D3` Moodle #8) | `qalead-la-137` | **Lead QA 1** (`D3`) | Moodle (`9543`, `172.21.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `T8` (`run-t8.mjs`) | `9 min` (solo) | `D3` legacy Moodle course shell (`AC-LA-E7-09-02, -05`; tests `r8` combined `T8/2-shell.spec.ts`). Wave output `$SRC_FINAL_3/tests/host/artifacts/qalead-la-137-*/summary.json` (`suite: "T8"`) feeds `D3` `K1-SIM` (`qalead-la-141`). |
 | **Phase R3-A** (`D4` SIM #1, non-`M2` overlap) | `qalead-la-150` | **Lead QA 2** (`D4`) | SIM (`9643`, `172.22.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3` w/ golden v2) | `G1–G4` `golden v2` capture + `compare.mjs` vs. `78971b03` (`tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea`) | `4 min` (**Overlap #1** with `130`) | `D4` golden v2 capture & compare against `78971b03`: every difference names its `LA-IC` expected file (`0` unexplained, `0` missing expected; `AC-LA-E0-01-04`, `AC-LA-E7-08-03`). |
 | **Phase R3-A** (`D4` SIM #2, non-`M2` overlap) | `qalead-la-151` | **Lead QA 2** (`D4`) | SIM (`9643`, `172.22.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `M1 --phase sim --provider all` (`394` rows) | `24 min` (**Overlap #1** with `130..134`) | `D4` `M1 sim` (`394/394 PASS` incl. B/C `9eb504f5` `M1-37` dead-handler rows & `r8` `m1-control.mjs`, `AC-LA-E7-08-01`). |
 | **Phase R3-B** (`D3` SIM `M2`, solo per `LD-31`) | `qalead-la-138` | **Lead QA 1** (`D3`) | SIM (`9473`, `172.23.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `M2` browser suite (`64` cases) | `4 min` (**solo per `LD-31`**, `0` overlaps) | `D3` `M2` (`64/64 PASS` incl. B/C `5561e8f7` `06-keyboard-axe.m2.ts`, `AC-LA-E7-08-01`). Runs solo after `137` and `151` are torn down so no other stack starts, seeds, or tears down during `M2` (`LD-31`). |
 | **Phase R3-B** (`D4` SIM `M2`, solo per `LD-31`) | `qalead-la-152` | **Lead QA 2** (`D4`) | SIM (`9643`, `172.22.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `M2` browser suite (`64` cases) | `4 min` (**solo per `LD-31`**, `0` overlaps) | `D4` `M2` (`64/64 PASS` incl. B/C `5561e8f7` `06-keyboard-axe.m2.ts`, `AC-LA-E7-08-01`). Runs solo immediately after `qalead-la-138` tears down (`LD-31`). |
-| **Phase R3-C** (`D4` Moodle #1) | `qalead-la-153` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T7 × 3` (`run-t7.mjs --runs 3 --replace-e2e`) | `11 min` (**Overlap #2** with `139..140`) | `D4` (run 2 of double full run on `4f10c5fd`, `LD-29` / `AC-LA-E7-09-01, -05`). Wave output `run1/tests.json` feeds `D4` `K1-SIM` (`qalead-la-161`). |
-| **Phase R3-C** (`D4` Moodle #2) | `qalead-la-154` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T2a, T2b, T3a, T3b` (`run-t2.mjs --tasks T2a,T2b,T3a,T3b`) | `10 min` (**Overlap #2** with `140`) | `D4` legacy Moodle LTI core & Dynamic Registration (`AC-LA-E7-09-02, -05`). Wave output `container-T3b/vitest-results.json` feeds `D4` `K1-SIM` (`qalead-la-161`). |
+| **Phase R3-C** (`D4` Moodle #1) | `qalead-la-153` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T7 × 3` (`run-t7.mjs --runs 3 --replace-e2e`) | `11 min` (**Overlap #2** with `139..140`) | `D4` (run 2 of double full run on `4f10c5fd`, `LD-29` / `AC-LA-E7-09-01, -05`). Wave output `$SRC_FINAL_3_D4/tests/e2e/artifacts/runs/qalead-la-153-*/summary.json` (`suite: "T7"`) feeds `D4` `K1-SIM` (`qalead-la-161`). |
+| **Phase R3-C** (`D4` Moodle #2) | `qalead-la-154` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T2a, T2b, T3a, T3b` (`run-t2.mjs --tasks T2a,T2b,T3a,T3b`) | `10 min` (**Overlap #2** with `140`) | `D4` legacy Moodle LTI core & Dynamic Registration (`AC-LA-E7-09-02, -05`). Wave output `$SRC_FINAL_3_D4/tests/host/artifacts/qalead-la-154-*/summary.json` (`suite: "T3b"`) feeds `D4` `K1-SIM` (`qalead-la-161`). |
 | **Phase R3-C** (`D4` Moodle #3) | `qalead-la-155` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T3c` (`run-t3c.mjs`) | `3 min` (**Overlap #2** with `140`) | `D4` legacy Moodle compatibility (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-C** (`D4` Moodle #4) | `qalead-la-156` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T4a` (`run-t4a.mjs`) | `2 min` (**Overlap #2** with `140`) | `D4` legacy Moodle Deep Linking API (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-C** (`D4` Moodle #5) | `qalead-la-157` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T4b1, T4b2` (`run-t4b.mjs --tasks T4b1,T4b2`) | `6 min` (**Overlap #2** with `140..141`) | `D4` legacy Moodle connect/isolation/adoption (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-C** (`D4` Moodle #6) | `qalead-la-158` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T5a, T5b` (`run-t5.mjs --tasks T5a,T5b`) | `17 min` (**Overlap #2** with `141` first `4m`, then solo) | `D4` legacy Moodle SCORM/HTML player & conflict resend (`AC-LA-E7-09-02, -05`). |
 | **Phase R3-C** (`D4` Moodle #7) | `qalead-la-159` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T5a, T6` (`run-t5.mjs --tasks T5a,T6`) | `8 min` (solo) | `D4` legacy Moodle portal & courses (`AC-LA-E7-09-02, -05`). |
-| **Phase R3-C** (`D4` Moodle #8) | `qalead-la-160` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T8` (`run-t8.mjs`) | `9 min` (solo) | `D4` legacy Moodle course shell (`AC-LA-E7-09-02, -05`). Wave output `container-T8/playwright-results.json` feeds `D4` `K1-SIM` (`qalead-la-161`). |
+| **Phase R3-C** (`D4` Moodle #8) | `qalead-la-160` | **Lead QA 2** (`D4`) | Moodle (`9563`, `172.25.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`) | `T8` (`run-t8.mjs`) | `9 min` (solo) | `D4` legacy Moodle course shell (`AC-LA-E7-09-02, -05`). Wave output `$SRC_FINAL_3_D4/tests/host/artifacts/qalead-la-160-*/summary.json` (`suite: "T8"`) feeds `D4` `K1-SIM` (`qalead-la-161`). |
 | **Phase R3-C** (`D3` SIM #1, non-`M2` overlap) | `qalead-la-139` | **Lead QA 1** (`D3`) | SIM (`9473`, `172.23.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3` w/ golden v2) | `G1–G4` `golden v2` capture + `compare.mjs` vs. `78971b03` (`tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea`) | `4 min` (**Overlap #2** with `153`) | `D3` golden v2 capture & compare against `78971b03`: every difference names its `LA-IC` expected file (`0` unexplained, `0` missing expected; `AC-LA-E0-01-04`, `AC-LA-E7-08-03`). |
 | **Phase R3-C** (`D3` SIM #2, non-`M2` overlap) | `qalead-la-140` | **Lead QA 1** (`D3`) | SIM (`9473`, `172.23.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`) | `M1 --phase sim --provider all` (`394` rows) | `24 min` (**Overlap #2** with `153..157`) | `D3` `M1 sim` (`394/394 PASS` incl. B/C `9eb504f5` `M1-37` dead-handler rows & `r8` `m1-control.mjs`, `AC-LA-E7-08-01`). |
-| **Phase R3-C** (`D3` SIM #3, non-`M2` overlap) | `qalead-la-141` | **Lead QA 1** (`D3`) | SIM (`9473`, `172.23.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`, kit tree `d7e50b5d`) | `LA_K1_KIT_FROM="$SRC_FINAL_3/tests/ltiaas/kit" LA_K1_WAVE_SPEC="$D3_WAVE_SPEC" node "$SRC_FINAL_3/tests/ltiaas/kit/run-k1sim.mjs" --sha 4f10c5fd... --source "$SRC_FINAL_3" --replace-tests --tests-from "$SRC_FINAL_3/tests"` (`5` shipped channels, `195` cases) | `8 min` (**Overlap #2** with `157..158`) | `D3` `K1-SIM` kit run on integration `4f10c5fd` (`5` channels, kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa`, bound to `D3`'s own `qalead-la-130`/`131`/`137` wave outputs; `LD-30` / `AC-LA-E7-08-02`). |
-| **Phase R3-D** (`D4` SIM `K1-SIM`, solo after `160`) | `qalead-la-161` | **Lead QA 2** (`D4`) | SIM (`9643`, `172.22.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`, kit tree `d7e50b5d`) | `LA_K1_KIT_FROM="$SRC_FINAL_3_D4/tests/ltiaas/kit" LA_K1_WAVE_SPEC="$D4_WAVE_SPEC" node "$SRC_FINAL_3_D4/tests/ltiaas/kit/run-k1sim.mjs" --sha 4f10c5fd... --source "$SRC_FINAL_3_D4" --replace-tests --tests-from "$SRC_FINAL_3_D4/tests"` (`5` shipped channels, `195` cases) | `8 min` (solo after `160` finishes, `0` overlaps) | `D4` `K1-SIM` kit run on integration `4f10c5fd` (`5` channels, kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa`, bound to `D4`'s own completed `qalead-la-153`/`154`/`160` wave outputs; `LD-30` / `AC-LA-E7-08-02`). |
+| **Phase R3-C** (`D3` SIM #3, non-`M2` overlap) | `qalead-la-141` | **Lead QA 1** (`D3`) | SIM (`9473`, `172.23.0.0/16`) | `4f10c5fd`, `src-final-3` (`la-final-test-3`, kit tree `d7e50b5d`) | `LA_K1_KIT_FROM="$SRC_FINAL_3/tests/ltiaas/kit" LA_K1_WAVE_SPEC="$REGATEDIR/wave-spec-d3.json" node "$SRC_FINAL_3/tests/ltiaas/kit/run-k1sim.mjs" --sha 4f10c5fd... --source "$SRC_FINAL_3" --replace-tests --tests-from "$SRC_FINAL_3/tests"` (`5` shipped channels, `195` cases) | `8 min` (**Overlap #2** with `157..158`) | `D3` `K1-SIM` kit run on integration `4f10c5fd` (`5` channels, kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa`, bound to `D3`'s own `qalead-la-130`/`131`/`137` `summary.json` wave outputs; `LD-30` / `AC-LA-E7-08-02`). |
+| **Phase R3-D** (`D4` SIM `K1-SIM`, solo after `160`) | `qalead-la-161` | **Lead QA 2** (`D4`) | SIM (`9643`, `172.22.0.0/16`) | `4f10c5fd`, `src-final-3-d4` (`la-final-test-3`, kit tree `d7e50b5d`) | `LA_K1_KIT_FROM="$SRC_FINAL_3_D4/tests/ltiaas/kit" LA_K1_WAVE_SPEC="$REGATEDIR/wave-spec-d4.json" node "$SRC_FINAL_3_D4/tests/ltiaas/kit/run-k1sim.mjs" --sha 4f10c5fd... --source "$SRC_FINAL_3_D4" --replace-tests --tests-from "$SRC_FINAL_3_D4/tests"` (`5` shipped channels, `195` cases) | `8 min` (solo after `160` finishes, `0` overlaps) | `D4` `K1-SIM` kit run on integration `4f10c5fd` (`5` channels, kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa`, bound to `D4`'s own completed `qalead-la-153`/`154`/`160` `summary.json` wave outputs; `LD-30` / `AC-LA-E7-08-02`). |
 | **Not Rerun** (Carried) | `qalead-la-18`, `qalead-la-19` (Slot 7) & `qalead-la-61`, `qalead-la-62` (Slot 3F) | **Lead QA 1** | SIM (carried) | `1b17261` / `78971b03` & `a8bbac53` / `4f10c5fd` | `M1 --phase migration` (`12/12 PASS`) & `M1 --phase snapshot-upgrade` (`6/6 PASS`) | `0 min` (carried) | **Why not rerun:** `git diff --stat bd368ff..78971b03 -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations infra/scripts/stack-data* infra/compat/ tests/host/m1-migration.mjs` is **empty (`0` files changed)**, and `git diff --stat a8bbac53..4f10c5fd -- services/lti-service services/cogniate-app infra/scripts/stack-data* infra/compat/ tests/host/m1-migration.mjs` is **empty (`0` files changed)**. Only `infra/README.md` (`1` doc file, `0` executable infrastructure changes) and `apps/player/src/html/tracker.ts` (`4008afb9`) changed outside `tests/`. |
 | **Not Rerun** (Carried) | `qalead-la-13` (`LA-E5-08`), `qalead-la-13b` (`LA-E5-22`), & `qa-e2e-la-moodle-r3` (`LA-E7-09`) | **Lead QA 1** / **QA-E2E** | SIM & Moodle (carried) | `80133d6b` & `a8bbac53` | `U1`/`U2` encryption continuity: SIM `qalead-la-13` (`19/19 PASS` in `docs/reviews/LA-E5-08/qa.md`), SIM `qalead-la-13b` (`18/18 PASS` in `docs/reviews/LA-E5-22/qa.md`), and live Moodle `qa-e2e-la-moodle-r3` (`36/36 PASS` in `docs/reviews/LA-E7-09/qa.md`) | `0 min` (carried) | **Why not rerun (`B-LA-E7-08-LD9-R8-02`):** Between `a8bbac53` and `4f10c5fd`, `git diff --stat a8bbac53..4f10c5fd -- services/lti-service services/cogniate-app packages/` is **empty (`0` files changed)**, and under `infra/` only `infra/README.md` changed (`1` documentation file, `0` executable infrastructure or key-provider `ltik1`/`cgk1` changes). |
-| **Not Rerun** (Carried) | `qa-e2e-la-drill-r2` (`LA-E5-24`) | **QA-E2E** | SIM `K1-SIM` (carried) | `5603861829dd7da4cfaf98ebfb7323b45063e7df` | `LA-E5-24` pilot backup and restore drill (`10/10 PASS` — `6/6` ACs `AC-LA-E5-24-01..06` + `4/4` host rows in `docs/reviews/LA-E5-24/qa.md:96`, artifacts in `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24-r2/`) | `0 min` (carried) | **Why not rerun (`B-LA-E7-08-LD9-R8-02`):** `git diff --stat 56038618..4f10c5fd -- infra/scripts/stack-data* services/lti-service/src/db services/cogniate-app/src/domain` shows **`0` backup/restore script changes**; under `infra/`, only `infra/README.md` changed in the B/C merge (`0` executable infrastructure changes). |
+| **Not Rerun** (Carried) | `qa-e2e-la-drill-r2` (`LA-E5-24`) | **QA-E2E** | SIM `K1-SIM` (carried) | `5603861886909667a03d2aaf7843a9b17a4020ed` | `LA-E5-24` pilot backup and restore drill (`10/10 PASS` — `6/6` ACs `AC-LA-E5-24-01..06` + `4/4` host rows in `docs/reviews/LA-E5-24/qa.md:96`, artifacts in `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24/r2/artifacts/qa-e2e-la-drill-r2-56038618-2026-10-23T20-36-36-947Z/`) | `0 min` (carried) | **Why not rerun (`A-LA-E7-08-LD9-R8-05` & `B-LA-E7-08-LD9-R8-02`):** `git diff --stat 5603861886909667a03d2aaf7843a9b17a4020ed..4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c -- infra/scripts/stack-data* services/lti-service/src/db services/cogniate-app/src/domain` shows **`0` backup/restore script changes**; under `infra/`, only `infra/README.md` changed in the B/C merge (`0` executable infrastructure changes). |
 
 ---
 
-### (d) Runner-Specific Reproducible Invocation & Kit Wave-Input Bindings (`B-LA-E7-08-LD9-R8-01`)
+### (d) Runner-Specific Reproducible Invocation & Kit Wave-Input Bindings (`A-LA-E7-08-LD9-R8-03..04` & `B-LA-E7-08-LD9-R8-01..03`)
 
-Every run in §10(c) is reproduced from the exact runner flags and environment bindings below (no implicit working-tree assumptions):
+Every run in §10(c) is reproduced from the exact shell variable definitions, runner flags, and environment bindings below (no implicit working-tree assumptions):
+
+0. **Shared Environment Variables (initialized once at the top of every session):**
+   ```bash
+   export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+   export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+   export REGATEDIR="/Users/quangnguyen/cogniate-qa-runs/LA/REGATE"
+   export SRC_BASELINE_3="$GATE_DIR/src-baseline-3"
+   export SRC_FINAL_3="$GATE_DIR/src-final-3"
+   export SRC_FINAL_3_D4="$GATE_DIR/src-final-3-d4"
+   export BASELINE_PRODUCT_SHA="78971b0300ab171029e8ce94dbba30db37b23dea"
+   export BASELINE_3_SHA="1ae6716b7353becc0f053b46fb65e0ba86ff7873"
+   export FINAL_PRODUCT_SHA="4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c"
+   export FINAL_TEST_3_SHA="794f649c3ebacf1a1b3ac599cffffe338dd7373d"
+   export LA_QA="/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa"
+   mkdir -p "$REGATEDIR/rate-peaks"
+   ```
 
 1. **`M1` (`run-m1.mjs` — `qalead-la-120`, `qalead-la-140`, `qalead-la-151`):**
-   - Uses `--sha <PRODUCT_SHA> --test-sha <GATE_TEST_SHA> --source <GATE_SRC_CLONE>`, which checks out `<PRODUCT_SHA>` and overlays `tests/` from `<GATE_TEST_SHA>` inside `<GATE_SRC_CLONE>`.
+   - Uses `--sha <PRODUCT_SHA> --test-sha <GATE_TEST_SHA> --source <GATE_SRC_CLONE>`, which checks out `<PRODUCT_SHA>` and overlays `tests/` from `<GATE_TEST_SHA>` inside `<GATE_SRC_CLONE>`, and writes artifacts to `<GATE_SRC_CLONE>/tests/host/artifacts/<PROJECT>-*/`.
    ```bash
    COMPOSE_PROJECT_NAME=qalead-la-120 PUBLIC_PORT=9473 STACK_SUBNET="172.23.0.0/16" \
      node "$SRC_BASELINE_3/tests/host/run-m1.mjs" \
      --phase sim --provider all \
-     --sha "78971b0300ab171029e8ce94dbba30db37b23dea" \
+     --sha "$BASELINE_PRODUCT_SHA" \
      --test-sha "$BASELINE_3_SHA" \
      --source "$SRC_BASELINE_3"
+   node "$LA_QA/tests/ltiaas/baseline/rate-peaks.mjs" \
+     --logs "$(ls -d "$SRC_BASELINE_3"/tests/host/artifacts/qalead-la-120-*/service-logs | tail -n 1)" \
+     --suite m1-sim > "$REGATEDIR/rate-peaks/qalead-la-120-m1-sim.json"
    ```
+
 2. **`M2` (`run-m2.mjs` — `qalead-la-121`, `qalead-la-138`, `qalead-la-152`, always solo per `LD-31`):**
-   - Uses `--sha <PRODUCT_SHA> --test-sha <GATE_TEST_SHA> --source <GATE_SRC_CLONE>` and `COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures"`, with `0` other LA stacks running, starting, seeding, or tearing down.
+   - Uses `--sha <PRODUCT_SHA> --test-sha <GATE_TEST_SHA> --source <GATE_SRC_CLONE>` and `COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR"`, with `0` other LA stacks running, starting, seeding, or tearing down, and writes artifacts to `<GATE_SRC_CLONE>/tests/host/artifacts/<PROJECT>-*/`.
    ```bash
    COMPOSE_PROJECT_NAME=qalead-la-121 PUBLIC_PORT=9473 STACK_SUBNET="172.23.0.0/16" \
-     COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
+     COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
      node "$SRC_BASELINE_3/tests/e2e/host/run-m2.mjs" \
-     --sha "78971b0300ab171029e8ce94dbba30db37b23dea" \
+     --sha "$BASELINE_PRODUCT_SHA" \
      --test-sha "$BASELINE_3_SHA" \
      --source "$SRC_BASELINE_3"
+   node "$LA_QA/tests/ltiaas/baseline/rate-peaks.mjs" \
+     --logs "$(ls -d "$SRC_BASELINE_3"/tests/host/artifacts/qalead-la-121-*/service-logs | tail -n 1)" \
+     --suite m2 > "$REGATEDIR/rate-peaks/qalead-la-121-m2.json"
    ```
+
 3. **`T7 × 3` (`run-t7.mjs` — `qalead-la-122`, `qalead-la-130`, `qalead-la-153`):**
-   - Invoked directly from `"$GATE_SRC_CLONE/tests/e2e/host/run-t7.mjs"` with `--sha <PRODUCT_SHA> --runs 3 --replace-e2e` (`--replace-e2e` copies `tests/e2e/` from `$GATE_SRC_CLONE/tests/e2e` into the cloned product worktree before running).
+   - Invoked directly from `"$GATE_SRC_CLONE/tests/e2e/host/run-t7.mjs"` with `--sha <PRODUCT_SHA> --runs 3 --replace-e2e` (`--replace-e2e` copies `tests/e2e/` from `$GATE_SRC_CLONE/tests/e2e` into the cloned product worktree before running), and writes artifacts to `"$GATE_SRC_CLONE/tests/e2e/artifacts/runs/<PROJECT>-*/"`.
    ```bash
-   COMPOSE_PROJECT_NAME=qalead-la-130 PUBLIC_PORT=9543 STACK_SUBNET="172.21.0.0/16" \
-     COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
-     node "$SRC_FINAL_3/tests/e2e/host/run-t7.mjs" \
-     --sha "4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c" \
+   COMPOSE_PROJECT_NAME=qalead-la-122 PUBLIC_PORT=9543 STACK_SUBNET="172.21.0.0/16" \
+     COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+     node "$SRC_BASELINE_3/tests/e2e/host/run-t7.mjs" \
+     --sha "$BASELINE_PRODUCT_SHA" \
      --runs 3 --replace-e2e
+   T7_122_DIR=$(ls -d "$SRC_BASELINE_3"/tests/e2e/artifacts/runs/qalead-la-122-* | tail -n 1)
+   node "$LA_QA/tests/ltiaas/baseline/rate-peaks.mjs" \
+     --logs "$T7_122_DIR/run1/service-logs" \
+     --suite t7-run1 > "$REGATEDIR/rate-peaks/qalead-la-122-t7-run1.json"
+   mkdir -p "$REGATEDIR/rate-peaks/t7-122-all3runs-logs"
+   for s in cogniate-app.jsonl lti-service.jsonl; do
+     cat "$T7_122_DIR"/run{1,2,3}/service-logs/"$s" > "$REGATEDIR/rate-peaks/t7-122-all3runs-logs/$s"
+   done
+   node "$LA_QA/tests/ltiaas/baseline/rate-peaks.mjs" \
+     --logs "$REGATEDIR/rate-peaks/t7-122-all3runs-logs" \
+     --suite t7-all3runs > "$REGATEDIR/rate-peaks/qalead-la-122-t7-all3runs.json"
    ```
+
 4. **Legacy Moodle Suites `T2a–T8` (`run-t2.mjs`, `run-t3c.mjs`, `run-t4a.mjs`, `run-t4b.mjs`, `run-t5.mjs`, `run-t8.mjs` — `qalead-la-123..129`, `qalead-la-131..137`, `qalead-la-154..160`):**
-   - Run under `umask 022` (so container `pwuser` `1000:1000` can read host-mounted `infra/.logs` and `infra/.data`) and pass `--sha <PRODUCT_SHA> --source "$GATE_SRC_CLONE" --workdir <WORKDIR> --replace-tests --tests-from "$GATE_SRC_CLONE/tests"`.
+   - Run under `umask 022` (so container `pwuser` `1000:1000` can read host-mounted `infra/.logs` and `infra/.data`), pass `--sha <PRODUCT_SHA> --source "$GATE_SRC_CLONE" --workdir <WORKDIR> --replace-tests --tests-from "$GATE_SRC_CLONE/tests"`, and write artifacts to `"$GATE_SRC_CLONE/tests/host/artifacts/<PROJECT>-*/"`.
    ```bash
    umask 022
-   COMPOSE_PROJECT_NAME=qalead-la-131 PUBLIC_PORT=9543 STACK_SUBNET="172.21.0.0/16" \
-     node "$SRC_FINAL_3/tests/host/run-t2.mjs" \
-     --sha "4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c" \
-     --source "$SRC_FINAL_3" \
-     --workdir "$REGATEDIR/qalead-la-131-t2-t3ab" \
-     --replace-tests --tests-from "$SRC_FINAL_3/tests" \
+   COMPOSE_PROJECT_NAME=qalead-la-123 PUBLIC_PORT=9543 STACK_SUBNET="172.21.0.0/16" \
+     node "$SRC_BASELINE_3/tests/host/run-t2.mjs" \
+     --sha "$BASELINE_PRODUCT_SHA" \
+     --source "$SRC_BASELINE_3" \
+     --workdir "$REGATEDIR/qalead-la-123-t2-t3ab" \
+     --replace-tests --tests-from "$SRC_BASELINE_3/tests" \
      --tasks T2a,T2b,T3a,T3b
+   node "$LA_QA/tests/ltiaas/baseline/rate-peaks.mjs" \
+     --logs "$(ls -d "$SRC_BASELINE_3"/tests/host/artifacts/qalead-la-123-*/service-logs | tail -n 1)" \
+     --suite t2-t3ab > "$REGATEDIR/rate-peaks/qalead-la-123-t2-t3ab.json"
    ```
-5. **`Golden v2` Capture & Compare (`run-golden.mjs` & `compare.mjs` — `qalead-la-139` in `D3` and `qalead-la-150` in `D4`):**
-   - Executed on the rebuilt `la-final-test-3` tree (containing the approved `LA-E0-03` golden v2 files and `LA-IC-01`/`LA-IC-12` Moodle expected deltas, `A-LA-E7-08-LD9-R8-01`). Port normalization replaces `:$PUBLIC_PORT` with `:9643` (the port of `tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/G*.json`) before running `compare.mjs`:
+
+5. **`Golden v2` Capture & Compare (`run-golden.mjs` & `compare.mjs` — `qalead-la-139` in `D3` and `qalead-la-150` in `D4`, `A-LA-E7-08-LD9-R8-03` & `B-LA-E7-08-LD9-R8-03`):**
+   - Executed on the rebuilt `la-final-test-3` tree (containing the approved `LA-E0-03` golden v2 files and `LA-IC-01`/`LA-IC-12` Moodle expected deltas, `A-LA-E7-08-LD9-R8-01`). For `D3` (`PUBLIC_PORT=9473`), atomic port normalization reads each `G*.json` file into memory first, verifies non-empty valid JSON with `json.loads()`, writes to `.json.tmp`, and replaces the target via `os.replace()` before running `compare.mjs` against `tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/G*.json` (captured on `:9643`):
    ```bash
    COMPOSE_PROJECT_NAME=qalead-la-139 PUBLIC_PORT=9473 STACK_SUBNET="172.23.0.0/16" \
      node "$SRC_FINAL_3/tests/ltiaas/golden/run-golden.mjs" \
-     --sha "4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c" \
+     --sha "$FINAL_PRODUCT_SHA" \
      --source "$SRC_FINAL_3" \
      --workdir "$REGATEDIR/qalead-la-139-golden" \
      --replace-tests --tests-from "$SRC_FINAL_3/tests" \
      --out "$REGATEDIR/d3-golden-4f10c5fd"
+   rm -rf "$REGATEDIR/d3-golden-4f10c5fd-port9643"
    cp -R "$REGATEDIR/d3-golden-4f10c5fd" "$REGATEDIR/d3-golden-4f10c5fd-port9643"
-   python3 -c 'import glob; [open(p,"w").write(open(p).read().replace(":9473",":9643")) for p in glob.glob("'"$REGATEDIR"'/d3-golden-4f10c5fd-port9643/G*.json")]'
+   python3 - "$REGATEDIR/d3-golden-4f10c5fd-port9643" <<'PY'
+   import json, os, pathlib, sys
+   folder = pathlib.Path(sys.argv[1])
+   files = sorted(folder.glob("G*.json"))
+   assert len(files) == 4, f"Expected 4 G*.json files in {folder}, got {len(files)}"
+   for p in files:
+       raw = p.read_text(encoding="utf-8")
+       assert len(raw) > 0, f"Empty file: {p}"
+       updated = raw.replace(":9473", ":9643")
+       json.loads(updated)
+       tmp = p.with_suffix(".json.tmp")
+       tmp.write_text(updated, encoding="utf-8")
+       os.replace(tmp, p)
+   PY
    node "$SRC_FINAL_3/tests/ltiaas/golden/compare.mjs" \
      --base "$SRC_FINAL_3/tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea" \
      --candidate "$REGATEDIR/d3-golden-4f10c5fd-port9643" \
      --expected "LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21" \
      --expected-dir "$SRC_FINAL_3/tests/ltiaas/golden/expected"
    ```
-6. **`K2` `U1–U4` (`run-k2.mjs` — `qa-e2e-la-sim-r11` in Slot R2b, solo per `LD-31`):**
+
+6. **`K2` `U1–U4` (`run-k2.mjs` — `qa-e2e-la-sim-r11` in Slot R2b, solo per `LD-31` — DONE):**
    ```bash
    COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r11 PUBLIC_PORT=9443 STACK_SUBNET="172.20.0.0/16" \
-     COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
+     COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
      node "$SRC_FINAL_3/tests/e2e/ltiaas/run-k2.mjs" \
      --suite k2 \
-     --sha "4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c" \
+     --sha "$FINAL_PRODUCT_SHA" \
      --source "$SRC_FINAL_3" \
      --replace-tests --tests-from "$SRC_FINAL_3/tests"
    ```
-7. **5-Channel Integration `K1-SIM` Kit (`run-k1sim.mjs` — `qalead-la-141` in `D3` and `qalead-la-161` in `D4`, `LD-30` & `B-LA-E7-08-LD9-R8-01`):**
-   - **Reviewed Kit Tree Proof:** `git -C "$SRC_FINAL_3" rev-parse HEAD:tests/ltiaas/kit` = `d7e50b5dea56382f849b213f006b73bcf5eb71aa` (5 shipped channels in `tests/ltiaas/kit/channels/`: `blackboard.json`, `brightspace.json`, `canvas.json`, `lti-generic.json`, `moodle.json` -> `5 × 39 = 195` cases; **no `--channels` CLI flag is passed** because `run-k1sim.mjs` discovers all channel JSON files in `LA_K1_KIT_FROM/channels`).
-   - **Wave-Input Binding (`LA_K1_WAVE_SPEC` & `LA_WAVE_ID`):** `K1-39.<id>` (`tests/ltiaas/kit/runners/moodle-wave.mjs`) requires `LA_K1_WAVE_SPEC` (or `waveSpecPath`) pointing to a JSON file whose `waveId` matches `LA_WAVE_ID` and whose `sources` array points to `T3b` (`vitest`), `T7` (`t7`), and `T8` (`playwright`) result files from that run's own `4f10c5fd` Moodle wave:
-     - For **`D3` (`qalead-la-141`)**: built from `qalead-la-131` (`container-T3b/vitest-results.json`), `qalead-la-130` (`run1/tests.json`), and `qalead-la-137` (`container-T8/playwright-results.json`) with `LA_WAVE_ID="la-final-wave-4f10c5fd-d3"`.
-     - For **`D4` (`qalead-la-161`)**: built from `qalead-la-154` (`container-T3b/vitest-results.json`), `qalead-la-153` (`run1/tests.json`), and `qalead-la-160` (`container-T8/playwright-results.json`) with `LA_WAVE_ID="la-final-wave-4f10c5fd-d4"`.
-   ```bash
-   # Verify kit tree hash on src-final-3:
-   test "$(git -C "$SRC_FINAL_3" rev-parse HEAD:tests/ltiaas/kit)" = "d7e50b5dea56382f849b213f006b73bcf5eb71aa"
 
-   # Write D3 wave-spec JSON from D3's own completed qalead-la-130 (T7), qalead-la-131 (T3b), and qalead-la-137 (T8) artifacts:
-   T7_D3_JSON=$(ls "$REGATEDIR"/artifacts/qalead-la-130-*/run1/tests.json)
-   T3B_D3_JSON=$(ls "$REGATEDIR"/artifacts/qalead-la-131-*/container-T3b/vitest-results.json)
-   T8_D3_JSON=$(ls "$REGATEDIR"/artifacts/qalead-la-137-*/container-T8/playwright-results.json)
+7. **5-Channel Integration `K1-SIM` Kit (`run-k1sim.mjs` — `qalead-la-141` in `D3` and `qalead-la-161` in `D4`, `LD-30`, `A-LA-E7-08-LD9-R8-04` & `B-LA-E7-08-LD9-R8-01`):**
+   - **Reviewed Kit Tree Proof:** `git -C "$SRC_FINAL_3" rev-parse HEAD:tests/ltiaas/kit` = `d7e50b5dea56382f849b213f006b73bcf5eb71aa` (`5` shipped channels in `tests/ltiaas/kit/channels/`: `blackboard.json`, `brightspace.json`, `canvas.json`, `lti-generic.json`, `moodle.json` -> `5 × 39 = 195` cases; **no `--channels` CLI flag is passed** because `run-k1sim.mjs` discovers all channel JSON files in `LA_K1_KIT_FROM/channels`).
+   - **Wave-Input Schema & Artifact Paths (`tests/ltiaas/kit/lib/wave-producer.mjs`):** `writeWaveEvidence({ specs, runDir, waveId, repoRoot })` requires `specs` to be a **JSON array of `{ "suite": "T3b" | "T7" | "T8", "file": "<absolute path to host summary.json>" }` entries** (matching `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/wave-spec-r8.json`):
+     - **`T7` (`run-t7.mjs`, `e2e-summary`):** writes `summary.json` under `"$SRC_FINAL_3/tests/e2e/artifacts/runs/qalead-la-130-*/summary.json"` for `D3` (and `"$SRC_FINAL_3_D4/tests/e2e/artifacts/runs/qalead-la-153-*/summary.json"` for `D4`).
+     - **`T3b` (`run-t2.mjs`, `host-summary`):** writes `summary.json` under `"$SRC_FINAL_3/tests/host/artifacts/qalead-la-131-*/summary.json"` for `D3` (and `"$SRC_FINAL_3_D4/tests/host/artifacts/qalead-la-154-*/summary.json"` for `D4`).
+     - **`T8` (`run-t8.mjs`, `host-summary`):** writes `summary.json` under `"$SRC_FINAL_3/tests/host/artifacts/qalead-la-137-*/summary.json"` for `D3` (and `"$SRC_FINAL_3_D4/tests/host/artifacts/qalead-la-160-*/summary.json"` for `D4`).
+     - Before starting `run-k1sim.mjs`, the operator runs a pure host preflight through `writeWaveEvidence()` on `$REGATEDIR/wave-spec-d3.json` (and `wave-spec-d4.json`) and asserts `res.ok === true`.
+   ```bash
+   # 1. Verify kit tree hash on src-final-3 and src-final-3-d4:
+   test "$(git -C "$SRC_FINAL_3" rev-parse HEAD:tests/ltiaas/kit)" = "d7e50b5dea56382f849b213f006b73bcf5eb71aa"
+   test "$(git -C "$SRC_FINAL_3_D4" rev-parse HEAD:tests/ltiaas/kit)" = "d7e50b5dea56382f849b213f006b73bcf5eb71aa"
+
+   # 2. Write D3 wave-spec JSON array from D3's completed qalead-la-131 (T3b), qalead-la-130 (T7), and qalead-la-137 (T8) summary.json files:
+   T3B_D3_SUMMARY=$(ls "$SRC_FINAL_3"/tests/host/artifacts/qalead-la-131-*/summary.json | tail -n 1)
+   T7_D3_SUMMARY=$(ls "$SRC_FINAL_3"/tests/e2e/artifacts/runs/qalead-la-130-*/summary.json | tail -n 1)
+   T8_D3_SUMMARY=$(ls "$SRC_FINAL_3"/tests/host/artifacts/qalead-la-137-*/summary.json | tail -n 1)
    cat > "$REGATEDIR/wave-spec-d3.json" <<EOF
-   {
-     "waveId": "la-final-wave-4f10c5fd-d3",
-     "sources": [
-       { "id": "T3b", "kind": "vitest", "path": "$T3B_D3_JSON" },
-       { "id": "T7", "kind": "t7", "path": "$T7_D3_JSON" },
-       { "id": "T8", "kind": "playwright", "path": "$T8_D3_JSON" }
-     ]
-   }
+   [
+     { "suite": "T3b", "file": "$T3B_D3_SUMMARY" },
+     { "suite": "T7",  "file": "$T7_D3_SUMMARY" },
+     { "suite": "T8",  "file": "$T8_D3_SUMMARY" }
+   ]
    EOF
 
-   # Run D3 5-channel K1-SIM (195 cases):
+   # 3. Preflight wave-spec-d3.json through writeWaveEvidence() before starting Docker:
+   rm -rf "$REGATEDIR/wave-preflight-d3" && mkdir -p "$REGATEDIR/wave-preflight-d3"
+   node --input-type=module -e '
+     import fs from "node:fs";
+     import { writeWaveEvidence } from "'"$SRC_FINAL_3"'/tests/ltiaas/kit/lib/wave-producer.mjs";
+     const specs = JSON.parse(fs.readFileSync("'"$REGATEDIR"'/wave-spec-d3.json", "utf8"));
+     const res = writeWaveEvidence({
+       specs,
+       runDir: "'"$REGATEDIR"'/wave-preflight-d3",
+       waveId: "la-final-wave-4f10c5fd-d3",
+       repoRoot: "'"$SRC_FINAL_3"'",
+     });
+     if (!res.ok) { console.error(res); process.exit(1); }
+   '
+
+   # 4. Run D3 5-channel K1-SIM (195 cases):
    COMPOSE_PROJECT_NAME=qalead-la-141 PUBLIC_PORT=9473 STACK_SUBNET="172.23.0.0/16" \
-     COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
+     COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
      LA_WAVE_ID="la-final-wave-4f10c5fd-d3" \
      LA_K1_WAVE_SPEC="$REGATEDIR/wave-spec-d3.json" \
      LA_K1_KIT_FROM="$SRC_FINAL_3/tests/ltiaas/kit" \
      node "$SRC_FINAL_3/tests/ltiaas/kit/run-k1sim.mjs" \
-     --sha "4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c" \
+     --sha "$FINAL_PRODUCT_SHA" \
      --source "$SRC_FINAL_3" \
      --workdir "$REGATEDIR/qalead-la-141-k1sim" \
      --replace-tests --tests-from "$SRC_FINAL_3/tests"
    ```
-   *(And identically for `D4` `qalead-la-161` on `PUBLIC_PORT=9643`, `STACK_SUBNET="172.22.0.0/16"` using `$SRC_FINAL_3_D4`, `LA_WAVE_ID="la-final-wave-4f10c5fd-d4"`, and `$REGATEDIR/wave-spec-d4.json` built from `qalead-la-153`, `qalead-la-154`, and `qalead-la-160`.)*
+   *(And identically for `D4` `qalead-la-161` on `PUBLIC_PORT=9643`, `STACK_SUBNET="172.22.0.0/16"` using `$SRC_FINAL_3_D4`, `LA_WAVE_ID="la-final-wave-4f10c5fd-d4"`, and `$REGATEDIR/wave-spec-d4.json` built from `qalead-la-154` `T3b`, `qalead-la-153` `T7`, and `qalead-la-160` `T8` under `$SRC_FINAL_3_D4`.)*
+
 8. **6-Channel Walk-Clone `K1-SIM` Kit (`qa4-la-walk-r2` in Slot R2a — DONE `9b10f07c`, `234/234 PASS` in `docs/reviews/LA-E8-02/qa.md` Round 3, `B-LA-E7-08-LD9-R8-01`):**
-   - **Walk-Clone Construction (`$WALK_CLONE` = `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E8-02/walk-clone-r3`):** Fresh `git clone --no-hardlinks` of `la-walk` at `d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08`, overlaid in the working tree (preserving `HEAD = d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08` for `run-k1sim.mjs`'s `git checkout --force <sha>`) with `tests/ltiaas/kit` from `a395324334b644792de2742c2a753ef73ed7521d` (`d7e50b5dea56382f849b213f006b73bcf5eb71aa`) plus `tests/ltiaas/kit/channels/acme-lms.json` from `d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08`, yielding the 6-channel kit tree `3c82b60928d8b5f7c5e94cb834314a2a97c91cdb` (`6 × 39 = 234` cases).
-   - **Wave-Input Binding:** `LA_WAVE_ID="la-final-wave-a8bbac53"` and `LA_K1_WAVE_SPEC="/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/wave-spec-r8.json"` (referencing `qalead-la-56` `T7`, `qalead-la-31` `T3b`, and `qalead-la-52` `T8`).
+   - **Walk-Clone Construction (`$WALK_CLONE` = `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/walk2/clone`):** Fresh `git clone --no-hardlinks` of `la-walk` detached at `d6196d5242863e33f76a0b7d06c45554463bec6b`, overlaid in the working tree (preserving `HEAD = d6196d5242863e33f76a0b7d06c45554463bec6b` for `run-k1sim.mjs`'s `git checkout --force <sha>`) with `tests/ltiaas/kit` from `a395324341e89eb0df1c49075fd7fd52ef85dc0a` (`d7e50b5dea56382f849b213f006b73bcf5eb71aa`) plus `tests/ltiaas/kit/channels/acme-lms.json` from `d6196d5242863e33f76a0b7d06c45554463bec6b`, yielding the 6-channel kit tree `3c82b60928d8b5f7c5e94cb834314a2a97c91cdb` (`6 × 39 = 234` cases).
+   - **Wave-Input Binding:** `LA_WAVE_ID="la-final-wave-a8bbac53"` and `LA_K1_WAVE_SPEC="/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/wave-spec-r8.json"` (referencing `qalead-la-31` `T3b`, `qalead-la-66` `T7`, and `qalead-la-52` `T8`).
    ```bash
-   export WALK_CLONE="/Users/quangnguyen/cogniate-qa-runs/LA/LA-E8-02/walk-clone-r3"
+   export WALK_CLONE="/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/walk2/clone"
    git clone --no-hardlinks /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-walk "$WALK_CLONE"
-   git -C "$WALK_CLONE" checkout --force d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08
+   git -C "$WALK_CLONE" checkout --force d6196d5242863e33f76a0b7d06c45554463bec6b
    rm -rf "$WALK_CLONE/tests/ltiaas/kit"
-   git -C /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa \
-     archive a395324334b644792de2742c2a753ef73ed7521d tests/ltiaas/kit | tar -x -C "$WALK_CLONE"
-   git -C "$WALK_CLONE" checkout d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08 -- tests/ltiaas/kit/channels/acme-lms.json
+   git -C "$LA_QA" archive a395324341e89eb0df1c49075fd7fd52ef85dc0a tests/ltiaas/kit | tar -x -C "$WALK_CLONE"
+   git -C "$WALK_CLONE" checkout d6196d5242863e33f76a0b7d06c45554463bec6b -- tests/ltiaas/kit/channels/acme-lms.json
 
    COMPOSE_PROJECT_NAME=qa4-la-walk-r2 PUBLIC_PORT=9443 STACK_SUBNET="172.20.0.0/16" \
-     COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
+     COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
      LA_WAVE_ID="la-final-wave-a8bbac53" \
      LA_K1_WAVE_SPEC="/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/wave-spec-r8.json" \
      LA_K1_KIT_FROM="$WALK_CLONE/tests/ltiaas/kit" \
      node "$WALK_CLONE/tests/ltiaas/kit/run-k1sim.mjs" \
-     --sha d6196d52baaf9c2dc8aa39dd151dc2b5486e8e08 \
+     --sha d6196d5242863e33f76a0b7d06c45554463bec6b \
      --source "$WALK_CLONE" \
-     --workdir "/Users/quangnguyen/cogniate-qa-runs/LA/LA-E8-02/workdir-qa4-la-walk-r2" \
+     --workdir "/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/walk2/r2/run-clone" \
      --replace-tests --tests-from "$WALK_CLONE/tests"
    ```
 
+9. **Host Dry-Run Verification Matrix (`/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/dry-run-r2/logs/`):**
+   - Every command in §10(d).0–8 was dry-run on the host with `0` Docker calls using disposable copies of real prior outputs (`RUN-D1` `summary.json`, `m1-case-results.json`, `m2-case-results.json`, and `service-logs`; `Slot R0` `golden-cand-4f10c5fd` `G1–G4.json`; `Slot R2b` `k2-case-results.json`; and `LA-E7-06` `wave-spec-r8.json`) and verified to fail closed on mutated/invalid input:
+
+| Step | §10(d) Command Group | Positive Dry-Run Proof (`exit 0`, expected output written) | Negative Control Proof (`exit != 0`, fails closed on wrong input) | Log Files (`/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/dry-run-r2/logs/`) |
+| --- | --- | --- | --- | --- |
+| `0` | §10(b)/(c)/(d).0 Env vars, gate trees (`1ae6716b`, `794f649c`), product SHAs (`78971b03`, `4f10c5fd`), non-test diffs (`exit 0`), & `LA-E5-24` drill SHA (`5603861886909667a03d2aaf7843a9b17a4020ed`) + artifact | All `git rev-parse`, `git cat-file -e`, `git diff --exit-code ... -- . ':!tests'`, and artifact `test -f` checks pass (`POS_00_OK`). | Old invalid SHA `5603861829dd7da4...` and old path `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24-r2` fail closed (`NEG_00A`, `NEG_00B`). | `00-env-and-tree-proofs.pos.log`, `00-env-and-tree-proofs.neg.log` |
+| `1` | §10(d).1 `run-m1.mjs` CLI + `verifyResults` (`394` `sim` rows from `qalead-la-81`) + `rate-peaks.mjs --suite m1-sim` | `run-m1.mjs --help` parses on `src-baseline-3` & `src-final-3`; `verifyResults` passes `394/394` rows; `rate-peaks.mjs` writes `qalead-la-120-rate-peaks.json` (`launch.perMinute=28`, `lti.admin.perMinute=399`). | `run-m1.mjs --sha deadbeef` throws `AssertionError`; `rate-peaks.mjs` without `--logs` exits `2` (`NEG_01A`, `NEG_01B`). | `01-m1-and-rate-peaks.pos.log`, `01-m1-and-rate-peaks.neg.log` |
+| `2` | §10(d).2 `run-m2.mjs` CLI + `verifyResults` (`64` `M2` rows from `qalead-la-82`) + `rate-peaks.mjs --suite m2` | `run-m2.mjs --help` verifies `productSha` & `testSha` git objects and clean `tests/` on `src-baseline-3` & `src-final-3`; `verifyResults` passes `64/64` rows; `rate-peaks.mjs` writes `qalead-la-121-rate-peaks.json` (`launch.perMinute=3`, `lti.protocol.perMinute=10`). | `run-m2.mjs --sha deadbeef` throws `AssertionError`; dropping 1 row (`M2-13.cross-library`) from `m2-case-results.json` throws `AssertionError: Missing result: M2-13.cross-library` (`NEG_02A`, `NEG_02B`). | `02-m2-and-rate-peaks.pos.log`, `02-m2-and-rate-peaks.neg.log` |
+| `3` | §10(d).3 `run-t7.mjs` CLI + `judgeWaveSource({ suite: "T7" })` (`qalead-la-73` `summary.json`) + `rate-peaks.mjs --suite t7-run1` & `t7-all3runs` | `run-t7.mjs --help` passes on `src-baseline-3` & `src-final-3`; `judgeWaveSource` returns `outcome: "PASS", notes: []`; `rate-peaks.mjs` writes `t7-run1` and `t7-all3runs` JSON (`launch.perMinute=3`). | `run-t7.mjs --test-sha ...` throws `ERR_PARSE_ARGS_UNKNOWN_OPTION`; mutating `runs[1].fail = 1` in `T7` `summary.json` returns `outcome: "FAIL"` (`NEG_03A`, `NEG_03B`). | `03-t7-and-rate-peaks.pos.log`, `03-t7-and-rate-peaks.neg.log` |
+| `4` | §10(d).4 Legacy `run-t2/t3c/t4a/t4b/t5/t8.mjs` CLIs + `judgeWaveSource` (`T3b` `qalead-la-74`, `T8` `qalead-la-83`) + `rate-peaks.mjs` across all 7 legacy suites (`t2-t3ab`..`t8`) | All 14 runner invocations (`src-baseline-3` & `src-final-3`) parse; `judgeWaveSource` returns `PASS` on `qalead-la-74` (`T3b`) and `qalead-la-83` (`T8`); all 7 `rate-peaks-*.json` files parse cleanly. | `run-t2.mjs --test-sha ...` throws `ERR_PARSE_ARGS_UNKNOWN_OPTION`; mutating `aggregate["AC-T3-30"] = "FAIL"` in `T3b` `summary.json` returns `outcome: "FAIL" ["AC-T3-30: FAIL"]` (`NEG_04A`, `NEG_04B`). | `04-legacy-t2-t8-and-rate-peaks.pos.log`, `04-legacy-t2-t8-and-rate-peaks.neg.log` |
+| `5` | §10(d).5 `run-golden.mjs` CLI + atomic Python port normalizer (`:9473` -> `:9643`) + `compare.mjs` vs `78971b03` with 13 `LA-IC` files | Normalizer atomically updates all 4 `G1–G4.json` files (`106,073 B`, `53,070 B`, `59,628 B`, `28,601 B`) and validates JSON; `compare.mjs` exits `0` (`EQUAL: 297 differences (0 not explained), 0 expected changes missing`). | Truncating `G1.json` to `0` bytes raises `AssertionError: Empty file`; mutating `G1.acceptance.unexpectedField` makes `compare.mjs` exit `1` (`DIFFERENT: 298 differences (1 not explained)`) (`NEG_05A`, `NEG_05B`). | `05-golden-v2-norm-and-compare.pos.log`, `05-golden-v2-norm-and-compare.neg.log` |
+| `6` | §10(d).6 `run-k2.mjs` CLI + `loadManifest` / `verifyK2Coverage` on `qa-e2e-la-sim-r11` `k2-case-results.json` | `run-k2.mjs --help` resolves `--sha 4f10c5fd...`; `k2-case-results.json` (`12/12 passed`) and `verifyK2Coverage` (`ok: true`) pass. | `run-k2.mjs --sha deadbeef` throws `AssertionError: Could not resolve --sha deadbeef`; `verifyK2Coverage({ suites: [] })` fails with `12` missing cases (`NEG_06A`, `NEG_06B`). | `06-k2-runner.pos.log`, `06-k2-runner.neg.log` |
+| `7` | §10(d).7 `run-k1sim.mjs` CLI + `wave-spec-d3.json` & `wave-spec-d4.json` array generation + `writeWaveEvidence()` preflight | `wave-spec-d3.json` and `wave-spec-d4.json` resolve `$MOCK_SRC/tests/{host/artifacts/qalead-la-131-*,e2e/artifacts/runs/qalead-la-130-*,host/artifacts/qalead-la-137-*}/summary.json` (and `154`/`153`/`160`); `writeWaveEvidence()` returns `ok: true` and writes `wave/{T3b,T7,T8}/result.json` + `wave-evidence.json`. | Passing `{ "waveId": ..., "sources": [...] }` object throws `Error: wave spec: a non-empty array is required`; pointing `T8` to failed `qalead-la-80` `summary.json` (`AC-T8-10: FAIL`) returns `ok: false`; passing `--channels` to `run-k1sim.mjs` throws `ERR_PARSE_ARGS_UNKNOWN_OPTION` (`NEG_07A..C`). | `07-k1sim-wave-d3-d4.pos.log`, `07-k1sim-wave-d3-d4.neg.log` |
+| `8` | §10(d).8 6-channel walk-clone construction (`d6196d5242863e33f76a0b7d06c45554463bec6b` + `a395324341e89eb0df1c49075fd7fd52ef85dc0a` kit + `acme-lms.json`) + `writeWaveEvidence()` on `wave-spec-r8.json` | Clones `la-walk` at `d6196d5242863e33f76a0b7d06c45554463bec6b`, overlays kit `a395324341e89eb0df1c49075fd7fd52ef85dc0a` + `acme-lms.json` (`6` channels), parses `run-k1sim.mjs --help`, and verifies `wave-spec-r8.json` (`qalead-la-31` `T3b`, `qalead-la-66` `T7`, `qalead-la-52` `T8` all `PASS`). | Duplicating the `T7` entry in `wave-spec-r8.json` throws `Error: wave spec: suite T7 appears twice` (`NEG_08`). | `08-walk-clone-k1sim.pos.log`, `08-walk-clone-k1sim.neg.log` |
+
 ---
 
-### (e) Recomputed Critical-Path Time Summary (`A-LA-E7-08-LD9-R8-02`)
+### (e) Recomputed Critical-Path Time Summary (`A-LA-E7-08-LD9-R8-02` & `B-LA-E7-08-LD9-R8-01`)
 
 - **Slot R0 (`golden v2` capture × 2 on `78971b03` + dry-run on `4f10c5fd`, Lead QA 2, solo)**: **`13 min`** (**DONE**; `0 min` remaining wall time).
 - **Slot R2a (`QA-K` 6-channel walk-clone `K1-SIM` `qa4-la-walk-r2` on `9443`, solo)**: **`7.4 min`** (**DONE** at `9b10f07c`, `234/234 PASS`; `0 min` remaining wall time).
-- **Slot R2b (`QA-E2E` `K2` `U1–U4` `qa-e2e-la-sim-r11` on `9443`, solo per `LD-31`)**: **`4 min`** (dispatched solo before Slot R1; `0 min` overlap with any other stack).
+- **Slot R2b (`QA-E2E` `K2` `U1–U4` `qa-e2e-la-sim-r11` on `9443`, solo per `LD-31`)**: **`4 min`** (**DONE** in `SLOT-R2B-R6-QA-E2E`, `12/12 PASS`; `0 min` overlap with any other stack).
 - **Slot R1 (`baseline-3` runs on `78971b03`, Lead QA 1, `qalead-la-120..129`, sequential `1` stack at a time, `0` overlaps)**: **`94 min` wall time** (`24 min` `qalead-la-120` `M1 sim` + `4 min` solo `qalead-la-121` `M2` + `66 min` Moodle `qalead-la-122..129`, including `<1 min` per suite for `rate-peaks.mjs`).
 - **Slot R3 (`D3` + `D4` double full run on `4f10c5fd` / `la-final-test-3` under `LD-31`, Lead QA 1 & Lead QA 2)**: **`148 min` (`2 h 28 min`) wall time** across four phases:
   1. **Phase R3-A (`66 min` wall time — Planned Overlap #1):** `Lead QA 1` runs `D3` Moodle `qalead-la-130..137` (`66 min` on `9543`) while `Lead QA 2` runs `D4` non-`M2` SIM `qalead-la-150..151` (`golden v2` `4 min` + `M1 sim` `24 min` = `28 min` on `9643`).
@@ -1163,7 +1249,7 @@ Every run in §10(c) is reproduced from the exact runner flags and environment b
   4. **Phase R3-D (`8 min` wall time — Solo `D4` `K1-SIM` after `qalead-la-160` `T8` finishes, `0` Overlaps):** `Lead QA 2` runs `D4` 5-channel `K1-SIM` `qalead-la-161` (`8 min` solo on `9643`, fed by `D4`'s completed `153`/`154`/`160` wave outputs).
 - **Total Re-Gate Critical-Path Wall Time**:
   - **Remaining critical-path wall time (`R1` + `R3-A..D`)**: **`242 min` (`4 h 02 min`)** (`94 min` Slot R1 + `148 min` Slot R3).
-  - **Cumulative re-gate critical-path wall time (including `R0` `13 min` + `R2a` `7.4 min` + `R2b` `4 min`)**: **`266.4 min` (`4 h 26 min`)** (`332 min` sum of active container suite durations across all 4 sessions).
+  - **Cumulative re-gate critical-path wall time (including `R0` `13 min` + `R2a` `7.4 min` + `R2b` `4 min`)**: **`266.4 min` (`4 h 26 min`)** (`330.4 min` sum of active container suite durations across all 4 sessions: `13 + 7.4 + 4 + 94 + 66 + 28 + 8 + 66 + 36 + 8 = 330.4 min`).
 
 
 
