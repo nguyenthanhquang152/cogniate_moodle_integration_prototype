@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { allContainers } from './lib.mjs';
+import { checkMigrationLedgers } from '../acceptance/lib/open-world.mjs';
 import { SNAPSHOT_OLD_SHA, assertSnapshotBoundary } from './m1-phases.mjs';
 import { CompatRoute, OLD_OPLOCK, qualifyRow } from './storage-compat-route.mjs';
 import { StorageFail } from './storage-docker.mjs';
@@ -329,9 +330,15 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
   await stopServices(r);
   const newLedger = await volumeLedger(candidateLane);
   assertSnapshotBoundary(newLedger['cogniate-app/cogniate.db'], 'after');
-  assert.deepEqual(newLedger['lti-service/lti.db'], oldLedger['lti-service/lti.db']);
-  assert.deepEqual(newLedger['cogniate-app/cogniate.db'],
-    [...oldLedger['cogniate-app/cogniate.db'], '012_connection_provider_snapshot.sql'].sort());
+  const ltiMigDir = path.join(r.CLONE, 'services/lti-service/src/db/migrations');
+  const appMigDir = path.join(r.CLONE, 'services/cogniate-app/src/domain/migrations');
+  const expectedLtiLedger = fs.existsSync(ltiMigDir)
+    ? fs.readdirSync(ltiMigDir).filter((n) => n.endsWith('.sql')).sort()
+    : oldLedger['lti-service/lti.db'];
+  const expectedAppLedger = fs.existsSync(appMigDir)
+    ? fs.readdirSync(appMigDir).filter((n) => n.endsWith('.sql')).sort()
+    : [...oldLedger['cogniate-app/cogniate.db'], '012_connection_provider_snapshot.sql'].sort();
+  checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger });
   const problems = qualifyRow(route.steps, { oldSha: SNAPSHOT_OLD_SHA });
   r.saveText('storage/j-snapshot.json', JSON.stringify({ oldSha: SNAPSHOT_OLD_SHA, steps: route.steps.map(({ commands, ...s }) => ({ ...s, commands: commands.length })), problems }, null, 2));
   evidence.push({ id: 'M1-41.common.j-snapshot', environment: 'SIM', status: problems.length ? 'FAIL' : 'PASS', ...identity,

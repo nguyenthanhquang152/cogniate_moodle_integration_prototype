@@ -12,47 +12,23 @@ const squash = (t: string) => t.replace(/\s+/g, ' ').trim();
 /** The visible cards of the grid that holds the Moodle card (the "LMS Publishing" filter), in page order, after loading settles. */
 const lmsCardTexts = async (page: Page) => {
   const read = () => page.evaluate((moodleText) => {
-    const all = Array.from(document.querySelectorAll('body *')) as HTMLElement[];
-    let cell: HTMLElement | null = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
+    const all = Array.from(document.querySelectorAll('body *'));
+    let cell = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
     while (cell && cell.parentElement && getComputedStyle(cell.parentElement).display !== 'grid') cell = cell.parentElement;
     if (!cell || !cell.parentElement) return [];
-    return (Array.from(cell.parentElement.children) as HTMLElement[])
+    return Array.from(cell.parentElement.children)
       .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 0)
       .map((c) => {
         const text = (c.textContent ?? '').replace(/\s+/g, ' ').trim();
-        const name = (c.querySelector('h2, h3, [role="heading"]')?.textContent ?? '').replace(/\s+/g, ' ').trim() || null;
+        const article = c.matches('article[data-channel-id]') ? c : c.querySelector('article[data-channel-id]');
+        const channel = article ? article.getAttribute('data-channel-id') : null;
         const controls = Array.from(c.querySelectorAll('a, button, [role="button"], [role="link"]'))
           .filter((el) => /^(?:Connect|Manage)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()));
         const hasLoadingLeaf = Array.from(c.querySelectorAll('*')).some(
           (el) => el.children.length === 0 && /^Loading(?:…|\.\.\.)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()),
         );
         const loading = controls.length === 0 || hasLoadingLeaf || /^(?:[A-Za-z0-9]{1,4}\s*)?Loading(?:…|\.\.\.)/.test(text);
-        const disabled = controls.length > 0 && controls.every(
-          (el) => (el as HTMLButtonElement).disabled === true || el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true',
-        );
-        let channel: string | null =
-          c.getAttribute('data-channel') ?? c.getAttribute('data-channel-id') ?? c.getAttribute('data-lms') ?? null;
-        if (!channel) {
-          for (const el of Array.from(c.querySelectorAll('[data-channel], [data-channel-id], [data-lms], a[href], [id$="-connect"], [id$="-manage"], [id$="-card"]'))) {
-            const dataAttr = el.getAttribute('data-channel') ?? el.getAttribute('data-channel-id') ?? el.getAttribute('data-lms');
-            if (dataAttr) { channel = dataAttr; break; }
-            const href = el.getAttribute('href') ?? '';
-            const m = /^\/integrations\/([^/?#]+)\/(?:connect|con_[^/?#]+)$/.exec(href);
-            if (m) { channel = m[1]; break; }
-            if (el.id.endsWith('-connect')) { channel = el.id.slice(0, -'-connect'.length); break; }
-            if (el.id.endsWith('-manage')) { channel = el.id.slice(0, -'-manage'.length); break; }
-            if (el.id.endsWith('-card')) { channel = el.id.slice(0, -'-card'.length); break; }
-          }
-        }
-        let notReadyLms: string | null = null;
-        for (const el of Array.from(c.querySelectorAll('p, div, span'))) {
-          if (el.children.length > 0) continue;
-          const leaf = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-          const notReady = /^(.+?)\s+is not set up for this Cogniate service yet\b/.exec(leaf);
-          if (notReady) { notReadyLms = notReady[1].trim(); break; }
-        }
-        if (!channel && disabled && notReadyLms) channel = notReadyLms;
-        return { text, channel, name, disabled, loading, ...(notReadyLms ? { notReadyLms } : {}) };
+        return { text, channel, loading };
       });
   }, TEXT.moodleCard);
   await expect.poll(async () => {
@@ -69,8 +45,9 @@ m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Bl
   await expect(page.getByRole('heading', { name: 'Blackboard', exact: true })).toBeVisible();
   const moodle = card(page, TEXT.moodleCard), canvas = card(page, TEXT.canvasCard), bb = card(page, TEXT.blackboardCard);
   for (const c of [moodle, canvas, bb]) await expect(c).toBeVisible();
-  // LD-1 open world (LA-E0-04, row 6): the 3 baseline cards with their texts, in this order; an extra card is the
-  // G-BASE Kajabi card or names a registered channel of GET /app-api/lms-providers.
+  // LD-1 open world (LA-E0-04, row 6; BD-A1-119): the 3 baseline cards with their texts and data-channel-id, in this
+  // order; every channel card carries article[data-channel-id] matching GET /app-api/lms-providers; any card without
+  // data-channel-id is the G-BASE static Kajabi card.
   const providers = await app(await session('A'), 'GET', '/app-api/lms-providers'); ok(providers, 200, 'lms-providers');
   checkCards(await lmsCardTexts(page), [TEXT.moodleCard, TEXT.canvasCard, TEXT.blackboardCard], { names: extraChannelNames(providers.json) });
   await expect(canvas.getByText('Cv', { exact: true })).toBeVisible();
