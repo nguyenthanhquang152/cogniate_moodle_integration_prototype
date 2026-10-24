@@ -11,6 +11,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP, appApi, createCourse, QA_B, signIn, THANH, uploadVersion, type Session } from '../../../acceptance/lib/app';
 import { httpsRequest, type HttpResult } from '../../../acceptance/lib/https';
@@ -64,6 +65,16 @@ import {
   returnDeepLink,
   waitSync,
 } from '../../../acceptance/M1/common/course';
+import {
+  assertExpectedConnectionFixtures,
+  assertVictimStateUnchanged,
+  buildConnectionRouteProbes,
+  buildVictimStateSnapshot,
+  compareVictimStateBeforeAfter,
+  parseLmsProvidersEnvelope,
+  type ConnectionFixtureSpec,
+  type ParsedLmsProvidersEnvelope,
+} from './oracle';
 
 const PUBLIC_LTI_URL = urls.lti.replace(/\/+$/, '');
 const PUBLIC_LTI_ORIGIN = new URL(PUBLIC_LTI_URL).origin;
@@ -83,9 +94,13 @@ interface StorageCheckPageJson {
   check: string;
 }
 
+const DEFAULT_ARTIFACT_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../acceptance/artifacts',
+);
+
 function writeArtifact(name: string, data: unknown): void {
-  const runDir = process.env.LA_RUN_DIR;
-  if (!runDir) return;
+  const runDir = process.env.LA_RUN_DIR ?? DEFAULT_ARTIFACT_DIR;
   fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(runDir, name), `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
 }
@@ -135,8 +150,11 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
   let bBb: Awaited<ReturnType<typeof bound>>;
   let aCv: CanvasBinding;
   let bCv: CanvasBinding;
+  let parsedProviders: ParsedLmsProvidersEnvelope;
+  let bMoodleManualId = '';
   let bGenericDynId = '';
   let bGenericManualId = '';
+  let bBrightspaceDynId = '';
   let bBrightspaceManualId = '';
   let aPub: Json;
   let bPub: Json;
@@ -147,10 +165,17 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
   let bVersionId = '';
 
   const createdPlatforms: { key: string; id: string }[] = [];
+  const createdPendingBConnections: string[] = [];
 
   beforeAll(async () => {
     sessA = await session('A');
     sessB = await session('B');
+
+    // Validate the contracted GET /app-api/lms-providers envelope ({ lms: [...] }) and assert all 5 built channels exist
+    const provRes = await app(sessB, 'GET', '/app-api/lms-providers');
+    expectStatus(provRes, 200);
+    parsedProviders = parseLmsProvidersEnvelope(provRes.json);
+    expect(parsedProviders.channelIds).toEqual(['blackboard', 'brightspace', 'canvas', 'lti-generic', 'moodle']);
 
     // Registered connections in Library A and Library B (Blackboard + Canvas)
     aBb = await bound('A', 'https://learn-a.blackboard.sim.test', unique('e513-bb-a'));
@@ -158,7 +183,17 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     aCv = await canvasBound('A');
     bCv = await canvasBound('B');
 
-    // Pending dynamic & manual connections in Library B on new E2 channels (lti-generic, brightspace)
+    // Pending connections in Library B across all remaining built channels & methods (moodle, lti-generic, brightspace)
+    const moodleManRes = await app(sessB, 'POST', '/app-api/connections', {
+      name: unique('E5-13 B Moodle Manual'),
+      lms: 'moodle',
+      method: 'manual',
+      siteUrl: 'https://moodle-b.sim.test',
+    });
+    expectStatus(moodleManRes, 201);
+    bMoodleManualId = String(moodleManRes.json.id);
+    createdPendingBConnections.push(bMoodleManualId);
+
     const genDynRes = await app(sessB, 'POST', '/app-api/connections', {
       name: unique('E5-13 B Generic Dynamic'),
       lms: 'lti-generic',
@@ -167,6 +202,7 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     });
     expectStatus(genDynRes, 201);
     bGenericDynId = String(genDynRes.json.id);
+    createdPendingBConnections.push(bGenericDynId);
 
     const genManRes = await app(sessB, 'POST', '/app-api/connections', {
       name: unique('E5-13 B Generic Manual'),
@@ -176,21 +212,27 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     });
     expectStatus(genManRes, 201);
     bGenericManualId = String(genManRes.json.id);
+    createdPendingBConnections.push(bGenericManualId);
 
-    // Create brightspace manual connection if channel is loaded on this SHA
-    const provRes = await app(sessB, 'GET', '/app-api/lms-providers');
-    expectStatus(provRes, 200);
-    const providers = (Array.isArray(provRes.json) ? provRes.json : provRes.json?.providers ?? []) as Json[];
-    if (providers.some((p) => (p.channel ?? p.lms) === 'brightspace')) {
-      const bsManRes = await app(sessB, 'POST', '/app-api/connections', {
-        name: unique('E5-13 B Brightspace Manual'),
-        lms: 'brightspace',
-        method: 'manual',
-        siteUrl: 'https://brightspace.sim.test',
-      });
-      expectStatus(bsManRes, 201);
-      bBrightspaceManualId = String(bsManRes.json.id);
-    }
+    const bsDynRes = await app(sessB, 'POST', '/app-api/connections', {
+      name: unique('E5-13 B Brightspace Dynamic'),
+      lms: 'brightspace',
+      method: 'dynamic',
+      siteUrl: 'https://brightspace.sim.test',
+    });
+    expectStatus(bsDynRes, 201);
+    bBrightspaceDynId = String(bsDynRes.json.id);
+    createdPendingBConnections.push(bBrightspaceDynId);
+
+    const bsManRes = await app(sessB, 'POST', '/app-api/connections', {
+      name: unique('E5-13 B Brightspace Manual'),
+      lms: 'brightspace',
+      method: 'manual',
+      siteUrl: 'https://brightspace.sim.test',
+    });
+    expectStatus(bsManRes, 201);
+    bBrightspaceManualId = String(bsManRes.json.id);
+    createdPendingBConnections.push(bBrightspaceManualId);
 
     // Courses and publications in Library A and Library B
     aPub = await publication(aBb, 'scorm12');
@@ -203,6 +245,9 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
   });
 
   afterAll(async () => {
+    for (const id of createdPendingBConnections.splice(0)) {
+      await app(sessB, 'DELETE', connPath(id)).catch(() => undefined);
+    }
     for (const p of createdPlatforms.splice(0)) {
       await ltiApi('DELETE', `/api/platforms/${encodeURIComponent(p.id)}`, {
         authorization: auth.bearer(p.key),
@@ -210,81 +255,61 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     }
   });
 
-  it('AC-LA-E5-13-01: every LA app route called in library A session with a library B id returns 404 (or not-found view) and makes zero outbound calls (AP-07-01)', async () => {
+  it('AC-LA-E5-13-01: every LA app route called in library A session with a library B id returns 404 (or not-found view), makes zero outbound calls, and leaves library B DTOs completely unchanged (AP-07-01)', async () => {
+    const bConnectionFixtures: ConnectionFixtureSpec[] = [
+      { label: 'moodle-manual', channel: 'moodle', method: 'manual', id: bMoodleManualId },
+      { label: 'blackboard', channel: 'blackboard', method: 'manual', id: String(bBb.connection.id) },
+      { label: 'canvas', channel: 'canvas', method: 'manual', id: String(bCv.connection.id) },
+      { label: 'lti-generic-dynamic', channel: 'lti-generic', method: 'dynamic', id: bGenericDynId },
+      { label: 'lti-generic-manual', channel: 'lti-generic', method: 'manual', id: bGenericManualId },
+      { label: 'brightspace-dynamic', channel: 'brightspace', method: 'dynamic', id: bBrightspaceDynId },
+      { label: 'brightspace-manual', channel: 'brightspace', method: 'manual', id: bBrightspaceManualId },
+    ];
+
+    const fixtureSummary = assertExpectedConnectionFixtures(bConnectionFixtures);
+    expect(fixtureSummary.exercisedChannels).toEqual(['blackboard', 'brightspace', 'canvas', 'lti-generic', 'moodle']);
+    expect(fixtureSummary.exercisedMethods).toEqual(['dynamic', 'manual']);
+    expect(fixtureSummary.exercisedFixtures).toHaveLength(7);
+
+    // Capture Library B's connection and publication DTOs BEFORE Library A's foreign-ID probes (B-LA-E5-13-02)
+    const bConnectionsBefore: Record<string, Record<string, unknown>> = {};
+    for (const conn of bConnectionFixtures) {
+      const resB = await app(sessB, 'GET', connPath(conn.id));
+      expectStatus(resB, 200);
+      bConnectionsBefore[conn.label] = resB.json as Record<string, unknown>;
+    }
+    const bPublicationsBefore: Record<string, Record<string, unknown>> = {};
+    for (const [label, pub] of [
+      ['blackboard-pub', bPub],
+      ['canvas-pub', bCvPub],
+    ] as const) {
+      const resPubB = await app(sessB, 'GET', `/app-api/publications/${encodeURIComponent(String(pub.id))}`);
+      expectStatus(resPubB, 200);
+      bPublicationsBefore[label] = resPubB.json as Record<string, unknown>;
+    }
+    const victimBefore = buildVictimStateSnapshot(bConnectionsBefore, bPublicationsBefore);
+
+    // Negative control (B-LA-E5-13-02): a mutated B snapshot (Blackboard status -> pending, siteUrl changed)
+    // must be rejected by compareVictimStateBeforeAfter even if all foreign requests returned HTTP 404.
+    const mutatedControl = structuredClone(victimBefore);
+    mutatedControl.connections.blackboard!.status = 'pending';
+    mutatedControl.connections.blackboard!.siteUrl = 'https://mutated-by-foreign-call.sim.test';
+    const negativeControlResult = compareVictimStateBeforeAfter(victimBefore, mutatedControl);
+    expect(negativeControlResult.ok).toBe(false);
+    expect(negativeControlResult.diffs.length).toBeGreaterThanOrEqual(2);
+
     const since = Date.now();
     const cursor = (await records()).cursor;
 
-    const bConnectionIds = [
-      { label: 'blackboard', id: String(bBb.connection.id) },
-      { label: 'canvas', id: String(bCv.connection.id) },
-      { label: 'lti-generic-dynamic', id: bGenericDynId },
-      { label: 'lti-generic-manual', id: bGenericManualId },
-      ...(bBrightspaceManualId ? [{ label: 'brightspace-manual', id: bBrightspaceManualId }] : []),
-    ];
+    const connProbes = buildConnectionRouteProbes(bConnectionFixtures, aCourseId);
+    expect(connProbes).toHaveLength(7 * 13);
 
-    const calls: { method: string; path: string; body?: unknown; label: string }[] = [];
-
-    for (const conn of bConnectionIds) {
-      const cPath = connPath(conn.id);
-      calls.push(
-        { label: `${conn.label}: GET /app-api/connections/:id`, method: 'GET', path: cPath },
-        { label: `${conn.label}: POST /app-api/connections/:id/registration-url`, method: 'POST', path: `${cPath}/registration-url` },
-        { label: `${conn.label}: GET /app-api/connections/:id/tool-configuration`, method: 'GET', path: `${cPath}/tool-configuration` },
-        {
-          label: `${conn.label}: PUT /app-api/connections/:id/platform (admin-value body)`,
-          method: 'PUT',
-          path: `${cPath}/platform`,
-          body: {
-            issuer: 'https://generic.sim.test/lms',
-            clientId: 'cross-tenant-client',
-            deploymentId: 'dep-cross-1',
-            authenticationEndpoint: 'https://generic.sim.test/lms/oidc/auth',
-            accessTokenEndpoint: 'https://generic.sim.test/lms/oauth2/token',
-            jwksUrl: 'https://generic.sim.test/lms/jwks.json',
-            grantCode: 'a'.repeat(43),
-          },
-        },
-        {
-          label: `${conn.label}: PUT /app-api/connections/:id/platform (staged-DR/grant body)`,
-          method: 'PUT',
-          path: `${cPath}/platform`,
-          body: {
-            clientId: 'cross-tenant-client',
-            deploymentId: 'dep-cross-1',
-            grantCode: 'b'.repeat(43),
-          },
-        },
-        {
-          label: `${conn.label}: POST /app-api/connections/:id/deployments`,
-          method: 'POST',
-          path: `${cPath}/deployments`,
-          body: { deploymentId: 'dep-cross-2', grantCode: 'c'.repeat(43) },
-        },
-        { label: `${conn.label}: GET /app-api/connections/:id/canvas-configuration`, method: 'GET', path: `${cPath}/canvas-configuration` },
-        {
-          label: `${conn.label}: PUT /app-api/connections/:id/web-services`,
-          method: 'PUT',
-          path: `${cPath}/web-services`,
-          body: { token: '0'.repeat(32) },
-        },
-        {
-          label: `${conn.label}: POST /app-api/publications with B connectionId`,
-          method: 'POST',
-          path: '/app-api/publications',
-          body: { connectionId: conn.id, courseId: aCourseId },
-        },
-        // LA-E6-04 check route (built) and unbuilt Could routes (LA-ADR-08: health, verify) must return 404 with 0 outbound calls:
-        { label: `${conn.label}: POST /app-api/connections/:id/check (LA-E6-04)`, method: 'POST', path: `${cPath}/check` },
-        { label: `${conn.label}: GET /app-api/connections/:id/health (N/A Could route)`, method: 'GET', path: `${cPath}/health` },
-        {
-          label: `${conn.label}: POST /app-api/connections/:id/verify (N/A Could route)`,
-          method: 'POST',
-          path: `${cPath}/verify`,
-          body: { code: '1234-5678-9012' },
-        },
-        { label: `${conn.label}: DELETE /app-api/connections/:id`, method: 'DELETE', path: cPath },
-      );
-    }
+    const calls: { method: string; path: string; body?: unknown; label: string }[] = connProbes.map((p) => ({
+      label: p.label,
+      method: p.httpMethod,
+      path: p.path,
+      body: p.body,
+    }));
 
     // Publication, results, and course version routes with B's ids in A's session
     for (const pub of [bPub, bCvPub]) {
@@ -302,6 +327,13 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
       path: `/app-api/courses/${encodeURIComponent(bCourseId)}/versions/${encodeURIComponent(bVersionId)}`,
     });
 
+    const victimConnectionNames = Object.values(victimBefore.connections)
+      .map((c) => String(c.name ?? ''))
+      .filter((n) => n.length > 0);
+    const victimSiteUrls = Object.values(victimBefore.connections)
+      .map((c) => String(c.siteUrl ?? ''))
+      .filter((u) => u.length > 0);
+
     const failures: string[] = [];
     for (const c of calls) {
       const res = await app(sessA, c.method, c.path, c.body);
@@ -309,22 +341,36 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
         failures.push(`${c.label} -> HTTP ${res.status} (expected 404)`);
       }
       // Ensure no B connection names or site URLs leak in the 404 body
-      if (res.body.includes(String(bBb.connection.name)) || res.body.includes(String(bCv.connection.name))) {
-        failures.push(`${c.label} leaked library B connection name in 404 body`);
+      for (const name of victimConnectionNames) {
+        if (res.body.includes(name)) {
+          failures.push(`${c.label} leaked library B connection name "${name}" in 404 body`);
+        }
+      }
+      for (const siteUrl of victimSiteUrls) {
+        if (res.body.includes(siteUrl)) {
+          failures.push(`${c.label} leaked library B siteUrl "${siteUrl}" in 404 body`);
+        }
       }
     }
     expect(failures).toEqual([]);
 
     // Portal route /integrations/:channelId/:connectionId with B's id in A's session:
     // SPA shell serves index.html (or 404) with zero B data in HTML, and the backing GET /app-api/connections/:id gives 404 NOT_FOUND.
-    const portalRes = await httpsRequest(`${APP}/integrations/lti-generic/${encodeURIComponent(bGenericManualId)}`, {
-      method: 'GET',
-      headers: { cookie: sessA.cookie, accept: 'text/html' },
-    });
-    expect([200, 404]).toContain(portalRes.status);
-    expect(portalRes.body).not.toContain('E5-13 B Generic Manual');
-    const portalBackingApi = await app(sessA, 'GET', connPath(bGenericManualId));
-    expectStatus(portalBackingApi, 404, 'NOT_FOUND');
+    for (const [ch, id] of [
+      ['lti-generic', bGenericManualId],
+      ['brightspace', bBrightspaceManualId],
+    ] as const) {
+      const portalRes = await httpsRequest(`${APP}/integrations/${ch}/${encodeURIComponent(id)}`, {
+        method: 'GET',
+        headers: { cookie: sessA.cookie, accept: 'text/html' },
+      });
+      expect([200, 404]).toContain(portalRes.status);
+      for (const name of victimConnectionNames) {
+        expect(portalRes.body).not.toContain(name);
+      }
+      const portalBackingApi = await app(sessA, 'GET', connPath(id));
+      expectStatus(portalBackingApi, 404, 'NOT_FOUND');
+    }
 
     // Verify zero outbound calls from cogniate-app or lti-service and zero simulator / sink hits
     const appOutbound = eventsSince('cogniate-app', since, (e) => e.event === 'outbound_request');
@@ -334,23 +380,40 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
     expect(sinkHitsSince(since)).toEqual([]);
     await noServiceCalls(cursor);
 
-    // Verify B's connections and publications are unchanged in B's session
-    for (const conn of bConnectionIds) {
+    // Capture Library B's connection and publication DTOs AFTER Library A's foreign-ID probes and compare every persisted field
+    const bConnectionsAfter: Record<string, Record<string, unknown>> = {};
+    for (const conn of bConnectionFixtures) {
       const checkB = await app(sessB, 'GET', connPath(conn.id));
       expectStatus(checkB, 200);
-      expect(checkB.json.status).not.toBe('disabled');
+      bConnectionsAfter[conn.label] = checkB.json as Record<string, unknown>;
     }
-    for (const pub of [bPub, bCvPub]) {
+    const bPublicationsAfter: Record<string, Record<string, unknown>> = {};
+    for (const [label, pub] of [
+      ['blackboard-pub', bPub],
+      ['canvas-pub', bCvPub],
+    ] as const) {
       const checkPubB = await app(sessB, 'GET', `/app-api/publications/${encodeURIComponent(String(pub.id))}`);
       expectStatus(checkPubB, 200);
-      expect(checkPubB.json.status).toBe('available');
+      bPublicationsAfter[label] = checkPubB.json as Record<string, unknown>;
     }
+    const victimAfter = buildVictimStateSnapshot(bConnectionsAfter, bPublicationsAfter);
+    const victimComparison = compareVictimStateBeforeAfter(victimBefore, victimAfter);
+    expect(victimComparison).toEqual({ ok: true, diffs: [] });
+    assertVictimStateUnchanged(victimBefore, victimAfter);
 
     writeArtifact('e5-13-ac01.json', {
+      lmsProvidersChannels: parsedProviders.channelIds,
+      lmsProvidersChannelMethods: parsedProviders.channelMethods,
+      exercisedChannels: fixtureSummary.exercisedChannels,
+      exercisedMethods: fixtureSummary.exercisedMethods,
+      exercisedChannelMethods: fixtureSummary.exercisedChannelMethods,
+      exercisedFixtures: fixtureSummary.exercisedFixtures,
+      checkedConnectionRoutes: connProbes.length,
       checkedRoutes: calls.length,
       failures: failures.length,
       appOutboundCount: appOutbound.length,
       ltiOutboundCount: ltiOutbound.length,
+      victimComparison,
     });
   });
 
@@ -798,6 +861,7 @@ describe('LA-E5-13 K1-SIM: Two-tenant isolation checks for the new routes', () =
           jwksUrl: `${urls.moodle}/mod/lti/certs.php`,
         },
       ],
+      ['POST', `/app-api/connections/${aConnId}/deployments`, { deploymentId: '2', grantCode: 'c'.repeat(43) }],
       ['DELETE', `/app-api/connections/${aConnId}`],
       ['GET', `/app-api/publications/${aPubId}`],
       ['POST', `/app-api/publications/${aPubId}/withdraw`],

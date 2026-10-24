@@ -13,6 +13,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildChannelRegistry, computeCapabilities, loadChannelFolders } from '@cogniate/channel-kernel';
+import {
+  assertExpectedConnectionFixtures,
+  assertVictimStateUnchanged,
+  buildConnectionRouteProbes,
+  buildVictimStateSnapshot,
+  compareVictimStateBeforeAfter,
+  EXPECTED_BUILT_CHANNELS,
+  parseLmsProvidersEnvelope,
+  type ConnectionFixtureSpec,
+} from './oracle';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(
@@ -111,5 +121,287 @@ describe('LA-E5-13 K0 (host-only static & contract invariants)', () => {
     expect(content).toContain('/lti/launch/qa-second/storage-check');
     expect(content).toContain('storage_check_unknown_used_or_expired');
     expect(content).toContain('/api/service-keys/revoke');
+    // Ensure K1-SIM never falls back to `provRes.json?.providers` and enforces `.lms` + before/after victim comparison
+    expect(content).not.toContain('provRes.json?.providers');
+    expect(content).toContain('parseLmsProvidersEnvelope');
+    expect(content).toContain('assertExpectedConnectionFixtures');
+    expect(content).toContain('assertVictimStateUnchanged');
+  });
+
+  it('B-LA-E5-13-01 & A-LA-E5-13-01 regression + negative counterexamples: parseLmsProvidersEnvelope reads contracted .lms array, requires all 5 built channels (including brightspace), and rejects .providers-only or partial payloads', () => {
+    const contractedEnvelope = {
+      lms: [
+        { lms: 'moodle', channel: 'moodle', channelName: 'Moodle', methods: ['dynamic', 'manual'] },
+        { lms: 'canvas', channel: 'canvas', channelName: 'Canvas', methods: ['manual', 'dynamic'] },
+        { lms: 'blackboard', channel: 'blackboard', channelName: 'Blackboard Ultra', methods: ['manual'] },
+        { lms: 'lti-generic', channel: 'lti-generic', channelName: 'Other LMS (LTI 1.3)', methods: ['dynamic', 'manual'] },
+        { lms: 'brightspace', channel: 'brightspace', channelName: 'D2L Brightspace', methods: ['dynamic', 'manual'] },
+      ],
+    };
+
+    const parsed = parseLmsProvidersEnvelope(contractedEnvelope);
+    expect(parsed.channelIds).toEqual(['blackboard', 'brightspace', 'canvas', 'lti-generic', 'moodle']);
+    expect(parsed.channelMethods).toEqual([
+      'blackboard:manual',
+      'brightspace:dynamic',
+      'brightspace:manual',
+      'canvas:dynamic',
+      'canvas:manual',
+      'lti-generic:dynamic',
+      'lti-generic:manual',
+      'moodle:dynamic',
+      'moodle:manual',
+    ]);
+
+    // Negative counterexample 1: uncontracted `{ providers: [...] }` envelope without `.lms` must fail
+    expect(() =>
+      parseLmsProvidersEnvelope({
+        providers: contractedEnvelope.lms,
+      }),
+    ).toThrow(/missing contracted \.lms array/);
+
+    // Negative counterexample 2: empty `.lms: []` array must fail
+    expect(() => parseLmsProvidersEnvelope({ lms: [] })).toThrow(/empty \.lms array/);
+
+    // Negative counterexample 3: `.lms` missing `brightspace` must fail
+    expect(() =>
+      parseLmsProvidersEnvelope({
+        lms: contractedEnvelope.lms.filter((p) => p.channel !== 'brightspace'),
+      }),
+    ).toThrow(/missing expected built channel "brightspace"/);
+
+    // Negative counterexample 4: `.lms` channel missing a contracted method must fail
+    expect(() =>
+      parseLmsProvidersEnvelope({
+        lms: contractedEnvelope.lms.map((p) => (p.channel === 'brightspace' ? { ...p, methods: ['manual'] } : p)),
+      }),
+    ).toThrow(/channel "brightspace" is missing expected registration method "dynamic"/);
+  });
+
+  it('B-LA-E5-13-01 & A-LA-E5-13-01 fixture & probe counterexample: assertExpectedConnectionFixtures and buildConnectionRouteProbes require all 5 built channels (91 probes including 26 brightspace probes) and catch a Brightspace 200 leak', () => {
+    const completeFixtures: ConnectionFixtureSpec[] = [
+      { label: 'moodle-manual', channel: 'moodle', method: 'manual', id: 'con_moodle_man' },
+      { label: 'blackboard', channel: 'blackboard', method: 'manual', id: 'con_bb_man' },
+      { label: 'canvas', channel: 'canvas', method: 'manual', id: 'con_cv_man' },
+      { label: 'lti-generic-dynamic', channel: 'lti-generic', method: 'dynamic', id: 'con_gen_dyn' },
+      { label: 'lti-generic-manual', channel: 'lti-generic', method: 'manual', id: 'con_gen_man' },
+      { label: 'brightspace-dynamic', channel: 'brightspace', method: 'dynamic', id: 'con_bs_dyn' },
+      { label: 'brightspace-manual', channel: 'brightspace', method: 'manual', id: 'con_bs_man' },
+    ];
+
+    const summary = assertExpectedConnectionFixtures(completeFixtures);
+    expect(summary.exercisedChannels).toEqual([...EXPECTED_BUILT_CHANNELS].sort());
+    expect(summary.exercisedMethods).toEqual(['dynamic', 'manual']);
+    expect(summary.exercisedChannelMethods).toEqual([
+      'blackboard:manual',
+      'brightspace:dynamic',
+      'brightspace:manual',
+      'canvas:manual',
+      'lti-generic:dynamic',
+      'lti-generic:manual',
+      'moodle:manual',
+    ]);
+
+    // Negative counterexample 1: Round 1 partial fixture list (missing brightspace & moodle) must fail loudly
+    const round1PartialFixtures: ConnectionFixtureSpec[] = completeFixtures.filter(
+      (f) => f.channel !== 'brightspace' && f.channel !== 'moodle',
+    );
+    expect(() => assertExpectedConnectionFixtures(round1PartialFixtures)).toThrow(
+      /Expected connection fixture for channel "moodle" is missing/,
+    );
+    expect(() =>
+      assertExpectedConnectionFixtures(completeFixtures.filter((f) => f.channel !== 'brightspace')),
+    ).toThrow(/Expected connection fixture for channel "brightspace" is missing/);
+
+    // Negative counterexample 2: missing brightspace:dynamic variant must fail
+    expect(() =>
+      assertExpectedConnectionFixtures(completeFixtures.filter((f) => f.label !== 'brightspace-dynamic')),
+    ).toThrow(/Expected connection fixture for "brightspace:dynamic" is missing/);
+
+    // Verify 91 route probes (7 fixtures * 13 routes), including 26 Brightspace probes
+    const probes = buildConnectionRouteProbes(completeFixtures, 'crs_a_1');
+    expect(probes).toHaveLength(91);
+    const brightspaceProbes = probes.filter((p) => p.channel === 'brightspace');
+    expect(brightspaceProbes).toHaveLength(26);
+
+    // Negative counterexample 3 (Reviewer-B B-LA-E5-13-01):
+    // A fake server that returns `{ lms: [...] }` on `/app-api/lms-providers` and leaks HTTP 200 on
+    // `GET /app-api/connections/con_bs_man/tool-configuration` for a Brightspace connection is now probed and fails.
+    const fakeLeakyResponses = probes.map((probe) => ({
+      probe,
+      status:
+        probe.channel === 'brightspace' && probe.path === '/app-api/connections/con_bs_man/tool-configuration'
+          ? 200
+          : 404,
+    }));
+    const failures = fakeLeakyResponses
+      .filter((r) => r.status !== 404)
+      .map((r) => `${r.probe.label} -> HTTP ${r.status} (expected 404)`);
+    expect(failures).toEqual([
+      'brightspace-manual: GET /app-api/connections/:id/tool-configuration -> HTTP 200 (expected 404)',
+    ]);
+  });
+
+  it('B-LA-E5-13-02 regression + negative counterexamples: compareVictimStateBeforeAfter and assertVictimStateUnchanged verify all persisted Library B connection and publication DTO fields and reject any cross-tenant mutation even when foreign calls return 404', () => {
+    const bConnectionsBefore: Record<string, Record<string, unknown>> = {
+      blackboard: {
+        id: 'con_b_bb',
+        name: 'E5-13 B Blackboard',
+        lms: 'blackboard',
+        channel: 'blackboard',
+        channelName: 'Blackboard Ultra',
+        method: 'manual',
+        status: 'registered',
+        bindingAuthority: 'operatorGrant',
+        siteUrl: 'https://learn-b.blackboard.sim.test',
+        serviceUrl: 'https://learn-b.blackboard.sim.test',
+        profile: {
+          issuer: 'https://developer.blackboard.com',
+          authorizationEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oidcauth',
+          tokenEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken',
+          jwksUrl: 'https://developer.blackboard.com/api/v1/management/applications/sim-bb-client-id/jwks.json',
+        },
+        platform: {
+          id: 'plt_b_bb',
+          issuer: 'https://developer.blackboard.com',
+          clientId: 'sim-bb-client-id',
+          deploymentIds: ['dep-b-bb-1'],
+          siteUrl: 'https://learn-b.blackboard.sim.test',
+          serviceUrl: 'https://learn-b.blackboard.sim.test',
+          productFamilyCode: 'BlackboardLearn',
+        },
+        registrationUrl: null,
+        registrationUrlExpiresAt: null,
+        webServices: null,
+        capabilities: {
+          supportsDynamicRegistration: false,
+          supportsManualRegistration: true,
+          requiresDeploymentId: true,
+          requiresSiteUrl: true,
+        },
+        channelCapabilities: {
+          'binding.authority': { manual: 'operatorGrant' },
+          'platform.sharing': 'shared',
+        },
+        lastError: null,
+        lastLaunchAt: null,
+        createdAt: '2026-04-20T07:50:19.167Z',
+      },
+      'brightspace-manual': {
+        id: 'con_b_bs_man',
+        name: 'E5-13 B Brightspace Manual',
+        lms: 'brightspace',
+        channel: 'brightspace',
+        channelName: 'D2L Brightspace',
+        method: 'manual',
+        status: 'pending',
+        bindingAuthority: 'operatorGrant',
+        siteUrl: 'https://brightspace.sim.test',
+        serviceUrl: null,
+        profile: null,
+        platform: null,
+        registrationUrl: null,
+        registrationUrlExpiresAt: null,
+        webServices: null,
+        capabilities: {
+          supportsDynamicRegistration: true,
+          supportsManualRegistration: true,
+        },
+        channelCapabilities: {
+          'binding.authority': { dynamic: 'self', manual: 'operatorGrant' },
+          'platform.sharing': 'perIssuerClient',
+        },
+        lastError: null,
+        lastLaunchAt: null,
+        createdAt: '2026-04-20T07:50:20.000Z',
+      },
+    };
+
+    const bPublicationsBefore: Record<string, Record<string, unknown>> = {
+      'blackboard-pub': {
+        id: 'pub_b_bb',
+        courseId: 'crs_b_1',
+        versionId: 'ver_b_1',
+        connectionId: 'con_b_bb',
+        connectionName: 'E5-13 B Blackboard',
+        lms: 'blackboard',
+        status: 'available',
+        activities: 2,
+        learners: 1,
+        createdAt: '2026-04-20T07:50:21.000Z',
+        updatedAt: '2026-04-20T07:50:21.000Z',
+      },
+    };
+
+    const beforeSnap = buildVictimStateSnapshot(bConnectionsBefore, bPublicationsBefore);
+    const identicalAfterSnap = buildVictimStateSnapshot(
+      structuredClone(bConnectionsBefore),
+      structuredClone(bPublicationsBefore),
+    );
+
+    // Positive control: identical before & after snapshots pass
+    expect(compareVictimStateBeforeAfter(beforeSnap, identicalAfterSnap)).toEqual({ ok: true, diffs: [] });
+    expect(() => assertVictimStateUnchanged(beforeSnap, identicalAfterSnap)).not.toThrow();
+
+    // Negative counterexample 1 (Reviewer-B exact B-LA-E5-13-02 counterexample):
+    // Foreign PUT /app-api/connections/:bId/platform returns 404, and GET /app-api/connections/:bId in B's session
+    // returns 200 with `status: 'pending'` (still !== 'disabled') and a mutated `siteUrl`.
+    const afterStatusAndSiteUrlMutated = buildVictimStateSnapshot(
+      {
+        ...structuredClone(bConnectionsBefore),
+        blackboard: {
+          ...structuredClone(bConnectionsBefore.blackboard!),
+          status: 'pending',
+          siteUrl: 'https://attacker-overwritten.sim.test',
+        },
+      },
+      structuredClone(bPublicationsBefore),
+    );
+    const res1 = compareVictimStateBeforeAfter(beforeSnap, afterStatusAndSiteUrlMutated);
+    expect(res1.ok).toBe(false);
+    expect(res1.diffs).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('connection[blackboard].status changed: before="registered" after="pending"'),
+        expect.stringContaining(
+          'connection[blackboard].siteUrl changed: before="https://learn-b.blackboard.sim.test" after="https://attacker-overwritten.sim.test"',
+        ),
+      ]),
+    );
+    expect(() => assertVictimStateUnchanged(beforeSnap, afterStatusAndSiteUrlMutated)).toThrow(
+      /Victim Library B state changed after foreign-tenant calls/,
+    );
+
+    // Negative counterexample 2: platform binding (`platform.clientId` or `platform.deploymentIds`) mutated while `status` stays 'registered'
+    const afterPlatformMutated = buildVictimStateSnapshot(
+      {
+        ...structuredClone(bConnectionsBefore),
+        blackboard: {
+          ...structuredClone(bConnectionsBefore.blackboard!),
+          platform: {
+            ...(structuredClone(bConnectionsBefore.blackboard!.platform) as Record<string, unknown>),
+            clientId: 'cross-tenant-client',
+            deploymentIds: ['dep-b-bb-1', 'dep-cross-2'],
+          },
+        },
+      },
+      structuredClone(bPublicationsBefore),
+    );
+    expect(() => assertVictimStateUnchanged(beforeSnap, afterPlatformMutated)).toThrow(
+      /connection\[blackboard\]\.platform changed/,
+    );
+
+    // Negative counterexample 3: publication `activities` or `learners` count mutated while `status` stays 'available'
+    const afterPublicationActivitiesMutated = buildVictimStateSnapshot(
+      structuredClone(bConnectionsBefore),
+      {
+        'blackboard-pub': {
+          ...structuredClone(bPublicationsBefore['blackboard-pub']!),
+          activities: 3,
+        },
+      },
+    );
+    expect(() => assertVictimStateUnchanged(beforeSnap, afterPublicationActivitiesMutated)).toThrow(
+      /publication\[blackboard-pub\]\.activities changed: before=2 after=3/,
+    );
   });
 });
