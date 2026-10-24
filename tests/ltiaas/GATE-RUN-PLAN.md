@@ -204,9 +204,10 @@ docker network ls --filter "name=qalead-la-"
     2. **3 `LA-IC-04` frozen test files** (`LA-E3-07`, approved in `fd146062`): `tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120`, `tests/acceptance/M1/common/00-profiles.test.ts:104`, `tests/acceptance/T4b1/1-connect.spec.ts:118`.
     3. **1 `LA-IC-14` frozen test file** (`LA-E3-09`/`LA-E3-15`, approved in `fd146062`): `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:218-265`.
     4. **1 `LA-IC-09` (`LD-6`) P5 fixture file** (`LA-E4-03` / migration `014`): `tests/host/storage-fixture-script.mjs:389-396`.
-    5. **Runner-only changes (`0` frozen assertion changes):** `tests/acceptance/run-api.mjs` (LA task Vitest config routing), `tests/host/m1-migration.mjs:331-338` (open-world candidate migration ledger check in `snapshotMigrationRun`), and `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` + `tests/e2e/host/run-t7.mjs` (`qalead-la-<n>` project prefix regex).
-    6. **13 additive `K2` browser suite files:** `tests/e2e/ltiaas/**` (`LA-E7-07`, `LA-E7-09`).
-    7. **13 additive simulator files:** `tests/sim/**` (`LA-E7-01`, `LA-E7-02`, `LA-E7-05`).
+    5. **1 `M1-41.common.j-snapshot` migration-ledger assertion file (`BD-A2-108` / `LA-H21` / `WE-F5`; `A-LA-E0-04-02` fixed in `docs/reviews/LA-E7-08/ld9-addendum-r5.md`):** `tests/host/m1-migration.mjs:331-341` (calls `checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger })`: verifies that `oldLedger` is a non-empty prefix of `newLedger`, `'012_connection_provider_snapshot.sql'` is present in `cogniate-app/cogniate.db`, and `newLedger` equals the candidate's sorted migration files).
+    6. **10 runner-only changes (`0` frozen assertion changes):** `tests/acceptance/run-api.mjs` (LA task Vitest config routing), and `tests/host/{core,m1-control,storage-docker,storage-handoff,run-t1,run-t5,p5-fixture,host-control}.mjs` + `tests/e2e/host/run-t7.mjs` (`qalead-la-<n>` project prefix regex).
+    7. **13 additive `K2` browser suite files:** `tests/e2e/ltiaas/**` (`LA-E7-07`, `LA-E7-09`).
+    8. **13 additive simulator files:** `tests/sim/**` (`LA-E7-01`, `LA-E7-02`, `LA-E7-05`).
 - **`AC-LA-E7-08-06` (`PASS`, `K0`):**
   - `git -C "$SRC_WAVE" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5 -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` produces **empty output (`0` files changed, exit `0`)**.
 
@@ -879,6 +880,20 @@ COMPOSE_PROJECT_NAME=qalead-la-55 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
     --runs 3 --replace-e2e \
     > "/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8D/logs/qalead-la-56-t7x3.log" 2>&1
   ```
+
+---
+
+## 9. `LD-1` & `LD-9` Gate Overlay Fix Round 1 (`docs/reviews/LA-E7-08/ld9-addendum-r5.md` on `la-gate-test-6`)
+
+- **Base Gate Test Tag / SHA:** `la-gate-test-6` = `9de014298fbe133ebbd8d40365da84988ccabf5d` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-6`).
+- **Patch & Report:** `/Users/quangnguyen/cogniate-qa-runs/LA/ld1-overlay-fix-r1/ld9-addendum-r5.patch` and `docs/reviews/LA-E7-08/ld9-addendum-r5.md` (`8 files changed`; `git apply --check -v` on `src-wave-end-6` exits `0`).
+- **Findings Closed:**
+  1. **`A-LA-E0-04-01 = B-LA-E0-04-01` (BLOCKER — `LD-1` Row 6 Card Membership Oracle):** `extraChannelNames` (`open-world.mjs`), `lmsCardTexts` (`01-cards.m2.ts`), and `checkCards` (`open-world.mjs`) now check extra cards by **exact** registered channel `id` (`channel ?? lms`) or exact `name` (`channelName`, `label`), never by substring (`String(text).includes(name)`). Verified by the mixed registered + unregistered K0 probe in `tests/ltiaas/k0/ld1/open-world.test.{mjs,ts}` (`42/42 PASS`).
+  2. **`A-LA-E0-04-02` (MAJOR — `M1-41.common.j-snapshot` Migration-Ledger Prefix + Candidate Check & Classification):** `snapshotMigrationRun` (`tests/host/m1-migration.mjs:338-341`) calls `checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger })`, restoring the independent check that `oldLedger[db]` is a non-empty prefix of `newLedger[db]` while keeping exact equality with the candidate's sorted migration files (`BD-A2-108` / `LA-H21` / `WE-F5`). Explicitly classified above under `AC-LA-E7-08-05` item 5 as an assertion change on `M1-41.common.j-snapshot`.
+- **Re-Gate Rows (`pending: Docker window`):**
+  - `M2` (`01-cards.m2.ts`): `M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card`.
+  - `M1` (`m1-migration.mjs`): `snapshot-upgrade` (`M1-38.common.h1..h5`, `M1-41.common.j-snapshot`) and `migration` (`M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`).
+
 
 
 

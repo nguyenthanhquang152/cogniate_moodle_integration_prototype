@@ -58,11 +58,23 @@ export function registeredChannels(lmsProviders) {
   return new Set(ids);
 }
 
-/** The text names of the registered channels that are not baseline channels (`channelName`, else `label`). */
+/**
+ * The exact channel ids and names of the registered channels that are not baseline channels
+ * (`channel`/`lms`, `channelName`, `label`).
+ */
 export function extraChannelNames(lmsProviders) {
   assert.ok(Array.isArray(lmsProviders?.lms), 'GET /app-api/lms-providers has an lms list');
-  return lmsProviders.lms.filter((entry) => !BASELINE_LMS.includes(entry.channel ?? entry.lms))
-    .map((entry) => entry.channelName ?? entry.label).filter((name) => typeof name === 'string' && name.length > 0);
+  const names = [];
+  for (const entry of lmsProviders.lms) {
+    const id = entry.channel ?? entry.lms;
+    if (BASELINE_LMS.includes(id)) continue;
+    for (const candidate of [id, entry.channelName, entry.label]) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0 && !names.includes(candidate.trim())) {
+        names.push(candidate.trim());
+      }
+    }
+  }
+  return names;
 }
 
 /**
@@ -179,20 +191,99 @@ export async function appLmsProviders(request, { appUrl, ca, user }) {
   return JSON.parse(answer.body);
 }
 
+const cardText = (card) => (typeof card === 'string' ? card : String(card?.text ?? ''));
+
+const isOtherCard = (card, other) => {
+  if (card && typeof card === 'object') {
+    const channel = card.channel ?? card.id ?? null;
+    if (typeof channel === 'string' && channel.trim().length > 0) return false;
+  }
+  return cardText(card).includes(other);
+};
+
+function checkExtraCard(card, allowed, label) {
+  if (card && typeof card === 'object') {
+    const channel = typeof card.channel === 'string' && card.channel.trim().length > 0
+      ? card.channel.trim()
+      : typeof card.id === 'string' && card.id.trim().length > 0
+        ? card.id.trim()
+        : null;
+    const name = typeof card.name === 'string' && card.name.trim().length > 0
+      ? card.name.trim()
+      : typeof card.title === 'string' && card.title.trim().length > 0
+        ? card.title.trim()
+        : null;
+    if (channel !== null) {
+      assert.ok(allowed.has(channel), `${label}: extra card ${show(card)} has unregistered channel ${show(channel)}`);
+      return;
+    }
+    if (name !== null) {
+      assert.ok(allowed.has(name), `${label}: extra card ${show(card)} names no registered channel (${show(name)})`);
+      return;
+    }
+  }
+  const raw = cardText(card).trim();
+  const headingMatch = /^(?:[A-Za-z0-9]{1,4}\s*)?(?:Connect|Manage)\s*(.+?)\s*(?:Publish|Export)\b/.exec(raw);
+  const targetMatch = /Publish Cogniate courses to\s+(.+?)\s+with LTI 1\.3\./.exec(raw);
+  const candidates = headingMatch
+    ? [headingMatch[1].trim(), ...(targetMatch ? [targetMatch[1].trim()] : [])]
+    : [raw];
+  assert.ok(
+    candidates.length > 0 && candidates.every((c) => c.length > 0 && allowed.has(c)),
+    `${label}: extra card ${show(card)} names no registered channel`,
+  );
+}
+
 /**
- * Row 6: the visible cards of the "LMS Publishing" filter, as card texts in page order. Each baseline card text is
- * in exactly one card, in the baseline order. An extra card is a G-BASE non-channel card (`others`, each at most
- * once) or names a registered channel that is not a baseline channel (`names`, from extraChannelNames).
- * Returns the extra card texts.
+ * Row 6: the visible cards of the "LMS Publishing" filter, in page order. Each baseline card text is in
+ * exactly one card, in the baseline order. An extra card is a G-BASE non-channel card (`others`, each at most
+ * once) or matches a registered non-baseline channel by exact `id` or `name` (`names`, from extraChannelNames),
+ * never by substring. Returns the extra cards.
  */
 export function checkCards(cards, baselineTexts, { names, others = BASELINE_OTHER_CARDS, label = 'LMS Publishing cards' }) {
-  const extras = openList(cards, baselineTexts, { label, matches: (text, expected) => String(text).includes(expected) });
+  const allowed = new Set(names.filter((n) => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim()));
+  const extras = openList(cards, baselineTexts, { label, matches: (card, expected) => cardText(card).includes(expected) });
   for (const other of others) {
-    assert.ok(extras.filter((text) => String(text).includes(other)).length <= 1, `${label}: the card ${show(other)} appears more than once`);
+    assert.ok(extras.filter((card) => isOtherCard(card, other)).length <= 1, `${label}: the card ${show(other)} appears more than once`);
   }
-  for (const text of extras) {
-    if (others.some((other) => String(text).includes(other))) continue;
-    assert.ok(names.some((name) => String(text).includes(name)), `${label}: extra card ${show(text)} names no registered channel`);
+  for (const card of extras) {
+    if (others.some((other) => isOtherCard(card, other))) continue;
+    checkExtraCard(card, allowed, label);
   }
   return extras;
+}
+
+/**
+ * Snapshot-upgrade migration ledger check (M1-41.common.j-snapshot; BD-A2-108 / LA-H21):
+ * 1. Every historical ledger entry from `oldLedger` is still present in `newLedger` in its original order
+ *    (each `oldLedger[db]` is a non-empty prefix of `newLedger[db]`), independent of the candidate's files.
+ * 2. `newLedger['cogniate-app/cogniate.db']` includes `012_connection_provider_snapshot.sql`.
+ * 3. Each upgraded ledger equals the candidate's full sorted migration file list (`expectedLtiLedger`, `expectedAppLedger`).
+ */
+export function checkMigrationLedgers(
+  oldLedger,
+  newLedger,
+  { expectedLtiLedger, expectedAppLedger, label = 'M1-41.common.j-snapshot migration ledger' } = {},
+) {
+  for (const db of ['lti-service/lti.db', 'cogniate-app/cogniate.db']) {
+    const oldEntries = oldLedger?.[db];
+    const newEntries = newLedger?.[db];
+    assert.ok(Array.isArray(oldEntries) && oldEntries.length > 0, `${label}: ${db} old ledger is a non-empty list`);
+    assert.ok(Array.isArray(newEntries) && newEntries.length >= oldEntries.length, `${label}: ${db} upgraded ledger is shorter than old ledger`);
+    assert.deepEqual(
+      newEntries.slice(0, oldEntries.length),
+      oldEntries,
+      `${label}: ${db} old ledger is not a prefix of the upgraded ledger`,
+    );
+  }
+  assert.ok(
+    newLedger['cogniate-app/cogniate.db'].includes('012_connection_provider_snapshot.sql'),
+    `${label}: cogniate-app/cogniate.db upgraded ledger is missing 012_connection_provider_snapshot.sql`,
+  );
+  if (expectedLtiLedger !== undefined) {
+    assert.deepEqual(newLedger['lti-service/lti.db'], expectedLtiLedger, `${label}: lti-service/lti.db ledger does not match candidate migrations`);
+  }
+  if (expectedAppLedger !== undefined) {
+    assert.deepEqual(newLedger['cogniate-app/cogniate.db'], expectedAppLedger, `${label}: cogniate-app/cogniate.db ledger does not match candidate migrations`);
+  }
 }

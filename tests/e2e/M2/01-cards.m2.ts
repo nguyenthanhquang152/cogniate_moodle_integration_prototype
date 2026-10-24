@@ -9,7 +9,7 @@ import { TEXT, button, card, expect, integrations, m2Case, manageControl, portal
 import { checkCards, extraChannelNames } from '../../acceptance/lib/open-world.mjs';
 
 const squash = (t: string) => t.replace(/\s+/g, ' ').trim();
-/** The visible cards of the grid that holds the Moodle card (the "LMS Publishing" filter), as texts in page order. */
+/** The visible cards of the grid that holds the Moodle card (the "LMS Publishing" filter), in page order. */
 const lmsCardTexts = (page: Page) => page.evaluate((moodleText) => {
   const all = Array.from(document.querySelectorAll('body *')) as HTMLElement[];
   let cell: HTMLElement | null = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
@@ -17,7 +17,19 @@ const lmsCardTexts = (page: Page) => page.evaluate((moodleText) => {
   if (!cell || !cell.parentElement) return [];
   return (Array.from(cell.parentElement.children) as HTMLElement[])
     .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 0)
-    .map((c) => (c.textContent ?? '').replace(/\s+/g, ' ').trim());
+    .map((c) => {
+      const text = (c.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const name = (c.querySelector('h2, h3, [role="heading"]')?.textContent ?? '').replace(/\s+/g, ' ').trim() || null;
+      let channel: string | null = null;
+      for (const el of Array.from(c.querySelectorAll('a[href], [id$="-connect"], [id$="-manage"]'))) {
+        const href = el.getAttribute('href') ?? '';
+        const m = /^\/integrations\/([^/?#]+)\/(?:connect|con_[^/?#]+)$/.exec(href);
+        if (m) { channel = m[1]; break; }
+        if (el.id.endsWith('-connect')) { channel = el.id.slice(0, -'-connect'.length); break; }
+        if (el.id.endsWith('-manage')) { channel = el.id.slice(0, -'-manage'.length); break; }
+      }
+      return { text, channel, name };
+    });
 }, TEXT.moodleCard);
 
 m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Blackboard cards with their texts and initials', async ({ page }) => {
