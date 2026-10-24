@@ -1,5 +1,5 @@
-Verdict: FAIL (Slot 8 MOODLE-LIVE Lead QA part §7, 2026-10-23T22:40:33Z; Slot 3C re-gate §6, 2026-10-23T21:33:35Z; Lead review §5, 2026-10-23T18:09:33Z)
-Round: 3
+Verdict: PENDING (AC-LA-E7-08-01, -03, -04, -05, -06 PASS across Slots 3B/3C/3D; AC-LA-E7-08-02 PENDING LA-E7-06 kit K1 run per LA-H25; Slot 3D §8, 2026-10-24T00:58:28Z; Slot 8 Lead QA part §7, 2026-10-23T22:40:33Z)
+Round: 4
 
 # LA-E7-08 Wave-End and Final Regression Gates (SIM Lane): QA (Slot 3B on `80133d6b`)
 
@@ -456,4 +456,194 @@ Per the task brief (`"Update the 'pending' MOODLE-LIVE row in each task's qa.md 
     - `| AC-LA-E4-03-09 | PASS on Lead QA live Moodle T5a (21/21) & T5b AGS reporter/throttling/read-back guard (AC-T5-07 P11, AC-T5-09..11, -14, -18, -19, -27..33, P2, P5, P11 in qalead-la-34); FAIL on T5b AC-T5-36 & T7 × 1 (QA-E2E Moodle K2 in QA-E2E Slot 8) | Slot 8 qalead-la-30, qalead-la-34 on 8fadb828 | Slot 8 run-t7.mjs & run-t5.mjs --tasks T5a,T5b,T6 | In qalead-la-34, all T5a (21/21) and T5b AGS score-sync, override read-back guard (AC-T5-18, AC-T5-33), conflict/resend (AC-T5-31, AC-T5-32), supersede (AC-T5-30 P2), P5, and P11 ACs passed on live Moodle 5.2; AC-T5-36 failed on a hanging-host menu commit race and T7 × 1 failed on steps.ts:8 ENOENT. Artifacts: /Users/quangnguyen/cogniate-qa-runs/LA/SLOT8/artifacts/qalead-la-30-*, qalead-la-34-*. |`
 12. **`docs/reviews/LA-E5-22/qa.md` (Owner: `QA-2`, `AC-LA-E5-22-06`):**
     - `| AC-LA-E5-22-06 | PASS on Lead QA live Moodle cgk1 sealed-blob suites (qalead-la-31..36 on 8fadb828); QA-E2E live Moodle U1/U2 continuity in QA-E2E Slot 8 | Slot 8 qalead-la-31..36 on 8fadb828 | Slot 8 run-t2.mjs, run-t3c.mjs, run-t4b.mjs, run-t5.mjs, run-t8.mjs, run-t4a.mjs | Live Moodle 5.2 runs in qalead-la-31 (64/64 PASS), qalead-la-32 (28/28 PASS), qalead-la-33 (40/40 PASS), qalead-la-34 (T5a 21/21 & T5b 14/15 PASS), qalead-la-35 (T8 .mbz & web-service token seal/unseal PASS), and qalead-la-36 (15/15 PASS) exercised live cgk1 sealing and unsealing across connection tokens, registration refs, picker ltiks, and service keys. Artifacts: /Users/quangnguyen/cogniate-qa-runs/LA/SLOT8/artifacts/qalead-la-31..36-*. |`
+
+---
+
+## 8. Slot 3D M1 sim (2026-10-24T00:58:28Z)
+
+### 8.1 Slot 3D Context & Gate Source (`src-wave-end-4`)
+
+| Item | Value |
+| --- | --- |
+| Tester & Dispatch | Lead QA (Orca task `task_4ac80413abff`, dispatch `ctx_2fda9a2307b9`) |
+| Wave-End Candidate SHA (`$WAVE_SHA_3`) | `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`tag: la-wave-end-product-3`) |
+| Commit 1 (`$BASE_OVERLAY_SHA_3`) | `e00b9651e29d835e1980732ba7037273f641ac7a` (`tag: la-gate-test-base-c1-3`; `e00b9651:tests` tree `f42d4150b7b11ba2b2e63898ee317e6dea3f9430` identical to `8ad12926:tests`) |
+| Commit 2 (`$WAVE_TEST_SHA_3`) | `e46bb27c9487d332f40fcefd4dd880304d1d31f1` (`tag: la-gate-test-3`; 3-file approved `ld9-addendum-r1.md` Round 2) |
+| Commit 3 (`$WAVE_TEST_SHA_4`) | `6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1` (`tag: la-gate-test-4`; fresh `--no-hardlinks` clone of `src-wave-end-3` at `la-gate-test-3` with 1 new commit applying the approved Round 2 patch from `docs/reviews/LA-E7-08/ld9-addendum-r2.md` for `WE-F6` / `LA-IC-06` `M1-08.canvas.login-redirect`; `git diff --stat la-gate-test-3 HEAD` shows only `tests/acceptance/M1/canvas/21-canvas-protocol.test.ts | 25 ++++++++++++++++++----`, `1 file changed, 21 insertions(+), 4 deletions(-)`; `git diff --exit-code 8fadb828088ffe1b4db02179ab0fa3ab2388a12a HEAD -- . ':!tests'` exits `0` with `0` non-test files changed) |
+| Gate Source Directories | `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-4` (`6ce8ffaf`, wave-end) and `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`, `--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`, intake baseline); `src-wave-end-3` untouched |
+| Authorized `DOCKER-YES` Window | `2026-10-23T23:22:31Z` (`msg_7afc844596d1`, `100 min` window) to `2026-10-24T00:56:54Z` (`93.6 min` total, `6.4 min` ahead of window end; `"lead QA stack down"` sent at `2026-10-24T00:57:44Z` in `msg_a464d8a8b4a6`) |
+| Compose Projects & Networks | `qalead-la-44` (`SIM` lane, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`); `qalead-la-45`, `qalead-la-46`, `qalead-la-48`, `qalead-la-49`, `qalead-la-47` (`Moodle` lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`) — sequential, one stack at a time |
+| Durable Artifacts | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3D/` (`logs/`, `docker-records/`, `artifacts/qalead-la-44..49-*`) |
+
+### 8.2 Exact Accounting per Run (from `summary.json` and `m1-case-results.json`)
+
+1. **`qalead-la-44` (`M1 --phase sim --provider all` on `8fadb828` / `6ce8ffaf`, `SLOT3D/artifacts/qalead-la-44-8fadb828-2026-10-23T23-23-22-097Z/`, `23:23:21Z–23:46:57Z`, `23.6 min`):**
+   - **Counts in `summary.json` `results`:** **`400` total (`400 PASS`, `0 FAIL`)**: all `394/394` `sim` manifest rows `PASS` + `6/6` host rows `PASS` (`G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION`, `TEARDOWN`) = `400 PASS`.
+   - **Every non-`PASS` ID in `summary.json`:** **None (`0`, `[]`)**.
+   - **Manifest Case Results (`m1-case-results.json`):** **`394` total (`394 PASS`, `0 FAIL`), `0` missing manifest IDs** (`394` wanted, `394` recorded).
+   - **`M1-08.canvas.login-redirect` by ID (`m1-case-results.json`):**
+     ```json
+     {
+       "id": "M1-08.canvas.login-redirect",
+       "environment": "SIM",
+       "productSha": "8fadb828088ffe1b4db02179ab0fa3ab2388a12a",
+       "testSha": "6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1",
+       "status": "PASS",
+       "title": "[SIM] AC-M1-08 Canvas login goes to the fixed SSO authorize URL with unchanged hints {case:M1-08.canvas.login-redirect}",
+       "duration": 26.53716700000001,
+       "command": "npm run test:acceptance",
+       "startedAt": "2026-10-23T23:24:05.543Z",
+       "artifact": "evidence/sim",
+       "profile": "acceptance",
+       "project": "qalead-la-44"
+     }
+     ```
+     **Result:** **`PASS` in `26.5 ms`** (closing `WE-F6` under `LA-IC-06` / `BD-A2-110` / `BD-A1-114`).
+
+2. **`qalead-la-45` (`T5b` baseline #1 on intake `1b17261` / `357d1799`, `SLOT3D/artifacts/qalead-la-45-1b17261b-2026-10-23T23-46-57-571Z/`, `23:46:57Z–00:05:12Z`, `18.2 min`):**
+   - **Counts in `summary.json` `results`:** `59` step entries (`56 PASS`, `3 FAIL`).
+   - **Every non-`PASS` entry (`3`) and its exact note:**
+     - `SUITE` (`In-container suite T5b (QA_TASK=T5b): exit 0, expected ACs ran`, `FAIL`): notes `["exit 1; tests reported: 24; failed: 2; skipped: 0"]`.
+     - `AC-T5-36` (`[T5b] AC-T5-36 hanging hosts: every non-*.test request hangs; cg_student completes the HTML course → passed and 100 in Moodle within 60 s`, `FAIL`): notes `[]`; in `cmd/27-test-acceptance-T5b.log`: `Error: Moodle grade Expected: 100 Received: null at /repo/tests/acceptance/T5b/1-html.spec.ts:62:42` (`durationMs = 74,264 ms`, `grade_wait_ms = 61,768.5 ms`, `17` outside requests held across `16` unique URLs).
+     - `P5` (`[T5b] P5 fixture-assisted: final attempts 60 and 80 across versions; remove only failed sync 80; best remains 80 and failed sync 60 Resend is refused`, `FAIL`): notes `[]`; in `cmd/27-test-acceptance-T5b.log`: `Error: both attempts unchanged` at `9a-best-score.spec.ts:47` (transient in run #1; passed in run #2 `qalead-la-46`).
+
+3. **`qalead-la-46` (`T5b` baseline #2 on intake `1b17261` / `357d1799`, `SLOT3D/artifacts/qalead-la-46-1b17261b-2026-10-24T00-05-12-265Z/`, `00:05:12Z–00:22:20Z`, `17.1 min`):**
+   - **Counts in `summary.json` `results`:** **`59` step entries (`59 PASS`, `0 FAIL`)**, including **`AC-T5-36` `PASS`** (`durationMs = 12,519 ms`, `grade_wait_ms = 62.2 ms`, `17` outside requests held across `16` unique URLs) and **`P5` `PASS`** (`29,025 ms`).
+   - **Every non-`PASS` entry:** **None (`0`, `[]`)**.
+
+4. **`qalead-la-48` (`T6` baseline on intake `1b17261` / `357d1799`, `SLOT3D/artifacts/qalead-la-48-1b17261b-2026-10-24T00-22-21-135Z/`, `00:22:21Z–00:30:06Z`, `7.8 min`):**
+   - **Counts in `summary.json` `results`:** `53` step entries (`49 PASS`, `4 FAIL`).
+   - **`T6` ACs `PASS` (`11/14`):** `AC-T6-01..06`, `AC-T6-08`, `AC-T6-10`, `AC-T6-11`, **`AC-T6-12` `PASS`** (`apps/portal/src/connect/moodle-steps.json` existed at that path in `1b17261`), `AC-T6-14`.
+   - **Every non-`PASS` entry (`4`) and its exact note:**
+     - `SUITE` (`In-container suite T6 (QA_TASK=T6): exit 0, expected ACs ran`, `FAIL`): notes `["exit 1; tests reported: 18; failed: 3; skipped: 0"]`.
+     - `AC-T6-07` (`[T6] AC-T6-07 the Publish dialog lists only registered or connected connections; after "Publish": "Available in Moodle" and the teacher text`, `FAIL`): notes `[]`; in `cmd/14-test-acceptance-T6.log`: `TimeoutError: locator.click: Timeout 15000ms exceeded. waiting for getByRole('button', { name: /Publish to Moodle/ }).or(getByRole('link', { name: /Publish to Moodle/ })).first() at /repo/tests/acceptance/T6/3-courses.spec.ts:129:133`.
+     - `AC-T6-13` (`[T6] AC-T6-13 <b>x</b> and the manifest title show literally in Courses, Publish and Results; window.__xss stays undefined`, `FAIL`): notes `[]`; in `cmd/14-test-acceptance-T6.log`: `TimeoutError: locator.click: Timeout 15000ms exceeded. waiting for getByRole('button', { name: /Publish to Moodle/ }) at /repo/tests/acceptance/T6/5-xss-a11y.spec.ts:44:131`.
+     - `AC-T6-09` (`[T6] AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Courses, Publish dialog, Results; wizard and dialog work by keyboard; focus returns to the opener`, `FAIL`): notes `[]`; in `cmd/14-test-acceptance-T6.log`: `TimeoutError: locator.click: Timeout 15000ms exceeded. waiting for getByRole('button', { name: /Publish to Moodle/ }) at /repo/tests/acceptance/T6/5-xss-a11y.spec.ts:79:131`.
+
+5. **`qalead-la-49` (`T8` baseline on intake `1b17261` / `357d1799`, `SLOT3D/artifacts/qalead-la-49-1b17261b-2026-10-24T00-30-06-293Z/`, `00:30:06Z–00:39:03Z`, `8.9 min`):**
+   - **Counts in `summary.json` `results`:** `35` step entries (`31 PASS`, `4 FAIL`), `23` unique IDs (`19 PASS`, `4 FAIL` — identical to `qalead-la-35` on `8fadb828`).
+   - **`T8` ACs `PASS` (`19` unique IDs):** `AC-T8-02..07` (including `AC-T8-03` `BUILD_RUNNER_HOLD=1` in `65.3 s`), `C-T8-01`, `C-T8-02`, and `11` host/setup IDs.
+   - **Every non-`PASS` entry (`4`) and its exact note:**
+     - `SUITE` (`In-container suite T8 (QA_TASK=T5a,T8 QA_GREP=SETUP-T5a|SETUP-T8|AC-T8-02|AC-T8-04|AC-T8-05|AC-T8-06|AC-T8-08|AC-T8-09|AC-T8-10): exit 0, expected ACs ran`, `FAIL`): notes `["exit 1; tests reported: 10; failed: 1; skipped: 3", "expected but not run: AC-T8-08, AC-T8-09"]`.
+     - `AC-T8-10` (`[T8] AC-T8-10 (no token) the Publish dialog has no "Also create an empty Moodle course" checkbox`, `FAIL`): notes `[]`; in `cmd/13-test-acceptance-T8.log`: `TimeoutError: locator.click: Timeout 15000ms exceeded. waiting for getByRole('button', { name: /Publish to Moodle/ }) at openPublishDialog (/repo/tests/acceptance/T8/2-shell.spec.ts:30:131)`.
+     - `AC-T8-08` (`[T8] expected to run but did not run`, `FAIL`): notes `[]` (skipped in `2-shell.spec.ts` serial block after `AC-T8-10`).
+     - `AC-T8-09` (`[T8] expected to run but did not run`, `FAIL`): notes `[]` (skipped in `2-shell.spec.ts` serial block after `AC-T8-10`).
+
+6. **`qalead-la-47` (`T5b` on wave-end `8fadb828` / `6ce8ffaf`, `SLOT3D/artifacts/qalead-la-47-8fadb828-2026-10-24T00-39-03-994Z/`, `00:39:03Z–00:56:54Z`, `17.8 min`):**
+   - **Counts in `summary.json` `results`:** `59` step entries (`57 PASS`, `2 FAIL`).
+   - **Every non-`PASS` entry (`2`) and its exact note:**
+     - `SUITE` (`In-container suite T5b (QA_TASK=T5b): exit 0, expected ACs ran`, `FAIL`): notes `["exit 1; tests reported: 24; failed: 1; skipped: 0"]`.
+     - `AC-T5-36` (`[T5b] AC-T5-36 hanging hosts: every non-*.test request hangs; cg_student completes the HTML course → passed and 100 in Moodle within 60 s`, `FAIL`): notes `[]`; in `cmd/27-test-acceptance-T5b.log`: `Error: Moodle grade Expected: 100 Received: null at /repo/tests/acceptance/T5b/1-html.spec.ts:62:42` (`durationMs = 74,041 ms`, `grade_wait_ms = 61,601.3 ms`, `17` outside requests held across `16` unique URLs).
+
+### 8.3 The 18 `WE` Rows by ID in Slot 3D (`qalead-la-44`, `8fadb828` / `6ce8ffaf`)
+
+All **`18/18` `WE` rows `PASS`** in `qalead-la-44` (`m1-case-results.json` and `host-actions/*.json`):
+
+| # | Case ID (`7` `M1-37` rows first) | Slot 7 (`1b17261`, `qalead-la-16`) | Slot 3B (`80133d6b`, `qalead-la-14`) | Slot 3C (`8fadb828` / `e46bb27c`, `qalead-la-40`) | **Slot 3D (`8fadb828` / `6ce8ffaf`, `qalead-la-44`)** | **Slot 3D `m1-restart cogniate-app` (`ms`, artifact)** |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `M1-37.blackboard.d` | `PASS` (`62,998.7 ms`) | `FAIL` (`77,003.5 ms`) | `PASS` (`62,948.9 ms`) | **`PASS` (`63,040.7 ms`)** | **`9,607 ms`** (`m1-cd3afcb80315.json`) |
+| 2 | `M1-37.blackboard.o` | `PASS` (`63,067.4 ms`) | `FAIL` (`77,492.7 ms`) | `PASS` (`63,221.7 ms`) | **`PASS` (`63,024.5 ms`)** | **`9,335 ms`** (`m1-1fd1e5916b5a.json`) |
+| 3 | `M1-37.blackboard.v5` | `PASS` (`10,788.8 ms`) | `FAIL` (`77,449.9 ms`) | `PASS` (`11,104.8 ms`) | **`PASS` (`11,220.2 ms`)** | **`9,290 ms`** (`m1-50f2d21e9034.json`) |
+| 4 | `M1-37.canvas.d` | `PASS` (`63,061.1 ms`) | `FAIL` (`77,387.7 ms`) | `PASS` (`63,026.0 ms`) | **`PASS` (`62,924.9 ms`)** | **`9,286 ms`** (`m1-70adb2197a69.json`) |
+| 5 | `M1-37.canvas.s-dead` | `PASS` (`62,996.4 ms`) | `FAIL` (`77,704.9 ms`) | `PASS` (`63,166.1 ms`) | **`PASS` (`63,041.0 ms`)** | **`9,803 ms`** (`m1-e4f05059138e.json`) |
+| 6 | `M1-37.canvas.v4` | `PASS` (`10,259.5 ms`) | `FAIL` (`77,691.3 ms`) | `PASS` (`10,982.0 ms`) | **`PASS` (`11,272.6 ms`)** | **`9,789 ms`** (`m1-e860206d4a61.json`) |
+| 7 | `M1-37.canvas.v6` | `PASS` (`10,780.4 ms`) | `FAIL` (`77,883.3 ms`) | `PASS` (`11,443.7 ms`) | **`PASS` (`11,667.2 ms`)** | **`9,314 ms`** (`m1-86800da9dc0a.json`) |
+| 8 | `M1-13.blackboard.inactive` | `PASS` (`75.7 ms`) | `FAIL` (`14.1 ms`, `429`) | `PASS` (`55.5 ms`) | **`PASS` (`56.2 ms`)** | N/A |
+| 9 | `M1-25.blackboard.site-metadata` | `PASS` (`22.5 ms`) | `FAIL` (`7.1 ms`, `429`) | `PASS` (`18.2 ms`) | **`PASS` (`17.6 ms`)** | N/A |
+| 10 | `M1-14.blackboard.claims` | `PASS` (`22.0 ms`) | `FAIL` (`5.8 ms`, `429`) | `PASS` (`21.4 ms`) | **`PASS` (`20.7 ms`)** | N/A |
+| 11 | `M1-36.blackboard.origin` | `PASS` (`44.0 ms`) | `FAIL` (`4.5 ms`, `429`) | `PASS` (`39.4 ms`) | **`PASS` (`39.2 ms`)** | N/A |
+| 12 | `M1-36.blackboard.path` | `PASS` (`32.0 ms`) | `FAIL` (`4.1 ms`, `429`) | `PASS` (`30.9 ms`) | **`PASS` (`30.6 ms`)** | N/A |
+| 13 | `M1-36.blackboard.query` | `PASS` (`38.2 ms`) | `FAIL` (`4.8 ms`, `429`) | `PASS` (`35.8 ms`) | **`PASS` (`34.1 ms`)** | N/A |
+| 14 | `M1-36.blackboard.encoded-dot` | `PASS` (`33.0 ms`) | `FAIL` (`4.3 ms`, `429`) | `PASS` (`28.4 ms`) | **`PASS` (`32.9 ms`)** | N/A |
+| 15 | `M1-36.blackboard.encoded-slash` | `PASS` (`29.4 ms`) | `FAIL` (`4.2 ms`, `429`) | `PASS` (`30.5 ms`) | **`PASS` (`29.5 ms`)** | N/A |
+| 16 | `M1-15.canvas.dynamic-refused` | `PASS` (`32.3 ms`) | `FAIL` (`31.8 ms`, `WE-F3`) | `PASS` (`32.5 ms`) | **`PASS` (`31.3 ms`)** | N/A |
+| 17 | `M1-08.canvas.login-redirect` | `PASS` (`28.3 ms`) | `FAIL` (`16.4 ms`, `200 !== 302`) | `FAIL` (`22.3 ms`, `WE-F6`) | **`PASS` (`26.5 ms`)** | N/A |
+| 18 | `M1-24.common.event-shapes` | `PASS` (`12.1 ms`) | `FAIL` (`19.2 ms`, `WE-F2`) | `PASS` (`12.0 ms`) | **`PASS` (`11.0 ms`)** | N/A |
+
+### 8.4 `WE-F10` (`T5b` `AC-T5-36`) & `WE-F7`/`WE-F8` (`T6` / `T8`) Baselines per Test ID
+
+#### 8.4.1 `AC-T5-36` Per-Run Comparison (`1b17261` Baseline vs `8fadb828` Wave-End)
+
+| Run (`COMPOSE_PROJECT_NAME`) | Product SHA / Test SHA | `AC-T5-36` Status | Grade Wait Time (`waitForMoodle`, `ms`) | Total Test Duration (`ms`) | Outside Requests Held (`hung.length` / Unique URLs) | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| **`qalead-la-45`** (Intake #1) | `1b17261b` / `357d1799` | **`FAIL`** | **`61,768.5 ms`** (timed out at 60 s window) | `74,264 ms` | **`17` held** (`16` unique S3 + `fonts.gstatic.com` URLs) | `Error: Moodle grade Expected: 100 Received: null` (`1-html.spec.ts:62:42`) — same failure mode on `1b17261` as on `8fadb828`. |
+| **`qalead-la-46`** (Intake #2) | `1b17261b` / `357d1799` | **`PASS`** | **`62.2 ms`** (first oracle poll) | `12,519 ms` | **`17` held** (`16` unique S3 + `fonts.gstatic.com` URLs) | Passed on first Moodle grade poll (`grade = 100`, `best.outcome = "passed"`). |
+| **`qalead-la-34`** (Wave-End #1, Slot 8) | `8fadb828` / `e46bb27c` | **`FAIL`** | **`61,882.7 ms`** (timed out at 60 s window) | `74,505 ms` | **`17` held** (`16` unique S3 + `fonts.gstatic.com` URLs) | `Error: Moodle grade Expected: 100 Received: null` (`1-html.spec.ts:62:42`). |
+| **`qalead-la-47`** (Wave-End #2, Slot 3D) | `8fadb828` / `6ce8ffaf` | **`FAIL`** | **`61,601.3 ms`** (timed out at 60 s window) | `74,041 ms` | **`17` held** (`16` unique S3 + `fonts.gstatic.com` URLs) | `Error: Moodle grade Expected: 100 Received: null` (`1-html.spec.ts:62:42`). |
+
+#### 8.4.2 All 24 `T5b` Playwright Tests by Test ID (`qalead-la-45`, `qalead-la-46` on `1b17261` vs `qalead-la-34`, `qalead-la-47` on `8fadb828`)
+
+| # | `T5b` Playwright Test ID / Title | `qalead-la-45` (`1b17261` #1) | `qalead-la-46` (`1b17261` #2) | `qalead-la-34` (`8fadb828` #1) | `qalead-la-47` (`8fadb828` #2) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `SETUP-T5b QA activities for the T5b scenarios` | `PASS` (`21,445 ms`) | `PASS` (`20,858 ms`) | `PASS` (`20,906 ms`) | `PASS` (`20,572 ms`) |
+| 2 | `AC-T5-09 HTML pass: cg_student in "Cogniate HTML"` | `PASS` (`12,487 ms`) | `PASS` (`12,608 ms`) | `PASS` (`12,563 ms`) | `PASS` (`12,477 ms`) |
+| 3 | **`AC-T5-36 hanging hosts: every non-*.test request hangs`** | **`FAIL` (`74,264 ms`)** | **`PASS` (`12,519 ms`)** | **`FAIL` (`74,505 ms`)** | **`FAIL` (`74,041 ms`)** |
+| 4 | `AC-T5-10 the HTML package bytes are not changed` | `PASS` (`200 ms`) | `PASS` (`215 ms`) | `PASS` (`228 ms`) | `PASS` (`229 ms`) |
+| 5 | `AC-T5-10 (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content origin` | `PASS` (`1,210 ms`) | `PASS` (`1,182 ms`) | `PASS` (`1,341 ms`) | `PASS` (`1,226 ms`) |
+| 6 | `AC-T5-11 incomplete: cg_student2 sees only the menu page and closes the window` | `PASS` (`3,522 ms`) | `PASS` (`3,520 ms`) | `PASS` (`3,502 ms`) | `PASS` (`3,497 ms`) |
+| 7 | `AC-T5-27 HTML fail: cg_student2 (new run) picks a wrong option` | `PASS` (`12,732 ms`) | `PASS` (`12,683 ms`) | `PASS` (`12,601 ms`) | `PASS` (`12,658 ms`) |
+| 8 | `AC-T5-28 first answer stands: a wrong option, then the correct one` | `PASS` (`12,924 ms`) | `PASS` (`13,000 ms`) | `PASS` (`12,716 ms`) | `PASS` (`12,732 ms`) |
+| 9 | `AC-T5-29 dwell rule: the learner answers, scrolls to the end and closes the window before 10 s` | `PASS` (`5,169 ms`) | `PASS` (`5,127 ms`) | `PASS` (`5,105 ms`) | `PASS` (`5,141 ms`) |
+| 10 | `AC-T5-14 retry: Moodle stopped, the learner passes → row pending with tries ≥ 1` | `PASS` (`20,623 ms`) | `PASS` (`20,588 ms`) | `PASS` (`21,153 ms`) | `PASS` (`22,960 ms`) |
+| 11 | `AC-T5-30 outage order: Moodle stopped; the learner passes (row 1 pending, 100)` | `PASS` (`52,594 ms`) | `PASS` (`50,890 ms`) | `PASS` (`50,840 ms`) | `PASS` (`50,939 ms`) |
+| 12 | `AC-T5-31 conflict: a QA score with timestamp now + 10 min, lti-service restart` | `PASS` (`139,903 ms`) | `PASS` (`139,886 ms`) | `PASS` (`139,828 ms`) | `PASS` (`140,241 ms`) |
+| 13 | `AC-T5-32 failed and Resend: unenrolled learner → failed at once` | `PASS` (`26,121 ms`) | `PASS` (`25,190 ms`) | `PASS` (`25,125 ms`) | `PASS` (`25,323 ms`) |
+| 14 | `AC-T5-33 teacher override: the grade is overridden to 50; a better result is sent` | `PASS` (`21,731 ms`) | `PASS` (`21,483 ms`) | `PASS` (`21,644 ms`) | `PASS` (`21,362 ms`) |
+| 15 | `AC-T5-32 (A-T5b-02) Resend never lowers a grade: rows 50 and 100 both failed` | `PASS` (`19,123 ms`) | `PASS` (`20,186 ms`) | `PASS` (`21,612 ms`) | `PASS` (`20,224 ms`) |
+| 16 | `AC-T5-07 (P11) after a lower retake (75) on a new version` | `PASS` (`15,402 ms`) | `PASS` (`15,381 ms`) | `PASS` (`15,355 ms`) | `PASS` (`15,494 ms`) |
+| 17 | `AC-T5-30 (P2) Moodle stopped: a failed 60 is pending, then a passed 90 supersedes it` | `PASS` (`87,324 ms`) | `PASS` (`85,212 ms`) | `PASS` (`84,791 ms`) | `PASS` (`87,227 ms`) |
+| 18 | `AC-T5-30 (P2, in flight and restart) lower 60 stays superseded` | `PASS` (`129,333 ms`) | `PASS` (`128,973 ms`) | `PASS` (`121,835 ms`) | `PASS` (`128,581 ms`) |
+| 19 | `P11 pending: lower version-2 retake 75 names the unsent best score 90` | `PASS` (`52,444 ms`) | `PASS` (`53,065 ms`) | `PASS` (`24,045 ms`) | `PASS` (`23,689 ms`) |
+| 20 | `P11 failed: lower version-2 retake 75 names the unsent best score 90` | `PASS` (`28,207 ms`) | `PASS` (`28,529 ms`) | `PASS` (`28,390 ms`) | `PASS` (`27,925 ms`) |
+| 21 | `P5 fixture-assisted: final attempts 60 and 80 across versions` | `FAIL` (`29,205 ms`) | `PASS` (`29,025 ms`) | `PASS` (`30,370 ms`) | `PASS` (`28,963 ms`) |
+| 22 | `AC-T5-18 (B-T5b-01) Refresh from Moodle never stores another learner's grade` | `PASS` (`17,793 ms`) | `PASS` (`17,217 ms`) | `PASS` (`17,788 ms`) | `PASS` (`17,045 ms`) |
+| 23 | `AC-T5-18 Refresh from Moodle: every row of the SCORM publication has gradebook.resultScore = the Moodle grade` | `PASS` (`249 ms`) | `PASS` (`260 ms`) | `PASS` (`267 ms`) | `PASS` (`244 ms`) |
+| 24 | `AC-T5-19 cogniate-app.jsonl and cogniate-content.jsonl contain no runtime token, ltik or service key` | `PASS` (`8 ms`) | `PASS` (`9 ms`) | `PASS` (`9 ms`) | `PASS` (`8 ms`) |
+
+#### 8.4.3 `T6` and `T8` Baseline Comparison (`1b17261` `qalead-la-48` & `qalead-la-49` vs Wave-End `8fadb828` `qalead-la-34` & `qalead-la-35`)
+
+| Test ID | Intake `1b17261` (`qalead-la-48` `T6` / `qalead-la-49` `T8`, Test SHA `357d1799`) | Wave-End `8fadb828` (`qalead-la-34` `T6` / `qalead-la-35` `T8`, Test SHA `e46bb27c`) | Finding / `BD-A1-115` Confirmation |
+| --- | --- | --- | --- |
+| **`AC-T6-12`** | **`PASS`** (`apps/portal/src/connect/moodle-steps.json` present at old path on `1b17261`) | **`FAIL`** (`ENOENT: no such file or directory, open '/repo/apps/portal/src/connect/moodle-steps.json'` at `T6/2-connect.spec.ts:161:36`) | **`WE-F7` (`LA-IC-23`, LA change):** `moodle-steps.json` moved in `LA-E1-05`; covered by approved `LD-9` Addendum R3 for Slot 8b (`src-wave-end-5`). |
+| **`AC-T6-07`** | **`FAIL`** (`Timeout 15000ms waiting for getByRole('button', { name: /Publish to Moodle/ })` at `3-courses.spec.ts:129:133`) | **`FAIL`** (identical timeout on `/Publish to Moodle/` at `3-courses.spec.ts:129:133`) | **`WE-F8` (`BD-A1-115` confirmed):** Fails identically on `1b17261` and `8fadb828` (pre-LA M2 label `"Publish to an LMS"`). |
+| **`AC-T6-09`** | **`FAIL`** (`Timeout 15000ms waiting for getByRole('button', { name: /Publish to Moodle/ })` at `5-xss-a11y.spec.ts:79:131`) | **`FAIL`** (identical timeout on `/Publish to Moodle/` at `5-xss-a11y.spec.ts:79:131`) | **`WE-F8` (`BD-A1-115` confirmed):** Fails identically on `1b17261` and `8fadb828`. |
+| **`AC-T6-13`** | **`FAIL`** (`Timeout 15000ms waiting for getByRole('button', { name: /Publish to Moodle/ })` at `5-xss-a11y.spec.ts:44:131`) | **`FAIL`** (identical timeout on `/Publish to Moodle/` at `5-xss-a11y.spec.ts:44:131`) | **`WE-F8` (`BD-A1-115` confirmed):** Fails identically on `1b17261` and `8fadb828`. |
+| **`AC-T8-10`** | **`FAIL`** (`Timeout 15000ms waiting for getByRole('button', { name: /Publish to Moodle/ })` at `T8/2-shell.spec.ts:30:131`) | **`FAIL`** (identical timeout on `/Publish to Moodle/` at `T8/2-shell.spec.ts:30:131`) | **`WE-F8` (`BD-A1-115` confirmed):** Fails identically on `1b17261` and `8fadb828`. |
+| **`AC-T8-08`** | **`FAIL`** (`expected to run but did not run` — skipped in `2-shell.spec.ts` serial block after `AC-T8-10`) | **`FAIL`** (`expected to run but did not run` — skipped in `2-shell.spec.ts` serial block after `AC-T8-10`) | **`WE-F8` (`BD-A1-115` confirmed):** Identical serial skip after `AC-T8-10` on both `1b17261` and `8fadb828`. |
+| **`AC-T8-09`** | **`FAIL`** (`expected to run but did not run` — skipped in `2-shell.spec.ts` serial block after `AC-T8-10`) | **`FAIL`** (`expected to run but did not run` — skipped in `2-shell.spec.ts` serial block after `AC-T8-10`) | **`WE-F8` (`BD-A1-115` confirmed):** Identical serial skip after `AC-T8-10` on both `1b17261` and `8fadb828`. |
+
+### 8.5 `M3` Global-State Environment Notes (`TEST-STRATEGY.md` §5.4) & Slot 3D Docker Boundary Records
+
+- **External `sto-*` (Savoy) Activity During Slot 3D (`23:23:21Z–00:57:02Z`):** Our read-only `docker events` watcher (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3D/docker-records/docker-events-watch.jsonl`) recorded **`636` `sto-*` container creates** during Slot 3D (`100%` of all non-`qalead-la-*` / non-`cogniate-build-*` container events). QA never touched any `sto-*` container or volume.
+- **Per-Run `M3` & `TEARDOWN` Rows:**
+  1. `qalead-la-44`: **`M3-ISOLATION` `PASS`** (`"containers changed: 0; volumes changed: none"`), **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: none (information)"`).
+  2. `qalead-la-45`: **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: /sto-it-mq-eae8b8873185, /sto-it-62e5a2bcf97b (information)"`).
+  3. `qalead-la-46`: **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: /sto-it-pg-345d06ceb03d, /sto-it-mq-85627e278ac1 (information)"`).
+  4. `qalead-la-48`: **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: none (information)"`).
+  5. `qalead-la-49`: **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: /sto-it-mq-b779c9e12539, /sto-it-d012482c6b93 (information)"`).
+  6. `qalead-la-47`: **`TEARDOWN` `PASS`** (`"other projects' containers that stopped or restarted: /sto-it-pg-27d6cf977f21, /sto-it-mq-304153a49669 (information)"`).
+- **32 Protected Persistent Volume `inspect` & Boundary Verification (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3D/docker-records/`, `umask 077`):**
+  - `before-timestamp.txt`: `2026-10-23T23:23:21Z` → `after-timestamp.txt`: `2026-10-24T00:57:02Z`.
+  - `before-non-sto-containers.txt`: `0`; `after-non-sto-containers.txt`: `0` (`0` `qalead-la-*` or `cogniate-build-*` containers, volumes, or networks remaining).
+  - `before-networks.txt` vs `after-networks.txt`: `3` (`bridge`, `host`, `none`).
+  - `before-32-volumes-inspect.json` vs `after-32-volumes-inspect.json`: All **`32/32` protected non-`sto-*` persistent volumes** are **100% byte-identical in `docker volume inspect` JSON**.
+  - `host-ps-watcher.log` (sampled every `10 s` throughout Slot 3D) confirmed at most one `qalead-la-<n>` project ran at any time.
+
+### 8.6 Disclosed Correction of `AC-LA-E7-08-02` (`PENDING`, Not `PASS`) and Final Verdict for `LA-E7-08` (`AC-LA-E7-08-01..06`)
+
+- **Disclosed Correction of Earlier `AC-LA-E7-08-02` `PASS` Lines:**
+  - The Acceptance Criteria table row `AC-LA-E7-08-02` (line 24) and §6.2 (line 230), preserved unchanged per the held-report rule, marked `AC-LA-E7-08-02` as `PASS` based on per-task `K1-SIM` suites.
+  - Per the Lead's ruling and `tests/ltiaas/TEST-STRATEGY.md` §2.6, `K1` is defined as every applicable case of the kit catalog on a fresh SIM lane with the `N/A` rule, `C1` equality, `coveredBy`, and `K-HYG`; the per-task `K1-SIM` rows do not apply that pass rule. Therefore **`AC-LA-E7-08-02` is `PENDING` (awaiting the `LA-E7-06` kit `K1` run under human decision `LA-H25`), not `PASS`**.
+
+| AC | Final Status | Proving Slot & Run(s) | Summary & Artifact |
+| --- | --- | --- | --- |
+| **`AC-LA-E7-08-01`** | **`PASS`** | **Slot 3D `qalead-la-44`** (`M1 sim` on `8fadb828` / `6ce8ffaf`) + **Slot 3C `qalead-la-42`** (`M2` on `8fadb828` / `e46bb27c`) | **`M1 --phase sim --provider all` (`qalead-la-44`):** **`394/394` manifest rows `PASS`** (`400/400` `summary.json` rows `PASS`, `0` `FAIL`, `0` missing manifest IDs, `M1-08.canvas.login-redirect` `PASS` in `26.5 ms`, and all `18/18` `WE` rows `PASS`; `SLOT3D/artifacts/qalead-la-44-8fadb828-2026-10-23T23-23-22-097Z/`). **`M2` (`qalead-la-42`):** **`64/64` manifest cases `PASS`** (`SLOT3C/artifacts/qalead-la-42-8fadb828-2026-10-23T21-27-37-069Z/`). |
+| **`AC-LA-E7-08-02`** | **`PENDING`** | Pending **`LA-E7-06` kit `K1` run** (`LA-H25`) | Waits for the `LA-E7-06` kit `K1` run on a fresh SIM lane with the `N/A` rule, `C1` equality, `coveredBy`, and `K-HYG` (`TEST-STRATEGY.md` §2.6; human decision `LA-H25`). |
+| **`AC-LA-E7-08-03`** | **`PASS`** | **Slot 3C `qalead-la-43`** (`G1–G4` golden capture & `compare.mjs` on `8fadb828`) | `9/9` host steps `PASS` (`129` secret values scanned, `0` hits) and `compare.mjs` against `G-BASE` (`1b17261`) with all 13 approved `LD-9` records (`LA-IC-01..21`) exited `0`: `EQUAL: 280 differences (0 not explained), 0 expected changes missing` (`SLOT3C/artifacts/qalead-la-43-8fadb828-2026-10-23T21-30-25-616Z/`). |
+| **`AC-LA-E7-08-04`** | **`PASS`** | **Slot 3C `qalead-la-41`** (`M1 snapshot-upgrade` on `8fadb828`) + **Slot 3B `qalead-la-11`** (`M1 migration`) + **Slot 3B `qalead-la-13`** (`U1-SIM` `LA-E5-08` + `LA-E5-22`) | `qalead-la-41` passed `11/11` `summary.json` rows and `6/6` manifest rows (`M1-38.common.h1..h5` + `M1-41.common.j-snapshot`); `qalead-la-11` passed `12/12` `migration` manifest rows; `qalead-la-13` passed `37/37` `U1-SIM` assertions (`0` SQL migrations changed between `80133d6b` and `8fadb828`). |
+| **`AC-LA-E7-08-05`** | **`PASS`** | **Slot 3D (`src-wave-end-4`, `6ce8ffaf`) & Slot 3C (`src-wave-end-3`, `e46bb27c`) `K0` host `git diff` audit** | `e00b9651:tests` tree `f42d4150b7b11ba2b2e63898ee317e6dea3f9430` equals `8ad12926:tests`; `e46bb27c` changes only the 3 approved `ld9-addendum-r1.md` Round 2 files; `6ce8ffaf` (`la-gate-test-4`) changes only `tests/acceptance/M1/canvas/21-canvas-protocol.test.ts` (`1 file changed, 21 insertions(+), 4 deletions(-)`) per approved `ld9-addendum-r2.md` Round 2; `git diff --exit-code 8fadb828 6ce8ffaf -- . ':!tests'` is empty (`0` non-test files changed). |
+| **`AC-LA-E7-08-06`** | **`PASS`** | **Slot 3C / Slot 3D `K0` host `git diff` audit** | `git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-4 diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..8fadb828088ffe1b4db02179ab0fa3ab2388a12a -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` is empty (`0` files changed, exit `0`). |
+
+- **Whole `LA-E7-08` Verdict:** **`PENDING`** — `5/6` ACs **`PASS`** (`AC-LA-E7-08-01`, `AC-LA-E7-08-03`, `AC-LA-E7-08-04`, `AC-LA-E7-08-05`, `AC-LA-E7-08-06`), `0/6` ACs `FAIL`, and `1/6` AC **`PENDING`** (`AC-LA-E7-08-02`, awaiting the `LA-E7-06` kit `K1` run under human decision `LA-H25`).
+
 
