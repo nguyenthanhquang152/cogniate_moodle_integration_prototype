@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 ## Round 1
 
@@ -109,3 +109,13 @@ Verdict: **CHANGES_REQUESTED**. Reviewed Docs commits `4b5fc743` and `270df640`,
 Private `git clone --no-hardlinks` at `a400c78e`: `/tmp/e8-01-r3-review-b-v6106ssq/repo`, with its own dependencies. Local fake data only: sixth-fixture K0 **16/16**, filter **24/24**, two old-filter negative controls, and the stubbed-spawn directory comparison. Evidence in the parent folder: `kit-sixth-fixture.log`, `sixth-fixture.json`, `filter-new.sh`, `filter-old.sh`, `filter-results.json`, `capture-spawn.mjs`, `documented-spawn.json`, `corrected-spawn.json`, `links.json`. Removed the fake fixture; the private tracked tree is unchanged. Guide link targets resolve; the other-reviewer link was excluded.
 
 The scoped author changes stay in the allowed guide; the other files of `270df640` belong to its separate LA-E8-05 work and were not reviewed here. No UNIT AC applies to this documentation task. No Docker, stack, live request, SIM runner or commit; only this review file was edited in integration, and no Reviewer-A file was opened.
+
+## Round 4
+
+Verdict: **APPROVE**. Reviewed Docs commit `2960639e`, integrated at `e8aacf54`, and the matching QA-owned README command correction integrated at `29fcb01d`. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open; no new findings.**
+
+**B-LA-E8-01-05 — Closed.** `docs/guides/ltiaas/add-a-channel.md:353–355` now states the `/repo` working directory and uses `npm --prefix tests run acceptance:api`. The note explains why the runner needs `tests/` and gives the correct direct-node form after changing to `/repo/tests`. This matches `tests/package.json`, `tests/acceptance/run-api.mjs`, the container working directory, and `tests/ltiaas/kit/README.md:112–125`. The README correction was made by QA. Earlier findings -01 through -04 remain closed.
+
+Independently reran the actual acceptance entry point with a fake Vitest file in a fresh private `git clone --no-hardlinks`, pinned to `e8aacf546b61d98b831ebcccedbff92dd072fc9c`: `/tmp/e8-01-r4-review-b-5vyy8a8m/repo`. Commands were extracted from the guide, with only `<id>` replaced by a fake id. **6/6 probe cases passed** across bash and zsh: both corrected forms exit 0, start in `tests/`, find the existing kit config, pass the expected Vitest arguments, and preserve `LA_RUN_DIR`, `QA_KIT_CHANNELS` and `QA_TASK`. In both shells the old root command resolves the missing root-level config and exits 3, as expected. Evidence in the parent folder: `probe.py`, `fake-vitest.mjs`, `probe-results.json`, `probe.log`, and per-case JSON/log files. The clone's tracked files are unchanged; no dependency installation was needed.
+
+The Docs diff changes only the permitted guide. No product, architecture, core LMS path or other guide changes; no UNIT AC applies. This focused probe validates command startup, not K1 behavior. The guide keeps the real K1-SIM run and AC-LA-E8-01-02 pending QA; this approval does not replace those runs or the separate kit review. No Docker, stack, real test runner, live request or commit. Only this report was edited in integration, and no Reviewer-A file was opened.
