@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 6
+Verdict: APPROVE
+Round: 7
 
 # LA-E0-02 — Reviewer-A
 
@@ -174,3 +174,22 @@ Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `f27bf214`,
 Fresh reading of `docs/reviews/LA-E7-08/qa.md:1351`–`:1360` confirms that its incorrect run IDs/rates and pre-WE-F6 T8 attribution remain. **A-LA-E0-02-04 stays open; A-LA-E0-02-03 stays open only for that companion attribution.** Review the planned companion correction before closing either finding. D3/D4 results need their own per-ID differential record when available; they are not a prerequisite for accepting the corrected historical E0-02 observations.
 
 Evidence: **`/tmp/la-review-a-6233f491561a/`**, including `audit.py`, `summary-audit.json`, `rates-recomputed.json`, `merged-123/`, `bucket-replay.json`, `other-snapshot-audit.json`, `t8-candidate-runs.json` and `t8-source-parity.json`; Round 5 trace evidence remains applicable. Only this Reviewer-A report was edited. No Docker, stack, host stack runner, install, product change or commit; no Reviewer-B report or probe was opened.
+
+
+## Round 7
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed the corrected R1 companion section in `LA-E7-08/qa.md:1365` at integration `c5a700d8`, its D3/D4 per-ID table and the authorized baseline T8 retry. Also verified the E0-02 candidate-pin correction at `a82c5e85` (QA `6828b414`). **APPROVE: 0 new findings and no remaining open Reviewer-A finding for E0-02.**
+
+| Finding | Disposition |
+| --- | --- |
+| A-LA-E0-02-01 | Remains CLOSED. The companion uses the complete all-pass rates accepted in Round 6 and retains BD-A2-114's no-override disposition. |
+| A-LA-E0-02-02 | Remains CLOSED; no new change to the corrected historical failure record. |
+| A-LA-E0-02-03 | CLOSED in full. The companion now says the initial T8 observation failure's cause is not proven, preserves the same-build hold cascade, and withdraws the unrelated pre-WE-F6/VirtioFS attribution. Original 129 remains FAIL; the candidate PASS results and separate baseline retry are explicit. |
+| A-LA-E0-02-04 | CLOSED. All ten R1 run identifiers and entry/unique-ID counts match the saved summaries. Incorrect duplicate rate figures are replaced by links to the authoritative E0-02 tables. The reproduced T2/T3 figures are 13 app / 213 LTI requests, launch 6/min / 5 per 10 s, protocol 34/min / 23 per 10 s, and registration 6/min / 6 per 10 s. The report no longer invents per-second or `lti.runtime` measurements. |
+| A-LA-E0-02-05 | CLOSED. `qa.md:311` now names the approved candidate `794f649c3ebacf1a1b3ac599cffffe338dd7373d`; it matches the retained gate source. |
+
+Fresh independent comparison of all 753 group-scoped baseline/D3/D4 IDs confirms that every original unequal row is retained. For T8, `AC-T8-03`, `AC-T8-07` and `SUITE` are FAIL in original R1 129 and PASS in D3 137 / D4 160. The separately authorized `qalead-la-170-78971b03-2026-10-24T23-06-37-809Z` has **36 PASS entries and 23 PASS IDs**, with baseline product `78971b03` and unchanged `1ae6716b` test content. GATE-RUN-PLAN §10 explicitly permits this solo retry and the baseline-flake disposition. The later pass does not identify the first failure's cause or rewrite its result.
+
+Raw R1 paths remain those listed in Round 5. Retry evidence is `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/baseline-t8-retry/artifacts/qalead-la-170-78971b03-2026-10-24T23-06-37-809Z/summary.json`; candidate paths and per-ID audits are indexed in [LA-E7-08 Reviewer-A Round 1](../LA-E7-08/reviewer-a.md#round-1) and `/tmp/la-review-a-de58aa8bbda5/{per-id-audit,source-audit}.json`. The new E7-08 carried-U1 record finding is separate from these corrected baseline items.
+
+No Docker, stack runner, install, source change or commit. Only assigned Reviewer-A reports were edited; no other reviewer's file or probe was opened.

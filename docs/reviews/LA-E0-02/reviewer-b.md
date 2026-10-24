@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 6
+Round: 7
 
 # LA-E0-02 — Reviewer-B
 
@@ -186,3 +186,13 @@ Reviewed QA `f27bf214` / integration `4ac1672d`, diff from `1b447224`, with A2's
 **B-LA-E0-02-04 remains OPEN, MINOR, for the companion E7-08 summary.** Its artifact/rate correction and removal of the repeated obsolete T8 attribution are assigned to the Lead QA's D3 record and are not included here. This round accepts the E0 corrections; E7 companion reconciliation and the D3/D4 comparison remain separate work.
 
 Verification: `/tmp/reviewer-b-e002-r6-p8e5rhst/{summary-audit.json,rate-sources.json,t2-complete-rate-peaks.json,bucket-replay.json}`, plus the Round 5 T8 evidence named above. No Docker, stack, install, product/test edit or commit. Only my review file was edited; blind review maintained.
+
+## Round 7
+
+Reviewed the assigned companion correction in E7-08 QA `26ddcebd` / integration `c5a700d8`, corrected R1 section at `docs/reviews/LA-E7-08/qa.md:1366`, on 2026-10-25. **APPROVE — B-LA-E0-02-04 CLOSED; 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open; 0 new findings.**
+
+All ten full run IDs now point to the saved R1 summaries and match the entry/unique-ID accounting independently checked in Round 6. The companion removes its conflicting rate table and links the canonical E0 results. Its T2/T3 numbers agree with the complete eight-input extraction: 13 app / 213 LTI requests, launch 6/min and 5/10s, protocol 34/min and 23/10s, registration 6/min and 6/10s, both conservative over-default flags, and BD-A2-114's decision to retain the defaults.
+
+The repeated pre-WE-F6 / read-only-mount / VirtioFS explanation is withdrawn. The companion now states that the first HOLD cause is not proven, gives the observed FAIL_AT cascade, and retains baseline 129 FAIL versus D1/D2/D3/D4 PASS for AC-T8-03/07. Independently checked the new authorized baseline retry 170: 36 PASS entries and 23 PASS IDs, matching candidate 137/160 without changing the T8 source. The original 129 failure is still visible in the per-ID table; retry success does not erase it.
+
+This closes the companion item left outside Round 6. My new E7-08 B-01 concerns different, older U1 carry citations and is recorded in that task, not carried against E0. Verification uses the Round 5/6 raw-accounting artifacts above and `/tmp/reviewer-b-regate-uqtfgkjb/{run-audit.json,per-id-audit.json,rerun-audit.json,source-parity.json}`. No product/test or UNIT change, Docker, stack, install or commit. Only the three dispatched Reviewer-B reports were edited; blind review maintained.

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 7
 
 # LA-E7-09 Reviewer A (lens: is it right and is it safe?)
 
@@ -111,3 +111,26 @@ Proof of the leak: at b5f68c4b, before the rename, T7 lists 20 tests in 7 files.
 ### Re-run
 
 None for the functional rows. Slot 8b must show `M3-07-S8` PASS with `slot8-secret-scan.json` from the committed runner.
+
+
+## Round 7 — final D3/D4 evidence
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA Round 7 at integration `c5a700d8` (QA `26ddcebd`) against the five task ACs, raw final-SHA artifacts, LD-25/29, amended LD-31 and LD-32. **APPROVE for this evidence scope; 0 new BLOCKER, MAJOR, MINOR or NIT.** Earlier review rounds remain unchanged. The separate carried-U1 provenance defect is recorded once as **A-LA-E7-08-01 (MAJOR)**; this approval does not close that task or approve its incorrect carried counts.
+
+| AC | Independent result |
+| --- | --- |
+| 01 | D3 130 and D4 153 each have eight successful host steps and three complete runs of 17 PASS / 0 FAIL / 1 expected demo SKIP. D3 run/reset times are 186/44, 195/53, 187/45 seconds; D4 times are 176/39, 180/41, 178/41 seconds. The skip is not counted as executed coverage. |
+| 02 | Every accepted legacy aggregate ID matches the accepted baseline. The original baseline T8 129 FAIL rows remain visible separately from unchanged solo retry 170 (36 PASS entries / 23 PASS IDs). D3 137 and D4 160 pass those IDs. The per-ID table matches raw summaries and explicitly retains original FAIL-to-PASS differences. D4 158's AC-T5-30/SUITE FAIL remains WE-F14; authorized unchanged solo 163 supplies the accepted result. |
+| 03 | Read all 12 start/end health files: 36 observations across the two T7 runs, 18 each. Every observation has HTTP 200, profile `default`, and `knobs: []`. Each run's START/END results also pass the no-active-knob check. |
+| 04 | Carried K2 is on product `4f10c5fd`: 12 distinct case rows PASS and 19 host entries PASS in `qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z`. Its U1–U4 tests tree equals the final gate tree `328d9ce24c0a8364224750d56d6a419fb5c04993`. No new K2 execution is implied. |
+| 05 | The 15 D3 and 14 D4 invocation records match their original summaries, counts and durations. Accepted runs have the same test content per suite. Both kits use the same LD-32 source and kit tree, and each binds its own T3b/T7/T8 wave inputs. The independent kit/golden checks reproduce 195 ledger rows / 196 Vitest tests and 297 approved golden differences per run. The incorrect E7-08 carried-U1 labels/counts remain a separate documentation finding. |
+
+The complete raw invocation index and shared verification are in [LA-E7-08 Reviewer-A Round 1](../LA-E7-08/reviewer-a.md#round-1). In particular, the original 136 H1 failure, old-session 136 PRE refusal, 141 assembly failure, 151 overlap finding, 158 timing failure and baseline 129 failures remain findings or notes, never PASS. Recoveries 142/162/163/170 and kits 144/161 match the documented Lead authorization. The raw M3 FAIL rows in 138/140/152/162 name foreign `sto-*` changes under the solo-run environment ruling; they remain FAIL rows despite passing functional cases. The 42-second initial D3 event gap is disclosed. The post-takeover watcher/events support solo execution and unchanged protected records.
+
+Exact additional evidence:
+
+- T7 summaries and `run1..3/evidence/health-{start,end}.json`: `/Users/quangnguyen/cogniate-qa-runs/LA/RUN-D3/artifacts/qalead-la-130-4f10c5fd-2026-10-24T19-31-11-287Z/` and `RUN-D4/artifacts/qalead-la-153-4f10c5fd-2026-10-24T21-33-32-449Z/` under the same LA root.
+- K2 `summary.json` and `k2-case-results.json`: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/runner-repo/tests/host/artifacts/qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z/`.
+- Baseline retry `summary.json`: `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/baseline-t8-retry/artifacts/qalead-la-170-78971b03-2026-10-24T23-06-37-809Z/`.
+
+Independent extracts: `/tmp/la-review-a-de58aa8bbda5/{invocation-audit,per-id-audit,source-audit,carried-audit,boundary-health-recovery-audit,kit-audit,golden-audit}.json`. Host-only review; no Docker, stack runner, install, product edit or commit. No other reviewer's file or probe was opened.

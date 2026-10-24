@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 7
 
 # LA-E7-09 — Reviewer-B
 
@@ -79,3 +79,23 @@ Dedicated candidate configs still discover R2-SIM (2), K2 (12), and Slot 8 pass 
 Read the full fix against the task spec, governing charters, plan §6.1 and ownership rules. Changes stay in QA-E2E-owned files and the assigned QA report; frozen configs/specs and product/core paths are unchanged. There is no UNIT AC in this scope. No Docker command, stack, browser execution, live runner mode, commit or push was used. No other reviewer's file was opened; only this review file was edited in integration.
 
 **Result:** APPROVE — 0 BLOCKER, 0 MAJOR, 2 MINOR, 0 NIT open (B-03 carried, B-04 new). Correct or defer the two documentation items through the Lead under charter §5. This is not completion evidence for the remaining live or full wave-end gates.
+
+## Round 7
+
+Reviewer: Codex GPT-6-Astra, Reviewer-B, 2026-10-25. Dispatched final re-gate review of QA `26ddcebd` / integration `c5a700d8`, E7-09 QA Round 7 and the shared D3/D4 evidence, on final product `4f10c5fd`. **APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open in this task review.** This round number follows the dispatch; this file's earlier task reviews are Rounds 1 and 2.
+
+**B-LA-E7-09-03 closes.** The ten-run history now identifies rows 4–8 by their retained per-run artifacts and explicitly marks the overwritten top-level log. Row 9 names `run-slot8-r2-run.log`; row 10 names `run-slot8-r2-final.log`. These match the raw log identities established in my Round 2 audit.
+
+**B-LA-E7-09-04 closes.** The discovery proof now uses `QA_TASK=T6` / `QA_TASK=T5a,T8`, supplies the clean-clone SHA requirements, and distinguishes M2's nine specs from its one reported helper source. The current `run-k2.mjs:125` onward really asserts the 18/6 and 37/14 acceptance counts. B-01/B-02 remain closed; the later Slot 8b summary also records the repaired in-run M3-07-S8 as PASS.
+
+| Final criterion | Independent check |
+| --- | --- |
+| AC-01 | D3 130 and D4 153 each have 8/8 host steps OK and three runs of 17 PASS, 0 FAIL, one expected DEMO skip. Durations are 186/195/187 s and 176/180/178 s; reset times match the report. |
+| AC-02 | Rebuilt every legacy-group comparison from the original summaries. Accepted baseline T8 170 and candidate 137/160 match on all 23 IDs. Original 129's AC-T8-03/07/SUITE FAIL outcomes remain explicit; the initial cause is not asserted. D4 uses the authorized unchanged recovery 163 for T5a/T5b while retaining failed 158 and WE-F14. |
+| AC-03 | Read all 12 raw health JSON files from the six T7 runs: 36 observations across app/LTI/content, all HTTP 200, profile default and empty knobs. Both START/END checks pass. |
+| AC-04 | Read carried `qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z`: all 12 K2 U1–U4 cases and all 19 runner IDs pass. Independently resolved the K2 tree at product, QA test source and final gate source: each is `328d9ce24c0a8364224750d56d6a419fb5c04993`. The report correctly calls this carried evidence, not a new run. |
+| AC-05 | Both accepted functional runs pass under the recorded LD-25/29/31/32 recovery and environment rulings. All 29 invocations, including failures/exclusions, have matching raw counts and times. Both kits have 195 ledger / 196 Vitest PASS results with correct same-wave inputs; both golden comparisons reproduce 297 approved changes. |
+
+The shared audit rebuilt all 753 group-scoped result rows and all 297 golden response-path rows. The full actual T7 test trees match across 667 tracked paths; the selective e2e overlay explains their unused differences from the full gate tree. Other retained run clones match their declared test sources. D3/D4 therefore use identical effective suite content. Failed attempts are findings, not silent passes, and the approximately 42-second initial D3 event gap remains an accepted evidence limit. The new E7-08 carried-U1 citation MINOR is recorded only in that task's B-01; it does not alter this K2 or Moodle comparison.
+
+Independent verification is in `/tmp/reviewer-b-regate-uqtfgkjb/`, especially `run-audit.json`, `per-id-audit.json`, `kits-health-carry.json`, `source-parity.json` and `boundary-trace-audit.json`; see my [E7-08 Round 1](../LA-E7-08/reviewer-b.md) for the shared audit details. The current change is QA evidence documentation, with no product/frozen assertion or UNIT behavior change. No Docker, stack, live runner, install or commit was used. Only the three assigned Reviewer-B reports were edited; blind review maintained.
