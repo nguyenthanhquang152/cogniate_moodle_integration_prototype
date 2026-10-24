@@ -1,13 +1,13 @@
 Verdict: PASS
-Round: 1
+Round: 2
 
 # LA-E0-04 One open-world rewrite of the closed-list assertions (LD-1): QA
 
-Tester: lead QA (Orca task `task_597ca321b1f4`, dispatch `ctx_dc11d8c6d070`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E0-04.md` at `c804e98` (integration worktree `f77eaf9`). Design: TEST-STRATEGY v1.4 §4.3.
+Tester: lead QA (Round 1: `task_597ca321b1f4` / `ctx_dc11d8c6d070`, 2026-10-22; Round 2 overlay fix round 1: `task_5785f09e261c` / `ctx_0d5d78338442`, 2026-10-24). Spec: `docs/architecture/ltiaas/tasks/LA-E0-04.md` at `c804e98` (integration worktree `f77eaf9`). Design: TEST-STRATEGY v1.4 §4.3.
 
-Independence: QA wrote the rewrite and the probes from the spec, TEST-STRATEGY §4.3, the app and LTI contracts (base and LA delta) and the frozen tests. QA read no product source, no Author notes and no reviewer file. It read the live G-BASE answers and pages only through public HTTP surfaces.
+Independence: QA wrote the rewrite and the probes from the spec, TEST-STRATEGY §4.3, the app and LTI contracts (base and LA delta) and the frozen tests. QA read no product source, no Author notes and no reviewer file in Round 1; in Round 2, QA read `docs/reviews/LA-E0-04/reviewer-a.md` and `docs/reviews/LA-E0-04/reviewer-b.md` per task brief and still read zero product source (`apps/**`, `services/**`, `packages/**`).
 
-**Done rule (plan LD-1): open.** Reviewer-A and Reviewer-B approve the diff and the final list, and the Lead approves the list. The approvals are not in yet. This file links them when they exist. QA-E2E reviews the M2 file (`tests/e2e/M2/01-cards.m2.ts`, task owner row).
+**Done rule (plan LD-1): Round 2 review ready (`docs/reviews/LA-E7-08/ld9-addendum-r5.md`).** Round 1 reviews (`docs/reviews/LA-E0-04/reviewer-a.md`, `docs/reviews/LA-E0-04/reviewer-b.md`) approved rows 1–5, 7, 8, LD-6 (`storage-fixture-script.mjs`), `LA-IC-04`/`LA-IC-14`, and the project-prefix guard, and raised `A-LA-E0-04-01 = B-LA-E0-04-01` (row 6 extra-card check matched `'LMS'` by substring) and `A-LA-E0-04-02` (`m1-migration.mjs` `M1-41.common.j-snapshot` ledger check dropped the historical prefix check and was listed under runner-only changes). Both findings are fixed in Round 2 (see §Round 2 fixes below and `docs/reviews/LA-E7-08/ld9-addendum-r5.md`).
 
 | Item | Value |
 | --- | --- |
@@ -26,8 +26,8 @@ Independence: QA wrote the rewrite and the probes from the spec, TEST-STRATEGY �
 | AC-LA-E0-04-02 | PASS | rows 1, 3, 8: `M1-01.common.constants`, `M1-02.common.default-profile`, `M1-35.common.default-off`, `-default-on`, `-acceptance-off` | `node tests/host/run-m1.mjs --phase sim --provider all --sha 1b17261… --test-sha 7372ce4… --source <src-rw1>` | M1 `m1-case-results.json` (all 5 PASS) |
 | AC-LA-E0-04-03 | PASS | row 2: `M1-01.common.constants` and the M2 stack gate `M2-STACK`; row 7: `M1-15.canvas.lms-providers` | the M1 command above; `node tests/e2e/host/run-m2.mjs --sha 1b17261… --test-sha 7372ce4… --source <src-rw1>` | M1 and M2 `summary.json` |
 | AC-LA-E0-04-04 | PASS | row 6: `M2-01.cards` | the M2 command above | M2 `m2-case-results.json` |
-| AC-LA-E0-04-05 | PASS | `tests/ltiaas/k0/ld1/open-world.test.mjs`: "row N strictness" × 18 (6 rows × a changed, a removed and a moved baseline element) | `node --test tests/ltiaas/k0/ld1/open-world.test.mjs` | 40/40 pass, 36 ms |
-| AC-LA-E0-04-06 | PASS | same file: "row N openness" × 12 (an extra element of a registered channel passes, of an unregistered channel fails), plus additive fields (LA-IC-01) pass, a simulation profile in `default` fails, the Kajabi card at most once | same command | same run |
+| AC-LA-E0-04-05 | PASS | `tests/ltiaas/k0/ld1/open-world.test.mjs` and `open-world.test.ts`: "row N strictness" × 18 (6 rows × a changed, a removed and a moved baseline element) | `node --test tests/ltiaas/k0/ld1/open-world.test.mjs` and `npx vitest run --config tests/ltiaas/k0/vitest.config.mts tests/ltiaas/k0/ld1/open-world.test.ts` | 42/42 pass (Node test 44 ms; Vitest 8 ms) |
+| AC-LA-E0-04-06 | PASS | same files: "row N openness" × 12 (an extra element of a registered channel passes, of an unregistered channel fails), mixed registered + unregistered probe with `lti-generic` (`channelName: 'LMS'`) (`A-LA-E0-04-01 = B-LA-E0-04-01`), `M1-41.common.j-snapshot` migration-ledger prefix + candidate file probe (`A-LA-E0-04-02`), additive fields (LA-IC-01) pass, a simulation profile in `default` fails, the Kajabi card at most once | same commands | same runs |
 | AC-LA-E0-04-07 | PASS (list approval open) | `git diff --stat bd368ff..7372ce4 -- tests/acceptance tests/e2e tests/host tests/sim tests/fixtures` | see "Final LD-1 list" | 8 files: the 6 files of the spec and the 2 new helper files; rows 4 and 5: no changed line (`00-profiles.test.ts` capability lines and `31-canvas-grants.test.ts` are not in the diff) |
 
 Each rewritten check calls the shared module `tests/acceptance/lib/open-world.mjs`. The K0 probes call the same functions with the same arguments as each call site, on answers recorded live at G-BASE (`tests/ltiaas/k0/ld1/g-base/acceptance.json`, `default.json`, `cards.json`; no secret in them). So the probes test the exact assertion code of M1 and M2.
@@ -92,3 +92,14 @@ Result: the scan at G-BASE finds rows 1–8 and no other hit. Row 2 has two plac
 - N2: the frozen M1 and M2 runners accept only a committed test SHA, so the proof used the local commit `7372ce4` (private clone, not pushed). After the Lead's path commit, the files are byte-equal; the next R1 run uses the integration SHA.
 - N3: no M1 or M2 case id, title or count changed (`vitest list`: 392 API cases, unique; M2 discovery unchanged, 64 cases).
 - N4: deferred-candidate (MINOR, for `docs/team/ltiaas/deferred.md` if the Lead agrees): TEST-STRATEGY §4.3 row 1 says "the 6 baseline profiles"; in the `acceptance` profile the list has 8 (6 real + 2 simulation). The rewrite checks all 8.
+
+## Round 2 fixes (`A-LA-E0-04-01 = B-LA-E0-04-01` and `A-LA-E0-04-02`; `docs/reviews/LA-E7-08/ld9-addendum-r5.md`)
+
+1. **`A-LA-E0-04-01 = B-LA-E0-04-01` (BLOCKER — Row 6 extra-card membership oracle):**
+   - `extraChannelNames(lmsProviders)` (`tests/acceptance/lib/open-world.mjs` and byte-identical `tests/ltiaas/lib/open-world.mjs`) now returns the deduplicated exact channel `id` (`channel ?? lms`), `channelName`, and `label` strings for each registered non-baseline channel (`['lti-generic', 'LMS']` in the K0 fixture when `lti-generic` is registered).
+   - `lmsCardTexts(page)` (`tests/e2e/M2/01-cards.m2.ts`) extracts `{ text, channel, name }` per visible card in the `"LMS Publishing"` grid, where `channel` comes from `/integrations/<channel>/(connect|con_...)` or `<channel>-connect` / `<channel>-manage` and `name` comes from the card heading (`h2, h3, [role="heading"]`).
+   - `checkCards` checks `allowed.has(...)` by **exact** `id` or `name` membership in the `Set` of registered non-baseline identifiers — never by substring (`String(text).includes(name)` is removed).
+   - Added the mixed registered and unregistered K0 probe to `tests/ltiaas/k0/ld1/open-world.test.mjs` and `tests/ltiaas/k0/ld1/open-world.test.ts`: when `lti-generic` (`channelName: 'LMS'`) is registered, the registered generic card passes while `'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.'` (Reviewer-A), `'ConnectSakai LMSPublish Cogniate courses to Sakai with LTI 1.3.'` (Reviewer-B), `'ConnectYour LMSPublish Cogniate courses to Sakai with LTI 1.3.'`, and unregistered structured DOM cards fail both alone and alongside the registered generic card (`42/42` K0 tests pass).
+2. **`A-LA-E0-04-02` (MAJOR — `tests/host/m1-migration.mjs` `M1-41.common.j-snapshot` migration-ledger check and classification):**
+   - Added `checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger })` in `open-world.mjs` and called it from `snapshotMigrationRun` in `tests/host/m1-migration.mjs`: (a) verifies that every historical ledger entry in `oldLedger[db]` is preserved in order as a non-empty prefix of `newLedger[db]`, (b) verifies `'012_connection_provider_snapshot.sql'` in `newLedger['cogniate-app/cogniate.db']`, and (c) keeps the exact comparison against the candidate's sorted migration files (`expectedLtiLedger`, `expectedAppLedger`).
+   - Added the focused K0 negative and positive self-test in `open-world.test.mjs` and `open-world.test.ts` (proving that dropping or reordering a historical entry fails even if also removed or reordered in `expected*Ledger`), and updated `tests/ltiaas/GATE-RUN-PLAN.md` and `docs/reviews/LA-E7-08/qa.md` to classify `tests/host/m1-migration.mjs` explicitly as an assertion change on `M1-41.common.j-snapshot` (`BD-A2-108` / `LA-H21` / `WE-F5`).

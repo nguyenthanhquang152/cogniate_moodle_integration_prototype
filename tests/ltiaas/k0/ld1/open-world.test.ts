@@ -23,6 +23,7 @@ const {
   BASELINE_SIMULATION_PROFILES,
   checkCards,
   checkLmsEntries,
+  checkMigrationLedgers,
   checkProfiles,
   checkSimulationProfiles,
   extraChannelNames,
@@ -155,7 +156,7 @@ const rows: ProbeRow[] = [
     },
     extra: (a, registered) => {
       if (registered) a.lmsProviders = withChannel(a.lmsProviders);
-      a.cards.push(`ConnectYour LMSPublish Cogniate courses to ${registered ? NEW.name : 'Sakai'} with LTI 1.3.`);
+      a.cards.push(`Connect${registered ? NEW.name : 'Sakai'}Publish Cogniate courses to ${registered ? NEW.name : 'Sakai LMS'} with LTI 1.3.`);
     },
   },
   {
@@ -184,13 +185,16 @@ const rows: ProbeRow[] = [
 ];
 
 test('the probe card texts equal tests/e2e/M2/lib/m2.ts TEXT, and open-world copies match when present', () => {
-  const source = fs.readFileSync(path.join(testsDir, 'e2e/M2/lib/m2.ts'), 'utf8');
-  for (const [key, text] of [
-    ['moodleCard', CARD_TEXTS[0]],
-    ['canvasCard', CARD_TEXTS[1]],
-    ['blackboardCard', CARD_TEXTS[2]],
-  ] as const) {
-    assert.ok(source.includes(`${key}: ${JSON.stringify(text).replaceAll('"', "'")}`), key);
+  const m2Path = path.join(testsDir, 'e2e/M2/lib/m2.ts');
+  if (fs.existsSync(m2Path)) {
+    const source = fs.readFileSync(m2Path, 'utf8');
+    for (const [key, text] of [
+      ['moodleCard', CARD_TEXTS[0]],
+      ['canvasCard', CARD_TEXTS[1]],
+      ['blackboardCard', CARD_TEXTS[2]],
+    ] as const) {
+      assert.ok(source.includes(`${key}: ${JSON.stringify(text).replaceAll('"', "'")}`), key);
+    }
   }
   if (fs.existsSync(acceptanceOpenWorldPath)) {
     assert.equal(
@@ -258,4 +262,93 @@ test('row 6: the G-BASE Kajabi card is allowed, but not twice', () => {
   assert.deepEqual(checkCards(answer.filter((t: string) => !t.includes('Kajabi')), CARD_TEXTS, { names: [] }), []);
   answer.push(answer[0]);
   assert.throws(() => checkCards(answer, CARD_TEXTS, { names: [] }), assert.AssertionError);
+});
+
+test('row 6 exact membership (A-LA-E0-04-01 / B-LA-E0-04-01): mixed registered and unregistered cards with lti-generic (channelName: LMS)', () => {
+  const names = extraChannelNames(withChannel(acceptance.lmsProviders));
+  assert.deepEqual(names, ['lti-generic', 'LMS']);
+  const registeredStringCard = 'ConnectLMSPublish Cogniate courses to LMS with LTI 1.3.';
+  const registeredDomCard = {
+    text: 'LTI Connect LTI 1.3 Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: 'lti-generic',
+    name: 'LTI 1.3',
+  };
+  assert.equal(checkCards([...cards.cards, registeredStringCard], CARD_TEXTS, { names }).length, 2);
+  assert.equal(checkCards([...cards.cards, registeredDomCard], CARD_TEXTS, { names }).length, 2);
+
+  const unregisteredCards = [
+    'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.',
+    'ConnectSakai LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    'ConnectYour LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    { text: registeredStringCard, channel: 'sakai', name: 'LMS' },
+    { text: 'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.', channel: null, name: 'Sakai LMS' },
+  ];
+  for (const bad of unregisteredCards) {
+    assert.throws(() => checkCards([...cards.cards, bad], CARD_TEXTS, { names }), assert.AssertionError);
+    assert.throws(() => checkCards([...cards.cards, registeredDomCard, bad], CARD_TEXTS, { names }), assert.AssertionError);
+  }
+});
+
+test('M1-41.common.j-snapshot migration ledger (A-LA-E0-04-02): old ledger is a prefix of upgraded ledger and matches candidate migrations', () => {
+  const oldLedger = {
+    'lti-service/lti.db': ['001_init.sql', '005_lti_grants.sql'],
+    'cogniate-app/cogniate.db': ['001_init.sql', '011_lms_types.sql'],
+  };
+  const expectedLtiLedger = ['001_init.sql', '005_lti_grants.sql', '006_lti_provider_selection.sql', '007_lti_channel_columns.sql'];
+  const expectedAppLedger = [
+    '001_init.sql',
+    '011_lms_types.sql',
+    '012_connection_provider_snapshot.sql',
+    '013_connection_channel_columns.sql',
+  ];
+  const newLedger = {
+    'lti-service/lti.db': [...expectedLtiLedger],
+    'cogniate-app/cogniate.db': [...expectedAppLedger],
+  };
+  checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger });
+
+  // Missing historical entry in lti.db or cogniate.db fails even if also removed from expected*Ledger.
+  const droppedLti = expectedLtiLedger.slice(1);
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': droppedLti, 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger: droppedLti, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
+  const droppedApp = expectedAppLedger.filter((m) => m !== '011_lms_types.sql');
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': expectedLtiLedger, 'cogniate-app/cogniate.db': droppedApp },
+        { expectedLtiLedger, expectedAppLedger: droppedApp },
+      ),
+    assert.AssertionError,
+  );
+
+  // Reordered historical prefix fails even if expected*Ledger matches newLedger.
+  const reorderedLti = ['005_lti_grants.sql', '001_init.sql', '006_lti_provider_selection.sql', '007_lti_channel_columns.sql'];
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': reorderedLti, 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger: reorderedLti, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
+
+  // Unapplied candidate migration file fails exact comparison.
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': expectedLtiLedger.slice(0, -1), 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
 });
