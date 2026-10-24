@@ -26,4 +26,29 @@ export function appLmsProviders(
     Promise<{ status: number; headers: Record<string, any>; body: string }>,
   options: { appUrl: string; ca?: string | null; user: { email: string; password: string } },
 ): Promise<Json>;
-export function checkCards(cards: string[], baselineTexts: string[], options: { names: string[]; others?: string[]; label?: string }): string[];
+export interface CardDescriptor {
+  text: string;
+  channel?: string | null;
+  id?: string | null;
+  name?: string | null;
+  title?: string | null;
+  disabled?: boolean;
+  loading?: boolean;
+  notReadyLms?: string | null;
+}
+export type CardInput = string | CardDescriptor;
+export function checkCards<T extends CardInput>(
+  cards: T[],
+  baselineTexts: string[],
+  options: { names: string[]; others?: string[]; label?: string },
+): T[];
+export interface MigrationLedgerMap {
+  'lti-service/lti.db': string[];
+  'cogniate-app/cogniate.db': string[];
+  [db: string]: string[];
+}
+export function checkMigrationLedgers(
+  oldLedger: MigrationLedgerMap,
+  newLedger: MigrationLedgerMap,
+  options?: { expectedLtiLedger?: string[]; expectedAppLedger?: string[]; label?: string },
+): void;

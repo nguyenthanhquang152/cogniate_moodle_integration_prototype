@@ -7,9 +7,10 @@ const testsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const tasks = (process.env.QA_TASK ?? '').split(',').map((t) => t.trim()).filter(Boolean);
 const m1 = tasks.includes('M1') || Boolean(process.env.QA_M1_MIGRATION_STAGE);
 if (m1 && tasks.some((t) => t !== 'M1')) throw new Error('M1 uses a separate ordered pass; do not mix legacy suites');
-const la = tasks.find((t) => /^LA-E\d+-\d+$/.test(t));
-if (la && tasks.length !== 1) throw new Error('LA task uses a separate Vitest config; do not mix suites');
-let config = m1 ? 'acceptance/M1/vitest.config.mts' : 'acceptance/vitest.config.mts';
+const k1 = tasks.includes('K1') || tasks.includes('LA-E7-06');
+const la = !k1 && tasks.find((t) => /^LA-E\d+-\d+$/.test(t));
+if ((k1 || la) && tasks.length !== 1) throw new Error('LA task uses a separate Vitest config; do not mix suites');
+let config = k1 ? 'ltiaas/kit/vitest.config.mts' : m1 ? 'acceptance/M1/vitest.config.mts' : 'acceptance/vitest.config.mts';
 if (la) {
   const ltiaasDir = path.join(testsDir, 'ltiaas');
   const matches = fs.existsSync(ltiaasDir)

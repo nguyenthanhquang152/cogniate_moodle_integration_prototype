@@ -46,18 +46,20 @@ Rule for an LMS that is not Moodle (no `LA-IC` id; LA-ADR-02 D1):
 
 Limit: in LA, use this method only when the Canvas configuration URL is on the school's own Canvas host (for example a self-hosted Canvas). A configuration URL on an Instructure host (`canvas.instructure.com`, `sso.canvaslms.com`) is refused (`ISSUER_RESERVED` or `PLATFORM_URL_NOT_IN_PROFILE`), and nothing is stored [SIM E3-09-05]. For a Canvas that Instructure hosts, use the developer key method of the [Canvas guide](../canvas-admin.md). The hosted case waits for a live Canvas check.
 
+The portal still offers Dynamic Registration for every Canvas type. A later portal change (BD-A2-106) adds this help to the method: "Copy one registration URL into Canvas. Cogniate gets the Client ID and the Deployment ID. For Instructure-hosted Canvas, use Developer key. Cogniate does not support this method there yet." That text is not in the wave-end build: pending verification.
+
 Three people take part, as in the Canvas guide: the Cogniate library user, the Canvas administrator and the Cogniate operator.
 
 Step A. Make the connection (Cogniate library user):
 
-1. In the portal, open **Integrations**, then the card **Canvas**. Click **Connect**.
-2. Enter the values of [Canvas guide procedure 1](../canvas-admin.md#procedure-1-make-the-connection-cogniate-library-user).
+1. In the portal, open **Integrations**, then the card **Canvas**. Click **Connect** [K2 E7-07-01].
+2. Enter the values of [Canvas guide procedure 1](../canvas-admin.md#procedure-1-make-the-connection-cogniate-library-user). Its labels are M1 evidence.
 3. In **Connection method**, select **Dynamic Registration**. The default is **Developer key** [UNIT E3-16-01].
-4. Finish the create step.
+4. Finish the create step [SIM E3-16-04].
 
 Result: the connection is `pending`, with authority `operatorGrant`. The portal shows the registration URL at once [SIM E3-15-03], [UNIT E3-16-02].
 
-Step B. Register Cogniate in Canvas (Canvas administrator). The portal shows these steps under "Register Cogniate in Canvas" [UNIT E3-16-02]:
+Step B. Register Cogniate in Canvas (Canvas administrator). The portal shows these steps under "Register Cogniate in Canvas" [UNIT E3-16-02]. Steps 2 and 3 happen in Canvas; QA did them with the Canvas simulator [SIM E3-09-01], [SIM E3-16-04]:
 
 1. Copy the registration URL. If there is no URL, or the URL expired, select **Get registration URL**.
 2. In Canvas, open **Admin**, select your account, then open **Developer Keys**.
@@ -77,7 +79,7 @@ What Cogniate checks:
 Step C. Ask for the approval code (Canvas administrator):
 
 1. Send the request to your Cogniate operator, as in [Canvas guide procedure 4](../canvas-admin.md#procedure-4-ask-for-the-approval-canvas-admin).
-2. Give the Canvas URL, the Client ID and the Deployment ID.
+2. Give the Cogniate library and connection name, the Canvas URL, the Client ID and the Deployment ID. Ask the library user for the library and connection name.
 3. The operator issues a normal Canvas grant. The operator does not use `--accept-staged`; the CLI refuses it for Canvas [SIM E3-15-04].
 4. Give the approval code to the library user through a private channel.
 
@@ -85,8 +87,8 @@ Step D. Save the connection (Cogniate library user):
 
 1. Open the connection page. The portal says: "Canvas sent the registration. The registration URL is not necessary now. In the next step, check the Client ID and the Deployment ID. Then enter the approval code from your Cogniate operator and select Save." [UNIT E3-16-03]
 2. Check the **Client ID** and the **Deployment ID**. The portal fills them from the registration. You can change them [UNIT E3-16-03].
-3. Enter the **Approval code**.
-4. Select **Save**.
+3. Enter the **Approval code** [SIM E3-16-04].
+4. Select **Save** [SIM E3-16-04].
 
 Result: the connection is `registered`, and the platform works. A learner launch and a score pass [SIM E3-15-04], [SIM E3-16-04], [SIM E3-09-03].
 
@@ -102,7 +104,7 @@ The Blackboard setup steps do not change.
 
 | Id | Change | What you see or do | Evidence | Status |
 | --- | --- | --- | --- | --- |
-| LA-IC-13 | Extra audience in the launch | If your LMS sends a second `aud` value next to the Client ID, every launch fails with `INVALID_ISSUER_OR_AUDIENCE`. Tell your Cogniate operator the exact extra value. The operator adds it to the trusted list of the platform ([runbook §17.1](operator-runbook.md#171-launches-fail-at-check-5-extra-audience)). Then the launch passes. | `[SIM E3-12-03]` ([qa](../../reviews/LA-E3-12/qa.md)) | simulator only |
+| LA-IC-13 | Extra audience in the launch | If your LMS sends a second `aud` value next to the Client ID, and the value is not on the trusted list of the platform, the launch is refused with `INVALID_ISSUER_OR_AUDIENCE`. Tell your Cogniate operator the exact extra value. The operator checks the cause and the expected value, then adds the value to the trusted list ([runbook §17.1](operator-runbook.md#171-launches-fail-at-check-5-extra-audience)). That stops this refusal when the other launch checks pass. For example, with several `aud` values the LMS must also send `azp` equal to the Client ID (pending verification). | `[SIM E3-12-03]` ([qa](../../reviews/LA-E3-12/qa.md)) | simulator only |
 
 ## 5. New panels (no `LA-IC` id; no M1 step changes)
 

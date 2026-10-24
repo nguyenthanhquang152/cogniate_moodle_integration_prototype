@@ -1,4 +1,5 @@
 // Slot 6 R2-sim browser & protocol suite on `moodle-sim` (https://moodle.sim.test).
+// File ends in .r2sim.ts so the frozen T7 suite (tests/playwright.config.ts testMatch **/*.spec.ts) never selects it (WE-F9).
 // Covers manual Moodle connect, .mbz backup export, Deep Linking (no window hint), SCORM 1.2 + HTML grades (200/409/503 + Resend),
 // and Check 14 family guard refusal on `standard` profile.
 import { createCourse, uploadVersion } from '../../acceptance/lib/app';

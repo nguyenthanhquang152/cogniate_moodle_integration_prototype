@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 # LA-E5-19 review, lens A ("Is it right and is it safe?")
 
@@ -72,3 +72,32 @@ Also in this diff:
 - `7ee383f` adds `cleanupStorageChecks` to the `retention` job (one more `retention_cleanup` table, 10-minute rule). This closes AC-LA-E5-19-09 and my LA-E3-02 MINOR A-LA-E3-02-01. Mutant T5 (no call) fails 2 tests.
 - `infra/compose.yaml` passes `AUDIT_RETENTION_DAYS` (default 400) and `JOB_INSTANCE_ID` (default `lti-1`), and `.env.example` documents them as comments only. They are not secrets.
 - Note (no finding): `SERVICE_EXIT_AFTER_MS` uses the default lease. A future job with a longer `leaseMs` would make the runner grace longer than 70 s. The job that adds it should raise both values, following the BD-A2-31 order.
+
+
+## Round 3 — WE-F4 shutdown fix
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `93ab0c50^1..93ab0c50` (S1 `d219ce40`), against BD-A2-109, LA-ADR-06 D11 and operability §3. **CHANGES_REQUESTED: 1 new MAJOR; no new BLOCKER, MINOR or NIT.** Prior closed findings remain closed.
+
+### A-LA-E5-19-04 — MAJOR — Listener-close errors are discarded, so shutdown reports success
+
+- **File:** `services/lti-service/src/main.ts:103`, also `:105`.
+- **Problem:** `Promise.allSettled` waits for the runner and both listeners, but destructuring keeps only the runner result. A rejected public or operator close is ignored. `close()` resolves and `createShutdownHandler` exits 0, contrary to the required failed-step exit 1.
+- **Evidence:** A private test started the real service on ephemeral local ports, wrapped the operator listener close to await its real close and then reject with `operator close failed`, and asserted that service close rejected. It instead resolved `undefined`; the database was closed. Existing failure-exit coverage supplies a rejected service-level `close`, so it cannot detect this swallowed listener error. The previous implementation also discarded listener errors; this review flags it because failure exit is an explicit requirement of the dispatched shutdown fix.
+- **Suggested fix:** Keep all settled results; after database cleanup, propagate a rejected result from any listener or the runner. Add listener-failure coverage through service close (and its exit handler). A private control with that change passed the probe and the focused suite.
+
+### Checks and limits
+
+- The normal path starts both listener closes and runner stop in the same turn, closes idle connections, cuts a held request at 3,000 ms, waits for the running job, and closes the database afterward. The close promise remains idempotent. The original job-drain check stays green, as do the unchanged 70 s fallback and failure-exit tests; the runner's 60 s grace and both 75 s compose settings are unchanged.
+- **48/48 existing focused tests passed** across LTI main, app shutdown and shared jobs. Both new LTI cases (a) and (b) failed with the old runner-first/no-HTTP-cut order restored privately; all four new app/LTI cases failed under those mutations. Two additional error-path probes exposed one defect per service. Private controls passed **50/50** checks, including these probes. These controls were removed, not submitted as product edits.
+- The HTTP cut intentionally leaves pending handler code alive only while the runner drains, as BD-A2-109 states. Normal final exit follows database close immediately. No transaction, conditional binding write, lease or compensation rule changes; ADR-011 still covers late remote writes and dead handlers. No new request is accepted after the listeners stop. The changed files are S1's main wiring and its colocated tests, with no core LMS name or other behavior change.
+- The fresh private clone `/tmp/la-reviewer-a-ctx-63e08b92dff0` was at `9f8e990a`, used its own `npm ci` and had its Vitest cache cleared before every run; its tracked tree is restored clean. Evidence: `/tmp/la-reviewer-a-ctx-63e08b92dff0-focused.log` and `/tmp/la-reviewer-a-ctx-63e08b92dff0-probes/` (probe sources, `error-paths.log`, `controls.log`, `old-order-mutants.log`). No Docker, stack, host stack runner, commit or Reviewer-B file was used. QA's restart timing and seven frozen M1-37 rows remain for the re-gate.
+
+
+## Round 4 — WE-F4 error-path fix
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `8fadb828^1..8fadb828` (S1 `a2c99731`), against BD-A2-109 and the Round 3 finding. **APPROVE: 0 new or open findings. A-LA-E5-19-04 is closed; prior findings remain closed.**
+
+- **Finding 04 closed:** `main.ts:103`–`:107` retains every settled result. It still waits for both listeners and the runner, closes the database, then propagates any failed result. A public or operator listener error now rejects the cached close promise and produces exit 1.
+- The new parameterized test passes for both listeners, checks that the database closes last, and checks exit 1 through the real shutdown handler. My prior private operator-close rejection probe also passes. Restoring the prior faulty implementation makes all three checks fail: the two exit checks observe 0, and the private probe observes a resolved promise.
+- **53/53 focused checks passed** across LTI main, app shutdown and shared jobs: 51 committed tests plus the two repeated private probes. All five relevant checks fail with the prior faulty implementations restored. Normal idle/busy shutdown, HTTP cutoff, runner drain, idempotence and the fallback remain covered. No change to the 3/60/70/75 s bounds, transaction or lease/ref rules. The diff stays within S1 main wiring and its colocated tests, with no unrelated behavior or core LMS name added.
+- Verification: fresh `git clone --no-hardlinks` at `9b918a7e`, own `npm ci`, cache cleared before each run; `/tmp/la-reviewer-a-ctx-d2660307debb` is restored clean. Evidence: `/tmp/la-reviewer-a-ctx-d2660307debb-probes/focused-and-probes.log`, `prior-error-mutants.log` and saved probe sources. No Docker, stack, host stack runner, commit or Reviewer-B file was used. QA's restart timing and seven frozen M1-37 rows remain for the re-gate.

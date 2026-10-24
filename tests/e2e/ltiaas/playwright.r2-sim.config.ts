@@ -1,11 +1,12 @@
-// Playwright config for Slot 6 R2-sim Moodle simulator browser suite (tests/e2e/ltiaas/r2-moodle-sim.spec.ts).
+// Playwright config for Slot 6 R2-sim Moodle simulator browser suite (tests/e2e/ltiaas/r2-moodle-sim.r2sim.ts).
+// Uses .r2sim.ts so tests/playwright.config.ts (T7 testMatch **/*.spec.ts) never selects it (WE-F9).
 import { defineConfig } from '@playwright/test';
 
 const artifactDir = process.env.QA_R2_SIM_ARTIFACT_DIR || '../artifacts/r2-sim';
 
 export default defineConfig({
   testDir: '.',
-  testMatch: ['r2-moodle-sim.spec.ts'],
+  testMatch: ['r2-moodle-sim.r2sim.ts'],
   workers: 1,
   fullyParallel: false,
   retries: 0,

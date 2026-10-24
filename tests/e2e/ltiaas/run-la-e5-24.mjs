@@ -23,18 +23,21 @@ import { parseArgs } from 'node:util';
 import { newIdentity } from '../../../infra/scripts/sqlite-lock-probe.mjs';
 import { volumeBackup, volumeRestore } from '../../../infra/scripts/stack-data.mjs';
 import { createRunner } from '../../host/core.mjs';
-import { httpsLoopback, run, walkFiles } from '../../host/lib.mjs';
+import { httpsLoopback, run } from '../../host/lib.mjs';
 import {
   DRILL_ACS,
   JOURNAL_FILE,
   buildBackupRecord,
   buildDrillMarkerAccount,
+  buildRunnerHelpText,
   computeDrillMetrics,
   copyContentFolders,
   inspectDrillBackup,
+  installLiveSecretRedaction,
   makeHtmlCourseZipBuffer,
   restoreContentFolders,
   scanBackupRecordForSecrets,
+  stageDrillHelpers,
   verifyDrillMarkerAbsent,
 } from './la-e5-24-drill.mjs';
 
@@ -53,12 +56,18 @@ const { values: cliOpt } = parseArgs({
   options: {
     ...extraOptions,
     sha: { type: 'string' },
+    checkout: { type: 'string' },
     source: { type: 'string' },
     help: { type: 'boolean', default: false },
   },
 });
 
 const print = (line) => process.stdout.write(`${line}\n`);
+
+if (cliOpt.help) {
+  process.stdout.write(buildRunnerHelpText());
+  process.exit(0);
+}
 
 if (cliOpt['dry-run'] || cliOpt['harness-only']) {
   // Strictly host-only branch: must remain above all Docker, clone, and stack operations.
@@ -97,7 +106,8 @@ if (cliOpt['dry-run'] || cliOpt['harness-only']) {
     const project = 'qa-e2e-la-drill-r1';
     const runId = 'dryrun01';
     const pairId = crypto.randomBytes(16).toString('hex');
-    const ids = { uid: process.getuid(), gid: process.getgid() };
+    const rootStat = fs.statSync(tmpRoot);
+    const ids = { uid: rootStat.uid, gid: rootStat.gid };
     const ltiVol = path.join(tmpRoot, 'volumes', 'lti-service');
     const appVol = path.join(tmpRoot, 'volumes', 'cogniate-app');
     const appContentDir = path.join(tmpRoot, 'infra', '.data', 'cogniate-app');
@@ -292,9 +302,11 @@ if (cliOpt['dry-run'] || cliOpt['harness-only']) {
 
   if (cliOpt['artifacts-dir']) {
     const outDir = path.resolve(cliOpt['artifacts-dir']);
-    fs.mkdirSync(outDir, { recursive: true });
-    fs.writeFileSync(path.join(outDir, 'la-e5-24-dry-run-summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
-    fs.writeFileSync(path.join(outDir, 'la-e5-24-selftest.log'), `${selftestRes.stdout}\n`);
+    fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(path.join(outDir, 'la-e5-24-dry-run-summary.json'), `${JSON.stringify(summary, null, 2)}\n`, {
+      mode: 0o600,
+    });
+    fs.writeFileSync(path.join(outDir, 'la-e5-24-selftest.log'), `${selftestRes.stdout}\n`, { mode: 0o600 });
   }
 
   print(
@@ -307,6 +319,11 @@ if (cliOpt['dry-run'] || cliOpt['harness-only']) {
 // ============================================================================
 // Live K1-SIM stack drill mode (only during a Lead-granted DOCKER-YES SIM slot)
 // ============================================================================
+if (!cliOpt.sha && !cliOpt.checkout) {
+  console.error(`--sha or --checkout is required.\n\n${buildRunnerHelpText()}`);
+  process.exit(2);
+}
+
 const r = createRunner({
   task: 'LA-E5-24',
   defaultProject: 'qa-e2e-la-drill-r1',
@@ -314,53 +331,27 @@ const r = createRunner({
   extraHelp: '  --dry-run                    Run host-only selftests and dry-run simulation (no Docker calls).\n',
 });
 
+const liveRedaction = installLiveSecretRedaction({
+  redact: r.redact,
+  cloneDir: r.CLONE,
+  getEnv: () => r.state.env,
+  artDir: r.ART,
+});
+
 const runId = crypto.randomBytes(4).toString('hex');
 
 async function runInE2eContainer(label, stepName) {
-  const inside =
-    'set -euo pipefail; source infra/scripts/lib.sh; require_running proxy; prepare_e2e; qa_env_args; ' +
-    `dc --profile test run --rm --no-deps --name "$COMPOSE_PROJECT_NAME-qa-e524-${stepName}-$$" --build "\${QA_ENV_ARGS[@]+"\${QA_ENV_ARGS[@]}"}" e2e ` +
-    `node tests/e2e/ltiaas/la-e5-24-container-step.mjs --step ${stepName} --run-id ${runId}`;
-  const res = await r.exec(`e524-${label}`, 'bash', ['-c', inside], {
-    env: r.STACK_ENV,
-    timeoutMs: 600_000,
+  return await liveRedaction.runStepWithRedaction(async () => {
+    const inside =
+      'set -euo pipefail; source infra/scripts/lib.sh; require_running proxy; prepare_e2e; qa_env_args; ' +
+      `dc --profile test run --rm --no-deps --name "$COMPOSE_PROJECT_NAME-qa-e524-${stepName}-$$" --build "\${QA_ENV_ARGS[@]+"\${QA_ENV_ARGS[@]}"}" e2e ` +
+      `node tests/e2e/ltiaas/la-e5-24-container-step.mjs --step ${stepName} --run-id ${runId}`;
+    const res = await r.exec(`e524-${label}`, 'bash', ['-c', inside], {
+      env: r.STACK_ENV,
+      timeoutMs: 600_000,
+    });
+    return res;
   });
-  return res;
-}
-
-function loadCapturedSecrets() {
-  const file = path.join(r.CLONE, 'tests', 'acceptance', 'artifacts', 'captured-secrets.jsonl');
-  const values = [];
-  if (fs.existsSync(file)) {
-    for (const line of fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)) {
-      const parsed = JSON.parse(line);
-      const val = typeof parsed === 'string' ? parsed : parsed.value;
-      if (typeof val === 'string' && val.length >= 8) {
-        r.redact.add(val);
-        values.push(val);
-      }
-    }
-  }
-  if (r.state.env) {
-    for (const [k, v] of Object.entries(r.state.env)) {
-      if (/KEY|SECRET|PASSWORD|TOKEN/i.test(k) && typeof v === 'string' && v.length >= 8) {
-        r.redact.add(v);
-        values.push(v);
-      }
-    }
-  }
-  const secretsDir = path.join(r.CLONE, 'infra', '.secrets');
-  if (fs.existsSync(secretsDir)) {
-    for (const f of walkFiles(secretsDir)) {
-      if (f.endsWith('.json')) continue;
-      const raw = fs.readFileSync(f, 'utf8').trim();
-      if (raw.length >= 8) {
-        r.redact.add(raw);
-        values.push(raw);
-      }
-    }
-  }
-  return [...new Set(values)];
 }
 
 async function waitLtiAndAppReady(timeoutMs = 120_000) {
@@ -393,6 +384,18 @@ await r.main(async () => {
   const appContentDir = path.join(r.CLONE, 'infra', '.data', 'cogniate-app');
 
   try {
+    // Stage the current drill helpers into the clone and record their SHA-256 digests (A-LA-E5-24-01).
+    const runnerHeadRes = await run('git', ['rev-parse', 'HEAD'], { cwd: HERE });
+    const runnerStatusRes = await run('git', ['status', '--porcelain', '--', '.'], { cwd: HERE });
+    const stagedHelpersInfo = stageDrillHelpers({
+      helperDir: HERE,
+      cloneDir: r.CLONE,
+      runnerHeadSha: runnerHeadRes.code === 0 ? runnerHeadRes.stdout.trim() : null,
+      runnerDirty: runnerStatusRes.code === 0 ? runnerStatusRes.stdout.trim().length > 0 : null,
+    });
+    r.timings.stagedHelpers = stagedHelpersInfo;
+    r.saveText('staged-helpers.json', JSON.stringify(stagedHelpersInfo, null, 2));
+
     // 1. Setup & initial stack start on acceptance profile.
     assert.equal((await r.npm('root-ci', ['ci', '--no-audit', '--no-fund'], { timeoutMs: 900_000 })).code, 0);
     assert.equal((await r.npm('gen-env', ['run', 'gen-env'])).code, 0);
@@ -451,7 +454,7 @@ await r.main(async () => {
       contentSummary,
     });
     fs.writeFileSync(backupRecordPath, `${JSON.stringify(backupRecord, null, 2)}\n`, { mode: 0o600 });
-    const capturedSecretsBefore = loadCapturedSecrets();
+    const capturedSecretsBefore = liveRedaction.syncSecrets({ scrubDisk: true });
     const recordScan = scanBackupRecordForSecrets(fs.readFileSync(backupRecordPath, 'utf8'), capturedSecretsBefore);
     const manifestScan = scanBackupRecordForSecrets(
       fs.readFileSync(path.join(backupDbDir, 'manifest.json'), 'utf8'),
@@ -559,7 +562,7 @@ await r.main(async () => {
           ls.portalSyncStatus === 'sent',
       ),
       [
-        `playId=${ls?.playId}; packageHtmlStatus=${ls?.packageHtmlStatus}; commitStatus=${ls?.commitStatus}; simulatorScore=${JSON.stringify(ls?.simulatorScore)}; portalSyncStatus=${ls?.portalSyncStatus}`,
+        `playId=${ls?.playIdRedacted ?? 'ply_[REDACTED]'} (sha256:${ls?.playIdSha256Prefix ?? 'n/a'}); packageHtmlStatus=${ls?.packageHtmlStatus}; commitStatus=${ls?.commitStatus}; simulatorScore=${JSON.stringify(ls?.simulatorScore)}; portalSyncStatus=${ls?.portalSyncStatus}`,
       ],
       [postRestoreRes.log, 'drill-post-restore-verify.json'],
     );
@@ -581,9 +584,7 @@ await r.main(async () => {
       ],
       ['drill-metrics.json'],
     );
-
-    loadCapturedSecrets();
   } finally {
-    fs.rmSync(drillBackupRoot, { recursive: true, force: true });
+    liveRedaction.finalizeDrillRun({ drillBackupRoot });
   }
 });

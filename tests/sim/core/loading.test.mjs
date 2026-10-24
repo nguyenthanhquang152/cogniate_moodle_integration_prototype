@@ -313,28 +313,163 @@ export function createProviders(runtime) { return [createProvider(runtime, sakai
     });
     fs.writeFileSync(path.join(fullCopy, 'hosts.json'), JSON.stringify(baseManifest, null, 2));
     const extProviders = await loadProviders(makeRuntime(), undefined, { simDir: fullCopy });
-    assert.equal(extProviders.length, 7);
+    assert.equal(extProviders.length, baseManifest.providers.length);
     assert.equal(extProviders.some((p) => p.id === 'sakai-sim'), true);
   } finally {
     fs.rmSync(fullCopy, { recursive: true, force: true });
   }
 });
 
-test('HARNESS ONLY: committed tests/sim/hosts.json matches all 6 providers and re-posting a scenario id moves it to the newest position', async () => {
-  const allProviders = await loadProviders(makeRuntime(), undefined, { simDir: SOURCE_DIR });
-  assert.deepEqual(
-    allProviders.map((p) => p.id).sort(),
-    ['blackboard-sim', 'brightspace-sim', 'canvas-sim-cloud', 'canvas-sim-self', 'generic-sim', 'moodle-sim'],
-  );
+const KNOWN_PROVIDERS = Object.freeze([
+  {
+    id: 'blackboard-sim',
+    aliases: [
+      'developer.blackboard.sim.test',
+      'learn-a.blackboard.sim.test',
+      'learn-b.blackboard.sim.test',
+    ],
+    allowlist: [
+      'developer.blackboard.sim.test',
+      'learn-a.blackboard.sim.test',
+      'learn-b.blackboard.sim.test',
+    ],
+  },
+  {
+    id: 'canvas-sim-cloud',
+    aliases: [
+      'sso.canvas.sim.test',
+      'school-a.canvas.sim.test',
+      'school-b.canvas.sim.test',
+      'canvas.school-a.sim.test',
+    ],
+    allowlist: [
+      'sso.canvas.sim.test',
+      'school-a.canvas.sim.test',
+      'school-b.canvas.sim.test',
+    ],
+  },
+  {
+    id: 'canvas-sim-self',
+    aliases: [
+      'canvas-self.sim.test',
+      'api.canvas-self.sim.test',
+    ],
+    allowlist: [
+      'canvas-self.sim.test',
+      'api.canvas-self.sim.test',
+    ],
+  },
+  {
+    id: 'generic-sim',
+    aliases: [
+      'generic.sim.test',
+      'token.generic.sim.test',
+      'school-b.generic.sim.test',
+    ],
+    allowlist: [
+      'generic.sim.test',
+      'token.generic.sim.test',
+      'school-b.generic.sim.test',
+    ],
+  },
+  {
+    id: 'moodle-sim',
+    aliases: [
+      'moodle.sim.test',
+    ],
+    allowlist: [
+      'moodle.sim.test',
+    ],
+  },
+  {
+    id: 'brightspace-sim',
+    aliases: [
+      'brightspace.sim.test',
+      'auth.brightspace.sim.test',
+      'school-b.brightspace.sim.test',
+    ],
+    allowlist: [
+      'brightspace.sim.test',
+      'auth.brightspace.sim.test',
+      'school-b.brightspace.sim.test',
+    ],
+  },
+]);
 
-  const committedManifest = loadHostManifest(path.join(SOURCE_DIR, 'hosts.json'));
-  const allAliases = committedManifest.providers.flatMap((p) => p.aliases);
-  const allAllowlist = committedManifest.providers.flatMap((p) => p.allowlist);
-  assert.equal(committedManifest.providers.length, 6);
-  assert.equal(allAliases.length, 16);
-  assert.equal(allAllowlist.length, 15);
+async function verifyOpenWorldSimManifest(simDir) {
+  const manifestPath = path.join(simDir, 'hosts.json');
+  const manifest = loadHostManifest(manifestPath);
+  const allProviders = await loadProviders(makeRuntime(), undefined, { simDir, manifestPath });
+
+  const folderNames = fs
+    .readdirSync(simDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'core' && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+  const folderProviders = [];
+  for (const folder of folderNames) {
+    const modPath = path.join(simDir, folder, 'index.mjs');
+    assert.equal(fs.existsSync(modPath), true, `provider folder ${folder} has index.mjs`);
+    const mod = await import(pathToFileURL(modPath).href);
+    assert.equal(typeof mod.createProviders, 'function', `provider folder ${folder} exports createProviders`);
+    folderProviders.push(...mod.createProviders(makeRuntime()));
+  }
+
+  // Derive expected provider set from hosts.json and provider folders on disk.
+  const expectedProviderIds = manifest.providers.map((p) => p.id).sort();
+  assert.deepEqual(allProviders.map((p) => p.id).sort(), expectedProviderIds);
+  assert.deepEqual(folderProviders.map((p) => p.id).sort(), expectedProviderIds);
+  assert.equal(allProviders.length, manifest.providers.length);
+  assert.equal(allProviders.length, folderProviders.length);
+
+  // Each provider id, alias, and allowlist host is unique across the manifest and loaded providers.
+  const allProviderIds = manifest.providers.map((p) => p.id);
+  const allAliases = manifest.providers.flatMap((p) => p.aliases);
+  const allAllowlist = manifest.providers.flatMap((p) => p.allowlist);
+  const allLoadedHosts = allProviders.flatMap((p) => p.hosts);
+  assert.equal(new Set(allProviderIds).size, allProviderIds.length);
+  assert.equal(new Set(allAliases).size, allAliases.length);
+  assert.equal(new Set(allAllowlist).size, allAllowlist.length);
+  assert.equal(new Set(allLoadedHosts).size, allLoadedHosts.length);
+  assert.deepEqual([...allLoadedHosts].sort(), [...allAliases].sort());
+
+  for (const entry of manifest.providers) {
+    const loaded = allProviders.find((p) => p.id === entry.id);
+    assert.ok(loaded, `manifest entry ${entry.id} loaded`);
+    assert.deepEqual([...loaded.hosts].sort(), [...entry.aliases].sort());
+    for (const host of entry.allowlist) {
+      assert.equal(entry.aliases.includes(host), true, `allowlist host ${host} is in aliases of ${entry.id}`);
+    }
+  }
+
+  // The 6 known providers are still present with their exact values.
+  assert.ok(manifest.providers.length >= KNOWN_PROVIDERS.length);
+  for (const known of KNOWN_PROVIDERS) {
+    const entry = manifest.providers.find((p) => p.id === known.id);
+    assert.ok(entry, `known provider ${known.id} is present in hosts.json`);
+    assert.deepEqual(entry.aliases, known.aliases);
+    assert.deepEqual(entry.allowlist, known.allowlist);
+    const loaded = allProviders.find((p) => p.id === known.id);
+    assert.ok(loaded, `known provider ${known.id} is loaded`);
+    assert.deepEqual([...loaded.hosts].sort(), [...known.aliases].sort());
+  }
+
+  const knownIds = new Set(KNOWN_PROVIDERS.map((p) => p.id));
+  const extraProviders = manifest.providers.filter((p) => !knownIds.has(p.id));
+  const extraAliases = extraProviders.flatMap((p) => p.aliases);
+  const extraAllowlist = extraProviders.flatMap((p) => p.allowlist);
+
+  assert.equal(manifest.providers.length, 6 + extraProviders.length);
+  assert.equal(allAliases.length, 16 + extraAliases.length);
+  assert.equal(allAllowlist.length, 15 + extraAllowlist.length);
   assert.equal(allAliases.includes('canvas.school-a.sim.test'), true);
   assert.equal(allAllowlist.includes('canvas.school-a.sim.test'), false);
+
+  return { manifest, allProviders, allAliases, allAllowlist, extraProviders };
+}
+
+test('HARNESS ONLY: committed tests/sim/hosts.json matches all 6 providers and re-posting a scenario id moves it to the newest position', async () => {
+  await verifyOpenWorldSimManifest(SOURCE_DIR);
 
   const orderRt = makeRuntime();
   await loadProviders(orderRt, ['blackboard'], { simDir: SOURCE_DIR });
@@ -365,6 +500,83 @@ test('HARNESS ONLY: committed tests/sim/hosts.json matches all 6 providers and r
   const newestForClient = [...orderRt.scenarios.values()].reverse().find((s) => s.clientId === 'client-order-1');
   assert.equal(newestForClient.id, 'sc-order-a');
   assert.equal(newestForClient.tokenAudience, 'https://aud-reposted.sim.test');
+});
+
+test('HARNESS ONLY: open-world canary — a seventh provider in a scratch copy joins with no change to shared lists', async () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-sim-open-world-canary-'));
+  try {
+    fs.cpSync(SOURCE_DIR, scratch, { recursive: true });
+    const baseManifest = loadHostManifest(path.join(SOURCE_DIR, 'hosts.json'));
+    const baseAliases = baseManifest.providers.flatMap((p) => p.aliases);
+    const baseAllowlist = baseManifest.providers.flatMap((p) => p.allowlist);
+
+    // Dot-directory positive control (B-LA-E7-02-06): ignored by both loadProviders and verifyOpenWorldSimManifest
+    fs.mkdirSync(path.join(scratch, '.review-b-cache'));
+    // Visible folder without index.mjs still fails closed
+    const badVisibleDir = path.join(scratch, 'visible-no-index');
+    fs.mkdirSync(badVisibleDir);
+    await assert.rejects(
+      () => verifyOpenWorldSimManifest(scratch),
+      /Unknown simulator module: visible-no-index|provider folder visible-no-index has index\.mjs/,
+    );
+    fs.rmSync(badVisibleDir, { recursive: true, force: true });
+
+    const canaryDir = path.join(scratch, 'canary-lms');
+    fs.mkdirSync(canaryDir);
+    fs.writeFileSync(path.join(canaryDir, 'index.mjs'), `
+import { createProvider } from '../core/provider.mjs';
+export const canaryLms = {
+  id: 'canary-lms-sim',
+  issuer: 'https://canary-lms.sim.test',
+  family: 'canary-lms',
+  auth: { host: 'canary-lms.sim.test', path: '/lti/oidc/auth', methods: ['GET', 'POST'] },
+  jwks: { host: 'canary-lms.sim.test', path: '/lti/.well-known/jwks.json' },
+  token: { hosts: ['auth.canary-lms.sim.test'], path: '/lti/oauth2/token', audience: 'string' },
+  sites: [{
+    host: 'canary-lms.sim.test',
+    lineitems: '/lti/courses/1/lineitems',
+    nrps: '/lti/courses/1/memberships',
+    dlReturn: '/lti/dl/return',
+  }],
+  pageHosts: ['page.canary-lms.sim.test'],
+  dlData: 'claim',
+  dlSubject: true,
+  documentTarget: 'iframe',
+};
+export function createProviders(runtime) {
+  return [createProvider(runtime, canaryLms)];
+}
+`);
+
+    const scratchManifest = JSON.parse(fs.readFileSync(path.join(SOURCE_DIR, 'hosts.json'), 'utf8'));
+    scratchManifest.providers.push({
+      id: 'canary-lms-sim',
+      aliases: ['canary-lms.sim.test', 'auth.canary-lms.sim.test', 'page.canary-lms.sim.test'],
+      allowlist: ['canary-lms.sim.test', 'auth.canary-lms.sim.test'],
+    });
+    fs.writeFileSync(path.join(scratch, 'hosts.json'), JSON.stringify(scratchManifest, null, 2));
+
+    const verified = await verifyOpenWorldSimManifest(scratch);
+    assert.equal(verified.allProviders.length, baseManifest.providers.length + 1);
+    assert.equal(verified.allAliases.length, baseAliases.length + 3);
+    assert.equal(verified.allAllowlist.length, baseAllowlist.length + 2);
+    assert.equal(verified.extraProviders.some((p) => p.id === 'canary-lms-sim'), true);
+
+    const canaryProvider = verified.allProviders.find((p) => p.id === 'canary-lms-sim');
+    assert.ok(canaryProvider);
+    const jwksRes = await canaryProvider.handle({
+      method: 'GET',
+      host: 'canary-lms.sim.test',
+      path: '/lti/.well-known/jwks.json',
+      url: new URL('https://canary-lms.sim.test/lti/.well-known/jwks.json'),
+      headers: {},
+      body: '',
+    });
+    assert.equal(jwksRes?.status, 200);
+    assert.equal(Array.isArray(JSON.parse(jwksRes.body).keys), true);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 });
 
 test('HARNESS ONLY: tests/sim/README.md scenario option tables match SCENARIO_OPTIONS, DR_OPTIONS, and LEGACY_SCENARIO_ALIASES in runtime.mjs', () => {

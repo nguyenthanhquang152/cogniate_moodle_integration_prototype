@@ -11,23 +11,34 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { newIdentity } from '../../../infra/scripts/sqlite-lock-probe.mjs';
 import { validate, volumeBackup, volumeRestore } from '../../../infra/scripts/stack-data.mjs';
+import { Redactor, run, walkFiles } from '../../host/lib.mjs';
 import {
   DRILL_ACS,
   JOURNAL_FILE,
+  RUNNER_ENTRY_POINT,
   buildBackupRecord,
   buildDrillMarkerAccount,
+  buildRunnerHelpText,
+  collectCloneSecretCandidates,
   computeDrillMetrics,
   copyContentFolders,
   inspectDrillBackup,
+  installLiveSecretRedaction,
   makeHtmlCourseZipBuffer,
+  redactPlayId,
   restoreContentFolders,
+  sanitizeUrlForError,
   scanBackupRecordForSecrets,
   sha256File,
+  stageDrillHelpers,
   verifyDrillMarkerAbsent,
 } from './la-e5-24-drill.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 function createSyntheticVolumes(rootDir, project = 'qa-e2e-la-drill-r1') {
   const ltiDir = path.join(rootDir, 'volumes', 'lti-service');
@@ -86,7 +97,8 @@ function createSyntheticVolumes(rootDir, project = 'qa-e2e-la-drill-r1') {
   appDb.close();
   fs.chmodSync(appDbPath, 0o600);
 
-  const ids = { uid: process.getuid(), gid: process.getgid() };
+  const rootStat = fs.statSync(rootDir);
+  const ids = { uid: rootStat.uid, gid: rootStat.gid };
   return {
     dirs: { lti: ltiDir, app: appDir },
     contentPackagesDir,
@@ -404,4 +416,310 @@ test('AC-LA-E5-24-06: computeDrillMetrics calculates RTO and RPO and covers all 
       }),
     /restoreCompletedAt must be >= restoreStartedAt/,
   );
+});
+
+test('B-LA-E5-24-01: runtime-token and playId redaction runs on every post-restore failure path (exit 1, timeout, exception) before any output reaches logs, artifacts or terminal', async () => {
+  for (const mode of ['exit-1', 'timeout', 'exception']) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `la-e5-24-selftest-b01-${mode}-`));
+    fs.chmodSync(tmp, 0o700);
+    try {
+      const cloneDir = path.join(tmp, 'clone');
+      const artDir = path.join(tmp, 'artifacts');
+      const drillBackupRoot = path.join(tmp, 'external-backup');
+      const capturedSecretsFile = path.join(cloneDir, 'tests', 'acceptance', 'artifacts', 'captured-secrets.jsonl');
+      fs.mkdirSync(path.dirname(capturedSecretsFile), { recursive: true, mode: 0o700 });
+      fs.mkdirSync(path.join(artDir, 'cmd'), { recursive: true, mode: 0o700 });
+      fs.mkdirSync(drillBackupRoot, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(path.join(drillBackupRoot, 'marker.txt'), 'temp-backup', { mode: 0o600 });
+
+      const knownRuntimeToken = `rt_tok_${crypto.randomBytes(24).toString('base64url')}`;
+      const knownPlayId = `ply_${crypto.randomBytes(16).toString('base64url')}`;
+      const hookOnlyToken = `rt_hook_${crypto.randomBytes(24).toString('base64url')}`;
+      const lateFinalToken = `rt_late_${crypto.randomBytes(24).toString('base64url')}`;
+      const redact = new Redactor();
+      const terminalOutput = [];
+
+      // Mirror core.mjs saveText / log / record / exec / summarize / finalRedaction behavior.
+      const log = (line) => terminalOutput.push(redact.apply(line));
+      const saveText = (rel, text) => {
+        const file = path.join(artDir, rel);
+        fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+        fs.writeFileSync(file, redact.apply(text), { mode: 0o600 });
+        return rel;
+      };
+      const results = [];
+      const record = (id, title, status, notes = []) => {
+        const entry = { id, title, status, notes: notes.map((n) => redact.apply(n)) };
+        results.push(entry);
+        log(`${status} ${id} ${title} ${entry.notes.join(' ')}`);
+      };
+
+      const liveRedaction = installLiveSecretRedaction({
+        redact,
+        cloneDir,
+        getEnv: () => ({}),
+        artDir,
+      });
+
+      // Layer 1 pin (redact.apply hook at la-e5-24-drill.mjs:592):
+      // Append a newly captured token to captured-secrets.jsonl and call redact.apply directly
+      // BEFORE any runStepWithRedaction finally block, finalizeDrillRun, or manual syncSecrets().
+      fs.appendFileSync(
+        capturedSecretsFile,
+        `${JSON.stringify({ label: 'hook_probe_token', value: hookOnlyToken })}\n`,
+        { mode: 0o600 },
+      );
+      const hookedProbe = redact.apply(`layer1-probe=${hookOnlyToken}`);
+      assert.equal(
+        hookedProbe,
+        `layer1-probe=<redacted:${hookOnlyToken.length}>`,
+        `Layer 1 redact.apply hook must sync captured-secrets.jsonl before applying redaction (${mode})`,
+      );
+
+      const stepRawDiagFile = path.join(artDir, 'cmd', '16-step-raw-unredacted.log');
+      const lateRawDiagFile = path.join(artDir, 'cmd', '17-late-raw-unredacted.log');
+
+      const simulatedExec = async (name) => {
+        // Simulate container step writing newly issued runtime_token & play_id to captured-secrets.jsonl
+        // and then failing / timing out / throwing with the raw token in stdout/stderr/error stack.
+        fs.appendFileSync(
+          capturedSecretsFile,
+          `${JSON.stringify({ label: 'runtime_token', value: knownRuntimeToken })}\n` +
+            `${JSON.stringify({ label: 'play_id', value: knownPlayId })}\n`,
+          { mode: 0o600 },
+        );
+
+        // Write a raw file directly to artDir (bypassing saveText / Layer 1) to pin Layer 2 step finally scrub.
+        fs.writeFileSync(
+          stepRawDiagFile,
+          `layer2-raw-step-file: /rt/${knownRuntimeToken}/commit and /play/${knownPlayId}\n`,
+          { mode: 0o600 },
+        );
+
+        if (mode === 'exception') {
+          // Even if an exception is thrown after writing a partial diagnostic file before saveText:
+          fs.writeFileSync(
+            path.join(artDir, 'cmd', '16-e524-post-restore-verify.log'),
+            `raw diagnostic before scrub: /rt/${knownRuntimeToken}/commit and /play/${knownPlayId}\n`,
+            { mode: 0o600 },
+          );
+          throw new Error(`Uncaught container failure on /rt/${knownRuntimeToken}/commit (${knownPlayId})`);
+        }
+
+        const r =
+          mode === 'timeout'
+            ? {
+                code: 124,
+                timedOut: true,
+                durationMs: 20_000,
+                stdout: `step started for ${knownPlayId}\n`,
+                stderr: `Error: Timeout after 20000 ms on https://content.cogniate.test:9443/rt/${knownRuntimeToken}/state\n`,
+              }
+            : {
+                code: 1,
+                timedOut: false,
+                durationMs: 1_500,
+                stdout: `step output token=${knownRuntimeToken}\n`,
+                stderr: `AssertionError: POST /rt/${knownRuntimeToken}/commit failed for ${knownPlayId}\n`,
+              };
+
+        const rel = saveText(
+          path.join('cmd', `16-${name}.log`),
+          `$ e2e post-restore-verify\nexit: ${r.code}${r.timedOut ? ' (TIMEOUT)' : ''}\n--- stdout\n${r.stdout}\n--- stderr\n${r.stderr}\n`,
+        );
+        return { ...r, log: rel };
+      };
+
+      // Execute the post-restore step and outer drill try/finally, mirroring run-la-e5-24.mjs + core.mjs.
+      try {
+        try {
+          let stepErr = null;
+          let postRestoreRes = null;
+          try {
+            postRestoreRes = await liveRedaction.runStepWithRedaction(() =>
+              simulatedExec('e524-post-restore-verify'),
+            );
+          } catch (err) {
+            stepErr = err;
+          }
+
+          // Layer 2 pin (runStepWithRedaction step finally scrub at la-e5-24-drill.mjs:601):
+          // Verify that BEFORE finalizeDrillRun runs, the raw file written inside stepFn (bypassing saveText)
+          // was already scrubbed on disk by runStepWithRedaction's finally block.
+          const stepRawAfterLayer2 = fs.readFileSync(stepRawDiagFile, 'utf8');
+          assert.equal(
+            stepRawAfterLayer2.includes(knownRuntimeToken),
+            false,
+            `Layer 2 runStepWithRedaction finally must scrub runtime token from raw disk file before finalizeDrillRun (${mode})`,
+          );
+          assert.equal(
+            stepRawAfterLayer2.includes(knownPlayId),
+            false,
+            `Layer 2 runStepWithRedaction finally must scrub playId from raw disk file before finalizeDrillRun (${mode})`,
+          );
+          assert.ok(
+            stepRawAfterLayer2.includes(`<redacted:${knownRuntimeToken.length}>`) &&
+              stepRawAfterLayer2.includes(`<redacted:${knownPlayId.length}>`),
+            `Layer 2 runStepWithRedaction finally must write <redacted:N> placeholders on disk (${mode})`,
+          );
+
+          // Stage a post-step raw file and newly captured secret to pin Layer 3 (finalizeDrillRun scrub).
+          fs.appendFileSync(
+            capturedSecretsFile,
+            `${JSON.stringify({ label: 'late_final_token', value: lateFinalToken })}\n`,
+            { mode: 0o600 },
+          );
+          fs.writeFileSync(
+            lateRawDiagFile,
+            `layer3-raw-late-file: /rt/${lateFinalToken}/state\n`,
+            { mode: 0o600 },
+          );
+
+          if (stepErr) throw stepErr;
+          assert.equal(
+            postRestoreRes.code,
+            0,
+            `post-restore-verify exited 0 (stderr: ${postRestoreRes.stderr})`,
+          );
+        } finally {
+          liveRedaction.finalizeDrillRun({ drillBackupRoot });
+        }
+      } catch (e) {
+        record('ERROR', 'Runner error', 'FAIL', [e.stack ?? String(e)]);
+      }
+
+      // Layer 3 pin (finalizeDrillRun scrub at la-e5-24-drill.mjs:607):
+      // Verify the raw file written AFTER runStepWithRedaction was scrubbed by finalizeDrillRun.
+      const lateRawAfterLayer3 = fs.readFileSync(lateRawDiagFile, 'utf8');
+      assert.equal(
+        lateRawAfterLayer3.includes(lateFinalToken),
+        false,
+        `Layer 3 finalizeDrillRun must scrub late token from raw disk file (${mode})`,
+      );
+      assert.ok(
+        lateRawAfterLayer3.includes(`<redacted:${lateFinalToken.length}>`),
+        `Layer 3 finalizeDrillRun must write <redacted:N> placeholder for late token (${mode})`,
+      );
+
+      saveText('summary.json', JSON.stringify({ results }, null, 2));
+
+      // Verify external backup folder was cleaned up even on failure.
+      assert.equal(fs.existsSync(drillBackupRoot), false, `drillBackupRoot removed on ${mode} path`);
+
+      // Verify every written artifact/log file in artDir has 0 occurrences of knownRuntimeToken, knownPlayId, or lateFinalToken.
+      const writtenFiles = walkFiles(artDir);
+      assert.ok(writtenFiles.length >= 4, `Expected cmd logs and summary.json in ${artDir}`);
+      for (const f of writtenFiles) {
+        const content = fs.readFileSync(f, 'utf8');
+        assert.equal(
+          content.includes(knownRuntimeToken),
+          false,
+          `Runtime token must NOT appear in ${path.relative(artDir, f)} on ${mode} path`,
+        );
+        assert.equal(
+          content.includes(knownPlayId),
+          false,
+          `playId capability must NOT appear in ${path.relative(artDir, f)} on ${mode} path`,
+        );
+        assert.equal(
+          content.includes(lateFinalToken),
+          false,
+          `Late final token must NOT appear in ${path.relative(artDir, f)} on ${mode} path`,
+        );
+      }
+
+      // Verify terminal output also has 0 occurrences of knownRuntimeToken or knownPlayId.
+      const allTerminalText = terminalOutput.join('\n');
+      assert.equal(allTerminalText.includes(knownRuntimeToken), false, `Runtime token not in terminal output (${mode})`);
+      assert.equal(allTerminalText.includes(knownPlayId), false, `playId not in terminal output (${mode})`);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+});
+
+test('B-LA-E5-24-02 & A-LA-E5-24-01..03: accurate --help entry point, complete secret candidates (seed.json + DB_PASS), playId redaction, URL sanitization, and staged helper hashes', async () => {
+  // 1. B-LA-E5-24-02: --help prints tests/e2e/ltiaas/run-la-e5-24.mjs and never tests/host/run-la-e5-24.mjs.
+  const helpText = buildRunnerHelpText();
+  assert.ok(helpText.includes(RUNNER_ENTRY_POINT), 'Help text includes tests/e2e/ltiaas/run-la-e5-24.mjs');
+  assert.equal(helpText.includes('tests/host/run-la-e5-24.mjs'), false, 'Help text never points to nonexistent tests/host/ path');
+
+  const cliHelpRes = await run(process.execPath, [path.join(HERE, 'run-la-e5-24.mjs'), '--help'], {
+    cwd: HERE,
+    timeoutMs: 15_000,
+  });
+  assert.equal(cliHelpRes.code, 0, '--help exits 0');
+  assert.ok(cliHelpRes.stdout.includes('tests/e2e/ltiaas/run-la-e5-24.mjs'));
+  assert.equal(cliHelpRes.stdout.includes('tests/host/run-la-e5-24.mjs'), false);
+
+  // 2. B-LA-E5-24-01 & A-LA-E5-24-03: sanitizeUrlForError and redactPlayId strip bearer capabilities.
+  const rawRtUrl = 'https://content.cogniate.test:9443/rt/tok_secret_1234567890abcdef/state?foo=bar';
+  const safeRtUrl = sanitizeUrlForError(rawRtUrl);
+  assert.equal(safeRtUrl, 'https://content.cogniate.test:9443/rt/[REDACTED]/state');
+  assert.equal(safeRtUrl.includes('tok_secret_'), false);
+
+  const syntheticPlayId = 'ply_synthetic_selftest_token_01';
+  const expectedPlayShaPrefix = crypto.createHash('sha256').update(syntheticPlayId).digest('hex').slice(0, 12);
+  const rawPlayUrl = `https://app.cogniate.test:9443/play/${syntheticPlayId}`;
+  const safePlayUrl = sanitizeUrlForError(rawPlayUrl);
+  assert.equal(safePlayUrl, 'https://app.cogniate.test:9443/play/[REDACTED]');
+
+  const redactedPlay = redactPlayId(syntheticPlayId);
+  assert.equal(redactedPlay.playIdRedacted, 'ply_[REDACTED]');
+  assert.equal(redactedPlay.playIdSha256Prefix, expectedPlayShaPrefix);
+
+  // 3. A-LA-E5-24-02 & A-LA-E5-24-01: collectCloneSecretCandidates + stageDrillHelpers.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'la-e5-24-selftest-secrets-'));
+  fs.chmodSync(tmp, 0o700);
+  try {
+    fs.mkdirSync(path.join(tmp, 'infra', '.secrets'), { recursive: true, mode: 0o700 });
+    fs.mkdirSync(path.join(tmp, 'tests', 'acceptance', 'artifacts'), { recursive: true, mode: 0o700 });
+
+    const dbPass = 'dbpass_secret_9876543210';
+    const moodleProdToken = 'moodle_ws_prod_token_abcdef123456';
+    const moodleOracleToken = 'moodle_ws_oracle_token_fedcba654321';
+    const portalPass = 'portal_thanh_pass_11223344';
+    const operatorKey = `ltio_${crypto.randomBytes(32).toString('base64url')}`;
+    const capturedRt = `rt_captured_${crypto.randomBytes(16).toString('hex')}`;
+
+    fs.writeFileSync(path.join(tmp, '.env'), `DB_PASS=${dbPass}\nPUBLIC_PORT=9443\n`, { mode: 0o600 });
+    fs.writeFileSync(path.join(tmp, 'infra', '.secrets', 'lti-operator-key'), `${operatorKey}\n`, { mode: 0o600 });
+    fs.writeFileSync(
+      path.join(tmp, 'infra', '.secrets', 'seed.json'),
+      JSON.stringify({
+        productToken: moodleProdToken,
+        oracleToken: moodleOracleToken,
+        portal: { users: [{ email: 'thanh@cogniate.test', password: portalPass }] },
+      }),
+      { mode: 0o600 },
+    );
+    fs.writeFileSync(
+      path.join(tmp, 'tests', 'acceptance', 'artifacts', 'captured-secrets.jsonl'),
+      `${JSON.stringify({ label: 'runtime_token', value: capturedRt })}\n`,
+      { mode: 0o600 },
+    );
+
+    const candidates = collectCloneSecretCandidates({ cloneDir: tmp });
+    for (const expected of [dbPass, moodleProdToken, moodleOracleToken, portalPass, operatorKey, capturedRt]) {
+      assert.ok(candidates.includes(expected), `Expected candidate list to include ${expected.slice(0, 12)}...`);
+    }
+
+    const staged = stageDrillHelpers({
+      helperDir: HERE,
+      cloneDir: tmp,
+      runnerHeadSha: '4ec50888',
+      runnerDirty: false,
+    });
+    assert.equal(staged.runnerHeadSha, '4ec50888');
+    assert.ok(staged.sha256['run-la-e5-24.mjs']?.length === 64);
+    assert.ok(staged.sha256['la-e5-24-drill.mjs']?.length === 64);
+    assert.ok(staged.sha256['la-e5-24-container-step.mjs']?.length === 64);
+    assert.ok(staged.sha256['la-e5-24-drill.selftest.mjs']?.length === 64);
+    assert.equal(
+      sha256File(path.join(tmp, 'tests', 'e2e', 'ltiaas', 'la-e5-24-container-step.mjs')),
+      staged.sha256['la-e5-24-container-step.mjs'],
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

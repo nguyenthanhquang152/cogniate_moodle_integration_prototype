@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E7-02 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -82,3 +82,31 @@ My MINORs:
 
 - K1-SIM AC-01 to -05 (QA runs them on the SIM slot). The `qa.md` e2e section (QA's evidence).
 - Lens-A depth of the D2L audience check and the generic issuer-with-path signing beyond the host-only tests.
+
+## Round 2 (open world; QA Round 5)
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-24. Lens B: can a human team own it? Scope: `92ac637c` (`30689140`), tested at `49a05413243204f0eb89c56e8f4efa9f1bc4a19c`. Read the prior B review, task spec, TEST-STRATEGY §2.5, extension guide, simulator README, and the cited SIM reports. No Reviewer-A file was opened.
+
+**APPROVE: 0 BLOCKER, 0 MAJOR, 2 MINOR, 0 NIT.** Earlier findings are outside this focused follow-up.
+
+The documented extension path works. The shared verifier compares the discovered providers with the manifest while preserving the original providers' values. In a fresh private clone with its own `npm ci`, all **59 host tests passed**. I then added an independent provider module and one manifest entry, without changing shared lists: **59/59 still passed**, including the built-in scratch canary. Restoring the old loading test under that extension caused two expected failures. All temporary changes were removed; the clone is clean.
+
+### B-LA-E7-02-06 — MINOR — The second folder scan disagrees with the loader
+
+**File:** `tests/sim/core/loading.test.mjs:406`.
+
+**Problem and evidence:** The verifier excludes `core` but includes dot directories. `server.mjs:103` and the README explicitly exclude dot directories. Adding an empty `tests/sim/.review-b-cache` in the private clone left the real loader successful with six providers, but the new self-test failed with `provider folder .review-b-cache has index.mjs`. A permitted local scratch folder therefore breaks the check.
+
+**Suggested fix:** Apply the loader's `!entry.name.startsWith('.')` filter and add a dot-directory positive control. Keep the checks for visible folders without a provider module.
+
+### B-LA-E7-02-07 — MINOR — Correct the generic-provider evidence pointer and endpoint
+
+**File:** `docs/reviews/LA-E7-02/qa.md:76` (AC-03).
+
+**Problem and evidence:** The cited `qa3-slot4-e1e4fab/artifacts/qa3-la-sim-r2-e1e4fabf-2026-10-23T06-25-26-399Z/` directory does not exist. The row also calls the generic token path `/lti/token`; its provider uses `/lti/oauth2/token`. The evidence itself is real: the AC-04 and AC-08 results are `passed` in `/Users/quangnguyen/cogniate-qa-runs/LA/qa3-slot4-e1e4fab/qa3-la-sim-r2-e1e4fabf-2026-10-23T06-01-51-680Z/container-LA-E2-04/vitest-results.json`.
+
+**Suggested fix:** Point to that existing result artifact, align any timing with the chosen run, and correct the endpoint path. This lets the next reviewer reproduce the evidence lookup.
+
+The remaining row map cites real SIM rows: LA-E7-03's added-provider host report, the generic and Brightspace flows, and wave-end M2/golden results. I checked the added-provider report and M2 result artifact directly. The disclosed 18 M1 non-PASS rows remain with the wave-end re-gate; this review does not close them. All task ACs are K1-SIM, so the host proof is identified separately.
+
+The diff stays in QA-owned simulator tests and its report; no protected product/infra or frozen M1/M2 file changes, and no core LMS name is added. Whitespace checks passed. No Docker, stack, or commit was used. Only this review file changed in integration.

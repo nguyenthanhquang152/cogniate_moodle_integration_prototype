@@ -5,14 +5,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
-import {
-  BASELINE_PROFILES, BASELINE_REAL_PROFILES, BASELINE_SIMULATION_PROFILES, checkCards, checkLmsEntries, checkProfiles,
-  checkSimulationProfiles, extraChannelNames, registeredChannels,
-} from '../../../acceptance/lib/open-world.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const testsDir = path.resolve(here, '../../..');
+const acceptanceOpenWorldPath = path.join(testsDir, 'acceptance/lib/open-world.mjs');
+const ltiaasOpenWorldPath = path.resolve(here, '../../lib/open-world.mjs');
+const {
+  BASELINE_PROFILES, BASELINE_REAL_PROFILES, BASELINE_SIMULATION_PROFILES, checkCards, checkLmsEntries,
+  checkMigrationLedgers, checkProfiles, checkSimulationProfiles, extraChannelNames, registeredChannels,
+} = await import(pathToFileURL(fs.existsSync(acceptanceOpenWorldPath) ? acceptanceOpenWorldPath : ltiaasOpenWorldPath).href);
 const read = (name) => JSON.parse(fs.readFileSync(path.join(here, 'g-base', name), 'utf8'));
 const copy = (value) => structuredClone(value);
 
@@ -25,9 +27,9 @@ const CARD_TEXTS = [
 
 // A new channel as LA adds it (app API delta §1-§2, LTI delta §4.7), and one that no registry knows.
 const NEW = { id: 'lti-generic', name: 'LMS' };
-const withChannel = (lmsProviders, id = NEW.id, name = NEW.name) => {
+const withChannel = (lmsProviders, id = NEW.id, name = NEW.name, label = name) => {
   const next = copy(lmsProviders);
-  next.lms.push({ lms: id, channel: id, channelName: name, label: name, methods: ['dynamic', 'manual'], profiles: [] });
+  next.lms.push({ lms: id, channel: id, channelName: name, label, methods: ['dynamic', 'manual'], profiles: [] });
   return next;
 };
 const newProfile = (channel, { id = channel, simulation = false } = {}) => ({ id, lms: channel, channel, label: 'New',
@@ -78,7 +80,7 @@ const rows = [
     move: (a) => { a.cards.push(a.cards.splice(1, 1)[0]); },
     extra: (a, registered) => {
       if (registered) a.lmsProviders = withChannel(a.lmsProviders);
-      a.cards.push(`ConnectYour LMSPublish Cogniate courses to ${registered ? NEW.name : 'Sakai'} with LTI 1.3.`);
+      a.cards.push(`Connect${registered ? NEW.name : 'Sakai'}Publish Cogniate courses to ${registered ? NEW.name : 'Sakai LMS'} with LTI 1.3.`);
     },
   },
   {
@@ -94,10 +96,20 @@ const rows = [
   profileRow(8, 'tests/acceptance/M1/common/90-simulation-gates.test.ts M1-35.common.<profile>-<simulation>', defaults, BASELINE_REAL_PROFILES, true),
 ];
 
-test('the probe card texts equal tests/e2e/M2/lib/m2.ts TEXT', () => {
-  const source = fs.readFileSync(path.join(testsDir, 'e2e/M2/lib/m2.ts'), 'utf8');
-  for (const [key, text] of [['moodleCard', CARD_TEXTS[0]], ['canvasCard', CARD_TEXTS[1]], ['blackboardCard', CARD_TEXTS[2]]]) {
-    assert.ok(source.includes(`${key}: ${JSON.stringify(text).replaceAll('"', "'")}`), key);
+test('the probe card texts equal tests/e2e/M2/lib/m2.ts TEXT, and open-world copies match when present', () => {
+  const m2Path = path.join(testsDir, 'e2e/M2/lib/m2.ts');
+  if (fs.existsSync(m2Path)) {
+    const source = fs.readFileSync(m2Path, 'utf8');
+    for (const [key, text] of [['moodleCard', CARD_TEXTS[0]], ['canvasCard', CARD_TEXTS[1]], ['blackboardCard', CARD_TEXTS[2]]]) {
+      assert.ok(source.includes(`${key}: ${JSON.stringify(text).replaceAll('"', "'")}`), key);
+    }
+  }
+  if (fs.existsSync(acceptanceOpenWorldPath)) {
+    assert.equal(
+      fs.readFileSync(acceptanceOpenWorldPath, 'utf8'),
+      fs.readFileSync(ltiaasOpenWorldPath, 'utf8'),
+      'tests/acceptance/lib/open-world.mjs and tests/ltiaas/lib/open-world.mjs are identical',
+    );
   }
 });
 
@@ -145,4 +157,237 @@ test('row 6: the G-BASE Kajabi card is allowed, but not twice', () => {
   assert.deepEqual(checkCards(answer.filter((t) => !t.includes('Kajabi')), CARD_TEXTS, { names: [] }), []);
   answer.push(answer[0]);
   assert.throws(() => checkCards(answer, CARD_TEXTS, { names: [] }), assert.AssertionError);
+});
+
+test('row 6 exact membership (A-LA-E0-04-01 / B-LA-E0-04-01): mixed registered and unregistered cards with lti-generic (channelName: LMS)', () => {
+  const names = extraChannelNames(withChannel(acceptance.lmsProviders));
+  assert.deepEqual(names, ['lti-generic', 'LMS']);
+  const registeredStringCard = 'ConnectLMSPublish Cogniate courses to LMS with LTI 1.3.';
+  const registeredDomCard = {
+    text: 'LTI Connect LTI 1.3 Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: 'lti-generic',
+    name: 'LTI 1.3',
+  };
+  assert.equal(checkCards([...cards.cards, registeredStringCard], CARD_TEXTS, { names }).length, 2);
+  assert.equal(checkCards([...cards.cards, registeredDomCard], CARD_TEXTS, { names }).length, 2);
+
+  const unregisteredCards = [
+    'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.',
+    'ConnectSakai LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    'ConnectYour LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    { text: registeredStringCard, channel: 'sakai', name: 'LMS' },
+    { text: 'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.', channel: null, name: 'Sakai LMS' },
+  ];
+  for (const bad of unregisteredCards) {
+    assert.throws(() => checkCards([...cards.cards, bad], CARD_TEXTS, { names }), assert.AssertionError);
+    assert.throws(() => checkCards([...cards.cards, registeredDomCard, bad], CARD_TEXTS, { names }), assert.AssertionError);
+  }
+});
+
+test('row 6 loading state (A-LA-E0-04-03): delayed connections settle and pass; permanently unresolved loading fails', async () => {
+  const names = extraChannelNames(withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'));
+  const loadingGenericCard = {
+    text: 'Loading…LTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: null,
+    name: 'LTI 1.3',
+    loading: true,
+  };
+  const loadingGenericCardWithoutFlag = {
+    text: 'Loading…LTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: null,
+    name: 'LTI 1.3',
+  };
+  const settledGenericCard = {
+    text: 'LTIConnectLTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: 'lti-generic',
+    name: 'LTI 1.3',
+    disabled: false,
+    loading: false,
+  };
+
+  // Unsettled loading cards (with or without explicit loading: true) are rejected by checkCards.
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCard], CARD_TEXTS, { names }), assert.AssertionError);
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCardWithoutFlag], CARD_TEXTS, { names }), assert.AssertionError);
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCard.text], CARD_TEXTS, { names }), assert.AssertionError);
+
+  // Delayed connections load: polling waits while loading is true, then passes once settled.
+  let polls = 0;
+  const readDelayed = () => {
+    polls += 1;
+    return [...cards.cards, polls < 3 ? loadingGenericCard : settledGenericCard];
+  };
+  const waitUntilSettled = async (readFn, maxAttempts = 5) => {
+    for (let i = 0; i < maxAttempts; i++) {
+      const current = readFn();
+      if (current.length > 0 && current.every((c) => !(typeof c === 'object' && c?.loading))) return current;
+    }
+    throw new assert.AssertionError({ message: 'LMS Publishing cards finished loading' });
+  };
+  const settled = await waitUntilSettled(readDelayed, 5);
+  assert.equal(polls, 3);
+  assert.equal(checkCards(settled, CARD_TEXTS, { names }).length, 2);
+
+  // Permanently unresolved connections load: never settles within the poll bound and fails.
+  await assert.rejects(() => waitUntilSettled(() => [...cards.cards, loadingGenericCard], 5), assert.AssertionError);
+});
+
+test('row 6 not-ready disabled card with distinct display title (B-LA-E0-04-02): registered passes, unregistered fails', () => {
+  const providersWithCampus = withChannel(
+    withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'),
+    'campus',
+    'Campus',
+    'Campus LMS',
+  );
+  const names = extraChannelNames(providersWithCampus);
+  assert.deepEqual(names, ['lti-generic', 'LMS', 'Other LTI 1.3 platform', 'campus', 'Campus', 'Campus LMS']);
+
+  // Ready branch (enabled Connect link) for campus with distinct title 'Campus Learning'.
+  const campusReadyCard = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.',
+    channel: 'campus',
+    name: 'Campus Learning',
+    disabled: false,
+    loading: false,
+  };
+  // Disabled-control not-ready branch (no Connect href/id; renders disabled button and not-ready notice).
+  const campusNotReadyExtracted = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: 'Campus',
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+    notReadyLms: 'Campus',
+  };
+  const campusNotReadyNullChannel = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: null,
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+  };
+  const campusNotReadyMinimalDomStub = {
+    text: 'CpConnectCampus LearningPublish courses to your campus platform.',
+    channel: null,
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+  };
+  const genericNotReadyNullChannel = {
+    text: 'LTIConnectLTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.LMS is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: null,
+    name: 'LTI 1.3',
+    disabled: true,
+    loading: false,
+  };
+
+  for (const good of [
+    campusReadyCard,
+    campusNotReadyExtracted,
+    campusNotReadyNullChannel,
+    campusNotReadyMinimalDomStub,
+    genericNotReadyNullChannel,
+  ]) {
+    assert.equal(checkCards([...cards.cards, good], CARD_TEXTS, { names }).length, 2);
+  }
+
+  // Unregistered cards in the same disabled-control not-ready state must fail.
+  const unregisteredNotReadyCards = [
+    {
+      text: 'SkConnectSakai LearningPublish Cogniate courses to Sakai LMS with LTI 1.3.Sakai is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+      channel: 'Sakai',
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+      notReadyLms: 'Sakai',
+    },
+    {
+      text: 'SkConnectSakai LearningPublish Cogniate courses to Sakai LMS with LTI 1.3.Sakai is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+      channel: null,
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+    },
+    {
+      text: 'SkConnectSakai LearningPublish courses to your sakai platform.',
+      channel: null,
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+    },
+    {
+      text: 'SkConnectSakai LMSPublish Cogniate courses to Sakai LMS with LTI 1.3.',
+      channel: null,
+      name: 'Sakai LMS',
+      disabled: true,
+      loading: false,
+    },
+  ];
+  for (const bad of unregisteredNotReadyCards) {
+    assert.throws(() => checkCards([...cards.cards, bad], CARD_TEXTS, { names }), assert.AssertionError);
+    assert.throws(() => checkCards([...cards.cards, campusNotReadyNullChannel, bad], CARD_TEXTS, { names }), assert.AssertionError);
+  }
+});
+
+test('M1-41.common.j-snapshot migration ledger (A-LA-E0-04-02 / LD-24): old ledger is a prefix of upgraded ledger and matches candidate migrations', () => {
+  const oldLedger = {
+    'lti-service/lti.db': ['001_init.sql', '005_lti_grants.sql'],
+    'cogniate-app/cogniate.db': ['001_init.sql', '011_lms_types.sql'],
+  };
+  const expectedLtiLedger = ['001_init.sql', '005_lti_grants.sql', '006_lti_provider_selection.sql', '007_lti_channel_columns.sql'];
+  const expectedAppLedger = [
+    '001_init.sql',
+    '011_lms_types.sql',
+    '012_connection_provider_snapshot.sql',
+    '013_connection_channel_columns.sql',
+  ];
+  const newLedger = {
+    'lti-service/lti.db': [...expectedLtiLedger],
+    'cogniate-app/cogniate.db': [...expectedAppLedger],
+  };
+  checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger });
+
+  // Missing historical entry in lti.db or cogniate.db fails even if also removed from expected*Ledger.
+  const droppedLti = expectedLtiLedger.slice(1);
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': droppedLti, 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger: droppedLti, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
+  const droppedApp = expectedAppLedger.filter((m) => m !== '011_lms_types.sql');
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': expectedLtiLedger, 'cogniate-app/cogniate.db': droppedApp },
+        { expectedLtiLedger, expectedAppLedger: droppedApp },
+      ),
+    assert.AssertionError,
+  );
+
+  // Reordered historical prefix fails even if expected*Ledger matches newLedger.
+  const reorderedLti = ['005_lti_grants.sql', '001_init.sql', '006_lti_provider_selection.sql', '007_lti_channel_columns.sql'];
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': reorderedLti, 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger: reorderedLti, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
+
+  // Unapplied candidate migration file fails exact comparison.
+  assert.throws(
+    () =>
+      checkMigrationLedgers(
+        oldLedger,
+        { 'lti-service/lti.db': expectedLtiLedger.slice(0, -1), 'cogniate-app/cogniate.db': expectedAppLedger },
+        { expectedLtiLedger, expectedAppLedger },
+      ),
+    assert.AssertionError,
+  );
 });

@@ -1,0 +1,104 @@
+{
+  "id": "brightspace",
+  "source": "LA-ADR-01 §D3 channel capability table + §D6 + §D11; LA-ADR-02 §D3/§D4/§D7; LA-ADR-05 §D1..D7; LA-ADR-07 §D3; LA-ADR-08 §D4; cogniate-app-api-delta.md §3.3; R2 §5.4; LA-IC-01; TEST-STRATEGY.md §2.4–§2.6",
+  "simProvider": "brightspace-sim",
+  "simProfile": "brightspace",
+  "capabilities": {
+    "binding.authority": { "dynamic": "self", "manual": "operatorGrant" },
+    "content.multiple": false,
+    "content.ungraded": false,
+    "deployments.multiple": true,
+    "export.packages": [],
+    "launch.topLevelContinue": false,
+    "launch.windowHint": true,
+    "platform.sharing": "exclusive",
+    "publish.createCourse": false,
+    "records.readBack": true,
+    "records.reporters": ["lti-ags"],
+    "registration.dynamic": true,
+    "registration.scopes": [
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+      "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+    ],
+    "setup.artifacts": [],
+    "setup.connectionCheck": false,
+    "site.serviceOrigin": false,
+    "siteApi.token": false
+  },
+  "coveredBy": {},
+  "notBuilt": {
+    "content.ungraded": "LA-ADR-05 §D5 / LA-E3-08 (waiting for LA-H22; TEST-STRATEGY.md §9.2 item 11)"
+  },
+  "expect": {
+    "legacyFlags": {
+      "dynamicRegistration": true,
+      "operatorApproval": true,
+      "webServices": false,
+      "courseShell": false,
+      "addDeployment": true,
+      "canvasConfiguration": false
+    },
+    "toolConfigurationKeys": [
+      "tool_name",
+      "domain",
+      "redirect_urls",
+      "openid_connect_login_url",
+      "target_link_uri",
+      "keyset_url",
+      "extensions",
+      "roles",
+      "privacy"
+    ]
+  },
+  "sim": {
+    "siteUrl": "https://brightspace.sim.test",
+    "serviceUrl": "https://brightspace.sim.test",
+    "siteHost": "brightspace.sim.test",
+    "pageHost": "brightspace.sim.test",
+    "issuer": "https://brightspace.sim.test",
+    "family": "desire2learn",
+    "deployments": [
+      "8f3d9a10-4b2c-4e8a-9c1d-2f5a6b7c8d90",
+      "1c4e7b20-5a3d-4f9b-8d2e-3a6b7c8d9e01",
+      "7a9b3c40-6d4e-4a1c-9e3f-4b7c8d9e0f12"
+    ],
+    "authEndpoint": "https://brightspace.sim.test/d2l/lti/authenticate",
+    "tokenEndpoint": "https://auth.brightspace.sim.test/core/connect/token",
+    "jwksUrl": "https://brightspace.sim.test/d2l/.well-known/jwks",
+    "tokenAudience": "https://api.brightspace.sim.test/auth/token",
+    "tokenAudienceKind": "fixed",
+    "dlDataMode": "claim",
+    "dlRequiresSub": false,
+    "privacyFloor": "allowlist",
+    "platformStorage": null
+  },
+  "sources": {
+    "id": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (channel brightspace)",
+    "simProvider": "LA-ADR-02 §D7 + tests/sim/README.md (brightspace-sim)",
+    "simProfile": "LA-ADR-02 §D3/§D4 + cogniate-app-api-delta.md §1 (profile brightspace)",
+    "capabilities.binding.authority": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (dynamic: self, manual: operatorGrant)",
+    "capabilities.content.multiple": "LA-ADR-01 §D3 table + LA-ADR-05 §D3 (false)",
+    "capabilities.content.ungraded": "LA-ADR-01 §D3 table + LA-ADR-05 §D5 (false; notBuilt until LA-E3-08)",
+    "capabilities.deployments.multiple": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (true)",
+    "capabilities.export.packages": "LA-ADR-01 §D3 table ([])",
+    "capabilities.launch.topLevelContinue": "LA-ADR-01 §D3 table (false)",
+    "capabilities.launch.windowHint": "LA-ADR-01 §D3 table (true)",
+    "capabilities.platform.sharing": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (exclusive)",
+    "capabilities.publish.createCourse": "LA-ADR-01 §D3 table (false)",
+    "capabilities.records.readBack": "LA-ADR-01 §D3 table (true)",
+    "capabilities.records.reporters": "LA-ADR-01 §D3 table ([\"lti-ags\"])",
+    "capabilities.registration.dynamic": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (true)",
+    "capabilities.registration.scopes": "LA-ADR-01 §D3 table + LA-ADR-05 §D4 (4 AGS scopes, no NRPS scope)",
+    "capabilities.setup.artifacts": "LA-ADR-01 §D3 table ([])",
+    "capabilities.setup.connectionCheck": "LA-ADR-08 §D4 + cogniate-app-api-delta.md §3.7 (false)",
+    "capabilities.site.serviceOrigin": "LA-ADR-01 §D3 table (false)",
+    "capabilities.siteApi.token": "LA-ADR-01 §D3 table (false)",
+    "coveredBy": "TEST-STRATEGY.md §2.5 (empty; all positive capabilities run on brightspace-sim)",
+    "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
+    "expect.legacyFlags": "LA-ADR-01 §D11 + cogniate-app-api-delta.md §1",
+    "expect.toolConfigurationKeys": "cogniate-app-api-delta.md §3.3 + R2 §5.4 (brightspace row order)",
+    "sim": "LA-ADR-02 §D3/§D4/§D7 + R2 §5.4 + LA-ADR-07 §D3 + tests/sim/README.md"
+  }
+}

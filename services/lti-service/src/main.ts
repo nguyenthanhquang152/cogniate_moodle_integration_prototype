@@ -30,8 +30,21 @@ export interface LtiService {
   app: FastifyInstance;
   operatorApp: FastifyInstance;
   jobs: JobRunner;
-  /** Drain the runner, close both listeners, then the database. */
+  /** Stop both listeners and the runner at once, cut open HTTP requests after HTTP_DRAIN_MS, then close the database. */
   close: () => Promise<void>;
+}
+
+/** BD-A2-109: at stop, an in-flight HTTP request gets at most this time; then its connection is destroyed. */
+export const HTTP_DRAIN_MS = 3_000;
+
+/**
+ * Stop one listener (BD-A2-109): it stops accepting and closes idle keep-alive connections at once. After HTTP_DRAIN_MS
+ * it destroys the connections that are still open, so a held handler cannot keep the stop waiting. The code of a cut
+ * handler ends with the process (the ADR-011 dead-handler path).
+ */
+async function closeListener(app: FastifyInstance): Promise<void> {
+  const cut = setTimeout(() => app.server.closeAllConnections(), HTTP_DRAIN_MS);
+  try { await app.close(); } finally { clearTimeout(cut); }
 }
 
 /** Start the service (unit tests call it with their own logger; the entry point below adds the signal handlers). */
@@ -85,9 +98,13 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
 
   let closing: Promise<void> | undefined;
   const close = (): Promise<void> => closing ??= (async () => {
-    await jobs.stop();
-    await Promise.allSettled([app.close(), operatorApp.close()]);
+    // BD-A2-109: the listeners and the runner stop at the same time. The runner keeps its 60 s grace for a run in
+    // flight; HTTP requests do not. The database closes when both are done.
+    const results = await Promise.allSettled([jobs.stop(), closeListener(app), closeListener(operatorApp)]);
     db.close();
+    // A failed step (the runner or either listener) makes close() reject, so the service exits 1 (A-LA-E5-19-04).
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
   })();
   return { config, masterKey, db, logger, app, operatorApp, jobs, close };
 }
