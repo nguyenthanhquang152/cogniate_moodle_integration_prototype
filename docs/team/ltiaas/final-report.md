@@ -1,95 +1,98 @@
 # Milestone LA final report: LTI as a Service v1
 
-Owner: Lead. Status: **DRAFT, re-gate running** (2026-10-24). Orca run `run_06d07dc77faf`. Integration branch `quang/ltiaas-milestone`.
+Owner: Lead. Status: **final** (2026-10-25). Orca run `run_06d07dc77faf`. Integration branch `quang/ltiaas-milestone` (closing HEAD: see §2).
 This milestone has no push or main-merge authorization. All commits are local.
 
 ## 1. Result
 
-The milestone-done rule ([charter-LA §2](charter-LA.md)) has four parts:
-1. All in-scope epics are done.
-2. M1, M2 and T7 pass at the final SHA.
-3. Architect conformance is APPROVE.
-4. Both reviewers have reviewed the docs.
+The milestone-done rule ([charter-LA §2](charter-LA.md)) has four parts. All four are met on the final product SHA `4f10c5fd`:
+1. **All in-scope epics are done.** Every Must task has QA PASS and both reviews APPROVE. Each Should and Could task is done, cut by a recorded decision, or waits for a named product-owner decision (§5, §7).
+2. **M1, M2 and T7 pass at the final SHA.** The double full run D3 and D4 on `4f10c5fd` passes under LD-25, LD-29, LD-31 and LD-32 ([LA-E7-08 qa](../../reviews/LA-E7-08/qa.md) Final state and §14; [run-D4.md](../../reviews/LA-E7-08/run-D4.md); [LA-E7-09 qa](../../reviews/LA-E7-09/qa.md) Round 7). LA-E7-08 and LA-E7-09 have A and B APPROVE.
+3. **Architect conformance is APPROVE** on `4f10c5fd`: A1 round 3 (`75025c30`) and A2 round 2 (`3f2d8730`).
+4. **Both reviewers reviewed the docs:** LA-E8-01 to LA-E8-04 are APPROVE, and LA-E8-05 (the whole review pack, [docs/human_review/ltiaas/](../../human_review/ltiaas/start-here.md)) is A and B APPROVE in round 4, with 0 open findings.
 
-The first final runs (D1 and D2) passed on product `a8bbac53`. At close-out the Lead found that the Blackboard and Canvas (B/C) final result had not been merged into LA, although LA-H10 (a) asked for it. The product owner chose LA-H27 (a): merge it, and repeat the full gate. The new final product SHA is `4f10c5fd`.
-
-State now:
-- Part 3 is met on `4f10c5fd`: A1 conformance round 3 APPROVE (`75025c30`) and A2 conformance round 2 APPROVE (`3f2d8730`).
-- Part 2: PENDING. The baseline-3 runs (R1) and the double full run D3/D4 on `4f10c5fd` are running (LD-29).
-- Part 1: PENDING on the re-gate tasks: LA-E7-08, LA-E7-09 AC-05, LA-E0-01 AC-04/05 and LA-E0-02 (the baseline-3 parts).
-- Part 4: PENDING on the LA-E8-05 part 3 round and its reviews.
+At close-out the Lead found that the Blackboard and Canvas (B/C) final result had never been merged into LA, although LA-H10 (a) asked for it. The product owner chose LA-H27 (a). So the final SHA moved from `a8bbac53` (the first final runs, D1 and D2) to `4f10c5fd`, and the whole gate ran again.
 
 ## 2. Final SHAs
 
 | Item | SHA | Source |
 | --- | --- | --- |
-| Final product | `4f10c5fd` = `a8bbac53` + main `78971b03` (B/C final) | merge commit `4f10c5fd`; [plan §6.2 LA-H27](plan.md) |
-| First final runs (D1, D2) | product `a8bbac53`; gate sources `la-final-test-1` `85ddf973`, `la-final-test-2` `68b2e909` | [LA-E7-08 qa §13](../../reviews/LA-E7-08/qa.md), [run-D2.md](../../reviews/LA-E7-08/run-D2.md) |
-| Re-gate sources (LD-29) | baseline-3 `1ae6716b` (on `78971b03`); `la-final-test-3` `794f649c` (on `4f10c5fd`) | [GATE-RUN-PLAN §10](../../../tests/ltiaas/GATE-RUN-PLAN.md); [LD-9 addendum r8](../../reviews/LA-E7-08/ld9-addendum-r8.md) |
-| Kit tree | `d7e50b5d` (after the WALK-02 fix, LD-30) | [LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 9 |
-| Golden | v2 with the Moodle segment; baseline on `78971b03`; G-BASE v1 record on `1b17261` kept | [LA-E0-03 qa](../../reviews/LA-E0-03/qa.md) Round 6 |
-| Integration HEAD | PENDING (close) | `git log` |
+| Final product | `4f10c5fd` = `a8bbac53` + main `78971b03` (the B/C final result; only the player HTML tracker repair is product code) | merge `4f10c5fd`; [plan §6.2 LA-H27](plan.md) |
+| Re-gate sources | baseline-3 `1ae6716b` on `78971b03`; `la-final-test-3` `794f649c` on `4f10c5fd` | [GATE-RUN-PLAN §10](../../../tests/ltiaas/GATE-RUN-PLAN.md); [LD-9 addendum r8](../../reviews/LA-E7-08/ld9-addendum-r8.md) (A and B APPROVE round 3) |
+| Kit runs | integration `99338e52` clone (product diff to `4f10c5fd` = 0 lines), kit tree `d7e50b5d` (LD-32) | LA-E7-08 qa §14 |
+| Golden | v2 with the Moodle segment; baseline on `78971b03`; the G-BASE v1 record on `1b17261` is kept | [LA-E0-03 qa](../../reviews/LA-E0-03/qa.md) Round 6 |
+| First final runs | product `a8bbac53`; `la-final-test-1` `85ddf973`, `la-final-test-2` `68b2e909` | LA-E7-08 qa §13, run-D2.md |
+| Integration closing HEAD | the commit that adds this report and closes the board (parent `93f15fe6`) | `git log -1` |
+
+The Lead's final fresh-clone check on `93f15fe6`: the product diff against `4f10c5fd` is 0 lines; `npm run check` exit 0 (204 files, 3324 unit tests passed, 5 skipped; K0 149/149; `F1 PASS: 0 hits`; `F5 PASS: 6 rules, 0 hits`); kit K0 33/33; golden K0 12/12.
 
 ## 3. Success measures (plan §4)
 
 | # | Measure | State | Evidence |
 | --- | --- | --- | --- |
-| 1 | A new LTI LMS profile changes 0 core files | **PASS** | E2-N proof: brightspace `F2 PASS: core = 0, paths = 4` ([LA-E2-05 qa](../../reviews/LA-E2-05/qa.md)). The walkthrough channel acme-lms: `core = 0, paths = 8` ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md)) |
-| 2 | No LMS name in core code; lint ratchet at zero | **PASS** | Lead fresh-clone check on `4f10c5fd`: `npm run check` exit 0, 3324 unit tests, `F1 PASS: 0 hits`, `F5 PASS: 6 rules, 0 hits` |
-| 3 | M1, M2, T7 pass; assertions change only by LD-1 and the LD-9 lists | PASS on `a8bbac53` (D1, D2); **PENDING** on `4f10c5fd` (D3, D4) | LD-1 approved ([LA-E0-04](../../reviews/LA-E0-04/)); LD-9 addenda r1–r8 ([LA-E7-08](../../reviews/LA-E7-08/)); empty lists LD-23, LD-26 |
-| 4 | lti-generic and the new named LMS pass the kit (K0 + K1) on the simulator | **PASS** on `a8bbac53`; the D3/D4 kit runs PENDING | Kit r8 195/195 on 5 channels (round 8 A and B APPROVE). Walk clone r2 234/234 on 6 channels with kit `d7e50b5d` (round 9 A and B APPROVE) |
-| 5 | A person or agent new to the repo adds a simulator LMS in less than 1 day | **PASS** | 8 min 49 s; LA-E8-02 QA 5/5 PASS, A and B APPROVE ([LA-E8-02](../../reviews/LA-E8-02/)) |
-| 6 | E5 Must items pass on the simulator | **PASS** | LA-E5-03, -14 (`429`); LA-E5-02, -11, -12 (audit); LA-E5-10 AC-06 (rotation); LA-E5-13 isolation, re-run on `4f10c5fd` |
+| 1 | A new LTI LMS profile changes 0 core files | **PASS** | E2-N: brightspace `F2 PASS: core = 0, paths = 4` ([LA-E2-05 qa](../../reviews/LA-E2-05/qa.md)); walkthrough acme-lms `core = 0, paths = 8` ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md)) |
+| 2 | No LMS name in core code; lint ratchet at zero | **PASS** | `npm run check` on `4f10c5fd`: 3324 unit tests, K0 149/149, `F1 PASS: 0 hits`, `F5 PASS: 6 rules, 0 hits` (Lead fresh clone; QA's own run in [LA-E0-01 qa](../../reviews/LA-E0-01/qa.md) Round 2) |
+| 3 | M1, M2, T7 pass; assertions change only by LD-1 and the LD-9 lists | **PASS** | D3 and D4: M1 394/394, M2 64/64, T7 3 × (17 + skip); LD-1 ([LA-E0-04](../../reviews/LA-E0-04/)); LD-9 addenda r1–r8; empty lists LD-23, LD-26 |
+| 4 | lti-generic and the new named LMS pass the kit (K0 + K1) on the simulator | **PASS** | D3 and D4 kit 195/195 on 5 channels (LD-32); walk clone 234/234 on 6 channels; kit K0 33/33 ([LA-E7-06](../../reviews/LA-E7-06/)) |
+| 5 | A person or agent new to the repo adds a simulator LMS in less than 1 day | **PASS** | 8 min 49 s; LA-E8-02 QA 5/5, A and B APPROVE |
+| 6 | E5 Must items pass on the simulator | **PASS** | LA-E5-03, -14 (`429`); LA-E5-02, -11, -12 (audit); LA-E5-10 AC-06 (rotation); LA-E5-13 isolation (rerun on `4f10c5fd`) |
 
-## 4. Gates and runs
+## 4. Gates and runs on the final SHA
 
-| Run | Product | Result | Evidence |
-| --- | --- | --- | --- |
-| Wave-end gate (slots 3B–8e) | `8fadb828` | PASS (LA-E7-08 AC-01, -03..-06; LA-E7-09 AC-01..-04) | [LA-E7-08 qa §8–§11](../../reviews/LA-E7-08/qa.md) |
-| Slot 3F | `a8bbac53` | PASS | [LA-E7-08 qa §12](../../reviews/LA-E7-08/qa.md) |
-| D1 and D2 | `a8bbac53` | PASS per LD-25 (WE-F13 and two D2 load flakes recorded; each rerun PASS) | §13, run-D2.md |
-| Kit K1-SIM r8 | `a8bbac53` | 195/195, 5 channels | LA-E7-06 qa Round 8 |
-| Walk clone r2 (kit `d7e50b5d`) | `a8bbac53` + acme-lms | 234/234, 6 channels | LA-E8-02 qa Round 3 |
-| K2 round 6 | `4f10c5fd` | 12/12 K2, 19/19 runner ids | LA-E7-07 qa Round 6 |
-| LA-E5-13 SIM | `4f10c5fd` | 5/5 ACs, 100 cross-tenant calls, 0 victim diffs | LA-E5-13 qa Round 2 |
-| Golden v2 | `78971b03` x2, `4f10c5fd` dry run | EQUAL; 297 differences, all explained | LA-E0-03 qa Round 6 |
-| R1 baseline-3 | `78971b03` | PENDING | LA-E0-02 qa; GATE-RUN-PLAN §10 |
-| D3 and D4 | `4f10c5fd` | PENDING | GATE-RUN-PLAN §10 |
+| Run | Result | Evidence |
+| --- | --- | --- |
+| R1 baseline-3 (`78971b03`) | M1 394/394, M2 64/64, T7 3 × 17 + skip, T2a–T8; rate peaks for all classes (BD-A2-114: the defaults stand) | [LA-E0-02 qa](../../reviews/LA-E0-02/qa.md) |
+| D3 and D4 (`4f10c5fd`) | M1 394/394, M2 64/64, T7 3 × 17 + skip, T2a–T8 equal per test id against baseline-3, golden 297 approved differences each (0 unexplained, 0 missing), kit 195/195 each | LA-E7-08 qa §14, run-D4.md, [per-test-id-D3-D4.md](../../reviews/LA-E7-08/per-test-id-D3-D4.md) |
+| K2 round 6 (`4f10c5fd`) | 12/12 K2, 19/19 runner ids | [LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) |
+| Walk clone r2 | 234/234, 6 channels | LA-E8-02 qa Round 3 |
 
-Findings and flakes (TEST-STRATEGY §2.6: a FAIL or a flake never counts as PASS): WE-F1..F13 as recorded ([LA-E7-08 qa](../../reviews/LA-E7-08/qa.md)); WE-F12 deferred to LG; the D2 load flakes (T7 run 2, M2-11); kit findings WALK-01 and WALK-02 (closed).
+Recorded events. None of them counts as PASS, and each has its evidence in LA-E7-08 qa §14:
+- The H1 inspect race (136), and its recovery (142).
+- A retry by the old session, which failed PRE and started no stack.
+- The kit gate-overlay assembly defect (141, 0 tests). The kit runs moved to the integration clone (LD-32): 144 and 161.
+- The D4 M1 overlap isolation finding (151), and its solo rerun (162; LD-31 amendment).
+- WE-F14, the T5b AC-T5-30 status race (158), and its solo rerun (163).
+- The baseline-3 T8 AC-T8-03/07 FAIL (129), and its solo retry (170) PASS, so 129 is a baseline flake.
+- The M3 foreign-state (`sto-*`) environment notes.
+- A 42-second gap in the D3 Docker-event capture.
 
 ## 5. Epics
 
 | Epic | State | Notes |
 | --- | --- | --- |
-| E0 Baseline intake | PENDING (re-gate) | LA-E0-03 and -04 done. LA-E0-01: the B/C merge is done (`4f10c5fd`); AC-04/05 are recorded after D3. LA-E0-02: baseline-3 runs (R1) running |
+| E0 Baseline intake | done | LA-E0-01 (with the B/C merge), -02 (baseline-3), -03 (golden v2), -04: QA PASS, A and B APPROVE |
 | E1 Channel kernel | done | |
-| E2 Generic LTI and the new named LMS | done, except LA-E2-07 | LA-E2-07 (Could) cut by LD-11/LD-16 |
+| E2 Generic LTI and the new named LMS | done, except LA-E2-07 | LA-E2-07 (Could) cut (LD-11/LD-16) |
 | E3 LTI Advantage | done, except 3 Shoulds | LA-E3-08, -14 wait for LA-H22; LA-E3-10 waits for LA-H4 |
-| E4 Learning-record core | done, except 2 Shoulds | LA-E4-04 QA PASS at close-out (it had none). LA-E4-06 cut (LD-28). LA-E4-08 waits for LA-H22 |
-| E5 Operability and security | done | LA-E5-13 fix round 1 at close-out (2 MAJOR oracle gaps); A and B APPROVE round 2 |
-| E6 Self-serve onboarding (Could) | partly done | LA-E6-04 QA PASS at close-out (it had none). LA-E6-03, -07 wait for LA-H24. LA-E6-06 cut |
-| E7 Conformance kit and CI | PENDING (re-gate) | LA-E7-06 kit done (rounds 8 and 9). LA-E7-07 done. LA-E7-08 and LA-E7-09 AC-05 re-run on `4f10c5fd`. LA-E7-11 waits for LA-H9. LA-E7-12 cut (LD-28) |
-| E8 Docs and hand-over | PENDING (LA-E8-05 part 3) | LA-E8-01, -02, -03, -04 done |
+| E4 Learning-record core | done, except 2 Shoulds | LA-E4-04 QA PASS at close-out. LA-E4-06 cut (LD-28). LA-E4-08 waits for LA-H22 |
+| E5 Operability and security | done | LA-E5-13 fix round 1 at close-out (A and B APPROVE round 2) |
+| E6 Self-serve onboarding (Could) | partly done | LA-E6-01, -02, -04, -05 done (LA-E6-04 QA PASS at close-out). LA-E6-03, -07 wait for LA-H24. LA-E6-06 cut |
+| E7 Conformance kit and CI | done, except 2 | LA-E7-06 kit done (rounds 8, 9). LA-E7-07, -08, -09 done. LA-E7-11 waits for LA-H9. LA-E7-12 cut (LD-28) |
+| E8 Docs and hand-over | done | LA-E8-01..05: A and B APPROVE (LA-E8-05 round 4) |
 
-## 6. Decisions made in LA (today's)
+## 6. Decisions made in LA (the last two days)
 
 Lead decisions ([plan §6.1](plan.md)):
-- LD-23 and LD-26: empty LD-9 lists (LA-IC-02, -05, -10, -11; LA-IC-24).
+- LD-23 and LD-26: empty LD-9 lists.
 - LD-24: the M1-41 ledger assertion.
-- LD-25: the identical-run rule after the Docker update.
-- LD-27: the kit round 7 fix inside the LA-H25 window.
-- LD-28: LA-E4-06 and LA-E7-12 are cut to LG.
-- LD-29: the re-gate after the B/C final merge.
+- LD-25: the identical-run rule.
+- LD-27: the kit round 7 fix inside the live window.
+- LD-28: two cuts to LG.
+- LD-29: the re-gate after the B/C merge.
 - LD-30: the kit WALK-02 fix.
-- LD-31: the Moodle-stack rule for the re-gate.
+- LD-31 and its amendment: one Moodle-lane workload at a time; M1, M2 and K2 run alone among the LA stacks; isolation changes caused only by `sto-*` are environment notes.
+- LD-32: the kit runs from the integration clone.
+
+Architect rulings:
+- BD-A1-121: the recorded registration-guard deviation.
+- BD-A2-114: the registration rate defaults stand.
 
 Product-owner decisions:
-- LA-H25: (a), then a narrow fix, then the live window.
-- LA-H27: (a), merge the B/C final result and repeat the full re-gate.
+- LA-H25 (a), then a narrow fix, then the live window.
+- LA-H27 (a): the B/C merge and the full re-gate.
 - Docker: up to 2 LA stacks.
 - An extra LA-E8-01 round.
-- If the Antigravity weekly quota ends, the QA sessions move to Codex GPT-6-Astra xhigh.
+- When the Antigravity quota ends, the QA sessions move to Codex GPT-6-Astra xhigh. This happened at about 20:20Z; one Codex conductor finished the re-gate.
 
 ## 7. Open human decisions
 
@@ -101,24 +104,21 @@ Product-owner decisions:
 | LA-H24 | The verified-admin-launch authority, after a security review | LA-E6-03, LA-E6-07 |
 | LA-H26 | A real open-source LMS (Open edX, then Sakai) for a live new-channel proof | LG live proof |
 
+LA-H3 (real test sites) stays open, so the live Canvas, Blackboard and D2L rows are not an LA gate (plan §4).
+
 ## 8. Deferred work
 
-PENDING (close): the counts by severity and destination from [deferred.md](deferred.md).
+[deferred.md](deferred.md) has 88 rows: 42 MINOR, 33 NIT, 3 flake findings (WE-F10 closed; WE-F12 and WE-F14 open, both frozen-test races with an LD-9 fix in LG), 5 scope rows (the cuts and the BD-A2-111 gap), and 5 others. 13 rows are closed. 17 rows name LG. No MAJOR or BLOCKER is open; the one MAJOR candidate, the kit closed list, is closed.
 
 ## 9. Incidents that affect trust in the evidence
 
-- The missed B/C final merge (Lead error). LA-H10 (a) said "merge its final commits later". B/C merged to main at about 2026-10-23 21:02Z, and LA did not take it. The LA-E0-01 evidence review found it at close-out. Fixed by LA-H27 (a) and the re-gate.
-- QA rounds and reviews missing at close-out: LA-E4-04 and LA-E6-04 had no QA round; LA-E0-01..03, LA-E5-13, LA-E7-07 and LA-E8-02 had no reviews. The reviews found real gaps: the B/C merge, the legacy baseline and rates (LA-E0-02), the Moodle golden segment (LA-E0-03), and two false-green isolation oracles (LA-E5-13). Each is fixed or pending in the re-gate.
-- A golden provenance error, caught by the Lead before integration: a `78971b03` capture was stored under the `1b17261` name. Fixed, and the G-BASE v1 record was restored byte-exactly.
-- 2026-10-24 ~06:05–08:48Z host reboot; Docker Desktop auto-update at 09:19Z (G-1 diagnostic result 2; addendum r6).
-- Sessions restored after the reboot came back without their permission flag. The Lead resumed them with the original flag, and no grant was broadened.
-- The Lead's wait helper was killed twice and one worker report was not shown. It was recovered from the inbox, and the helper now logs each message before it acknowledges it.
-- 2026-10-23: the slot 3B amend, and a stale vitest cache.
+- **The missed B/C final merge (Lead error).** Found by the LA-E0-01 evidence review. Fixed by LA-H27 (a) and the full re-gate.
+- **QA rounds and reviews missing at close-out:** LA-E4-04 and LA-E6-04 had no QA round, and LA-E0-01..03, LA-E5-13, LA-E7-07, LA-E7-08 and LA-E8-02 had no reviews. The reviews found real gaps (the B/C merge, the legacy baseline and rates, the Moodle golden segment, two false-green isolation oracles, and wrong carried U1 citations). All of them are fixed.
+- **A golden provenance error,** caught by the Lead before integration. The G-BASE v1 record was restored byte-exactly.
+- **The Antigravity quota ended mid-re-gate.** The Lead fenced the agy dispatches and started a Codex conductor. One old session still started a retry (PRE FAIL, no stack) before it read the fence, so the Lead exited the old sessions. Rule: exit a replaced agent process as well as fencing it.
+- **Gate-plan command and assembly defects:** golden normalization, the K1 wave input, and the kit dispatcher lost by the overlay. Each was caught by review, by a dry run or by a 0-test FAIL, never accepted as PASS.
+- 2026-10-24: a host reboot; the Docker Desktop auto-update (G-1 result 2); restored sessions without their permission flag; one worker report lost by the wait helper and then recovered.
 
-## 10. PENDING
+## 10. Closure
 
-- PENDING: R1 baseline-3 runs; LA-E0-02 baseline-3 parts and reviews.
-- PENDING: LD-9 addendum r8 round 3 reviews; then D3 and D4 on `4f10c5fd` (LD-29, LD-31), with the golden compare and the kit K1.
-- PENDING: LA-E7-08 and LA-E7-09 final rows on `4f10c5fd`; LA-E7-08 evidence review; LA-E0-01 AC-04/05 and round 2 reviews.
-- PENDING: LA-E8-05 part 3 and its A and B reviews.
-- PENDING: board close, and the closing SHAs in this report.
+The milestone is done (2026-10-25). Nothing is left in LA. The product owner has the open decisions in §7 and the LG items in deferred.md. A push or a merge to main needs the product owner's authorization.
