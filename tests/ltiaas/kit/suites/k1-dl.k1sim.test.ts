@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { runSingleSelectRefusal } from '../lib/cases.js';
 import {
   buildPickerSelectionForm,
   contentItemPublicationIds,
@@ -173,49 +174,30 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
             expect(items.length).toBe(3);
             expect(contentItemPublicationIds(items)).toEqual(listed);
           } else {
-            // Single select stays when content.multiple is false (radio list; base contract:
-            // `publicationId` exactly one): two ids never give more than one item. The answer is
-            // an error page without a response JWT, or a response with exactly one posted item.
+            // Single select stays when content.multiple is false (ruling A1 BD-A1-120): two ids give
+            // the 400 page PUBLICATION_NOT_AVAILABLE with no JWT; the picker stays unused, so one id on
+            // the same picker then gives exactly that item (lib/cases.ts runSingleSelectRefusal).
             expect(multiPicker.html).toContain('type="radio"');
             expect(multiPicker.html).not.toContain('type="checkbox"');
-            const multiAttempt = await appRequest('POST', pickerPath(multiPicker.pickerUrl), {
-              headers: {
-                accept: 'text/html',
-                origin: APP_ORIGIN,
+            const cursorRefusal = (await records()).cursor;
+            const refusal = await runSingleSelectRefusal(
+              { pickerUrl: multiPicker.pickerUrl, publicationIds: [listed[0], listed[1]] },
+              {
+                postSelection: (url, form) =>
+                  appRequest('POST', pickerPath(url), {
+                    headers: {
+                      accept: 'text/html',
+                      origin: APP_ORIGIN,
+                    },
+                    form,
+                  }),
               },
-              form: buildPickerSelectionForm(listed.slice(0, 2)),
-            });
-            if (multiAttempt.status === 200) {
-              const attemptItems = decodeJwt(parseForm(multiAttempt.text).fields.JWT).payload[
-                `${DL}content_items`
-              ];
-              const attemptIds = contentItemPublicationIds(attemptItems);
-              expect(attemptIds.length).toBe(1);
-              expect(listed.slice(0, 2)).toContain(attemptIds[0]);
-            } else {
-              expect([400, 422]).toContain(multiAttempt.status);
-              expect(multiAttempt.text).toContain('data-error-code="');
-              expect(multiAttempt.text).not.toContain('name="JWT"');
-            }
-
-            // Control: one id on a fresh picker with the same settings gives one item, so the
-            // answer above depends only on the number of ids.
-            const controlPicker = await openPickerOnChannel(binding, {
-              acceptMultiple: true,
-            });
-            expect(controlPicker.status).toBe(200);
-            const oneRes = await appRequest('POST', pickerPath(controlPicker.pickerUrl), {
-              headers: {
-                accept: 'text/html',
-                origin: APP_ORIGIN,
-              },
-              form: buildPickerSelectionForm([listed[0]]),
-            });
-            expect(oneRes.status).toBe(200);
-            const oneItems = decodeJwt(parseForm(oneRes.text).fields.JWT).payload[
-              `${DL}content_items`
-            ];
-            expect(contentItemPublicationIds(oneItems)).toEqual([listed[0]]);
+            );
+            expect(refusal.controlIds).toEqual([listed[0]]);
+            // No Deep Linking return reached the platform simulator
+            expect(
+              (await records(cursorRefusal)).records.filter((r) => r.kind === 'deep-link'),
+            ).toEqual([]);
           }
 
           // 2. Service-level POST /api/deeplinking with LTIK-AUTH-V2 (lti-service-api.md §3.2; lti-service-api-delta.md §4.2):

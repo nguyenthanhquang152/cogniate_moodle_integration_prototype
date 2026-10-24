@@ -282,6 +282,25 @@ Baseline before the fix on the same clone: kit K0 16/16, root K0 149/149, kit ty
 ### R5.5 Pending and notes
 
 - `AC-LA-E7-06-01`, `-03`, `-04`, `-05`, `-06`, `-08`: `pending: Docker window` (K1-SIM). The changed live paths (L4, L7, L10, D3, A3, C1, every picker case) are proven on the host only.
-- Contract gaps sent to the Lead with the ask command (A-07, A-08, B-02, B-07; message `msg_8f4aaa9cbbb7`, no answer after 2 × 10 min, still open for A1/A2); the kit uses these defaults: (1) D3 single-select with two `publicationId` values: never more than one item (an error page without a JWT, or a JWT with one posted item), with a one-id control; (2) L10: the storage-check JSON key is `check` (fallback: a hidden input named `check`); (3) L7: `stats.activities` is the placement count of the publication.
+- Contract gaps sent with the ask command (`msg_8f4aaa9cbbb7`; A-07, A-08, B-02, B-07) are now ruled (dispatch `ctx_4dc13937f316`, see R5.6): (1) D3, A1 `BD-A1-120`: two `publicationId` values on a single-select picker give the `400` page `PUBLICATION_NOT_AVAILABLE` with no JWT and no Deep Linking return, and the picker stays unused (the earlier default "at most one item" is replaced); (2) L10, A2 `BD-A2-112`: the check value is the member `check` of the storage-check page's one `<script id="lti-storage-data" type="application/json">` block (members `postUrl`, `check`, `target`, `origin`, `key`, `messageId`; never the state, the state hash or the tool URL); the hidden-input fallback is removed; (3) L7, A1 `BD-A1-120`: the default stands, `stats.activities` counts placements (two contextless launches on one resource link and deployment give 1).
 - L4 on Brightspace has no registration-level probe: no other channel guards a family at that level (recorded as a note in the case report).
 - Changed files: `tests/ltiaas/kit/lib/{cases.ts (new),fixtures.ts,runtime.ts}`, `tests/ltiaas/kit/suites/{k1-launch,k1-dl,k1-ags,k1-cap}.k1sim.test.ts`, `tests/ltiaas/kit/channels/{moodle,canvas,blackboard,lti-generic,brightspace}.json`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, this file. Other files that show as changed in the shared worktree are not from this round.
+
+### R5.6 Rulings applied (dispatch `ctx_4dc13937f316`; base: la-qa `7859b25b`, integration `29fcb01d`)
+
+| Ruling | Fix | Test or probe (K0) | Result |
+| :--- | :--- | :--- | :--- |
+| A1 `BD-A1-120` (D3; `A-LA-E7-06-08`, `B-LA-E7-06-02`) | New case body `runSingleSelectRefusal` (lib/cases.ts), called by the D3 single-select branch: two ids (repeated `publicationId`) must give status `400`, the error page `PUBLICATION_NOT_AVAILABLE`, no `Location` and no `JWT` field; then one id on the **same** picker must give `200` and a JWT with exactly that item. The suite also checks that the simulator has no `deep-link` record (no Deep Linking return). The "at most one item" oracle and the fresh-picker control are removed. | `(D3, ruling A1 BD-A1-120): two ids on a single-select picker give 400 PUBLICATION_NOT_AVAILABLE ...` on a picker-route fake; mutants fail: first id accepted (`200`), picker marked used by the refusal (control `410`), another code, a JWT on the refusal page | PASS |
+| A2 `BD-A2-112` (L10; `A-LA-E7-06-08`, `B-LA-E7-06-07`) | `readStorageCheckData`: exactly one `<script id="lti-storage-data" type="application/json">` block, `JSON.parse`, a non-empty string member `check`; no hidden-input fallback. `runPlatformStorageCase` also fails when the block carries the state of that login. The K0 storage fake now renders the ruled block (members `postUrl`, `check`, `target`, `origin`, `key`, `messageId`). | `(L10): escaped JSON pages, script-built check form, and wrong storage behaviour`: mutants fail: `check` only in a hidden input (`no string member "check"`), block without `id="lti-storage-data"`, block that carries the state. Runner mutation (fallback put back, private clone only): that probe fails, 1 of 24 | PASS |
+| A1 `BD-A1-120` (L7) | No change: `stats.activities === 1` stays in the L7 verdict. | `(L7)` probe unchanged | PASS |
+
+Host checks after the rulings (private clone `b6bfbef2` + this kit):
+
+| Check | Result | Time | Log |
+| :--- | :--- | :--- | :--- |
+| Kit K0 (`LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts`) | **24/24 PASS** | 356 ms | `r5/kit-k0-rulings.log` |
+| Root K0 (`npm run test:k0`) | **149/149 PASS**, 3 files | 771 ms | `r5/test-k0-rulings.log` |
+| Kit typecheck (`npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json`) | exit 0 | — | `r5/kit-tsc-rulings.log` |
+| F1 suite neutrality (grep of LMS names in `tests/ltiaas/kit/suites/`) | 0 hits | — | — |
+
+Changed files in this step: `tests/ltiaas/kit/lib/cases.ts`, `tests/ltiaas/kit/suites/k1-dl.k1sim.test.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, this file. `0` Docker commands; K1-SIM rows stay `pending: Docker window`.

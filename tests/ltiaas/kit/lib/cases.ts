@@ -3,9 +3,11 @@
 // host fakes, so the selectors, request shapes and final comparisons run on the host too.
 // No channel name appears here: every branch reads the fixture.
 import crypto from 'node:crypto';
-import { denied, LTI, parseForm } from '../../../acceptance/M1/common/client.js';
+import { denied, DL, LTI, parseForm } from '../../../acceptance/M1/common/client.js';
 import {
+  buildPickerSelectionForm,
   ChannelFixture,
+  contentItemPublicationIds,
   FamilyGuardExpectation,
   selectFamilyGuardProbes,
   validateFamilyGuardLaunchObservation,
@@ -247,16 +249,31 @@ export function findStorageAuthUrl(data: Record<string, unknown>, plainLocation:
   return authUrl;
 }
 
-// The storage-check page posts the form fields `check` and `value` (lti-service-api-delta §2.2);
-// the page builds the form in its script from the JSON block.
+// The storage-check page posts the form fields `check` and `value` (lti-service-api-delta §2.2).
+// Ruling A2 BD-A2-112: the check value is the member `check` of the page's one data block
+// `<script id="lti-storage-data" type="application/json">` (members postUrl, check, target, origin,
+// key, messageId; never the state, the state hash or the tool URL). No other source is read.
+export function readStorageCheckData(html: string): { data: Record<string, unknown>; check: string } {
+  const blocks = [...String(html ?? '').matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(
+    (m) =>
+      /\bid=["']lti-storage-data["']/i.test(m[1]) && /\btype=["']application\/json["']/i.test(m[1]),
+  );
+  if (blocks.length !== 1) {
+    fail(`storage-check page must have exactly one <script id="lti-storage-data" type="application/json"> block, found ${blocks.length}`);
+  }
+  const data = JSON.parse(blocks[0][2].trim()) as unknown;
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
+    fail('storage-check page data block is not an object');
+  }
+  const check = (data as Record<string, unknown>).check;
+  if (typeof check !== 'string' || !check) {
+    fail('storage-check page data block has no string member "check"');
+  }
+  return { data: data as Record<string, unknown>, check };
+}
+
 export function readStorageCheckToken(html: string): string {
-  const data = readStoragePageJson(html);
-  if (typeof data.check === 'string' && data.check) return data.check;
-  const input =
-    /<input\b[^>]*\bname=["']check["'][^>]*\bvalue=["']([^"']+)["']/i.exec(html) ??
-    /<input\b[^>]*\bvalue=["']([^"']+)["'][^>]*\bname=["']check["']/i.exec(html);
-  if (input?.[1]) return input[1];
-  return fail('storage-check page carries no "check" value');
+  return readStorageCheckData(html).check;
 }
 
 export async function runPlatformStorageCase(
@@ -338,14 +355,17 @@ export async function runPlatformStorageCase(
       io.rememberSecret(state);
       return { authUrl, state };
     };
-    const checkPage = async (login: { authUrl: string }) => {
+    const checkPage = async (login: { authUrl: string; state: string }) => {
       const form = await authorize(login.authUrl);
       const res = await io.formPost(form.action, form.fields);
       if (res.status !== 200) fail(`launch without the state cookie answered ${res.status}, expected the 200 storage-check page (rule 7)`);
       if (headerOf(res, 'location')) fail('storage-check page must not redirect (no ltik before the check)');
-      const token = readStorageCheckToken(res.body);
-      io.rememberSecret(token);
-      return token;
+      const { data, check } = readStorageCheckData(res.body);
+      if (stringValues(data).some((value) => value.includes(login.state))) {
+        fail('storage-check page data block carries the state (BD-A2-112: never the state)');
+      }
+      io.rememberSecret(check);
+      return check;
     };
 
     // AP-05-02 + rule 8: Origin first (the check stays unused), then the match gives 303 with an ltik.
@@ -407,6 +427,45 @@ export async function runPlatformStorageCase(
   steps.push('cookie of another login 400');
 
   return { storagePath: Boolean(storage), steps };
+}
+
+// ---------------------------------------------------------------------------------------------
+// K1-DL D3 single select (cogniate-app-api.md §6 `POST /tool/picker/{pickerId}`; ruling A1 BD-A1-120):
+// on a radio picker two `publicationId` values give the 400 page PUBLICATION_NOT_AVAILABLE with no JWT
+// and no Deep Linking return; the picker stays unused, so one id on the same picker then gives one item.
+// ---------------------------------------------------------------------------------------------
+
+function jwtPayload(jwt: string): Record<string, unknown> {
+  const part = String(jwt ?? '').split('.')[1];
+  if (!part) fail('picker answer has no JWT');
+  return JSON.parse(Buffer.from(part, 'base64url').toString('utf8')) as Record<string, unknown>;
+}
+
+export async function runSingleSelectRefusal(
+  ctx: { pickerUrl: string; publicationIds: [string, string] },
+  io: { postSelection(pickerUrl: string, form: Array<[string, string]>): Promise<HttpResultLike> },
+): Promise<{ refusedStatus: number; controlIds: string[] }> {
+  const refused = await io.postSelection(ctx.pickerUrl, buildPickerSelectionForm([...ctx.publicationIds]));
+  if (refused.status !== 400) {
+    fail(`two publicationId values on a single-select picker answered ${refused.status}, expected 400`);
+  }
+  denied(refused as { status: number; headers: any; body: string }, 'PUBLICATION_NOT_AVAILABLE', 400);
+  if (/\bname=["']JWT["']/i.test(refused.body)) {
+    fail('single-select refusal page carries a Deep Linking response JWT');
+  }
+
+  // The picker stays unused: one id on the same picker gives exactly that one item.
+  const control = await io.postSelection(ctx.pickerUrl, buildPickerSelectionForm([ctx.publicationIds[0]]));
+  if (control.status !== 200) {
+    fail(`one publicationId on the same picker after the refusal answered ${control.status}, expected 200`);
+  }
+  const controlIds = contentItemPublicationIds(
+    jwtPayload(parseForm(control.body).fields.JWT ?? '')[`${DL}content_items`],
+  );
+  if (controlIds.length !== 1 || controlIds[0] !== ctx.publicationIds[0]) {
+    fail(`one-id control gave items ${JSON.stringify(controlIds)}, expected ["${ctx.publicationIds[0]}"]`);
+  }
+  return { refusedStatus: refused.status, controlIds };
 }
 
 // ---------------------------------------------------------------------------------------------
