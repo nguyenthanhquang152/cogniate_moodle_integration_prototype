@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 8
+Round: 9
 
 ## Round 1
 
@@ -422,3 +422,24 @@ Logs: `/tmp/reviewer-b-la-e706-r8-xsppkycg/{kit-k0,kit-typecheck,round7-reproduc
 Read-only comparison with `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/k1-r8/run-clone` finds **all 26 tracked kit files identical**. Reviewed and recorded kit tree: `8ad870fa1b33c93268bb0cdfb11dd86289a650c4`. The r8 host summary has no abort and all phases PASS. The final evaluator reports **195/195 PASS**, no failures, skips, duplicates or global errors; the ledger contains 195 unique IDs in run `kit-run-1792852921605-ngk732`. Vitest reports **196/196 PASS**, including SUMMARY; duration is 364,393 ms. Independent comparison record: `/tmp/reviewer-b-la-e706-r8-xsppkycg/live-evidence.json`.
 
 This corroborates the completed r8 run; I did not rerun the stack. The exact-tree live evidence stands under LD-27, with no further code change or live run required by this review. BD-A1-121 remains the recorded LG product follow-up. Fixes stay within kit/QA ownership; product, frozen helpers and simulator are unchanged. No Docker, host runner, live HTTP or commit was used. Blind review maintained; only this review file was edited in the integration worktree.
+
+## Round 9
+
+Verdict: **APPROVE**. Reviewer-B: Codex GPT-6-Astra xhigh, 2026-10-24. LD-30 fix-only review of `fe728a91..a3953243`, scoped to the kit and its QA report; QA-K commit `224831c5`, kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa`. **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** F-LA-E7-06-WALK-02 is closed by this source review; no new findings.
+
+The additional condition at `tests/ltiaas/kit/lib/fixtures.ts:1863` follows the contracts. LA-ADR-02 D5 computes the start rule from loaded DR profiles; LA-ADR-01 D3 defines `registration.dynamic` from the dynamic method and its profile trait. A manual-only owner therefore cannot supply the permissive DR rule needed for BD-A1-121's complete-refusal branch. D6's registration-phase answer and D5 item 5 retain the start refusal when no such profile admits the configuration. The comment and README explain this condition without consulting product implementation.
+
+The new K0 row (`kit.k0.test.ts:2581`) checks both a manual-only owner and a DR owner, the shipped branch table, fixed-profile targets, a DR owner with DR disabled, and a launch-level guard. The stored Acme fixture is byte-identical to the walker's `d6196d52` fixture (SHA-256 `a620502dccd2a3bda3a936b03596481f1979d0c456b5f46d2904ec0d297e7be0`); it stays outside normal channel discovery. No suite, case ID, other oracle, product, frozen test or simulator changed in this fix. The changed helper remains channel-neutral.
+
+Independent verification used a private `git clone --no-hardlinks` at `a3953243`, `/tmp/reviewer-b-la-e706-r9-liac4h5l/clone`:
+
+| Check | Result |
+| --- | --- |
+| Kit K0, five shipped fixtures | **33/33 PASS** |
+| Kit TypeScript check | **PASS** |
+| Remove only the new owner-DR condition; run the WALK-02 row | **Expected failure** at `kit.k0.test.ts:2611`: old rule returns `acme:complete`, expected `acme:start` |
+| Restore the condition; add the supplied fixture as `channels/acme-lms.json`; run full K0 | **33/33 PASS** |
+
+Logs are in `/tmp/reviewer-b-la-e706-r9-liac4h5l/`: `kit-k0.log`, `kit-typecheck.log`, `old-rule-mutant.log`, and `kit-k0-acme.log`. K0 command: `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts --reporter=verbose`; the mutant adds `-t F-LA-E7-06-WALK-02:`. Mutation and temporary channel were removed; tracked clone files match the pin.
+
+The shipped five-channel branch table is unchanged, so Round 8's 195/195 remains valid as task evidence for those channels. This is not a new live-run claim: LD-29/LD-30 still require the re-gate on the merged product and the walk clone with six channels. No Docker, stack, host runner or live HTTP was started. Blind review maintained; only this review file was edited in the integration worktree, with no commit.
