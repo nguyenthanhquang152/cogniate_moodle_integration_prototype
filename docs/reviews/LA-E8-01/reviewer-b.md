@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 4
+Round: 5
 
 ## Round 1
 
@@ -119,3 +119,51 @@ Verdict: **APPROVE**. Reviewed Docs commit `2960639e`, integrated at `e8aacf54`,
 Independently reran the actual acceptance entry point with a fake Vitest file in a fresh private `git clone --no-hardlinks`, pinned to `e8aacf546b61d98b831ebcccedbff92dd072fc9c`: `/tmp/e8-01-r4-review-b-5vyy8a8m/repo`. Commands were extracted from the guide, with only `<id>` replaced by a fake id. **6/6 probe cases passed** across bash and zsh: both corrected forms exit 0, start in `tests/`, find the existing kit config, pass the expected Vitest arguments, and preserve `LA_RUN_DIR`, `QA_KIT_CHANNELS` and `QA_TASK`. In both shells the old root command resolves the missing root-level config and exits 3, as expected. Evidence in the parent folder: `probe.py`, `fake-vitest.mjs`, `probe-results.json`, `probe.log`, and per-case JSON/log files. The clone's tracked files are unchanged; no dependency installation was needed.
 
 The Docs diff changes only the permitted guide. No product, architecture, core LMS path or other guide changes; no UNIT AC applies. This focused probe validates command startup, not K1 behavior. The guide keeps the real K1-SIM run and AC-LA-E8-01-02 pending QA; this approval does not replace those runs or the separate kit review. No Docker, stack, real test runner, live request or commit. Only this report was edited in integration, and no Reviewer-A file was opened.
+
+## Round 5
+
+Verdict: **APPROVE**. Reviewed walkthrough-fix commit `dc7a1213`, integrated at `77f58f62`, using the dispatched diff from `4052958f`. **0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT open.** Thirteen walkthrough findings close; L3 needs one non-blocking wording qualification. Previous findings B-LA-E8-01-01 through -05 remain closed.
+
+### Walkthrough findings
+
+All ids below have prefix `F-LA-E8-01-`; checked against LA-E8-02 QA §3.1 and the cited design/code.
+
+| Finding | Result and evidence |
+| --- | --- |
+| L1 | Closed: steps 2, 3 and 9 give the manual-only method/field changes, explicit `dynamicRegistration: null`, computed authority map and legacy flag. Matches LA-ADR-02 D2 / BD-A1-83 and the kernel/LTI registry behavior. |
+| L2 | Closed: step 5 distinguishes the host-only authoring branch from the operator's pre-release check on each deployed environment. Only a simulated-only LMS gets the recorded N/A exception; the final checklist preserves the migration requirement for real LMSs. |
+| L3 | Partial: step 9 explains that guards affect the kit and retains a passing host check; the new guarded-family canary passes. The universal probe statement needs B-LA-E8-01-06 below. |
+| L4 | Closed: step 10.2 prints actual per-channel K0 groups. The new id appears with the canary folder and disappears when that folder is removed. |
+| U1 | Closed: §0.4 gives simulator defaults and requires `design` / `UNVERIFIED (simulated only)` labels, consistent with the provider template. |
+| U2 | Closed: step 2 follows LA-ADR-01 D3, LA-ADR-05 D3b and LA-ADR-08 D4. Unknown multi-select support stays false; both capability and launch permission are required. Connection check is `setup.connectionCheck`, not an invented `ops` capability. |
+| U3 | Closed: dynamic binding fields are conditional on the dynamic method. |
+| U4 | Closed: step 4 keeps launch guard effects for a manual-only LMS and permits an empty guard list when no distinct family is known. |
+| U5 | Closed: the stale fixed-provider warning is removed; the exact simulator self-test command passes with the new provider. |
+| U6 | Closed: step 7 explicitly chooses its single-provider template over the older generic-copy instruction in the simulator README. |
+| U7 | Closed: step 7 distinguishes optional D2L-specific protocol assertions from the checks applicable to the template. |
+| U8 | Closed: the guide uses “all tests pass, 0 failed” instead of a changing test total, as the Lead directed. |
+| U9 | Closed: same observable channel-id check as L4. |
+| U10 | Closed: step 11 explicitly skips the separate admin guide for a simulated-only LMS and explains the absence of a docs path in F2. |
+
+### B-LA-E8-01-06 — MINOR — Qualify the L4 probe-selection statement
+
+**File:line:** `docs/guides/ltiaas/add-a-channel.md:370`.
+
+**Problem:** The sentence says a new guard adds a `registration_guarded` / `warn_passthrough` probe for its family to **every other channel**. The kit selects one foreign registration-level family per target, and the expected result depends on the target's authority. The sentence follows `DOCS-E801w.md` item 3, but that brief also needs this qualification; no kit behavior change is requested.
+
+**Evidence:** `tests/ltiaas/kit/lib/fixtures.ts:1724` selects the first eligible foreign family; `:1695–1712` expects refusal for a target with manual `self` authority, warning/pass-through otherwise. With the added `reviewwalk` family, the real selector chooses it for Brightspace; Moodle, Canvas, Blackboard and `lti-generic` still select `desire2learn`. Moodle's registration-level outcome is `refuse` / 400, including when the new family is supplied directly. Step 4 already describes the Moodle refusal correctly. This affects the explanation, not execution of the guide.
+
+**Suggested fix:** Say that a new guard participates in the kit's cross-channel probe selection and can add/change the registration-level probe. Preserve the target-dependent outcome: Moodle `standard` refuses; other targets warn and pass. Avoid promising a separate new-family probe for every target.
+
+### Verification and boundary
+
+Fresh private `git clone --no-hardlinks` at `/tmp/e8-01-r5-review-b-9m28n06o/repo`, pinned to `77f58f624ce2a5a35d8f6dc2213ec5185039d5df`, with its own successful `npm ci`. Added a manual-only sixth channel, the exact guide simulator template, one host entry and one fixture guarding a new family. No shared suite/list edit. Cleared the private Vitest cache before each Vitest command.
+
+- Exact discovery command: seven providers, including only one new `review-walk-sim`.
+- Exact simulator self-test command: **59/59 PASS**.
+- Exact K0 listing pipeline, with shell `pipefail`: exit 0 and all six channel ids, including `review-walk`. Without the channel folder: exit 0, five baseline ids and no temporary id.
+- Exact kit host command: **26/26 PASS**, including the guarded-family addition. Direct kernel computation matches all 17 fixture capabilities and all six legacy flags; the real L4 selector supplies the evidence above.
+
+Evidence in the parent folder: `commands.json`, `command-results.json`, `simulator-discovery.log`, `simulator-selftests.log`, `channel-list.log`, `channel-list-without-canary.log`, `kit-host.log`, `capability-and-guard-probe.json`, and `probe-inputs/`. Removed only the probe additions and restored the private host manifest; the clone is clean.
+
+The earlier migration filter is byte-for-byte unchanged, the corrected K1 invocation and F2 commit checkpoint remain, and the added-channel kit and simulator checks pass. All 33 checked local guide link targets resolve (Reviewer-A excluded). The changed text introduces no new citation to the kit's changing R3/play-retry instructions. The author changed only the allowed guide; no product, architecture or core LMS path changed, and no UNIT AC applies to this documentation task. No Docker, stack, live-LMS request or commit. Only this review file was edited in integration; no Reviewer-A file was opened. Pending QA-SIM labels remain and receive no runtime credit from this review.
