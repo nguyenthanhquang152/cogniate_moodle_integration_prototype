@@ -4,9 +4,9 @@
 - **Author**: Lead QA (`la-qa`)
 - **Date**: 2026-10-24
 - **New Baseline Product SHA (`main` B/C Final)**: `78971b0300ab171029e8ce94dbba30db37b23dea` (`78971b03`, tag `la-baseline-product-3`)
-- **New Baseline Gate Test SHA (`baseline-3`)**: `d854183f104a5573b83a56e280c088a6bc99c2d4` (`d854183f`, tag `baseline-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`)
+- **New Baseline Gate Test SHA (`baseline-3`)**: `1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`1ae6716b`, tag `baseline-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`: explicit Commit 2 on top of Round 1 `d854183f104a5573b83a56e280c088a6bc99c2d4` adding `tests/ltiaas/golden/**` at tree `1909e58f79e5214e7bb349a92811255391aa191c` from `la-qa` `d1603f4d754aa9714c5229d947e65e74c5735f9e` / `5e2579a0c9f4f65dd57b88eda66b3181d356dfb1`)
 - **New Final Product SHA (LA + B/C Merge)**: `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` (`4f10c5fd`, tag `la-final-product-3`)
-- **New Final Gate Test SHA (`la-final-test-3`)**: `57b6a78c694e6244ffa0639957249c052345dca9` (`57b6a78c`, tag `la-final-test-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3-d4`; includes `LD-30` kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` from integration `a3953243`)
+- **New Final Gate Test SHA (`la-final-test-3`)**: `794f649c3ebacf1a1b3ac599cffffe338dd7373d` (`794f649c`, tag `la-final-test-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3-d4`: explicit Commit 3 on top of Round 1 `57b6a78c694e6244ffa0639957249c052345dca9` updating `tests/ltiaas/golden/**` to tree `1909e58f79e5214e7bb349a92811255391aa191c` from `la-qa` `d1603f4d754aa9714c5229d947e65e74c5735f9e` / `5e2579a0c9f4f65dd57b88eda66b3181d356dfb1` while preserving `LD-30` kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` from integration `a3953243`)
 - **Addendum r8 Patch File**: `/Users/quangnguyen/cogniate-qa-runs/LA/ld9-addendum-r8/ld9-addendum-r8.patch` (`3,366` bytes, SHA-256 `ddf3f1c3ff38c2e805fa0fdf668f7c0a05efe1dbb76a54c1d102b02c01e3c514`)
 - **Prior Addenda**:
   - `docs/reviews/LA-E7-08/ld9-addendum.md` (`r1`–`r4`)
@@ -303,34 +303,46 @@ Five files were touched by both B/C (`bd368ff..78971b03`) and LA addenda (`1b172
 
 ---
 
-## 3. Verification of New Gate Sources (`baseline-3` and `la-final-test-3`)
+## 3. Verification of New Gate Sources (`baseline-3` and `la-final-test-3`, including Round 2 Golden v2 Rebuild `A-LA-E7-08-LD9-R8-01`)
 
 ### 3.1 Gate Source 1 — `baseline-3` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`)
 
-- **Clone provenance**: Fresh `git clone --no-hardlinks` at `78971b0300ab171029e8ce94dbba30db37b23dea` (`la-baseline-product-3`), with one explicit commit (`d854183f104a5573b83a56e280c088a6bc99c2d4`, tag `baseline-3`).
+- **Clone provenance (explicit commits only, `0` amends)**:
+  - Product base (`tag: la-baseline-product-3`): `78971b0300ab171029e8ce94dbba30db37b23dea`
+  - Commit 1 (Round 1 overlay): `d854183f104a5573b83a56e280c088a6bc99c2d4` (`Baseline-3 gate test overlay on 78971b03 (LD-1 + qalead-la prefix + r4/r6/r7/r8)`, `21 files changed, 452 insertions(+), 63 deletions(-)`)
+  - Commit 2 (`tag: baseline-3`, Round 2 golden v2 rebuild for `A-LA-E7-08-LD9-R8-01`): **`1ae6716b7353becc0f053b46fb65e0ba86ff7873`** (`Baseline-3: add golden v2 baseline (78971b03) and LA-IC-01/12 expected deltas from d1603f4d`, `33 files changed, 16141 insertions(+)` from `d854183f`, installing `tests/ltiaas/golden/**` from `la-qa` `d1603f4d754aa9714c5229d947e65e74c5735f9e` / `5e2579a0c9f4f65dd57b88eda66b3181d356dfb1`)
+- **Tree hashes on `1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`baseline-3`)**:
+  - `HEAD:tests`: `da790a4b2d75d0ebf1a27ee0de0fbe7c772291fa`
+  - `HEAD:tests/ltiaas/golden`: `1909e58f79e5214e7bb349a92811255391aa191c` (`= d1603f4d754aa9714c5229d947e65e74c5735f9e:tests/ltiaas/golden`)
 - **Non-test diff proof**:
   ```text
   $ git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3 diff --exit-code 78971b0300ab171029e8ce94dbba30db37b23dea baseline-3 -- . ':!tests'
   (exit code 0 — 0 non-test files differ)
   ```
 - **Test diff summary (`78971b03..baseline-3`)**:
-  `21 files changed, 452 insertions(+), 63 deletions(-)` (`LD-1` open-world overlay + `qalead-la` runner prefix guard + `r4`/`r6`/`r7`/`r8`).
+  `54 files changed, 16593 insertions(+), 63 deletions(-)` (`21` files in `d854183f` + `33` `tests/ltiaas/golden/**` files in `1ae6716b`).
 - **Host-only self-tests**:
   - `node --test tests/host/storage-docker.selftest.mjs tests/host/m1-control.selftest.mjs tests/host/m1-migration.selftest.mjs tests/host/storage-fixture-script.selftest.mjs` → `37/37 PASS`.
   - `node tests/e2e/host/run-m2.mjs --harness-only` → `4/4 PASS` + `64 M2 browser cases discovered and accounted; T7 selection unchanged`.
 
 ### 3.2 Gate Source 2 — `la-final-test-3` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `src-final-3-d4`)
 
-- **Clone provenance**: Fresh `git clone --no-hardlinks` at `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` (`la-final-product-3`), with two explicit commits:
-  1. `5ee0ebd0f34e398d04cca7788c22c8af6352e159`: `Final gate test overlay on 4f10c5fd (LD-1 + LD-9 addenda r1-r7 non-overlapping files + LD-30 kit d7e50b5d)`
-  2. `57b6a78c694e6244ffa0639957249c052345dca9` (tag `la-final-test-3`): `LA-E7-08 (LD-9 addendum r8, LD-29): combine r1-r7 test addenda with B/C final test changes on 4f10c5fd`
+- **Clone provenance (explicit commits only, `0` amends)**:
+  - Product base (`tag: la-final-product-3`): `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c`
+  - Commit 1: `5ee0ebd0f34e398d04cca7788c22c8af6352e159`: `Final gate test overlay on 4f10c5fd (LD-1 + LD-9 addenda r1-r7 non-overlapping files + LD-30 kit d7e50b5d)`
+  - Commit 2 (Round 1 `r8` commit): `57b6a78c694e6244ffa0639957249c052345dca9`: `LA-E7-08 (LD-9 addendum r8, LD-29): combine r1-r7 test addenda with B/C final test changes on 4f10c5fd`
+  - Commit 3 (`tag: la-final-test-3`, Round 2 golden v2 rebuild for `A-LA-E7-08-LD9-R8-01`): **`794f649c3ebacf1a1b3ac599cffffe338dd7373d`** (`LA-E7-08 (LD-9 addendum r8 r2, LD-29): update tests/ltiaas/golden to golden v2 and LA-IC-01/12 Moodle expected deltas from d1603f4d`, `11 files changed, 6321 insertions(+), 48 deletions(-)` from `57b6a78c`, updating `tests/ltiaas/golden/**` from `la-qa` `d1603f4d754aa9714c5229d947e65e74c5735f9e` / `5e2579a0c9f4f65dd57b88eda66b3181d356dfb1`)
+- **Tree hashes on `794f649c3ebacf1a1b3ac599cffffe338dd7373d` (`la-final-test-3`, identical in `src-final-3` and `src-final-3-d4`)**:
+  - `HEAD:tests`: `b202c3ee3ef21f6caa7e3a11ec5c8a6daf7aac86`
+  - `HEAD:tests/ltiaas/golden`: `1909e58f79e5214e7bb349a92811255391aa191c` (`= d1603f4d754aa9714c5229d947e65e74c5735f9e:tests/ltiaas/golden` and `= baseline-3:tests/ltiaas/golden`)
+  - `HEAD:tests/ltiaas/kit`: `d7e50b5dea56382f849b213f006b73bcf5eb71aa` (`= a395324334b644792de2742c2a753ef73ed7521d:tests/ltiaas/kit`)
 - **Non-test diff proof**:
   ```text
   $ git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3 diff --exit-code 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c la-final-test-3 -- . ':!tests'
   (exit code 0 — 0 non-test files differ)
   ```
 - **Test diff summary (`4f10c5fd..la-final-test-3`)**:
-  `39 files changed, 1876 insertions(+), 495 deletions(-)` (`LD-1` open-world overlay + `LD-9` addenda `r1–r8` + `LD-30` `tests/ltiaas/kit` at tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` from integration `a3953243`).
+  `50 files changed, 8197 insertions(+), 543 deletions(-)` (`LD-1` open-world overlay + `LD-9` addenda `r1–r8` + `LD-30` `tests/ltiaas/kit` at tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` + `LA-E0-03` golden v2 and `LA-IC-01`/`LA-IC-12` expected deltas at tree `1909e58f79e5214e7bb349a92811255391aa191c`).
 - **Patch verification**:
   ```text
   $ git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3 apply --check -R -v /Users/quangnguyen/cogniate-qa-runs/LA/ld9-addendum-r8/ld9-addendum-r8.patch
@@ -340,6 +352,7 @@ Five files were touched by both B/C (`bd368ff..78971b03`) and LA addenda (`1b172
   Checking patch tests/acceptance/T6/3-courses.spec.ts...
   ```
 - **Host-only self-tests**:
+  - `node --test tests/ltiaas/golden/golden.k0.test.mjs` → `12/12 PASS`.
   - `node --test tests/host/storage-docker.selftest.mjs tests/host/m1-control.selftest.mjs tests/host/m1-migration.selftest.mjs tests/host/storage-fixture-script.selftest.mjs` → `37/37 PASS`.
   - `node tests/e2e/host/run-m2.mjs --harness-only` → `4/4 PASS` + `64 M2 browser cases discovered and accounted; T7 selection unchanged`.
   - `node --test tests/ltiaas/k0/ld1/open-world.test.mjs` → `46/46 PASS`.
