@@ -1,6 +1,6 @@
 # Guide: add a new LTI channel (kind A LMS)
 
-Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **draft for review**, fix round 1 for the round-1 reviews ([Reviewer-A](../../reviews/LA-E8-01/reviewer-a.md), [Reviewer-B](../../reviews/LA-E8-01/reviewer-b.md)). QA checks pending: QA follows this guide on a scratch branch (AC-LA-E8-01-02), and the kit simulator rows of LA-E7-06 are pending a Docker window.
+Source: integration head `adef56e7` (product code `02f5d420`) on `quang/ltiaas-milestone`, 2026-10-24. Status: **draft for review**, fix round 3 ([Reviewer-A](../../reviews/LA-E8-01/reviewer-a.md), [Reviewer-B](../../reviews/LA-E8-01/reviewer-b.md)). Step 9 rechecked at integration head `86a50df8`. QA checks pending: QA follows this guide on a scratch branch (AC-LA-E8-01-02), and the kit simulator rows of LA-E7-06 are pending a Docker window.
 
 This guide is for a developer or an agent who is new to the repository. It adds one LMS of kind A as a named channel. The work is one channel folder, one simulator module, one host manifest entry and one kit fixture. No core file changes. The target time is less than one working day (plan §4 measure 5; LA-E8-02 measures it).
 
@@ -325,11 +325,9 @@ Follow the [kit README §2](../../../tests/ltiaas/kit/README.md#2-how-to-certify
 2. Set `id`, `simProvider` (`<id>-sim`), `simProfile`, all 17 capability values, `coveredBy` (normally `{}` for a new channel), `notBuilt`, `expect.legacyFlags`, `expect.toolConfigurationKeys` and the `sim` values.
 3. Name the design source of every value in `source` and `sources` [UNIT E7-06-07].
 
-You add one file. You edit no suite and no shared channel list: the kit loader finds every `<id>.json` in `tests/ltiaas/kit/channels/`, and the shipped fixture audit accepts five or more fixtures. With `QA_KIT_CHANNELS` unset or `all`, a run selects every fixture that it finds. QA's K0 canary proves this with a sixth fixture in a temporary folder [UNIT E7-06] (rounds 2 and 3, row `B-LA-E7-06-06`).
+You add one file. You edit no suite and no shared channel list: the kit loader finds every `<id>.json` in `tests/ltiaas/kit/channels/`, and the shipped fixture audit accepts five or more fixtures. With `QA_KIT_CHANNELS` unset or `all`, a run selects every fixture that it finds. QA's K0 canary proves this with a sixth fixture [UNIT E7-06] (row `B-LA-E7-06-06`). With a real sixth fixture in `tests/ltiaas/kit/channels/`, the full kit host check passes 16 of 16 ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 4, §4.2; Reviewer-B closed `B-LA-E7-06-06` in round 4). Docs ran the same probe at `86a50df8` and removed the probe file after the run: 16 of 16 pass.
 
 The kit computes the list of expected cases from the fixture before a run. A missing case or an extra case fails the run [UNIT E7-06-02].
-
-Pending QA: with a sixth fixture in the real folder, one kit host test still fails. The canary test ("B-LA-E7-06-06 / LA-E8-01: open-world channel discovery …" in `tests/ltiaas/kit/kit.k0.test.ts`) copies every real fixture, adds its canary and expects exactly six (`expected 7 to be 6`). The other 12 kit host tests pass. Docs ran this on the host at a head that holds `af36ad31` and reported it to QA (LA-E7-06 round 3 reviews).
 
 ## Step 10: Run the checks
 
@@ -351,7 +349,7 @@ If you run F2 before the commit, it prints `F2 PASS: core = 0, paths = 0`. That 
 | F2 add-channel gate (after 10.1) | `npm run fitness:channel-diff -- --base <the SHA or branch of 10.1 step 1> --channel <id>` | one line per committed file: `channel:<id>` for the channel folder, `sim` for `tests/sim/**`, `tests` for the kit fixture, `docs` for docs; the last line is `F2 PASS: core = 0, paths = <n>`, with `<n>` equal to the number of files that you committed | `[UNIT E2-05-01]`, `[UNIT E2-06-01]` |
 | K0 contract suite | `npm run test:k0` | pass, with your channel loaded and no kernel edit | `[UNIT E2-05-03]` |
 | Simulator discovery (host only) | the command of step 7, item 5 | the existing provider ids and one new id `<id>-sim` | pending verification (Docs ran it in a scratch copy only) |
-| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass, with your fixture discovered and its sources audited | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; with a sixth real fixture: pending QA (step 9) |
+| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass, with your fixture discovered and its sources audited | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; with a real sixth fixture: 16 of 16 ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 4) |
 | K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 node tests/acceptance/run-api.mjs` (kit README §3) | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | pending QA SIM (AC-LA-E7-06-01, AC-LA-E7-06-03, AC-LA-E7-06-04). The full kit passed for `brightspace` on the D2L simulator [SIM E2-05-10]. |
 
 F2 notes:
