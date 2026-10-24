@@ -11,6 +11,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP, appApi, createCourse, QA_B, signIn, THANH, uploadVersion, type Session } from '../../../acceptance/lib/app';
 import { httpsRequest, type HttpResult } from '../../../acceptance/lib/https';
@@ -93,9 +94,13 @@ interface StorageCheckPageJson {
   check: string;
 }
 
+const DEFAULT_ARTIFACT_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../acceptance/artifacts',
+);
+
 function writeArtifact(name: string, data: unknown): void {
-  const runDir = process.env.LA_RUN_DIR;
-  if (!runDir) return;
+  const runDir = process.env.LA_RUN_DIR ?? DEFAULT_ARTIFACT_DIR;
   fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(runDir, name), `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
 }
