@@ -11,7 +11,8 @@
     ],
     "goldenFields": [
       "G4.blackboard.pages.picker.text",
-      "G4.canvas.pages.picker.text"
+      "G4.canvas.pages.picker.text",
+      "G4.moodle.pages.picker.text"
     ],
     "authorUnitTestChanges": [
       "services/lti-service/src/lti/deep-linking.test.ts (removes old empty-list rejection row; adds positive contentItems: [] and accept_lineitem: false coverage)",
@@ -50,6 +51,11 @@
       "file": "G4",
       "path": "canvas.pages.picker.text",
       "value": "Select a Cogniate course Select a Cogniate course Canvas course: QA course Choose one course M1 course-<id:8> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:9> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:10> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:11> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:12> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:13> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:14> HTML Version 1 Add to Canvas Cancel"
+    },
+    {
+      "file": "G4",
+      "path": "moodle.pages.picker.text",
+      "value": "Select a Cogniate course Select a Cogniate course Moodle course: QA course Choose one course M1 course-<id:15> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:16> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:17> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:18> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:19> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:20> SCORM 1.2 Version 1 · Package: M1 QA Add to Moodle Cancel"
     }
   ]
 }

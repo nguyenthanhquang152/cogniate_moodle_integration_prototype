@@ -1,13 +1,13 @@
-// Golden capture script, version 1 (LA-E0-03; TEST-STRATEGY §4.6). It runs in the e2e container of an `acceptance`
+// Golden capture script, version 2 (LA-E0-03; TEST-STRATEGY §4.6). It runs in the e2e container of an `acceptance`
 // stack through tests/ltiaas/golden/run-golden.mjs, which also captures the `default` profile part of G1 before.
 // It uses only public surfaces: the app API, the LTI tenant API, tool pages, the simulator (`/__sim/*`) and the M1
 // host control for the operator CLI. It imports the frozen M1 helpers; it imports no product code.
 //
-// Script: one Moodle connection pair (dynamic, manual; G1 only, see note), then for Blackboard sim and Canvas sim:
-// one registered connection, a Deep Linking pick, learner launches and grades, with score sync rows in every status
-// (sent, conflict, failed, Resend, superseded, pending), the tool error pages, then a disabled connection.
-// Note: G2 and G3 of the Moodle channel need the Moodle-shaped simulator config (LA-E7-02, LA-E7-05). Golden version 2
-// adds them when that config exists. Version 1 keeps the Moodle connection DTOs and tool configuration rows (G1).
+// Script: one Moodle pending connection pair (dynamic, manual; G1 tool configuration rows), then for Blackboard sim,
+// Canvas sim and Moodle sim (`moodle-sim` on `https://moodle.sim.test`): one registered connection, a Deep Linking pick,
+// learner launches and grades, with score sync rows in every status (sent, conflict, failed, Resend, superseded,
+// pending), the tool error pages, then a disabled connection. The Moodle standard flow runs after the v1 sections so
+// that every v1 path and `<id:n>` placeholder stays unchanged.
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'vitest';
@@ -27,6 +27,16 @@ const u1: Json = { connections: {}, publications: {}, rows: {} };
 // Fixed values: the same on every fresh stack (G2 records name them).
 const CANVAS_CLIENT = '10000000000042', CANVAS_DEPLOYMENT = '7:' + 'c0ffee'.repeat(6) + 'c0ff', BB_DEPLOYMENT = 'golden-bb-1';
 const DISABLED_CANVAS_CLIENT = '10000000000043', DISABLED_BB_DEPLOYMENT = 'golden-bb-2';
+const MOODLE_SITE = 'https://moodle.sim.test', MOODLE_CLIENT = 'golden-moodle-1', MOODLE_DEPLOYMENT = '1';
+const DISABLED_MOODLE_CLIENT = 'golden-moodle-2', DISABLED_MOODLE_DEPLOYMENT = '2';
+const moodlePlatformBody = (clientId: string, deploymentId: string) => ({
+  issuer: MOODLE_SITE,
+  clientId,
+  deploymentId,
+  authenticationEndpoint: `${MOODLE_SITE}/mod/lti/auth.php`,
+  accessTokenEndpoint: `${MOODLE_SITE}/mod/lti/token.php`,
+  jwksUrl: `${MOODLE_SITE}/mod/lti/certs.php`,
+});
 const SCOPE = ['https://purl.imsglobal.org/spec/lti-ags/scope/lineitem', 'https://purl.imsglobal.org/spec/lti-ags/scope/score'];
 
 const entities = (s: string) => s.replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&#39;', "'")
@@ -68,7 +78,7 @@ async function settledPending(b: Json, pub: Json, tries: number, since: number, 
 }
 
 interface Channel {
-  id: 'blackboard' | 'canvas'; provider: string; b: Json;
+  id: 'moodle' | 'blackboard' | 'canvas'; provider: string; b: Json;
   play: (pub: Json, patch?: Json) => Promise<Json>;
   dlLaunch: (patch?: Json) => Promise<Json>;
   launch: (patch?: Json, options?: Json) => Promise<Json>;
@@ -148,7 +158,8 @@ async function channelSegment(c: Channel) {
   g4.pages['UNKNOWN_DEPLOYMENT'] = page((await c.launch({ deploymentId: 'golden-unknown-deployment' })).login);
   g4.pages['STATE_COOKIE_MISSING'] = page((await c.launch({}, { noCookie: true })).response);
   const started = c.id === 'canvas' ? await beginLaunch(scenarioOf(c.b as any), CANVAS_LOGIN)
-    : await beginLaunch({ deploymentId: c.b.deploymentId, siteHost: new URL(c.b.connection.siteUrl).hostname });
+    : await beginLaunch({ provider: c.provider, ...(c.b.clientId ? { clientId: c.b.clientId } : {}),
+      deploymentId: c.b.deploymentId, siteHost: new URL(c.b.connection.siteUrl).hostname });
   const authorize = await httpsRequest(started.location); expectStatus(authorize, 200);
   const form = parseForm(authorize.body); rememberSecret(form.fields.id_token); rememberSecret(form.fields.state);
   assert.equal((await formPost(form.action, form.fields, started.cookie)).status, 303);
@@ -175,7 +186,7 @@ async function channelSegment(c: Channel) {
   return { g2, g3, g4 };
 }
 
-test('golden capture v1', async () => {
+test('golden capture v2', async () => {
   fs.mkdirSync(path.join(OUT, 'private'), { recursive: true, mode: 0o700 });
   await sharedPlatform();
   const s = await session('A');
@@ -183,10 +194,14 @@ test('golden capture v1', async () => {
   const defaultFile = process.env.QA_GOLDEN_DEFAULT;
   assert.ok(defaultFile && fs.existsSync(defaultFile), 'QA_GOLDEN_DEFAULT (G1 default profile answers) is required');
   G1.default = JSON.parse(fs.readFileSync(defaultFile, 'utf8'));
+  const acceptanceLtiHealthFile = process.env.QA_GOLDEN_ACCEPTANCE_LTI_HEALTH;
+  const acceptanceLtiHealth = acceptanceLtiHealthFile && fs.existsSync(acceptanceLtiHealthFile)
+    ? JSON.parse(fs.readFileSync(acceptanceLtiHealthFile, 'utf8'))
+    : JSON.parse((await httpsRequest(urls.lti + '/healthz')).body);
   G1.acceptance = {
     providers: (await admin('GET', '/api/providers')).json,
     lmsProviders: (await app(s, 'GET', '/app-api/lms-providers')).json,
-    ltiHealth: JSON.parse((await httpsRequest(urls.lti + '/healthz')).body),
+    ltiHealth: acceptanceLtiHealth,
     appHealth: JSON.parse((await httpsRequest(urls.app + '/healthz')).body),
   };
   G1.connections = {} as Json; G1.toolConfiguration = {} as Json;
@@ -258,6 +273,31 @@ test('golden capture v1', async () => {
   G1.connectionList = (await app(s, 'GET', '/app-api/connections')).json;
   G1.lmsProvidersAfter = (await app(s, 'GET', '/app-api/lms-providers')).json;
   G1.providersAfter = (await admin('GET', '/api/providers')).json;
+  // Moodle standard flow (`moodle-sim` on `https://moodle.sim.test`): runs after the v1 sections so that every v1 path
+  // and `<id:n>` placeholder in G1–G4 stays unchanged.
+  const mdCreate = await app(s, 'POST', '/app-api/connections', { name: 'Golden Moodle', siteUrl: MOODLE_SITE, method: 'manual' });
+  expectStatus(mdCreate, 201);
+  const mdBind = await app(s, 'PUT', connPath(mdCreate.json.id) + '/platform', moodlePlatformBody(MOODLE_CLIENT, MOODLE_DEPLOYMENT));
+  expectStatus(mdBind, 200);
+  G1.connections['moodle-registered'] = mdBind.json;
+  const md = { s, connection: mdBind.json, deploymentId: MOODLE_DEPLOYMENT, clientId: MOODLE_CLIENT };
+  const mdSeg = await channelSegment({
+    id: 'moodle', provider: 'moodle-sim', b: md, family: 'moodle', otherFamily: 'canvas', foreign: bbForeign,
+    play: (pub, patch = {}) => openPlay(md, pub, { provider: 'moodle-sim', clientId: MOODLE_CLIENT, ...patch }),
+    dlLaunch: (patch = {}) => launch({ provider: 'moodle-sim', clientId: MOODLE_CLIENT, deploymentId: MOODLE_DEPLOYMENT,
+      siteHost: 'moodle.sim.test', messageType: 'LtiDeepLinkingRequest', roles: [ROLE.instructor], ...patch }),
+    launch: (patch = {}, options = {}) => launch({ provider: 'moodle-sim', clientId: MOODLE_CLIENT,
+      deploymentId: MOODLE_DEPLOYMENT, siteHost: 'moodle.sim.test', ...patch }, options),
+  });
+  G2.moodle = mdSeg.g2; G3.moodle = mdSeg.g3; G4.moodle = mdSeg.g4;
+  G1.connections['moodle-connected'] = mdSeg.g3.connection;
+  const mdOff = await app(sB, 'POST', '/app-api/connections', { name: 'Golden Moodle disabled', siteUrl: MOODLE_SITE, method: 'manual' });
+  expectStatus(mdOff, 201);
+  expectStatus(await app(sB, 'PUT', connPath(mdOff.json.id) + '/platform', moodlePlatformBody(DISABLED_MOODLE_CLIENT, DISABLED_MOODLE_DEPLOYMENT)), 200);
+  expectStatus(await app(sB, 'DELETE', connPath(mdOff.json.id)), 204);
+  G1.connections['moodle-disabled'] = (await app(sB, 'GET', connPath(mdOff.json.id))).json;
+  G4.moodle.pages['PLATFORM_NOT_ACTIVE-or-refusal'] = page((await launch({ provider: 'moodle-sim', clientId: DISABLED_MOODLE_CLIENT,
+    deploymentId: DISABLED_MOODLE_DEPLOYMENT, siteHost: 'moodle.sim.test' })).response);
 
   // Normalize at capture: no raw token, key or secret enters a golden file.
   const files: [string, string][] = [];

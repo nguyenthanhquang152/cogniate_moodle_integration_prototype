@@ -1,0 +1,2115 @@
+{
+  "blackboard": {
+    "connection": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:1>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "blackboard",
+      "method": "manual",
+      "name": "Golden Blackboard",
+      "platform": {
+        "clientId": "qa-bb-app",
+        "deploymentIds": [
+          "golden-bb-1"
+        ],
+        "id": "<id:2>",
+        "issuer": "https://blackboard.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://learn-a.blackboard.sim.test",
+        "siteUrl": "https://learn-a.blackboard.sim.test"
+      },
+      "profile": "blackboard-sim",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://learn-a.blackboard.sim.test",
+      "siteUrl": "https://learn-a.blackboard.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "deepLinkReturn": {
+      "status": 200
+    },
+    "publicationList": {
+      "publications": [
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:3>",
+          "courseTitle": "M1 course-<id:4>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:5>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:6>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:7>",
+          "courseTitle": "M1 course-<id:8>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:9>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 1
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:10>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:11>",
+          "courseTitle": "M1 course-<id:12>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:13>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:14>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:15>",
+          "courseTitle": "M1 course-<id:16>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:17>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:18>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:19>",
+          "courseTitle": "M1 course-<id:20>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:21>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:22>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:23>",
+          "courseTitle": "M1 course-<id:24>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:25>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:26>"
+        },
+        {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:27>",
+          "courseTitle": "M1 course-<id:28>",
+          "createdAt": "<t>",
+          "format": "html",
+          "id": "<id:29>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:30>"
+        }
+      ]
+    },
+    "publications": {
+      "A-sent": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:23>",
+          "courseTitle": "M1 course-<id:24>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:31>.zip",
+          "format": "scorm12",
+          "id": "<id:25>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:26>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:32>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:33>",
+                "outcome": "failed",
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:26>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:33>",
+              "outcome": "failed",
+              "scoreGiven": 7,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:34>",
+                "lastError": null,
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "B-conflict": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:19>",
+          "courseTitle": "M1 course-<id:20>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:35>.zip",
+          "format": "scorm12",
+          "id": "<id:21>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:22>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:36>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:37>",
+                "outcome": "failed",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:22>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:37>",
+              "outcome": "failed",
+              "scoreGiven": 8,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:38>",
+                "lastError": "409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Moodle has a grade with a newer time)",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "conflict",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C-failed": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:15>",
+          "courseTitle": "M1 course-<id:16>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:39>.zip",
+          "format": "scorm12",
+          "id": "<id:17>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:18>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:40>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:41>",
+                "outcome": "failed",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:18>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:41>",
+              "outcome": "failed",
+              "scoreGiven": 6,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:42>",
+                "lastError": "400 PLATFORM_REJECTED_REQUEST: The platform answered 400: {\"message\":\"Provided timestamp of 2026-10-20T08:00:00.000Z before last updated timestamp of 2026-10-20T08:00:01.000Z\"}",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "failed",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C2-resend": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:11>",
+          "courseTitle": "M1 course-<id:12>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:43>.zip",
+          "format": "scorm12",
+          "id": "<id:13>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:14>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:44>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:45>",
+                "outcome": "failed",
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:14>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:45>",
+              "outcome": "failed",
+              "scoreGiven": 5,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:46>",
+                "lastError": null,
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "D-superseded": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:7>",
+          "courseTitle": "M1 course-<id:8>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:47>.zip",
+          "format": "scorm12",
+          "id": "<id:9>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:10>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:48>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:49>",
+                "outcome": "passed",
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "updatedAt": "<t>",
+                "versionId": "<id:10>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:49>",
+              "outcome": "passed",
+              "scoreGiven": 90,
+              "scoreMaximum": 100
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:50>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 60,
+                "scoreMaximum": 100,
+                "sentAt": null,
+                "status": "superseded",
+                "tries": 2
+              },
+              {
+                "createdAt": "<t>",
+                "id": "<id:51>",
+                "lastError": null,
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      },
+      "E-pending": {
+        "create": {
+          "connectionId": "<id:1>",
+          "connectionName": "Golden Blackboard",
+          "courseId": "<id:3>",
+          "courseTitle": "M1 course-<id:4>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:52>.zip",
+          "format": "scorm12",
+          "id": "<id:5>",
+          "lms": "blackboard",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:6>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:53>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:54>",
+                "outcome": "failed",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:6>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:54>",
+              "outcome": "failed",
+              "scoreGiven": 4,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ learn-a.blackboard.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:55>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "pending",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "resend": {
+      "failed": {
+        "body": {
+          "createdAt": "<t>",
+          "id": "<id:46>",
+          "lastError": null,
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "sentAt": null,
+          "status": "pending",
+          "tries": 0
+        },
+        "status": 200
+      },
+      "sent": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      },
+      "superseded": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      }
+    }
+  },
+  "canvas": {
+    "connection": {
+      "capabilities": {
+        "addDeployment": true,
+        "canvasConfiguration": true,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:56>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "canvas",
+      "method": "manual",
+      "name": "Golden Canvas",
+      "platform": {
+        "clientId": "10000000000042",
+        "deploymentIds": [
+          "7:<id:57>"
+        ],
+        "id": "<id:58>",
+        "issuer": "https://canvas.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://school-a.canvas.sim.test",
+        "siteUrl": "https://school-a.canvas.sim.test"
+      },
+      "profile": "canvas-sim-cloud",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://school-a.canvas.sim.test",
+      "siteUrl": "https://school-a.canvas.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "deepLinkReturn": {
+      "status": 200
+    },
+    "publicationList": {
+      "publications": [
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:59>",
+          "courseTitle": "M1 course-<id:60>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:61>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:62>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:63>",
+          "courseTitle": "M1 course-<id:64>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:65>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 1
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:66>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:67>",
+          "courseTitle": "M1 course-<id:68>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:69>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:70>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:71>",
+          "courseTitle": "M1 course-<id:72>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:73>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:74>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:75>",
+          "courseTitle": "M1 course-<id:76>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:77>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:78>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:79>",
+          "courseTitle": "M1 course-<id:80>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:81>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:82>"
+        },
+        {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:83>",
+          "courseTitle": "M1 course-<id:84>",
+          "createdAt": "<t>",
+          "format": "html",
+          "id": "<id:85>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:86>"
+        }
+      ]
+    },
+    "publications": {
+      "A-sent": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:79>",
+          "courseTitle": "M1 course-<id:80>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:87>.zip",
+          "format": "scorm12",
+          "id": "<id:81>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:82>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:88>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:89>",
+                "outcome": "failed",
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:82>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:89>",
+              "outcome": "failed",
+              "scoreGiven": 7,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:90>",
+                "lastError": null,
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "B-conflict": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:75>",
+          "courseTitle": "M1 course-<id:76>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:91>.zip",
+          "format": "scorm12",
+          "id": "<id:77>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:78>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:92>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:93>",
+                "outcome": "failed",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:78>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:93>",
+              "outcome": "failed",
+              "scoreGiven": 8,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:94>",
+                "lastError": "409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Moodle has a grade with a newer time)",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "conflict",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C-failed": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:71>",
+          "courseTitle": "M1 course-<id:72>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:95>.zip",
+          "format": "scorm12",
+          "id": "<id:73>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:74>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:96>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:97>",
+                "outcome": "failed",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:74>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:97>",
+              "outcome": "failed",
+              "scoreGiven": 6,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:98>",
+                "lastError": "400 PLATFORM_REJECTED_REQUEST: The platform answered 400: {\"message\":\"Provided timestamp of 2026-10-20T08:00:00.000Z before last updated timestamp of 2026-10-20T08:00:01.000Z\"}",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "failed",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C2-resend": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:67>",
+          "courseTitle": "M1 course-<id:68>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:99>.zip",
+          "format": "scorm12",
+          "id": "<id:69>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:70>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:100>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:101>",
+                "outcome": "failed",
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:70>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:101>",
+              "outcome": "failed",
+              "scoreGiven": 5,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:102>",
+                "lastError": null,
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "D-superseded": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:63>",
+          "courseTitle": "M1 course-<id:64>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:103>.zip",
+          "format": "scorm12",
+          "id": "<id:65>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:66>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:104>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:105>",
+                "outcome": "passed",
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "updatedAt": "<t>",
+                "versionId": "<id:66>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:105>",
+              "outcome": "passed",
+              "scoreGiven": 90,
+              "scoreMaximum": 100
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:106>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 60,
+                "scoreMaximum": 100,
+                "sentAt": null,
+                "status": "superseded",
+                "tries": 2
+              },
+              {
+                "createdAt": "<t>",
+                "id": "<id:107>",
+                "lastError": null,
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      },
+      "E-pending": {
+        "create": {
+          "connectionId": "<id:56>",
+          "connectionName": "Golden Canvas",
+          "courseId": "<id:59>",
+          "courseTitle": "M1 course-<id:60>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:108>.zip",
+          "format": "scorm12",
+          "id": "<id:61>",
+          "lms": "canvas",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:62>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:109>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:110>",
+                "outcome": "failed",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:62>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:110>",
+              "outcome": "failed",
+              "scoreGiven": 4,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ school-a.canvas.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:111>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "pending",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "resend": {
+      "failed": {
+        "body": {
+          "createdAt": "<t>",
+          "id": "<id:102>",
+          "lastError": null,
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "sentAt": null,
+          "status": "pending",
+          "tries": 0
+        },
+        "status": 200
+      },
+      "sent": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      },
+      "superseded": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      }
+    }
+  },
+  "moodle": {
+    "connection": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:112>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle",
+      "platform": {
+        "clientId": "golden-moodle-1",
+        "deploymentIds": [
+          "1"
+        ],
+        "id": "<id:113>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "deepLinkReturn": {
+      "status": 200
+    },
+    "publicationList": {
+      "publications": [
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:114>",
+          "courseTitle": "M1 course-<id:115>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:116>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:117>"
+        },
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:118>",
+          "courseTitle": "M1 course-<id:119>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:120>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 1
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:121>"
+        },
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:122>",
+          "courseTitle": "M1 course-<id:123>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:124>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:125>"
+        },
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:126>",
+          "courseTitle": "M1 course-<id:127>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:128>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:129>"
+        },
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:130>",
+          "courseTitle": "M1 course-<id:131>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:132>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:133>"
+        },
+        {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:134>",
+          "courseTitle": "M1 course-<id:135>",
+          "createdAt": "<t>",
+          "format": "scorm12",
+          "id": "<id:136>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 1,
+            "completed": 0,
+            "failed": 1,
+            "inProgress": 0,
+            "lastScoreSync": "<t>",
+            "learners": 1,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:137>"
+        }
+      ]
+    },
+    "publications": {
+      "A-sent": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:134>",
+          "courseTitle": "M1 course-<id:135>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:138>.zip",
+          "format": "scorm12",
+          "id": "<id:136>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:137>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:139>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:140>",
+                "outcome": "failed",
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:137>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:140>",
+              "outcome": "failed",
+              "scoreGiven": 7,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:141>",
+                "lastError": null,
+                "scoreGiven": 7,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "B-conflict": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:130>",
+          "courseTitle": "M1 course-<id:131>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:142>.zip",
+          "format": "scorm12",
+          "id": "<id:132>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:133>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:143>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:144>",
+                "outcome": "failed",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:133>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:144>",
+              "outcome": "failed",
+              "scoreGiven": 8,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:145>",
+                "lastError": "409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Moodle has a grade with a newer time)",
+                "scoreGiven": 8,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "conflict",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C-failed": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:126>",
+          "courseTitle": "M1 course-<id:127>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:146>.zip",
+          "format": "scorm12",
+          "id": "<id:128>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:129>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:147>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:148>",
+                "outcome": "failed",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:129>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:148>",
+              "outcome": "failed",
+              "scoreGiven": 6,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:149>",
+                "lastError": "400 PLATFORM_REJECTED_REQUEST: The platform answered 400: {\"message\":\"Provided timestamp of 2026-10-20T08:00:00.000Z before last updated timestamp of 2026-10-20T08:00:01.000Z\"}",
+                "scoreGiven": 6,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "failed",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "C2-resend": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:122>",
+          "courseTitle": "M1 course-<id:123>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:150>.zip",
+          "format": "scorm12",
+          "id": "<id:124>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:125>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:151>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:152>",
+                "outcome": "failed",
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:125>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:152>",
+              "outcome": "failed",
+              "scoreGiven": 5,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:153>",
+                "lastError": null,
+                "scoreGiven": 5,
+                "scoreMaximum": 10,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 1
+              }
+            ]
+          }
+        ]
+      },
+      "D-superseded": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:118>",
+          "courseTitle": "M1 course-<id:119>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:154>.zip",
+          "format": "scorm12",
+          "id": "<id:120>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:121>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:155>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:156>",
+                "outcome": "passed",
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "updatedAt": "<t>",
+                "versionId": "<id:121>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:156>",
+              "outcome": "passed",
+              "scoreGiven": 90,
+              "scoreMaximum": 100
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:157>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 60,
+                "scoreMaximum": 100,
+                "sentAt": null,
+                "status": "superseded",
+                "tries": 2
+              },
+              {
+                "createdAt": "<t>",
+                "id": "<id:158>",
+                "lastError": null,
+                "scoreGiven": 90,
+                "scoreMaximum": 100,
+                "sentAt": "<t>",
+                "status": "sent",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      },
+      "E-pending": {
+        "create": {
+          "connectionId": "<id:112>",
+          "connectionName": "Golden Moodle",
+          "courseId": "<id:114>",
+          "courseTitle": "M1 course-<id:115>",
+          "createdAt": "<t>",
+          "file": "/repo/tests/acceptance/artifacts/scorm12-<id:159>.zip",
+          "format": "scorm12",
+          "id": "<id:116>",
+          "lms": "moodle",
+          "moodleCourse": null,
+          "shellError": null,
+          "shellStatus": null,
+          "stats": {
+            "activities": 0,
+            "completed": 0,
+            "failed": 0,
+            "inProgress": 0,
+            "lastScoreSync": null,
+            "learners": 0,
+            "passed": 0
+          },
+          "status": "available",
+          "updatedAt": "<t>",
+          "version": 1,
+          "versionId": "<id:117>"
+        },
+        "results": [
+          {
+            "activity": {
+              "contextTitle": "QA course",
+              "resourceLinkId": "<id:160>",
+              "title": "QA resource"
+            },
+            "attempts": [
+              {
+                "attemptId": "<id:161>",
+                "outcome": "failed",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "updatedAt": "<t>",
+                "versionId": "<id:117>"
+              }
+            ],
+            "best": {
+              "attemptId": "<id:161>",
+              "outcome": "failed",
+              "scoreGiven": 4,
+              "scoreMaximum": 10
+            },
+            "gradebook": null,
+            "gradebookDiffers": false,
+            "learner": {
+              "label": "Learner learner-1 @ moodle.sim.test",
+              "sub": "learner-1"
+            },
+            "preview": false,
+            "scoreSyncs": [
+              {
+                "createdAt": "<t>",
+                "id": "<id:162>",
+                "lastError": "502 PLATFORM_ERROR: The platform answered 503.",
+                "scoreGiven": 4,
+                "scoreMaximum": 10,
+                "sentAt": null,
+                "status": "pending",
+                "tries": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "resend": {
+      "failed": {
+        "body": {
+          "createdAt": "<t>",
+          "id": "<id:153>",
+          "lastError": null,
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "sentAt": null,
+          "status": "pending",
+          "tries": 0
+        },
+        "status": 200
+      },
+      "sent": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      },
+      "superseded": {
+        "body": {
+          "details": {
+            "description": "Only a failed or conflict score sync can be sent again.",
+            "message": "SYNC_NOT_RESENDABLE"
+          },
+          "error": "Conflict",
+          "status": 409
+        },
+        "status": 409
+      }
+    }
+  }
+}

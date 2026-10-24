@@ -3,14 +3,18 @@
 This folder holds the golden capture and compare tool for milestone LA (`docs/architecture/ltiaas/tasks/LA-E0-03.md`, `tests/ltiaas/TEST-STRATEGY.md` §4.6–§4.7).
 
 - **Capture (`run-golden.mjs` + `capture.golden.ts`):** runs on a booked SIM Docker slot, captures `G1`–`G4` across the `default` and `acceptance` stack profiles, normalizes all values at capture, scans for secrets (`K-HYG` method, 0 hits), and writes `G1.json`–`G4.json` + `meta.json`.
-- **Compare (`compare.mjs` + `lib/compare.mjs`):** runs on the host with **no Docker** in under 5 s. It compares a candidate capture folder against the G-BASE baseline (`tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/`) and checks any named `LA-IC` expected-delta files.
+- **Compare (`compare.mjs` + `lib/compare.mjs`):** runs on the host with **no Docker** in under 5 s. It compares a candidate capture folder against the re-gate baseline (`tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/`) and checks any named `LA-IC` expected-delta files.
 
 ---
 
-## 1. Baseline Capture Folder
+## 1. Baseline Capture Folders
 
-- **G-BASE baseline path:** `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/`
-- **Exported constant:** `BASELINE` in `tests/ltiaas/golden/golden.k0.test.mjs` (`"1b17261be97c4701b928fa9dc2fa74c6d23028f6"`).
+- **Re-gate baseline (`baseline-3`, Golden v2, `LA-H27` / `LD-29`):** `tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/`
+  - **Exported constant:** `BASELINE` in `tests/ltiaas/golden/golden.k0.test.mjs` (`"78971b0300ab171029e8ce94dbba30db37b23dea"`).
+  - **Why this baseline is used for re-gate compares:** `LA-H27` moved the LA baseline to the Blackboard and Canvas final result (`main` `78971b0300ab171029e8ce94dbba30db37b23dea`), and Golden v2 captures the full Moodle-shaped standard flow (`moodle`, `blackboard`, `canvas` across `G1`–`G4`). All milestone re-gate compares (`4f10c5fd` / D3 / D4) and the K0 expected-delta checks in `golden.k0.test.mjs` compare against `tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/`.
+- **Original `G-BASE` intake record (Golden v1, `AC-LA-E0-03-01`):** `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/`
+  - **Exported constant:** `G_BASE_V1` in `tests/ltiaas/golden/golden.k0.test.mjs` (`"1b17261be97c4701b928fa9dc2fa74c6d23028f6"`).
+  - **Why this baseline is kept:** Preserved unmodified as the original `G-BASE` v1 capture record (`AC-LA-E0-03-01`: `G1` at `G-BASE` is stored) and used by pre-`LA-H27` task K0/K1-SIM checks that read `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G1.json` or `G4.json`.
 
 ---
 
@@ -42,8 +46,8 @@ COMPOSE_PROJECT_NAME=qa3-la-sim-r1 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \
 ### Output Files in `--out`
 
 - `G1.json`, `G2.json`, `G3.json`, `G4.json`: normalized JSON documents (sorted keys, `<id:n>` placeholders per file, `<t>` timestamps, `<redacted:len>` secrets, `<public-key:len>` JWK material, `DROP` keys removed).
-- `meta.json`: `{ goldenVersion, productSha, label, project, capturedAt, captureSeconds, totalSeconds, normalization, secretValuesChecked, secretHits: 0 }`.
-- Private U1 seed state stays inside the clone at `tests/acceptance/artifacts/golden/<label>/private/u1-seed.json` (mode `0600`).
+- `meta.json`: `{ goldenVersion: 2, productSha, label, project, capturedAt, captureSeconds, totalSeconds, normalization, secretValuesChecked, secretHits: 0 }`.
+- Private U1 seed state stays inside the clone at `tests/acceptance/artifacts/golden/<label>/private/u1-seed.json` (mode `0600`): `{ connections: { blackboard, canvas, moodle }, publications: { blackboard, canvas, moodle }, rows: { "<channel>-<sent|conflict|failed|superseded|pending>" } }` across all three baseline channels (`moodle`, `blackboard`, `canvas`).
 
 ---
 
@@ -51,7 +55,7 @@ COMPOSE_PROJECT_NAME=qa3-la-sim-r1 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \
 
 ```sh
 node tests/ltiaas/golden/compare.mjs \
-  --base tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 \
+  --base tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea \
   --candidate /abs/path/to/capture-out \
   [--expected LA-IC-01,LA-IC-04,LA-IC-16] \
   [--expected-dir tests/ltiaas/golden/expected] \
@@ -97,13 +101,13 @@ Paths in `DIFF`, `EXPECTED`, `MISSING` and expected-delta files use dot notation
 | --- | --- | --- |
 | `G1` | `G1.default.{providers,lmsProviders,ltiHealth,appHealth}` | `GET /api/providers`, `GET /app-api/lms-providers`, and both `/healthz` bodies in the `default` profile |
 | `G1` | `G1.acceptance.{providers,lmsProviders,ltiHealth,appHealth}` | Same four documents in the `acceptance` profile |
-| `G1` | `G1.connections["<channel>-<state>"]`, `G1.connectionList` | Connection DTOs (`moodle-dynamic-pending`, `moodle-manual-pending`, `blackboard-pending`, `blackboard-registered`, `blackboard-connected`, `blackboard-disabled`, `canvas-pending`, `canvas-registered`, `canvas-connected`, `canvas-disabled`) and `GET /app-api/connections` |
+| `G1` | `G1.connections["<channel>-<state>"]`, `G1.connectionList` | Connection DTOs (`moodle-dynamic-pending`, `moodle-manual-pending`, `moodle-registered`, `moodle-connected`, `moodle-disabled`, `blackboard-pending`, `blackboard-registered`, `blackboard-connected`, `blackboard-disabled`, `canvas-pending`, `canvas-registered`, `canvas-connected`, `canvas-disabled`) and `GET /app-api/connections` |
 | `G1` | `G1.toolConfiguration.{moodle,blackboard,canvas}` | `GET /app-api/connections/:id/tool-configuration` per baseline channel |
 | `G1` | `G1.canvasConfiguration["jwk=url" \| "jwk=inline"]` | `GET /app-api/connections/:id/canvas-configuration` in both forms |
 | `G1` | `G1.lmsProvidersAfter`, `G1.providersAfter` | `GET /app-api/lms-providers` and `GET /api/providers` after all connections exist |
-| `G2` | `G2.{blackboard,canvas}.{oidc,records}` | OIDC redirect parameters and `/__sim/records` transcript (`auth`, `jwks`, `deep-link`, `token`, `score`) |
-| `G3` | `G3.{blackboard,canvas}.{publications,deepLinkReturn,resend,connection,publicationList}` | App API transcript (`A-sent`, `B-conflict`, `C-failed`, `C2-resend`, `D-superseded`, `E-pending` with `results` and `scoreSyncs`; Resend answers for `failed`, `sent`, `superseded`) |
-| `G4` | `G4.{blackboard,canvas}.{pages,players,learnerLabels}`, `G4.common.pages` | Tool HTML pages (`picker`, `PUBLICATION_NOT_AVAILABLE`, `PICKER_USED`, `HANDOFF_USED`, `ROLE_NOT_ALLOWED`, `deep-link-with-resource-link`, `PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_DEPLOYMENT`, `STATE_COOKIE_MISSING`, `INVALID_STATE`, `PROVIDER_PROFILE_MISMATCH`, `SERVICE_ORIGIN_MISMATCH`, `PLATFORM_NOT_ACTIVE-or-refusal`), player statuses, learner labels |
+| `G2` | `G2.{moodle,blackboard,canvas}.{oidc,records}` | OIDC redirect parameters and `/__sim/records` transcript (`auth`, `jwks`, `deep-link`, `token`, `score`) for `moodle-sim`, `blackboard-sim`, and `canvas-sim-cloud` |
+| `G3` | `G3.{moodle,blackboard,canvas}.{publications,deepLinkReturn,resend,connection,publicationList}` | App API transcript (`A-sent`, `B-conflict`, `C-failed`, `C2-resend`, `D-superseded`, `E-pending` with `results` and `scoreSyncs`; Resend answers for `failed`, `sent`, `superseded`) across `moodle`, `blackboard`, and `canvas` |
+| `G4` | `G4.{moodle,blackboard,canvas}.{pages,players,learnerLabels}`, `G4.common.pages` | Tool HTML pages (`picker`, `PUBLICATION_NOT_AVAILABLE`, `PICKER_USED`, `HANDOFF_USED`, `ROLE_NOT_ALLOWED`, `deep-link-with-resource-link`, `PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_DEPLOYMENT`, `STATE_COOKIE_MISSING`, `INVALID_STATE`, `PROVIDER_PROFILE_MISMATCH`, `SERVICE_ORIGIN_MISMATCH`, `PLATFORM_NOT_ACTIVE-or-refusal`), player statuses, learner labels across `moodle`, `blackboard`, and `canvas` |
 
 ---
 

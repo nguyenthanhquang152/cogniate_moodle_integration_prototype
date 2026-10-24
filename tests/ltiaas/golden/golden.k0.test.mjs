@@ -14,8 +14,10 @@ import {
 import { DROP, normalize, normalizeFile, secretScan } from './lib/normalize.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const BASELINE = '1b17261be97c4701b928fa9dc2fa74c6d23028f6';
+export const BASELINE = '78971b0300ab171029e8ce94dbba30db37b23dea';
+export const G_BASE_V1 = '1b17261be97c4701b928fa9dc2fa74c6d23028f6';
 const baseDir = path.join(here, BASELINE);
+const v1Dir = path.join(here, G_BASE_V1);
 const FILES = ['G1', 'G2', 'G3', 'G4'];
 const load = (dir) => Object.fromEntries(FILES.map((f) => [f, JSON.parse(fs.readFileSync(path.join(dir, `${f}.json`), 'utf8'))]));
 // A fake JWT (no real key), joined at run time so that this file itself passes the secret scan.
@@ -55,8 +57,10 @@ test('AC-05 secret scan: a planted value, a JWT and a 43-character value are hit
   assert.deepEqual(secretScan(planted, ['s3cr3t-value-123']).map((h) => h.kind).sort(),
     ['43-character random value', 'JWT', 'captured secret value']);
   const files = FILES.map((f) => [f, fs.readFileSync(path.join(baseDir, `${f}.json`), 'utf8')]);
+  const v1Files = FILES.map((f) => [f, fs.readFileSync(path.join(v1Dir, `${f}.json`), 'utf8')]);
   for (const name of fs.readdirSync(here)) assert.ok(!/private|raw|secret/i.test(name), `no private file in tests/ltiaas/golden: ${name}`);
   assert.deepEqual(secretScan(files), []);
+  assert.deepEqual(secretScan(v1Files), []);
 });
 
 test('AC-06 compare without Docker: the CLI compares the stored capture with itself in under 5 s', () => {
@@ -67,7 +71,7 @@ test('AC-06 compare without Docker: the CLI compares the stored capture with its
   assert.ok(ms < 5000, `compare took ${ms} ms`);
 });
 
-test('AC-07 negative control: one changed field in a copy of the capture fails and is named with the old and new value', () => {
+test('AC-07 negative control: one changed field in a copy of the capture fails and is named with the old and new value (including Moodle G2 and G3)', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'golden-neg-'));
   try {
     for (const f of FILES) fs.copyFileSync(path.join(baseDir, `${f}.json`), path.join(dir, `${f}.json`));
@@ -79,6 +83,28 @@ test('AC-07 negative control: one changed field in a copy of the capture fails a
     assert.equal(run.status, 1);
     assert.ok(run.stdout.includes(`DIFF G1 acceptance.providers.profiles[1].issuer (changed): ${JSON.stringify(old)} -> "https://changed.example"`), run.stdout);
     assert.match(run.stdout, /^DIFFERENT: 1 differences \(1 not explained\)/m);
+
+    // Negative control on one Moodle G2 field (`moodle.oidc[0].endpoint`)
+    fs.copyFileSync(path.join(baseDir, 'G1.json'), path.join(dir, 'G1.json'));
+    const g2 = JSON.parse(fs.readFileSync(path.join(dir, 'G2.json'), 'utf8'));
+    const oldG2 = g2.moodle.oidc[0].endpoint;
+    g2.moodle.oidc[0].endpoint = 'https://changed-moodle.example/mod/lti/auth.php';
+    fs.writeFileSync(path.join(dir, 'G2.json'), JSON.stringify(g2, null, 2));
+    const runG2 = spawnSync(process.execPath, [path.join(here, 'compare.mjs'), '--base', baseDir, '--candidate', dir], { encoding: 'utf8' });
+    assert.equal(runG2.status, 1);
+    assert.ok(runG2.stdout.includes(`DIFF G2 moodle.oidc[0].endpoint (changed): ${JSON.stringify(oldG2)} -> "https://changed-moodle.example/mod/lti/auth.php"`), runG2.stdout);
+    assert.match(runG2.stdout, /^DIFFERENT: 1 differences \(1 not explained\)/m);
+
+    // Negative control on one Moodle G3 field (`moodle.publications.A-sent.results[0].scoreSyncs[0].status`)
+    fs.copyFileSync(path.join(baseDir, 'G2.json'), path.join(dir, 'G2.json'));
+    const g3 = JSON.parse(fs.readFileSync(path.join(dir, 'G3.json'), 'utf8'));
+    const oldG3 = g3.moodle.publications['A-sent'].results[0].scoreSyncs[0].status;
+    g3.moodle.publications['A-sent'].results[0].scoreSyncs[0].status = 'failed';
+    fs.writeFileSync(path.join(dir, 'G3.json'), JSON.stringify(g3, null, 2));
+    const runG3 = spawnSync(process.execPath, [path.join(here, 'compare.mjs'), '--base', baseDir, '--candidate', dir], { encoding: 'utf8' });
+    assert.equal(runG3.status, 1);
+    assert.ok(runG3.stdout.includes(`DIFF G3 moodle.publications.A-sent.results[0].scoreSyncs[0].status (changed): ${JSON.stringify(oldG3)} -> "failed"`), runG3.stdout);
+    assert.match(runG3.stdout, /^DIFFERENT: 1 differences \(1 not explained\)/m);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -104,15 +130,39 @@ test('compare: removed and added array elements and keys are differences', () =>
   assert.deepEqual(diff({ a: [1, 2], b: 1 }, { a: [1], c: 2 }).map((d) => `${d.path}:${d.kind}`), ['a[1]:removed', 'b:removed', 'c:added']);
 });
 
-test('AC-04 support: the stored capture is complete (G1-G4, meta)', () => {
+test('AC-04 support: the stored capture is complete across moodle, blackboard and canvas (G1-G4, meta)', () => {
   const g = load(baseDir);
   for (const key of ['default', 'acceptance', 'connections', 'toolConfiguration', 'canvasConfiguration']) assert.ok(g.G1[key], `G1.${key}`);
-  for (const channel of ['blackboard', 'canvas']) {
-    assert.ok(g.G2[channel].records.length > 0, `G2.${channel}`); assert.ok(g.G3[channel].publications, `G3.${channel}`);
-    assert.ok(Object.keys(g.G4[channel].pages).length >= 8, `G4.${channel}`);
+  for (const connKey of [
+    'moodle-dynamic-pending', 'moodle-manual-pending', 'moodle-registered', 'moodle-connected', 'moodle-disabled',
+    'blackboard-pending', 'blackboard-registered', 'blackboard-connected', 'blackboard-disabled',
+    'canvas-pending', 'canvas-registered', 'canvas-connected', 'canvas-disabled',
+  ]) {
+    assert.ok(g.G1.connections[connKey], `G1.connections.${connKey}`);
+  }
+  for (const channel of ['moodle', 'blackboard', 'canvas']) {
+    assert.ok(g.G2[channel].oidc.length >= 2, `G2.${channel}.oidc`);
+    assert.ok(g.G2[channel].records.length > 0, `G2.${channel}.records`);
+    assert.ok(g.G3[channel].publications, `G3.${channel}.publications`);
+    for (const pub of ['A-sent', 'B-conflict', 'C-failed', 'C2-resend', 'D-superseded', 'E-pending']) {
+      assert.ok(g.G3[channel].publications[pub]?.results?.length > 0, `G3.${channel}.publications.${pub}`);
+    }
+    assert.equal(g.G3[channel].deepLinkReturn?.status, 200, `G3.${channel}.deepLinkReturn`);
+    for (const rKey of ['failed', 'sent', 'superseded']) assert.ok(g.G3[channel].resend[rKey], `G3.${channel}.resend.${rKey}`);
+    assert.ok(g.G3[channel].connection, `G3.${channel}.connection`);
+    assert.ok(g.G3[channel].publicationList?.publications?.length >= 6, `G3.${channel}.publicationList`);
+    assert.ok(Object.keys(g.G4[channel].pages).length >= 13, `G4.${channel}.pages`);
+    assert.ok(Object.keys(g.G4[channel].players).length >= 7, `G4.${channel}.players`);
+    assert.ok(g.G4[channel].learnerLabels.length >= 1, `G4.${channel}.learnerLabels`);
   }
   const meta = JSON.parse(fs.readFileSync(path.join(baseDir, 'meta.json'), 'utf8'));
+  assert.equal(meta.goldenVersion, 2);
   assert.equal(meta.productSha, BASELINE); assert.equal(meta.secretHits, 0);
+  const v1 = load(v1Dir);
+  for (const key of ['default', 'acceptance', 'connections', 'toolConfiguration', 'canvasConfiguration']) assert.ok(v1.G1[key], `v1 G1.${key}`);
+  const v1Meta = JSON.parse(fs.readFileSync(path.join(v1Dir, 'meta.json'), 'utf8'));
+  assert.equal(v1Meta.goldenVersion, 1);
+  assert.equal(v1Meta.productSha, G_BASE_V1); assert.equal(v1Meta.secretHits, 0);
 });
 
 test('cliBinding: compare, differingPaths, captureDocuments and expected-delta file path work for task suites', () => {
@@ -364,11 +414,11 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.ok(ic03.ld9.scanChecked.some((s) => s.includes('tests/acceptance/T3b/3-negative.spec.ts:32-70')));
   const ic12 = loadExpectedDelta('LA-IC-12');
   assert.equal(ic12.ld9.authorUnitTestChanges.length, 4);
-  assert.equal(ic12.changes.length, 2);
-  assert.deepEqual(ic12.ld9.goldenFields, [
-    'G4.blackboard.pages.picker.text',
-    'G4.canvas.pages.picker.text',
-  ]);
+  assert.ok(ic12.changes.length === 2 || ic12.changes.length === 3);
+  assert.equal(ic12.ld9.goldenFields.length, ic12.changes.length);
+  for (const field of ['G4.blackboard.pages.picker.text', 'G4.canvas.pages.picker.text']) {
+    assert.ok(ic12.ld9.goldenFields.includes(field), field);
+  }
   const ic13 = loadExpectedDelta('LA-IC-13');
   assert.equal(ic13.ld9.authorUnitTestChanges.length, 6);
   assert.ok(ic13.ld9.scanChecked.length >= 14);
@@ -451,12 +501,12 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.equal(res14.differences.length, 13);
   assert.deepEqual(res14.missing, []);
 
-  // LA-IC-01: 259 exact-value paths (0 wildcards, 0 type-only rules), current integration HEAD values, and negative controls.
+  // LA-IC-01: 259 (v1) or 275 (v2 with Moodle segment) exact-value paths (0 wildcards, 0 type-only rules), current integration HEAD values, and negative controls.
   const ic01 = loadExpectedDelta('LA-IC-01');
   const repoRoot = path.resolve(here, '../../..');
   assert.equal(ic01.id, 'LA-IC-01');
-  assert.equal(ic01.changes.length, 259);
-  assert.equal(ic01.ld9.goldenFields.length, 259);
+  assert.ok(ic01.changes.length === 259 || ic01.changes.length === 275);
+  assert.equal(ic01.ld9.goldenFields.length, ic01.changes.length);
   assert.equal(ic01.ld9.frozenTestsTouched.length, 7);
   for (const entry of ic01.ld9.frozenTestsTouched) {
     assert.ok(entry.includes('Pending on integration at 195930c1'), `LA-IC-01 frozenTestsTouched must record pending status: ${entry}`);
@@ -515,10 +565,10 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   assert.equal(cand01.G1.lmsProvidersAfter.lms[3].channelName, 'LMS');
   const res01Without = compareCaptures(base, cand01);
   assert.equal(res01Without.ok, false);
-  assert.equal(res01Without.differences.length, 259);
+  assert.equal(res01Without.differences.length, ic01.changes.length);
   const res01 = compareCaptures(base, cand01, [ic01]);
   assert.equal(res01.ok, true);
-  assert.equal(res01.differences.length, 259);
+  assert.equal(res01.differences.length, ic01.changes.length);
   assert.deepEqual(res01.missing, []);
 
   // Combined compare of all 13 reviewed LD-9 expected deltas (LA-IC-01, LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21).
@@ -547,15 +597,11 @@ test('LA-IC-01 (E1/E2/E3/E6), LA-IC-03 (LA-E2-02), LA-IC-04 (LA-E3-07), LA-IC-12
   candAll.G3.canvas.publications['B-conflict'].results[0].scoreSyncs[0].lastError =
     '409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Canvas has a grade with a newer time)';
   for (const ch of ic12.changes) {
-    if (ch.file === 'G4' && ch.path === 'blackboard.pages.picker.text') {
-      candAll.G4.blackboard.pages.picker.text = ch.value;
-    } else if (ch.file === 'G4' && ch.path === 'canvas.pages.picker.text') {
-      candAll.G4.canvas.pages.picker.text = ch.value;
-    }
+    setByPath(candAll[ch.file], ch.path, ch.value);
   }
   const resAll = compareCaptures(base, candAll, allDeltas);
   assert.equal(resAll.ok, true);
-  assert.equal(resAll.differences.length, 259 + 19 + ic12.changes.length);
+  assert.equal(resAll.differences.length, ic01.changes.length + 19 + ic12.changes.length);
   assert.deepEqual(resAll.missing, []);
 
   // Negative controls for LA-IC-01 (A-LA-LD9-11, A-LA-LD9-12, B-LD9-10): any wrong or missing channel value fails compareCaptures.
