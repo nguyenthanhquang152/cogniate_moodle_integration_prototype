@@ -1,11 +1,30 @@
-Verdict: PENDING (Final SHA a8bbac53 milestone-end full runs D1 §13 and D2 run-D2.md both PASS; AC-LA-E7-09-01..05 all PASS, including AC-LA-E7-09-05 PASS per LD-25; AC-LA-E7-08-01, -03, -04, -05, -06 PASS across Slots 3B/3C/3D, Slot 3F §12, Run D1 §13, and Run D2 run-D2.md; AC-LA-E7-08-02 pending: kit round 8 (LD-27))
-Round: 10
+Verdict: PASS for the D3/D4 functional gate on 4f10c5fd, with retained findings and approved carry rules; see Final state and §14.
+Round: 11
 
 # LA-E7-08 Wave-End and Final Regression Gates (SIM & Moodle Lanes): QA
 
 Tester: lead QA (Orca tasks `task_67cd3791548e`, `task_125e556637d5`, `task_846b17eca20f`, `task_41f5dfae682a`, `task_031504ca6d52`), 2026-10-23..2026-10-24. Spec: `docs/architecture/ltiaas/tasks/LA-E7-08.md`, `docs/architecture/ltiaas/tasks/LA-E7-09.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md` D6, `tests/ltiaas/TEST-STRATEGY.md` §2.6, §4.2, §4.4, §4.5, `tests/ltiaas/GATE-RUN-PLAN.md` §3, `docs/team/ltiaas/plan.md` §6.1 (`LD-25`).
 
+## Final state on `4f10c5fd` (D3 and D4)
+
+**D3 PASS and D4 PASS for the required functional suites**, with raw host environment FAIL rows and failed attempts retained. Both use product `4f10c5fd`, frozen tests `794f649c`, and the LD-32 kit source `99338e52` with zero product diff. Each kit passed all 195 ledger rows; each golden comparison has 297 approved differences, zero unexplained and zero missing changes. See [§14](#14-re-gate-run-d3-on-4f10c5fd), [D4](./run-D4.md) and the [per-ID comparison](./per-test-id-D3-D4.md).
+
+| Criterion | Final result on `4f10c5fd` | Evidence |
+| --- | --- | --- |
+| AC-LA-E7-08-01 | PASS functional comparison; raw host findings retained | D3 M1 140 and D4 solo M1 162: 394/394 each. D3 M2 138 and D4 M2 152: 64/64 each. Per-ID outcomes match the baseline for every functional case. Named foreign-resource M3 FAIL rows remain in the reports. D4 overlap 151 is excluded. |
+| AC-LA-E7-08-02 | PASS under LD-32 | D3 kit 144 and D4 kit 161: 195/195 ledger rows each, 196/196 Vitest tests each, all five channels pass the unchanged pass rule. Both use the same committed kit and dispatcher source with zero product diff. |
+| AC-LA-E7-08-03 | PASS | D3 139 and D4 150: 297 differences each, all approved by named LA-IC expected files; zero unexplained or missing changes. |
+| AC-LA-E7-08-04 | PASS, carried under §10(c) | Migration 12/12 and snapshot-upgrade 6/6 from Slot 3F 61/62 versus Slot 7 18/19; U1 LTI 19/19 and app 18/18; live U1/U2 36/36; backup/restore drill 10/10. No fresh execution of these carried checks is claimed. The relevant migration, encryption and storage diffs are empty. |
+| AC-LA-E7-08-05 | PASS with approved LD-32 assembly exception | Frozen-source diff contains the approved LD-1, LA-IC, runner and additive simulator changes, with LD-9 addendum r8 round 3 approval by both reviewers. Baseline-3 to candidate has the 12 approved overlay files; five B/C-overlapping files match. Gate sources are unchanged. The kit uses its committed integration dispatcher under LD-32. |
+| AC-LA-E7-08-06 | PASS | Diff from exact G-BASE `bd368ff39fb4c533fc105e7c5ee81a59e618d99a` to `4f10c5fd` is empty for stack-data, storage-compat and the storage command sources. |
+
+The authorized solo baseline retry `qalead-la-170-78971b03-2026-10-24T23-06-37-809Z` passed AC-T8-03/07 and SUITE. Under TEST-STRATEGY §2.6 and Lead message `msg_b0e9e22a424c`, original run 129 is a **baseline flake finding**, never relabelled PASS. The accepted retry outcomes match D3 and D4; the original FAIL-to-PASS differences remain visible.
+
+Final Docker state: all owned stacks and build resources are down; all 32 protected volume records are unchanged. Watchers are stopped. The final boundary is `2026-10-24T23:16:02.982354+00:00`.
+
 ## Final state (`2026-10-24`)
+
+Historical state for the first final runs on `a8bbac53`; the new final state above supersedes it.
 
 - **Milestone-End Full Run D1 (`§13` below, `2026-10-24T09:10:57Z–13:15:38Z`) & Full Run D2 ([`docs/reviews/LA-E7-08/run-D2.md`](./run-D2.md), `2026-10-24T10:30:00Z–13:42:23Z`):** **D1 `PASS`** and **D2 `PASS`** on final product SHA `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`a8bbac53`, `tag: la-final-product-1`; test tags `la-final-test-1` `85ddf97332063f75bdc5636cb410fc0d6ee25099` and `la-final-test-2` `68b2e9091d1300114187d329f2dcb45740227e6d`).
 - **`AC-LA-E7-09-05` (`LA-E7-09.md` Milestone-End Double Run):** **`PASS` per `LD-25` (`docs/team/ltiaas/plan.md` §6.1)** (`D1 PASS` in §13 + `D2 PASS` in [`run-D2.md`](./run-D2.md); see also [`docs/reviews/LA-E7-09/qa.md` §2 & Round 6](../LA-E7-09/qa.md)):
@@ -1343,28 +1362,135 @@ Every single run invocation started during the D1 window (`09:10:57Z–13:15:38Z
 
 ---
 
-## 14. Re-Gate Slot R1 — `baseline-3` (`1ae6716b` on `78971b03`, `qalead-la-120..129`, `2026-10-24 17:12:27Z–18:56:34Z`)
+## Re-gate baseline R1 on `78971b03` (corrected record)
 
-- **Gate Source (`src-baseline-3`) & Product SHA:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3` at tag `baseline-3` (`1ae6716b7353becc0f053b46fb65e0ba86ff7873`) on product SHA `78971b0300ab171029e8ce94dbba30db37b23dea` (`git diff --exit-code 78971b0300ab171029e8ce94dbba30db37b23dea baseline-3 -- . ':!tests'` exits `0`).
-- **Durable Artifacts & Rate-Peak Outputs:** `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/` (`logs/`, `artifacts/qalead-la-120..129-*`, `rate-peaks/qalead-la-120..129-*.json`, `docker-records/`). Full per-run and per-bucket tables are recorded in [`docs/reviews/LA-E0-02/qa.md` §8](../LA-E0-02/qa.md) (Round 3, closing `A-LA-E0-02-01` & `B-LA-E0-02-01`).
-- **Complete Accounting of All 10 Runs in Slot R1 (`qalead-la-120..129`, Sequential `1` Stack at a Time, `M2` Solo per `LD-31`):**
-  1. **`qalead-la-120-78971b03-2026-10-24T17-12-27-810Z` (`M1 --phase sim --provider all`):** **`400/400 PASS`** (`394/394` manifest cases `PASS`, `M3-ISOLATION PASS`), `23.0 min` (`17:12:27Z–17:35:24Z`). Rate peaks (`m1-sim`): `launch 4/s, 30/min`, `lti.protocol 5/s, 27/min`, `lti.admin 56/s, 405/min`, `lti.runtime 15/s, 54/min`.
-  2. **`qalead-la-121-78971b03-2026-10-24T17-43-47-616Z` (`M2` Browser Suite, solo per `LD-31`):** **`71/71 PASS`** (`64/64` manifest cases `PASS`, `M3-06-M2 PASS`, `M3-07-M2 PASS`), `2.8 min` (`17:43:47Z–17:46:37Z`). Rate peaks (`m2`): `launch 1/s, 3/min`, `lti.protocol 3/s, 10/min`, `lti.admin 8/s, 24/min`, `lti.runtime 3/s, 7/min`.
-  3. **`qalead-la-122-78971b03-2026-10-24T171226Z` (`T7 × 3`):** **`8/8` steps `OK`, `3 × (17 PASS, 0 FAIL, 1 SKIP)`** (`175 s`, `176 s`, `176 s`; only `SKIP` is `DEMO AC-T7-15`), `8.9 min` (`17:46:37Z–17:55:33Z`). Rate peaks (`t7-all3runs`): `launch 1/s, 3/min`, `lti.protocol 4/s, 9/min`, `lti.admin 3/s, 11/min`, `lti.runtime 1/s, 3/min`.
-  4. **`qalead-la-123-78971b03-2026-10-24T17-55-33-286Z` (`T2a, T2b, T3a, T3b`):** **`76/76 PASS`** (`64/64` unique IDs `PASS`), `8.4 min` (`17:55:33Z–18:03:57Z`). Rate peaks (`t2-t3ab`): `launch 2/s, 13/min`, `lti.protocol 5/s, 23/min`, `lti.admin 3/s, 26/min`, `lti.runtime 0/s, 0/min`.
-  5. **`qalead-la-124-78971b03-2026-10-24T18-03-57-236Z` (`T3c`):** **`28/28 PASS`** (`28/28` unique IDs `PASS`), `1.8 min` (`18:03:57Z–18:05:47Z`). Rate peaks (`t3c`): `launch 2/s, 8/min`, `lti.protocol 3/s, 8/min`, `lti.admin 21/s, 27/min`, `lti.runtime 0/s, 0/min`.
-  6. **`qalead-la-125-78971b03-2026-10-24T18-05-47-661Z` (`T4a`):** **`19/19 PASS`** (`15/15` unique IDs `PASS`), `1.5 min` (`18:05:47Z–18:07:15Z`). Rate peaks (`t4a`): `launch 3/s, 14/min`, `lti.protocol 4/s, 13/min`, `lti.admin 2/s, 3/min`, `lti.runtime 0/s, 0/min`.
-  7. **`qalead-la-126-78971b03-2026-10-24T18-07-15-507Z` (`T4b1, T4b2`):** **`48/48 PASS`** (`40/40` unique IDs `PASS`), `5.1 min` (`18:07:15Z–18:12:22Z`). Rate peaks (`t4b`): `launch 2/s, 13/min`, `lti.protocol 3/s, 13/min`, `lti.admin 3/s, 15/min`, `lti.runtime 1/s, 4/min`.
-  8. **`qalead-la-127-78971b03-2026-10-24T18-12-22-914Z` (`T5a, T5b`):** **`59/59 PASS`** (`48/48` unique IDs `PASS`, `24/24` `T5b` Playwright tests `PASS`, including `AC-T5-36` and `P5`), `16.4 min` (`18:12:22Z–18:28:47Z`). Rate peaks (`t5a-t5b`): `launch 3/s, 6/min`, `lti.protocol 2/s, 8/min`, `lti.admin 3/s, 6/min`, `lti.runtime 4/s, 11/min`.
-  9. **`qalead-la-128-78971b03-2026-10-24T18-28-47-291Z` (`T5a, T6`):** **`53/53 PASS`** (`46/46` unique IDs `PASS`, `18/18` `T6` Playwright tests `PASS`, including `AC-T6-07`, `AC-T6-09`, `AC-T6-13`), `6.9 min` (`18:28:47Z–18:35:41Z`). Rate peaks (`t5a-t6`): `launch 16/s, 41/min`, `lti.protocol 32/s, 57/min`, `lti.admin 30/s, 92/min`, `lti.runtime 30/s, 36/min`.
-  10. **`qalead-la-129-78971b03-2026-10-24T18-35-41-342Z` (`T8`):** `32 PASS, 4 FAIL` entries (`20 PASS, 3 FAIL` unique IDs: `SUITE`, `AC-T8-03`, `AC-T8-07`), `20.9 min` (`18:35:41Z–18:56:33Z`). All main `T8` ACs (`AC-T8-02`, `-04`, `-05`, `-06`, `-08`, `-09`, `-10` no-token & with-token, `C-T8-01`, `C-T8-02`) **PASSED**; `AC-T8-03` (`421,171 ms`) timed out when `eventsSince('build-runner', ...)` inside `e2e` over `:ro` VirtioFS (`./.logs:/repo/infra/.logs:ro` under `chmod 700 "$LOGS_DIR"`, prior to LA `WE-F6` `4f10c5fd`) did not observe the host-appended `build_hold` line (`service-logs/build-runner.jsonl` line 31 at `18:41:06.818Z` for `bld_9024b26e1ff6c7b89d527288`), leaving `bld_9024b26e1ff6c7b89d527288` held so `AC-T8-07` (`423,075 ms`) received the still-held `"running"` build (whereas in Slot 3D `qalead-la-49` both `AC-T8-03` `56.6s` and `AC-T8-07` `42.1s` **PASSED**; see [`docs/reviews/LA-E0-02/qa.md` §8.1](../LA-E0-02/qa.md)). Rate peaks (`t8`): `launch 1/s, 2/min`, `lti.protocol 2/s, 4/min`, `lti.admin 3/s, 7/min`, `lti.runtime 1/s, 1/min`.
-- **Docker Boundary Verification (`/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/docker-records/`):** `before-32-volumes.json` vs `after-32-volumes.json` (`diff-32-volumes.json`: `before: 32, after: 32, missing: [], changed: []`); `0` `qalead-la-*` or `cogniate-build-*` containers, volumes, or networks left after `qalead-la-129` teardown.
+This section replaces the earlier §14 R1 summary. It corrects A-LA-E0-02-03/-04 and B-LA-E0-02-04. The old artifact IDs, rate figures and pre-WE-F6 attribution must not be used as evidence.
 
+Baseline product: `78971b0300ab171029e8ce94dbba30db37b23dea`. Test source: `baseline-3`, `1ae6716b7353becc0f053b46fb65e0ba86ff7873`. All ten runs were sequential. The source for each row is its `summary.json` under `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/artifacts/`.
 
+| Run ID | Suite | Entries / unique IDs | Result |
+| --- | --- | --- | --- |
+| `qalead-la-120-78971b03-2026-10-24T17-12-27-675Z` | M1 sim | 400 entries (400 PASS, 0 FAIL); 400 IDs (400 PASS, 0 FAIL) | PASS |
+| `qalead-la-121-78971b03-2026-10-24T17-43-47-815Z` | M2 | 71 entries (71 PASS, 0 FAIL); 71 IDs (71 PASS, 0 FAIL) | PASS |
+| `qalead-la-122-78971b03-2026-10-24T17-46-37-886Z` | T7 × 3 | 8/8 host steps OK | Each run: 17 PASS, 0 FAIL, 1 SKIP; DEMO AC-T7-15 is the expected skip. |
+| `qalead-la-123-78971b03-2026-10-24T17-55-33-990Z` | T2a, T2b, T3a, T3b | 76 entries (76 PASS, 0 FAIL); 64 IDs (64 PASS, 0 FAIL) | PASS |
+| `qalead-la-124-78971b03-2026-10-24T18-03-57-336Z` | T3c | 28 entries (28 PASS, 0 FAIL); 28 IDs (28 PASS, 0 FAIL) | PASS |
+| `qalead-la-125-78971b03-2026-10-24T18-05-47-088Z` | T4a | 19 entries (19 PASS, 0 FAIL); 15 IDs (15 PASS, 0 FAIL) | PASS |
+| `qalead-la-126-78971b03-2026-10-24T18-07-15-391Z` | T4b1, T4b2 | 48 entries (48 PASS, 0 FAIL); 40 IDs (40 PASS, 0 FAIL) | PASS |
+| `qalead-la-127-78971b03-2026-10-24T18-12-22-967Z` | T5a, T5b | 59 entries (59 PASS, 0 FAIL); 48 IDs (48 PASS, 0 FAIL) | PASS |
+| `qalead-la-128-78971b03-2026-10-24T18-28-47-946Z` | T5a, T6 | 53 entries (53 PASS, 0 FAIL); 46 IDs (46 PASS, 0 FAIL) | PASS |
+| `qalead-la-129-78971b03-2026-10-24T18-35-41-097Z` | T8 | 36 entries (32 PASS, 4 FAIL); 23 IDs (20 PASS, 3 FAIL) | FAIL: AC-T8-03, AC-T8-07, SUITE. The two failed suite entries are retained. |
 
+The exact wall times and sub-pass counts are in [E0-02 §8.1 and §9.1](../LA-E0-02/qa.md#91-verification-of-every-run-id-entry-count-unique-id-count-and-wall-time-against-raw-summaryjson-files). The measured rates are in [E0-02 §8.2 and §9.2](../LA-E0-02/qa.md#92-rebuilt-t2a-t2b-t3a-t3b-qalead-la-123-request-rate-peaks-from-all-retained-snapshots-a-la-e0-02-01--b-la-e0-02-01). These tables replace all rates previously printed here; the rate reader reports requests per minute and per 10 seconds, not per second.
 
+For `qalead-la-123`, the corrected union includes all four retained snapshot locations: 53 app and 340 LTI log lines, with 13 app and 213 LTI requests. Launch peaks are 6/min and 5/10s. Protocol peaks are 34/min and 23/10s. Both registration classes peak at 6/min and 6/10s. The reader flags `registration` and `registration_account` over their comparison defaults. BD-A2-114 keeps the defaults: replay exhausts neither bucket, and no acceptance override is required. The previous passC-only measurement remains separate evidence.
 
+For baseline T8, `AC-T8-03` failed after 421,171 ms because the test did not observe the `build_hold` event. The host log did contain the event at `18:41:06.818Z`. The initial cause is **not proven**. `AC-T8-07` then failed after 423,075 ms because the same build remained held and returned `running` instead of `failed`. This is an observed cascade. The old pre-WE-F6, read-only mount and VirtioFS cause claim is withdrawn. The relevant test and runner files already match the candidate; a read exception is swallowed by the helper, so the observation does not identify a specific cause.
 
+`AC-T8-03` and `AC-T8-07` are explicitly **unequal**: baseline-3 FAIL versus D1/D2 PASS. D3/D4 results are in the [comparison table](./per-test-id-D3-D4.md); no difference is treated as equality. The full trace account is [E0-02 §9.3](../LA-E0-02/qa.md#93-t8-ac-t8-03--ac-t8-07-qalead-la-129-observed-traces-retraction-of-unproven-causation-and-explicit-baseline-3-vs-d1d2d3d4-comparison-a-la-e0-02-03--b-la-e0-02-03).
 
+The R1 Docker records show all 32 protected volumes present and unchanged. R1 left no owned stack or build resource.
 
+## 14. Re-gate run D3 on `4f10c5fd`
+
+**D3 functional gate: PASS, with the failed attempts and environment findings below retained.** Codex GPT-6-Astra xhigh took over both Antigravity QA runs after quota expiry, at `2026-10-24T20:24:24Z`. Task `task_958b3033d726`, dispatch `ctx_75c048ff32cd`. The inherited phase-A process was allowed to finish. D3 uses Moodle `9543` / `172.21.0.0/16` and SIM `9473` / `172.23.0.0/16`.
+
+### 14.1 Sources and approved execution changes
+
+Both frozen candidate sources remain at `794f649c3ebacf1a1b3ac599cffffe338dd7373d` (`la-final-test-3`), with clean tracked files and zero non-test diff against product `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c`. D3 source: `GATE/src-final-3`; D4 source: `GATE/src-final-3-d4`. The tests tree is `b202c3ee3ef21f6caa7e3a11ec5c8a6daf7aac86`; golden tree is `1909e58f79e5214e7bb349a92811255391aa191c`; kit tree is `d7e50b5dea56382f849b213f006b73bcf5eb71aa`.
+
+LD-32 changes only the kit execution source. Both kits use one fresh clone, `REGATE/kit-src-99338e52`, at `99338e52db0a1f0e1512954482320d45a53e2d8f`. Its product diff against `4f10c5fd` outside tests/docs is empty. Its kit tree is the same `d7e50b5d`. The committed `tests/acceptance/run-api.mjs` SHA-256 is `438b8cc1cc9afc95abb37aa51c26edc8eee661a98a47bfcf4979d01be4e31100`. The gate kit runner is byte-identical to this source's kit runner; SHA-256 `17a9f34b64a27456d7676596364098a199a44585c9cee746fac9a535f7c45eb7`. It uses the already approved gate host harness for the `qalead-la-*` prefix. No gate, frozen test, kit or product source was edited. Proofs: `source-audit.json`, `LD32-kit-source-proof.json`, both kit invocation records and `final-source-audit.json` in the conductor directory.
+
+Paths below are under `/Users/quangnguyen/cogniate-qa-runs/LA/` unless stated otherwise. D3 artifacts and logs are in `RUN-D3/`. The conductor record directory is `REGATE/conductor-20261024T202424Z/`. [GATE-RUN-PLAN §10](../../../tests/ltiaas/GATE-RUN-PLAN.md) records the sequential execution amendment and LD-32.
+
+### 14.2 Every D3 invocation
+
+Start time comes from each full run ID; end time is the original host summary write time. Wall time includes setup and teardown. Counts distinguish repeated entries, unique aggregate IDs and manifest cases. Failed attempts are included.
+
+| Suite / project | Full run ID | UTC start–end | Wall time | Recorded counts | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| T7 × 3 / `qalead-la-130` | `qalead-la-130-4f10c5fd-2026-10-24T19-31-11-287Z` | 2026-10-24 19:31:11.287Z–19:40:49.305Z | 578.019 s / 9.63 min | Host steps 8/8 OK; run 1: 17 PASS, 0 FAIL, 1 SKIP, 186 s (reset 44 s); run 2: 17 PASS, 0 FAIL, 1 SKIP, 195 s (reset 53 s); run 3: 17 PASS, 0 FAIL, 1 SKIP, 187 s (reset 45 s) | PASS |
+| T2a, T2b, T3a, T3b / `qalead-la-131` | `qalead-la-131-4f10c5fd-2026-10-24T19-40-50-199Z` | 2026-10-24 19:40:50.199Z–19:49:42.485Z | 532.286 s / 8.87 min | Entries: 76 PASS; unique IDs: 64 PASS | PASS |
+| T3c / `qalead-la-132` | `qalead-la-132-4f10c5fd-2026-10-24T19-49-42-938Z` | 2026-10-24 19:49:42.938Z–19:51:40.798Z | 117.860 s / 1.96 min | Entries: 28 PASS; unique IDs: 28 PASS | PASS |
+| T4a / `qalead-la-133` | `qalead-la-133-4f10c5fd-2026-10-24T19-51-40-982Z` | 2026-10-24 19:51:40.982Z–19:53:27.862Z | 106.881 s / 1.78 min | Entries: 19 PASS; unique IDs: 15 PASS | PASS |
+| T4b1, T4b2 / `qalead-la-134` | `qalead-la-134-4f10c5fd-2026-10-24T19-53-27-991Z` | 2026-10-24 19:53:27.991Z–19:59:19.571Z | 351.581 s / 5.86 min | Entries: 48 PASS; unique IDs: 40 PASS | PASS |
+| T5a, T5b / `qalead-la-135` | `qalead-la-135-4f10c5fd-2026-10-24T19-59-20-067Z` | 2026-10-24 19:59:20.067Z–20:16:47.089Z | 1047.023 s / 17.45 min | Entries: 59 PASS; unique IDs: 48 PASS | PASS |
+| T5a, T6 (aborted) / `qalead-la-136` | `qalead-la-136-4f10c5fd-2026-10-24T20-16-47-819Z` | 2026-10-24 20:16:47.819Z–20:17:38.343Z | 50.525 s / 0.84 min | Entries: 4 PASS, 1 FAIL; unique IDs: 4 PASS, 1 FAIL | FAIL; no acceptance test ran. H1 inspect race; recovered in 142. |
+| T8 / `qalead-la-137` | `qalead-la-137-4f10c5fd-2026-10-24T20-17-38-466Z` | 2026-10-24 20:17:38.466Z–20:26:52.376Z | 553.911 s / 9.23 min | Entries: 36 PASS; unique IDs: 23 PASS | PASS |
+| T5a, T6 recovery / `qalead-la-142` | `qalead-la-142-4f10c5fd-2026-10-24T20-27-15-669Z` | 2026-10-24 20:27:15.669Z–20:34:35.248Z | 439.579 s / 7.33 min | Entries: 53 PASS; unique IDs: 46 PASS | PASS |
+| T5a, T6 (aborted) / `qalead-la-136` | `qalead-la-136-4f10c5fd-2026-10-24T20-28-03-101Z` | 2026-10-24 20:28:03.101Z–20:28:03.940Z | 0.840 s / 0.01 min | Entries: 1 FAIL; unique IDs: 1 FAIL | FAIL; no acceptance test ran. External retry: PRE refused occupied port/subnet; no Docker resource created. |
+| M2 / `qalead-la-138` | `qalead-la-138-4f10c5fd-2026-10-24T20-34-52-623Z` | 2026-10-24 20:34:52.623Z–20:37:51.264Z | 178.641 s / 2.98 min | Entries: 70 PASS, 1 FAIL; unique IDs: 70 PASS, 1 FAIL; cases 64 PASS / 64 | Functional cases PASS; raw host FAIL retained as named foreign-resource environment note (§5.4). |
+| Golden G1–G4 / `qalead-la-139` | `qalead-la-139-4f10c5fd-2026-10-24T21-05-44-903Z` | 2026-10-24 21:05:44.903Z–21:07:44.463Z | 119.560 s / 1.99 min | Entries: 9 PASS; unique IDs: 8 PASS; golden compare: 297 approved differences, 0 unexplained, 0 missing | PASS |
+| M1 sim / `qalead-la-140` | `qalead-la-140-4f10c5fd-2026-10-24T21-07-50-922Z` | 2026-10-24 21:07:50.922Z–21:31:08.466Z | 1397.544 s / 23.29 min | Entries: 399 PASS, 1 FAIL; unique IDs: 399 PASS, 1 FAIL; cases 394 PASS / 394 | Functional cases PASS; raw host FAIL retained as named foreign-resource environment note (§5.4). |
+| Five-channel K1-SIM / `qalead-la-141` | `qalead-la-141-4f10c5fd-2026-10-24T21-31-19-859Z` | 2026-10-24 21:31:19.859Z–21:32:25.615Z | 65.756 s / 1.10 min | Entries: 8 PASS, 2 FAIL; unique IDs: 8 PASS, 2 FAIL | FAIL; gate-source assembly defect: zero Vitest tests and no kit pass-rule summary. Recovery 144 uses LD-32. |
+| Five-channel K1-SIM recovery (LD-32) / `qalead-la-144` | `qalead-la-144-99338e52-2026-10-24T22-52-13-211Z` | 2026-10-24 22:52:13.211Z–22:59:12.111Z | 418.901 s / 6.98 min | Entries: 10 PASS; unique IDs: 10 PASS; kit details in the five-channel ledger below | PASS |
+
+### 14.3 Retained findings and recoveries
+
+- Original 136 (`20:16:47.819Z`) stopped at H1 with `services: none`, although SETUP exited 0. No acceptance test ran. The Lead identified the known inspect race and authorized 142. Recovery 142 passed all 53 entries and 46 IDs. A second 136 invocation from the old session (`20:28:03.101Z`) was refused at PRE because 142 owned the port and subnet; it created no resource. The Lead fenced both old sessions at `20:31:05Z`. Neither failed attempt is PASS.
+- M2 138 passed all 64 cases. Its raw host result is 70 PASS / 1 FAIL, `M3-06-M2`: volumes 35→35 and containers 3→3. The named changed foreign containers are `sto-it-mq-6931eb8a1127`, `sto-it-fbccfa83ef68` and `sto-it-mq-4853f38aad80`. Only 138 was active as an LA project; all protected records match and owned cleanup is empty. This is an environment note under TEST-STRATEGY §5.4 and the Lead ruling, not a hidden PASS for the raw M3 row.
+- Solo M1 140 passed all 394 cases. Its raw host result is 399 PASS / 1 FAIL, `M3-ISOLATION`. Changed foreign containers: `sto-it-pg-c732c3a70841`, `sto-it-mq-59e0996aefd1`. Events map volume `11649bebe30124a30bff1c2aaae10c0042607b730c028f2760dfe1cd8722f380` to that mq container, and `941e3b47ab6d91111b07b81314c38f41801c3d0664b0d2c9d4a5621098695da6` to that pg container. The solo watcher and protected-volume checks pass. Evidence: `qalead-la-140-foreign-audit.json` and its event map. The raw M3 FAIL remains an environment note under §5.4.
+- Kit 141 is **FAIL**, 8 PASS / 2 FAIL (`SUITE`, `PASSRULE`), zero Vitest tests and no kit summary. Gate assembly commit `5ee0ebd0` removed the K1 dispatcher from `tests/acceptance/run-api.mjs`; QA_TASK=K1 selected an empty acceptance path. Vitest returned 0 through passWithNoTests, but the host pass rule correctly failed. This is a test assembly defect, not product evidence. `cmd/08-k1-in-container.log`, `container-k1/vitest-results.json`, `kit141-dispatcher-diff.txt` and `kit141-diagnosis.txt` preserve it. Recovery 144 uses LD-32; it does not erase 141.
+
+### 14.4 Frozen suites, baseline T8 and golden v2
+
+The D4 T5a/T5b timing failure and solo recovery are retained as WE-F14 in [D4 §2](./run-D4.md#2-findings-and-execution-changes). Original 158 remains FAIL; recovery 163 supplies D4's accepted comparison.
+
+Both golden captures pass 9/9 entries and 8/8 unique IDs. Their normalized-output secret scans pass: D3 scanned 184 values and D4 scanned 185, with zero hits in each. Each baseline-3 comparison has **297 approved differences, zero unexplained differences and zero missing expected changes**. G1 has 279 changes, G3 has 15, G4 has 3, and G2 has none. The expected files are LA-IC-01 (275), LA-IC-04 (3), LA-IC-12 (3), LA-IC-14 (13), LA-IC-15 (2) and LA-IC-16 (1). The D3 and D4 change maps, including before/after values, match after D3 URL-port normalization from 9473 to 9643 on a separate copy. The original capture stays unchanged. This is an approved change set, not equality to the baseline.
+
+Raw comparisons: `RUN-D3/logs/qalead-la-139-golden-compare.txt` and `RUN-D4/logs/qalead-la-150-compare.txt`. The [per-test-ID table](./per-test-id-D3-D4.md) lists all 297 response paths with their LA-IC file, all 753 group-scoped frozen IDs, the 18 carried migration/snapshot IDs, and both baseline T8 attempts. It preserves every unequal outcome. The original baseline comparison has five unequal IDs: M1 M3-ISOLATION, M2 M3-06-M2, and T8 AC-T8-03, AC-T8-07 and SUITE. The M3 rows are host findings, separate from the 394 M1 and 64 M2 functional cases.
+
+Original baseline 129 AC-T8-03/07 is FAIL; D1 83, D2 105, D3 137 and D4 160 are PASS. The original cause is not proven. The old pre-WE-F6/read-only VirtioFS claim is withdrawn in the corrected R1 section above.
+
+The authorized solo baseline retry `qalead-la-170-78971b03-2026-10-24T23-06-37-809Z` passed AC-T8-03/07 and SUITE. Under TEST-STRATEGY §2.6 and Lead message `msg_b0e9e22a424c`, original run 129 is a **baseline flake finding**, never relabelled PASS. The accepted retry outcomes match D3 and D4; the original FAIL-to-PASS differences remain visible.
+
+Retry time: `2026-10-24T23:06:37.782927+00:00`–`2026-10-24T23:15:27.136251+00:00`; 36 PASS / 0 FAIL entries, 23 PASS / 0 FAIL unique IDs; runner exit 0. Source is unchanged `src-baseline-3` at `1ae6716b`, product `78971b03`, on `9543` / `172.21.0.0/16`. Exact command and Docker records: `qalead-la-170-invocation.json` and `qalead-la-170-before/after-*` in the conductor directory. Raw artifacts: `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/baseline-t8-retry/artifacts/qalead-la-170-78971b03-2026-10-24T23-06-37-809Z`.
+
+### 14.5 Five-channel kit recovery 144
+
+`qalead-la-144-99338e52-2026-10-24T22-52-13-211Z`: **10/10 host entries and 10/10 unique IDs PASS; 195/195 ledger rows PASS; 196/196 Vitest tests PASS**. The extra Vitest test checks the overall pass rule. Kit run ID: `kit-run-1792882392572-xg8swe`. There are zero failed, missing, duplicate, retried, skipped or stale rows, zero illegal N/A rows, and zero capability coverage or negative-guard gaps.
+
+| Channel / global checks | Executed ledger rows | Result |
+| --- | --- | --- |
+| `moodle` | 37/37 | PASS |
+| `canvas` | 38/38 | PASS |
+| `blackboard` | 39/39 | PASS |
+| `lti-generic` | 39/39 | PASS |
+| `brightspace` | 39/39 | PASS |
+| `GLOBAL` | 3/3 | PASS |
+
+The three global rows are `GLOBAL:K1-LAUNCH:L-FAULTS, GLOBAL:K1-NRPS:N2, GLOBAL:K-HYG:H1`. They are included in 195, not added again. The ledger is not 39 executed tests per channel. `C1` equality, legal N/A handling, `coveredBy`, positive capabilities, negative guards and `K-HYG` pass under the unchanged kit pass rule.
+
+Wave ID `la-final-wave-4f10c5fd-d3` binds this kit to its own T3b, T7 and T8 outputs. See `REGATE/wave-spec-d3.json`, `d3-wave-preflight.json`, and the kit's `kit-run/wave/` and `wave-evidence.json`. The kit summary and execution ledger are in `/Users/quangnguyen/cogniate-qa-runs/LA/RUN-D3/artifacts/qalead-la-144-99338e52-2026-10-24T22-52-13-211Z/kit-run/`.
+
+LD-32 command: `COMPOSE_PROJECT_NAME=qalead-la-144 PUBLIC_PORT=9473 STACK_SUBNET=172.23.0.0/16 LA_WAVE_ID=la-final-wave-4f10c5fd-d3 LA_K1_WAVE_SPEC=/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/wave-spec-d3.json COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures node /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3/tests/ltiaas/kit/run-k1sim.mjs --sha 99338e52db0a1f0e1512954482320d45a53e2d8f --source /Users/quangnguyen/cogniate-qa-runs/LA/REGATE/kit-src-99338e52 --workdir /Users/quangnguyen/cogniate-qa-runs/LA/REGATE/qalead-la-144-k1sim`. No `--replace-tests` and no `LA_K1_KIT_FROM` were used. The invocation record contains the pre-run grep and all source hashes.
+
+### 14.6 Carried checks and frozen/storage audits
+
+These records are carried by GATE-RUN-PLAN §10(c): migration runs 18/61 (12 rows), snapshot-upgrade 19/62 (6 rows), U1 SIM 13/13b (19 LTI and 18 app checks), live U1/U2 `qa-e2e-la-moodle-r3` (36 checks), and the backup/restore pilot `qa-e2e-la-drill-r2` (10 checks). The earlier SHAs and full run IDs remain in their original records. They are not new baseline-3, D3 or D4 runs. `carried-diff-proofs.json` records the empty relevant migration, encryption and backup-script diffs. `ac06-G-BASE-proof.json` records the exact storage command diff from `bd368ff3` to `4f10c5fd`.
+
+The frozen audit is in `ac05-G-BASE-frozen-diff.txt` and its command record. Approved B/C commits included by the final merge are `206ad2b9`, `911219b0`, `97b68af4`, `9eb504f5`, `5561e8f7`, `620c03d0`, `4008afb9`, `958ee5c1`, `f1852601`, `e1a057be` and `fd87bf75` (`bc-merged-commit-list.txt`). This is a file/diff audit; QA did not read product source. The approved test changes are specified in LD-9 addendum r8, round 3, and the earlier addenda.
+
+### 14.7 Docker records and evidence limits
+
+The conductor's Docker grant began `2026-10-24T20:24:24Z` and ends `2026-10-25T01:24:24Z`. The final boundary was captured at `2026-10-24T23:16:02.982354+00:00`. All **32/32 protected volume inspect records are unchanged** from takeover and the inherited D3/D4 records. Final inspection found no owned LA container, volume, network or build resource. The before/after records use `umask 077`. Non-LA resources, including `sto-*`, were not changed by this work.
+
+The conductor's ps watcher covers `2026-10-24T20:24:56.080998+00:00`–`2026-10-24T23:15:57.409840+00:00` with 1016 samples. It observed at most one LA project, including build containers attributed to their owner. The independent event file covers `2026-10-24T20:24:56.081787+00:00`–`2026-10-24T23:16:01.860664+00:00` with 99251 events. These are host observations, not a claim that every external event was caused by QA. The 10-second ps samples are supplemented by events and per-run boundary records. M2 runs 138 and 152 ran alone; no other LA stack was starting, seeding or tearing down. Planned overlap #2 was cancelled. All post-takeover workloads stayed sequential.
+
+**Evidence limitation:** no D3 event capture exists for the first approximately 42 seconds of run 130 (`19:31:11.287Z–19:31:53Z`). The inherited D3 event file is empty. Before/after state and protected-volume inspects bound that window. The inherited D4 shared-host watcher covers from `19:31:53Z`; the conductor's independent watchers start at `20:24:56Z`. No event coverage is claimed for the missing window. The Lead accepted this limit in `msg_bc11f7f5fdba`.
+
+The conductor stopped its own watchers and the two orphan D4 watchers after final state capture. `watcher-stop.json` records each verified PID, last record and stop time. `watcher-audit.json`, `final-protected-check.json`, `final-owned-resources.json` and the per-run `*-before/after-*` records are in `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/conductor-20261024T202424Z/`.
+
+### 14.8 Final state on `4f10c5fd`
+
+D3 and [D4](./run-D4.md) completed the required functional runs under LD-25, LD-29, amended LD-31 and LD-32. They retain the aborted runs, D4 overlap flake, kit assembly failure, foreign-resource host notes and the baseline T8 record. The detailed final Moodle criteria are in [E7-09 Round 7](../LA-E7-09/qa.md#round-7--final-sha-4f10c5fd-la-h27-ld-29).
+
+| Criterion | Final result on `4f10c5fd` | Evidence |
+| --- | --- | --- |
+| AC-LA-E7-08-01 | PASS functional comparison; raw host findings retained | D3 M1 140 and D4 solo M1 162: 394/394 each. D3 M2 138 and D4 M2 152: 64/64 each. Per-ID outcomes match the baseline for every functional case. Named foreign-resource M3 FAIL rows remain in the reports. D4 overlap 151 is excluded. |
+| AC-LA-E7-08-02 | PASS under LD-32 | D3 kit 144 and D4 kit 161: 195/195 ledger rows each, 196/196 Vitest tests each, all five channels pass the unchanged pass rule. Both use the same committed kit and dispatcher source with zero product diff. |
+| AC-LA-E7-08-03 | PASS | D3 139 and D4 150: 297 differences each, all approved by named LA-IC expected files; zero unexplained or missing changes. |
+| AC-LA-E7-08-04 | PASS, carried under §10(c) | Migration 12/12 and snapshot-upgrade 6/6 from Slot 3F 61/62 versus Slot 7 18/19; U1 LTI 19/19 and app 18/18; live U1/U2 36/36; backup/restore drill 10/10. No fresh execution of these carried checks is claimed. The relevant migration, encryption and storage diffs are empty. |
+| AC-LA-E7-08-05 | PASS with approved LD-32 assembly exception | Frozen-source diff contains the approved LD-1, LA-IC, runner and additive simulator changes, with LD-9 addendum r8 round 3 approval by both reviewers. Baseline-3 to candidate has the 12 approved overlay files; five B/C-overlapping files match. Gate sources are unchanged. The kit uses its committed integration dispatcher under LD-32. |
+| AC-LA-E7-08-06 | PASS | Diff from exact G-BASE `bd368ff39fb4c533fc105e7c5ee81a59e618d99a` to `4f10c5fd` is empty for stack-data, storage-compat and the storage command sources. |
 

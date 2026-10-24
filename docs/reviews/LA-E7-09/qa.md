@@ -1,8 +1,8 @@
 # QA Review — `LA-E7-09` (`R2-sim` Moodle-Shaped Standard Simulator Channel End-to-End & Wave-End Gate)
 
-Verdict: PASS (all 5 wave-end and milestone-end criteria `AC-LA-E7-09-01`..`05` PASS, including final-SHA `a8bbac53` milestone-end full runs D1 and D2 per `LD-25`; `R2-sim` `AC-01`..`AC-08` all PASS)
-Round: 6
-SHA: `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`a8bbac53`, final product SHA `tag: la-final-product-1`; test tags `la-final-test-1` `85ddf97332063f75bdc5636cb410fc0d6ee25099` and `la-final-test-2` `68b2e9091d1300114187d329f2dcb45740227e6d`; `K2` Round 5 `af077681f360317760d9ca44d75688c6fa997b48`; Slot 8b `a7bd110e9c6d504c69a6c0608cbdeef80feff942`, product `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`; Slot 8 `f34b27dfe45599676b47f09fae85924ccfdbe5d5`; Slot 6 `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`)
+Historical Round 6 verdict: PASS (all 5 wave-end and milestone-end criteria `AC-LA-E7-09-01`..`05` PASS, including first final runs D1 and D2 on `a8bbac53` per `LD-25`; `R2-sim` `AC-01`..`AC-08` all PASS)
+Historical round: 6
+Historical SHA: `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`a8bbac53`, final product SHA `tag: la-final-product-1`; test tags `la-final-test-1` `85ddf97332063f75bdc5636cb410fc0d6ee25099` and `la-final-test-2` `68b2e9091d1300114187d329f2dcb45740227e6d`; `K2` Round 5 `af077681f360317760d9ca44d75688c6fa997b48`; Slot 8b `a7bd110e9c6d504c69a6c0608cbdeef80feff942`, product `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`; Slot 8 `f34b27dfe45599676b47f09fae85924ccfdbe5d5`; Slot 6 `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`)
 
 - **Lane / Slot**: `QA-E2E` (`term_80640d06-310f-4eac-bc95-872fd936d43c`), Docker Slot 6 (`12:07Z–13:05Z`) + Slot 8 / 8b / 8e; `Lead QA` (`term_ac2081d0-5526-472f-9e1f-5f4272b2e988`), Slots 8 / 8b / 8c / 8d / 3F and Milestone-End Full Runs D1 (`docs/reviews/LA-E7-08/qa.md` §13) & D2 (`docs/reviews/LA-E7-08/run-D2.md`)
 - **Compose Project**: `COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r1` (`PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`)
@@ -10,6 +10,26 @@ SHA: `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`a8bbac53`, final product SHA `
 - **Measured Time**: `32.6 s` Playwright suite execution (`24.8 s` + `7.8 s`); `104.5 s` full stack lifecycle (`gen-env`, `stack:up`, `seed`, `e2e` container run, secret scan, `stack:down`)
 - **Private Run & Boundary Dir (`umask 077`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT6-195930c1/`
 
+
+## Round 7 — final SHA `4f10c5fd` (`LA-H27`, `LD-29`)
+
+Verdict: PASS with the retained findings below. The earlier `a8bbac53` AC-05 evidence records the **first final runs**, D1 and D2. This round records the final re-gate D3 and D4 on product `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c`, frozen tests `794f649c3ebacf1a1b3ac599cffffe338dd7373d`, and the LD-32 kit execution exception at `99338e52` (zero product diff outside tests/docs). It adds no separate Moodle or K2 execution beyond the conductor runs.
+
+| Criterion | Final result | Evidence |
+| --- | --- | --- |
+| AC-LA-E7-09-01 | PASS | D3 `qalead-la-130-4f10c5fd-2026-10-24T19-31-11-287Z` and D4 `qalead-la-153-4f10c5fd-2026-10-24T21-33-32-449Z` each have 8/8 host steps OK and 3 × (17 PASS, 0 FAIL, 1 expected DEMO SKIP). All three per-run durations and reset times are in the complete invocation tables. |
+| AC-LA-E7-09-02 | PASS; equal per test ID against the accepted baseline | Original baseline `qalead-la-129-78971b03-2026-10-24T18-35-41-097Z` retains FAIL for AC-T8-03/07 and SUITE as a baseline flake finding. Authorized solo retry `qalead-la-170-78971b03-2026-10-24T23-06-37-809Z` passed 36/36 entries and 23/23 IDs, including AC-T8-03/07 and SUITE. Using this accepted T8 retry with the other baseline groups, every T2a–T8 ID matches D3/D4. The [comparison](../LA-E7-08/per-test-id-D3-D4.md) shows both baseline attempts and retains each original unequal result. No test was changed; the initial cause is not proven. |
+| AC-LA-E7-09-03 | PASS | D3 130 and D4 153 each retain 18 service health observations (three services × start/end × three runs), all HTTP 200, profile default and knobs []. Both T7 START/END checks pass, with no test_knob_active event. Proofs: `d3-t7-health-audit.json`, `d4-t7-health-audit.json`, and each run's `run1..3/evidence/health-start.json` and `health-end.json`. |
+| AC-LA-E7-09-04 | PASS, carried | [E7-07 QA Round 6](../LA-E7-07/qa.md): `qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z`, 12/12 K2 U1–U4 cases and 19/19 runner IDs PASS; 144.5 s lifecycle. The K2 tests tree `328d9ce24c0a8364224750d56d6a419fb5c04993` matches the final sources. `carried-k2-audit.json` and `carried-k2-tree-proof.json` verify this carry; no new K2 run is claimed. |
+| AC-LA-E7-09-05 | PASS for the double functional run under LD-25/29 and amended LD-31/32 | D3: all 15 invocations in [E7-08 §14](../LA-E7-08/qa.md#14-re-gate-run-d3-on-4f10c5fd). D4: all 14 invocations in [run-D4 §3](../LA-E7-08/run-D4.md#3-complete-run-table). Each table gives every full run ID, start/end time, duration, count and disposition. Both runs have M1 394/394, M2 64/64, T7 × 3, all legacy groups, golden 297 approved changes and kit 195/195. |
+
+Retained findings: original 136 aborted at H1 before acceptance tests; external retry 136 stopped at PRE without resources; recovery 142 passed. D4 overlap 151 remains a flake finding and is excluded from accepted M1 evidence; solo recovery 162 passed all functional cases. Raw M3 FAIL rows in 138, 140, 152 and 162 name only foreign `sto-*` resources under the Lead's §5.4 environment ruling. Kit 141 remains an assembly FAIL with zero tests; 144 and 161 pass using the unchanged committed kit under LD-32. D4 T5b 158 remains FAIL (WE-F14, AC-T5-30 status timing); unchanged solo recovery 163 passed all 59 entries and 48 IDs and supplies the accepted T5a/T5b result. The run reports contain the full timing trace, foreign-resource and cleanup evidence. None of these failures is silently relabelled PASS.
+
+The authorized solo baseline retry `qalead-la-170-78971b03-2026-10-24T23-06-37-809Z` passed AC-T8-03/07 and SUITE. Under TEST-STRATEGY §2.6 and Lead message `msg_b0e9e22a424c`, original run 129 is a **baseline flake finding**, never relabelled PASS. The accepted retry outcomes match D3 and D4; the original FAIL-to-PASS differences remain visible.
+
+Retry time: `2026-10-24T23:06:37.782927+00:00`–`2026-10-24T23:15:27.136251+00:00`; 36 PASS / 0 FAIL entries, 23 PASS / 0 FAIL unique IDs; runner exit 0. Source is unchanged `src-baseline-3` at `1ae6716b`, product `78971b03`, on `9543` / `172.21.0.0/16`. Exact command and Docker records: `qalead-la-170-invocation.json` and `qalead-la-170-before/after-*` in the conductor directory. Raw artifacts: `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/baseline-t8-retry/artifacts/qalead-la-170-78971b03-2026-10-24T23-06-37-809Z`.
+
+Final boundary `2026-10-24T23:16:02.982354+00:00`: all owned LA resources down, 32/32 protected records unchanged, all conductor and orphan D4 watchers stopped. The first approximately 42 seconds of inherited D3 run 130 have no event capture; this explicit evidence limit is recorded in E7-08 §14.7. Earlier rounds below are preserved as history.
 ---
 
 ## 1. Slot 6 `LA-E7-09` `R2-sim` Acceptance Criteria (`AC-01`..`AC-08`)

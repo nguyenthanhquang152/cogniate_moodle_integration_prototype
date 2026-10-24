@@ -1,4 +1,4 @@
-Verdict: PASS (AC-01..03, AC-04 part 1 + Golden v2 dry run, AC-05 PASS; AC-04 D3/D4 golden compares pending: D3/D4 (LD-29))
+Verdict: PASS (AC-LA-E0-01-01..05, including AC-04 check and D3/D4 golden comparisons on 4f10c5fd)
 Round: 2
 
 # LA-E0-01 Base intake: QA verification
@@ -26,7 +26,7 @@ Independence: QA-3 ran all git checks, fresh `git clone --no-hardlinks`, `npm ci
 | `AC-LA-E0-01-02` | **PASS** | `E0-01-DOC-2` | See Round 1 below | Unchanged from Round 1 (`ac02-message.txt`). |
 | `AC-LA-E0-01-03` | **PASS** | `E0-01-K0-1` | See Round 1 below | Unchanged from Round 1 (`check.log`). |
 | `AC-LA-E0-01-04` (Part 1: `npm run check` at `4f10c5fd`) | **PASS** | `E0-01-K0-2` | `npm ci && npm run check` in fresh `git clone --no-hardlinks` at `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` | Both commands exit `0` (`npm ci` `3 s`, `npm run check` `98 s`). Unit: `204` files, **`3,324` passed**, `5` skipped (`3,329`); Infra (`node --test`): **`255` passed**, `0` failed (`23` suites); K0: `3` files, **`149` passed**; **F1: `0` hits**; **F5: `6` rules, `0` hits**. `r2/check.log` |
-| `AC-LA-E0-01-04` (Part 2: golden compare & B/C commit attribution) | **PASS (Golden v2 dry run); `pending: D3/D4 (LD-29)`** | `E0-01-K1SIM-1` | `node tests/ltiaas/golden/compare.mjs --base tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea --candidate /Users/quangnguyen/cogniate-qa-runs/LA/LA-E0-03-r2/golden-cand-4f10c5fd --expected LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21` | • **Golden v2 dry run (`docs/reviews/LA-E0-03/qa.md` Round 6 §2–§3):** candidate `qalead-la-112` (`4f10c5fd`) vs re-captured baseline `qalead-la-110` (`78971b03`): **`EQUAL: 297 differences (0 not explained), 0 expected changes missing`** (`21 ms`, `LA-E0-03-r2/logs/compare-4f10c5fd-vs-78971b03.txt`).<br>• **B/C product commit attribution:** Only `4008afb92fe983d52db33442e060210b929966c8` (`apps/player/src/html/tracker.ts`, `tracker.test.ts`) touches `apps services packages` in `bd368ff..78971b03`, and **`0` golden fields changed because of it** (`diff(1b17261b v1, 78971b03 v2)` has `0` changes on any v1 path, matching A1 conformance round 3 `docs/architecture/ltiaas/conformance-A1.md:13`).<br>• **D3/D4 re-gate golden compares:** **`pending: D3/D4 (LD-29)`**. |
+| `AC-LA-E0-01-04` (Part 2: golden compare & B/C commit attribution) | **PASS (Golden v2 dry run and D3/D4 re-gate)** | `E0-01-K1SIM-1` | `node tests/ltiaas/golden/compare.mjs --base tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea --candidate /Users/quangnguyen/cogniate-qa-runs/LA/LA-E0-03-r2/golden-cand-4f10c5fd --expected LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17,LA-IC-18,LA-IC-19,LA-IC-20,LA-IC-21` | • **Golden v2 dry run (`docs/reviews/LA-E0-03/qa.md` Round 6 §2–§3):** candidate `qalead-la-112` (`4f10c5fd`) vs re-captured baseline `qalead-la-110` (`78971b03`): **`EQUAL: 297 differences (0 not explained), 0 expected changes missing`** (`21 ms`, `LA-E0-03-r2/logs/compare-4f10c5fd-vs-78971b03.txt`).<br>• **B/C product commit attribution:** Only `4008afb92fe983d52db33442e060210b929966c8` (`apps/player/src/html/tracker.ts`, `tracker.test.ts`) touches `apps services packages` in `bd368ff..78971b03`, and **`0` golden fields changed because of it** (`diff(1b17261b v1, 78971b03 v2)` has `0` changes on any v1 path, matching A1 conformance round 3 `docs/architecture/ltiaas/conformance-A1.md:13`).<br>• **D3/D4 re-gate:** `qalead-la-139-4f10c5fd-2026-10-24T21-05-44-903Z` and `qalead-la-150-4f10c5fd-2026-10-24T19-32-16-170Z` each report **297 differences, 0 unexplained, 0 missing** against baseline-3; every difference names its LA-IC expected file. None is attributed to B/C tracker commit `4008afb9`. See §3 and the [per-path table](../LA-E7-08/per-test-id-D3-D4.md#golden-v2-response-differences). |
 | `AC-LA-E0-01-05` | **PASS** | `E0-01-DOC-3` | `git diff --name-only bd368ff39fb4c533fc105e7c5ee81a59e618d99a 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c -- services/cogniate-app/src/providers/ services/lti-service/src/profiles/standard.ts services/lti-service/src/profiles/canvas.ts services/lti-service/src/profiles/blackboard.ts` (plus `--name-status`, `--diff-filter=ACMR`, diff from `86bdc24c`, and `git ls-tree`) | **No new or remaining file** under `services/cogniate-app/src/providers/` or `services/lti-service/src/profiles/{standard,canvas,blackboard}.ts` at `4f10c5fd` (`0` added/modified/copied/renamed files; all `11` old files remain deleted `D`). `r2/ac04-ac05-git.txt` |
 
 ---
@@ -140,7 +140,19 @@ The QA-3 counts match the Lead's trial check recorded in the `4f10c5fd` merge co
     # EQUAL: 297 differences (0 not explained), 0 expected changes missing; expected-delta files: LA-IC-01, LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21; 21 ms
     ```
     All `297` differences are LA expected deltas (`275` `LA-IC-01`, `3` `LA-IC-04`, `3` `LA-IC-12`, `13` `LA-IC-14`, `2` `LA-IC-15`, `1` `LA-IC-16`); `0` unexplained differences and `0` differences from B/C commits.
-- **Re-Gate `D3`/`D4` Golden Compares (`LD-29`):** **`pending: D3/D4 (LD-29)`** (to be recorded with their run IDs when `D3`/`D4` finish).
+- **Re-gate D3/D4 golden comparisons (`LD-29`): PASS.** Both use product `4f10c5fd`, frozen source `794f649c`, and the golden v2 baseline on `78971b03` pinned in baseline-3 `1ae6716b`. Each capture passed 9/9 entries and 8/8 unique IDs.
+
+| Run | Full capture run ID | Comparison against baseline-3 | Raw comparison log |
+| --- | --- | --- | --- |
+| D3 | `qalead-la-139-4f10c5fd-2026-10-24T21-05-44-903Z` | **297 differences, 0 unexplained, 0 missing** | `RUN-D3/logs/qalead-la-139-golden-compare.txt` |
+| D4 | `qalead-la-150-4f10c5fd-2026-10-24T19-32-16-170Z` | **297 differences, 0 unexplained, 0 missing** | `RUN-D4/logs/qalead-la-150-compare.txt` |
+
+The log paths are under `/Users/quangnguyen/cogniate-qa-runs/LA/`. The D3 comparison normalizes URL ports from 9473 to 9643 on a separate copy; its raw capture is unchanged. The D3 and D4 difference maps, including before/after values, match. These are approved changes, not byte equality with the baseline.
+
+Every response-path difference is named in the [per-test-ID and golden-path table](../LA-E7-08/per-test-id-D3-D4.md#golden-v2-response-differences): LA-IC-01 (275), LA-IC-04 (3), LA-IC-12 (3), LA-IC-14 (13), LA-IC-15 (2) and LA-IC-16 (1). **Zero differences are attributed to B/C tracker commit `4008afb9`.** That commit is present in both baseline `78971b03` and candidate `4f10c5fd`; all 297 observed changes have LA-IC attribution. This agrees with the earlier v1-path preservation proof above. Source and attribution proof: `REGATE/conductor-20261024T202424Z/bc4008-golden-attribution.json` and `golden-comparison-audit.json`.
+
+**AC-LA-E0-01-04: PASS.** Part 1 retains the check result above. Part 2 is complete with both final golden comparisons; no further Docker run was needed for this record.
+
 
 ---
 
