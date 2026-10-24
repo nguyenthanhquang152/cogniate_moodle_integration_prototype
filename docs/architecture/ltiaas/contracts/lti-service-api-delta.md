@@ -142,13 +142,20 @@ New optional input `lti_storage_target` (query or form body; ≤ 64 characters; 
 
 Rate limit: class `protocol`. Suspended account: §1.5.
 
+Page data blocks (BD-A2-110, BD-A2-112). Both platform-storage pages carry exactly one `<script id="lti-storage-data" type="application/json">` block. The server writes `<`, `>`, `&`, U+2028 and U+2029 in it as `\u` escapes, so a client reads it with `JSON.parse`. The HTML has no other data: no `<form>`, no `<input>` and no link; the page script builds the form at run time.
+
+| Page | Members of the block |
+| --- | --- |
+| Login page (§2.1) | `authUrl` (equal to the `Location` of a `302` login), `state`, `target`, `origin`, `key` (`cog_state_<d>`), `messageId` |
+| Storage-check page (§2.2) | `postUrl` (`{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}/storage-check`), `check` (the check value to post), `target`, `origin`, `key`, `messageId`. Never the state, the state hash or the tool URL |
+
 ### 2.2 `POST /lti/launch/{toolAccountId}` (§2.2) and the new storage check
 
 | Case | Answer |
 | --- | --- |
 | State cookie present | as §2.2 |
 | Cookie missing, state record without storage target | as §2.2 (`STATE_COOKIE_MISSING` page) |
-| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self' <T>`, `<T>` = the origin of the tool URL of this launch, only a plain https origin, BD-A2-103, BD-A2-104; `Referrer-Policy: same-origin`). No ltik yet. |
+| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self' <T>`, `<T>` = the origin of the tool URL of this launch, only a plain https origin, BD-A2-103, BD-A2-104; `Referrer-Policy: same-origin`). No ltik yet. The check value is the member `check` of the page data block (above, BD-A2-112). |
 
 New: `POST /lti/launch/{toolAccountId}/storage-check` (form `check`, `value`):
 
