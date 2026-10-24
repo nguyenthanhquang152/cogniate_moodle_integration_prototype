@@ -7,7 +7,7 @@ Round: 4
 - **Spec:** `docs/architecture/ltiaas/tasks/LA-E0-02.md`
 - **Product SHAs (`--sha`):**
   - **Slot 7 & Slot 3D (`G-BASE`):** `1b17261be97c4701b928fa9dc2fa74c6d23028f6` (`LA-E0-01` base intake on `G-BASE` `bd368ff`, product `9f8ac62`) with `--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261`)
-  - **Slot R1 (`baseline-3`, `LD-29`):** `78971b0300ab171029e8ce94dbba30db37b23dea` (`B/C` final `main` `HEAD`, product tree = `4008afb952f5934de7fdca2d887e54be61c72463`) with `--test-sha 1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`baseline-3`, `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`)
+  - **Slot R1 (`baseline-3`, `LD-29`):** `78971b0300ab171029e8ce94dbba30db37b23dea` (`B/C` final `main` `HEAD`, product tree = `4008afb92fe983d52db33442e060210b929966c8`) with `--test-sha 1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`baseline-3`, `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`)
 - **Slot 7 Window:** `2026-10-23T18:26:37Z` to `2026-10-23T19:14:40Z` (`48.1 min`, one LA stack at a time):
   - **Run 7A (SIM lane, `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16`):** `qalead-la-16` (`M1 --phase sim --provider all`), `qalead-la-17` (`M2`), `qalead-la-18` (`M1 --phase migration --provider all`), `qalead-la-19` (`M1 --phase snapshot-upgrade --provider all`)
   - **Run 7B (Moodle 5.2 lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`, started after Run 7A was 100% down):** `qalead-la-20` (`T7 × 3` via `run-t7.mjs --runs 3`)
@@ -170,7 +170,7 @@ Per `LA-H27` (a), `LD-29`, and `tests/ltiaas/GATE-RUN-PLAN.md` §10, all 10 Slot
 
 ### 8.1 Per-Run Results, Wall Times, Container Durations, and `AC-LA-E0-02-09` Failure Accounting (`qalead-la-120..129`)
 
-All 10 runs below executed sequentially (`1` stack at a time) against `B/C` final `main` product SHA `78971b0300ab171029e8ce94dbba30db37b23dea` (product tree = `4008afb952f5934de7fdca2d887e54be61c72463`) and `baseline-3` test SHA `1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`, artifacts in `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/artifacts/`):
+All 10 runs below executed sequentially (`1` stack at a time) against `B/C` final `main` product SHA `78971b0300ab171029e8ce94dbba30db37b23dea` (product tree = `4008afb92fe983d52db33442e060210b929966c8`) and `baseline-3` test SHA `1ae6716b7353becc0f053b46fb65e0ba86ff7873` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`, artifacts in `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/artifacts/`):
 
 | Compose Project & Artifact Folder | Suite, Lane & Wall Time (UTC) | Container & Sub-Pass Durations (`playwright-results.json`, `vitest-results.json`, `cmd/*.log`) | `summary.json` Entry & Unique ID Counts | Observed Non-PASS Variants, Durations, and Exact Assertion Messages (`playwright-results.json` / `summary.json`) | Separate Root-Cause Explanation & Cited Evidence (`AC-LA-E0-02-09`) |
 | --- | --- | --- | --- | --- | --- |
@@ -308,7 +308,7 @@ All paths below are under **`/Users/quangnguyen/cogniate-qa-runs/LA/`**:
 
 - **Retraction of `"pre-WE-F6 :ro VirtioFS"` causation:**
   - `WE-F6` (`docs/reviews/LA-E7-08/ld9-addendum-r2.md`) changes only `M1-08.canvas.login-redirect` (`LA-IC-06`), and `BD-A1-118` (`docs/architecture/ltiaas/build-decisions-A1.md`) is a design-document update.
-  - The `T8` knob specs (`tests/acceptance/T8/3-knob-hold.spec.ts`, `tests/acceptance/T8/4-knob-fail.spec.ts`), runner (`tests/host/run-t8.mjs`, `tests/host/host-control.mjs`), and log/T8 helpers (`tests/acceptance/lib/{t8,logs,lti}.ts`) are byte-identical in `baseline-3` (`1ae6716b7353becc0f053b46fb65e0ba86ff7873`), candidate (`794f649cb647703097253e7b11521a97fb29a192`), `qalead-la-129`'s clone, and the `D1`/`D2` clones. Both baseline and candidate stacks mount `./.logs:/repo/infra/.logs:ro` with `chmod 700 "$LOGS_DIR"`.
+  - The `T8` knob specs (`tests/acceptance/T8/3-knob-hold.spec.ts`, `tests/acceptance/T8/4-knob-fail.spec.ts`), runner (`tests/host/run-t8.mjs`, `tests/host/host-control.mjs`), and log/T8 helpers (`tests/acceptance/lib/{t8,logs,lti}.ts`) are byte-identical in `baseline-3` (`1ae6716b7353becc0f053b46fb65e0ba86ff7873`), candidate (`794f649c3ebacf1a1b3ac599cffffe338dd7373d`), `qalead-la-129`'s clone, and the `D1`/`D2` clones. Both baseline and candidate stacks mount `./.logs:/repo/infra/.logs:ro` with `chmod 700 "$LOGS_DIR"`.
 - **Observed facts only (`qalead-la-129-78971b03-2026-10-24T18-35-41-097Z`):**
   1. **`AC-T8-03` (`container-knob-BUILD_RUNNER_HOLD/playwright-results.json`, `421,171 ms`):**
      - At `18:40:36.091Z` (`container-knob-BUILD_RUNNER_HOLD/playwright/*/trace.zip` `test.trace` `expect@36`), `POST /app-api/courses/crs_j-liq69QBeS6w-EKKofK8g/versions/ver_raZpOoPF2O_tg_VnkQuHOg/mbz` returned HTTP `202` with `buildId: "bld_9024b26e1ff6c7b89d527288"`.
