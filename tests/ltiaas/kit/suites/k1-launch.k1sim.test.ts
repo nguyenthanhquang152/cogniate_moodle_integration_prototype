@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { launchRefused, runFamilyGuardCase, runPlatformStorageCase } from '../lib/cases.js';
 import {
+  checkPlayerRedirect,
   collectContextlessPlacementObservation,
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
@@ -249,9 +250,11 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             headers: { accept: 'text/html' },
           });
           expect(iframeHandoff.status).toBe(303);
-          // The handoff Location may be absolute; compare its path (resolved against the app origin, as M1 openPlay does)
-          const embeddedTarget = new URL(String(iframeHandoff.headers.location ?? ''), APP_ORIGIN).href;
-          expect(new URL(embeddedTarget).pathname).toMatch(/^\/play\/ply_[^/?]+\/embedded$/);
+          // The handoff Location (relative or absolute) is resolved once against the app origin; its origin must be the
+          // app origin (PUBLIC_APP_URL, cogniate-app-api.md §1), then its path the embedded page (checkPlayerRedirect).
+          const embedded = checkPlayerRedirect(iframeHandoff.headers.location, APP_ORIGIN, 'embedded');
+          expect(embedded.error ?? '').toBe('');
+          const embeddedTarget = String(embedded.href);
 
           const embeddedPage = await appRequest('GET', embeddedTarget, {
             headers: { accept: 'text/html' },
@@ -276,9 +279,9 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             headers: { accept: 'text/html' },
           });
           expect(windowHandoff.status).toBe(303);
-          const windowTarget = new URL(String(windowHandoff.headers.location ?? ''), APP_ORIGIN).pathname;
-          expect(windowTarget).toMatch(/^\/play\/ply_[^/?]+$/);
-          expect(windowTarget).not.toContain('/embedded');
+          const player = checkPlayerRedirect(windowHandoff.headers.location, APP_ORIGIN, 'player');
+          expect(player.error ?? '').toBe('');
+          expect(new URL(String(player.href)).pathname).not.toContain('/embedded');
         });
       });
 

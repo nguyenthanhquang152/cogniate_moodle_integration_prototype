@@ -9,9 +9,10 @@
 //   LA_RUN_DIR=<run dir> QA_KIT_CHANNELS=all QA_TASK=K1 npm --prefix tests run acceptance:api
 // in /repo, plus a JSON reporter file for the per-test record. No UI suite runs.
 //
-// Wave evidence (AC-LA-E7-06-05): LA_K1_WAVE_SPEC names the frozen-suite result files (T3b, T7, T8). The runner checks
-// each file and writes `<run dir>/wave/<suite>/result.json` ({ suite, waveId, outcome }, plus the source file and its
-// SHA-256) and `<run dir>/wave-evidence.json`. A file that does not show a clean PASS gives outcome FAIL.
+// Wave evidence (AC-LA-E7-06-05): LA_K1_WAVE_SPEC names the frozen-suite result files (T3b, T7, T8). The producer
+// (lib/wave-producer.mjs) checks each file against its suite's required case or test set and identity, and writes
+// `<run dir>/wave/<suite>/result.json` ({ suite, waveId, outcome }, plus the source file and its SHA-256) and
+// `<run dir>/wave-evidence.json`. A file that does not show a complete clean run of its suite gives outcome FAIL.
 //
 // Host actions for the kit (M1 `cli()` and `host('m1-restart')`): app:grant / app:binding / lti:shared-platform through
 // `docker compose exec`, and `npm run stack:restart -- <service>` (tasks README §2 form (l)).
@@ -20,12 +21,12 @@
 //   COMPOSE_PROJECT_NAME=qa4-la-k1-r1 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \
 //   LA_K1_WAVE_SPEC=<spec.json> LA_WAVE_ID=<wave id> \
 //   node tests/ltiaas/kit/run-k1sim.mjs --sha <commit> --source <repo> --workdir <new folder>
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRunner } from '../../host/core.mjs';
 import { createHostControl } from '../../host/host-control.mjs';
 import { readTestReports, run, walkFiles } from '../../host/lib.mjs';
+import { writeWaveEvidence } from './lib/wave-producer.mjs';
 
 const r = createRunner({ task: 'LA-E7-06-K1', defaultProject: 'qa4-la-k1-r1' });
 const CONTROL = () => path.join(r.CLONE, 'tests', 'acceptance', 'artifacts', 'control');
@@ -72,51 +73,6 @@ async function handleM1Restart(req) {
   r.saveText(path.join('host-actions', `m1-restart-${req.id}.log`),
     `$ npm run stack:restart -- ${req.service}\nexit: ${res.code}\n\n--- stdout\n${res.stdout}\n--- stderr\n${res.stderr}\n`);
   return { code: 0, out };
-}
-
-const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-
-// One frozen-suite result file -> PASS only when it shows a clean pass.
-function judgeWaveSource(spec) {
-  const notes = [];
-  let s;
-  try { s = JSON.parse(fs.readFileSync(spec.file, 'utf8')); } catch (e) { return { outcome: 'FAIL', notes: [`unreadable: ${e.message}`] }; }
-  if (s.abort) notes.push(`abort: ${s.abort}`);
-  if (spec.kind === 'host-summary') {
-    const values = Object.values(s.aggregate ?? {});
-    if (values.length === 0) notes.push('no aggregate results');
-    if (values.some((v) => v !== 'PASS')) notes.push(`non-PASS ids: ${Object.entries(s.aggregate).filter(([, v]) => v !== 'PASS').map(([k]) => k).join(', ')}`);
-    if (spec.requireIdPrefix && !Object.keys(s.aggregate ?? {}).some((k) => k.startsWith(spec.requireIdPrefix))) {
-      notes.push(`no result id starts with ${spec.requireIdPrefix}`);
-    }
-    if (spec.task && s.task !== spec.task) notes.push(`task ${s.task} !== ${spec.task}`);
-  } else if (spec.kind === 'e2e-summary') {
-    const runs = Array.isArray(s.runs) ? s.runs : [];
-    if (runs.length === 0) notes.push('no runs');
-    for (const x of runs) if (x.exit !== 0 || x.fail !== 0 || x.timedOut) notes.push(`run ${x.run}: exit ${x.exit}, fail ${x.fail}, timedOut ${x.timedOut}`);
-  } else notes.push(`unknown kind ${spec.kind}`);
-  return { outcome: notes.length === 0 ? 'PASS' : 'FAIL', notes, sha: s.sha ?? null, runId: s.runId ?? null };
-}
-
-function writeWaveEvidence(runDirHost) {
-  const specs = JSON.parse(fs.readFileSync(WAVE_SPEC, 'utf8'));
-  const manifest = { waveId: WAVE_ID, suites: {} };
-  const notes = [];
-  for (const spec of specs) {
-    const verdict = judgeWaveSource(spec);
-    const rel = path.join('wave', spec.suite, 'result.json');
-    const file = path.join(runDirHost, rel);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({
-      suite: spec.suite, waveId: WAVE_ID, outcome: verdict.outcome,
-      source: { file: spec.file, sha256: sha256(spec.file), runId: verdict.runId, productSha: verdict.sha, kind: spec.kind },
-      checks: verdict.notes,
-    }, null, 2));
-    manifest.suites[spec.suite] = { outcome: verdict.outcome, waveId: WAVE_ID, artifactPath: rel };
-    notes.push(`${spec.suite}: ${verdict.outcome} from ${spec.file} (run ${verdict.runId}, product ${verdict.sha})${verdict.notes.length ? ' — ' + verdict.notes.join('; ') : ''}`);
-  }
-  fs.writeFileSync(path.join(runDirHost, 'wave-evidence.json'), JSON.stringify(manifest, null, 2));
-  return { ok: Object.values(manifest.suites).every((x) => x.outcome === 'PASS'), notes };
 }
 
 const IN_CONTAINER = `set -euo pipefail
@@ -230,7 +186,12 @@ await r.main(async () => {
   if (!(await setup())) return;
 
   fs.mkdirSync(runDirHost, { recursive: true });
-  const wave = writeWaveEvidence(runDirHost);
+  const wave = writeWaveEvidence({
+    specs: JSON.parse(fs.readFileSync(WAVE_SPEC, 'utf8')),
+    runDir: runDirHost,
+    waveId: WAVE_ID,
+    repoRoot: r.CLONE,
+  });
   r.record('WAVE', `Wave evidence ${WAVE_ID} written for the kit (coveredBy: T3b, T7, T8)`, r.pass(wave.ok), wave.notes);
 
   const artifacts = path.join(r.CLONE, 'tests', 'acceptance', 'artifacts');
