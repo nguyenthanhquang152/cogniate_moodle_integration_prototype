@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 6
+Verdict: CHANGES_REQUESTED
+Round: 7
 
 ## Round 1
 
@@ -388,3 +388,56 @@ Verification in private clone `/tmp/la-review-a-11c353feeb1d`, created with `git
 - Kit typecheck: `node_modules/.bin/tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0** (`reviewer-r6-types.log`).
 
 The commit changes only permitted kit and QA-report files, with no product, simulator or frozen-test changes and no LMS name added to core paths. No Docker, stack, K1-SIM run, integration install or commit. Reviewer-B's file and probes were not opened. Only this review file was edited in integration. Live K1 evidence remains pending; this approval closes the host-review finding and does not claim a live kit pass.
+
+## Round 7
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: CHANGES_REQUESTED — 3 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed the whole live-window diff from the Round 6 approval `e17a7a44` through QA `dd6fca55`, integrated at `825cc0c4`: `git diff e17a7a44 825cc0c4 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. The reviewed kit tree is `85dae022af868fb214ff7cc5c3c9f83cd954871d`. Locations below refer to that pin. A-01 reopens at the new evidence producer; A-11 and A-12 concern new assertion changes. Other earlier findings remain closed.
+
+### A-LA-E7-06-01 — BLOCKER — The new runner certifies an all-skipped frozen suite
+
+**Locations:** `tests/ltiaas/kit/run-k1sim.mjs:93`, `:96`, `:111`.
+
+**Problem:** The `e2e-summary` branch checks only that a run exists, exits zero, reports zero failures and does not time out. It never requires any passing test or checks the test outcomes. `writeWaveEvidence` then writes `outcome: PASS` with the current wave and suite identity. The downstream artifact checks accept that generated file. Thus Moodle's `coveredBy` rule can pass even when T7 performed no tests, contrary to AC-05.
+
+**Evidence:** A private probe executes the actual `judgeWaveSource` and `writeWaveEvidence` functions, without importing or starting the host runner. Starting with the saved r7 T7 source, it changes all 18 test outcomes to SKIP, `pass` to 0 and `skip` to 18, retaining `exit: 0`, `fail: 0` and `timedOut: false`. The producer returns `ok: true` and writes T7 PASS. With the computed passing kit records and those generated artifacts, the real `evaluateChannelPassRule` returns `ok: true` and no errors. The unmodified source is a passing control; changing its exit/failure to 1 correctly fails both gates. This finding does not claim the actual saved T7 source was all-skipped: it has 17 passing tests and the separate demo-pass test skipped.
+
+**Suggested fix:** Validate the required frozen-suite test results before producing PASS, including the expected passing cases and any explicitly allowed skip. Fail for zero executed tests, missing required cases, unexpected skips and inconsistent summary/test outcomes. Add host tests through the producer and downstream pass rule; checking already-written PASS wrappers alone misses this regression.
+
+### A-LA-E7-06-11 — BLOCKER — R3 accepts a missing audience after explicitly configuring it
+
+**Location:** `tests/ltiaas/kit/suites/k1-reg.k1sim.test.ts:340`.
+
+**Problem:** `expect(platDetail.json.clientAssertionAud ?? tokenUrl).toBe(tokenUrl)` substitutes the expected value for a missing or null actual value. On a `{platformValue}` profile, such as `lti-generic`, the handshake explicitly supplied `authorization_server`, so R3 must prove that value was stored. The general rule allowing an empty audience on an active platform does not waive the DR storage rule in LA-ADR-02 D5 item 4 / `lti-service-api-delta.md:292`. TEST-STRATEGY §2.4 R3 expressly requires this check. The new fallback therefore weakens the required AC-01 scenario.
+
+**Evidence:** A private probe extracts and executes the actual R3 happy-handshake segment, including its setup, platform read and cleanup, using the generic fixture and mocked transport. The supplied `authorizationServer` is the fixture token URL. All assertions pass when the platform response has `clientAssertionAud: null`, and also when the property is absent. The correct value passes the positive control; a wrong non-null value fails. The real DR implementation distinguishes profile traits (`services/lti-service/src/http/routes/registration.ts:366`): `{platformValue}` stores the configuration audience, while token-endpoint profiles can keep it null. The test currently permits null for both.
+
+**Suggested fix:** Make the expectation follow the profile's documented audience trait. Where the explicit configuration audience must be stored, require exact equality with no nullish fallback. Keep the documented behavior for token-endpoint profiles. Add null, absent and wrong-value negatives for a profile that stores the audience, and correct the README's blanket “empty or the token URL” description of R3.
+
+### A-LA-E7-06-12 — BLOCKER — L6 now accepts a redirect to a different origin
+
+**Locations:** `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts:253`, `:254`, `:279`.
+
+**Problem:** Resolving an absolute Location is needed, but comparing only its pathname drops the destination origin. In the window branch no request subsequently opens the player, so `https://wrong.example.test/play/ply_probe` passes exactly like the app player. A scheme downgrade also passes. TEST-STRATEGY §2.4 L6 requires the window launch to reach the player; the base app contract places that player on `PUBLIC_APP_URL` (`docs/architecture/contracts/cogniate-app-api.md:9`, `:663`). This is a new false PASS in the AC-01 oracle.
+
+**Evidence:** A private probe executes the complete L6 `runKitCase` callback from the actual suite, with successful iframe responses and mocked launch/handoff transport. The case passes with either the foreign HTTPS window Location above or `http://app.example.test/play/ply_probe`, although `APP_ORIGIN` is `https://app.example.test`. The request capture confirms neither window target is opened. A correct absolute app Location passes the positive control; a wrong path fails. This demonstrates a kit assertion gap, not a claim that the product currently redirects to a foreign host.
+
+**Suggested fix:** Resolve each Location once, require its origin to equal the configured app origin, and then check its expected pathname. Retain support for relative and absolute valid app URLs. Add foreign-host and wrong-scheme negatives for both redirect forms.
+
+### Accepted changes and saved-run evidence
+
+- **BD-A1-121:** R3 part 5 follows the ratified complete-refusal branch: start 303, confirm page 200, app 502 `REGISTRATION_FAILED`, the two specified rejection log events/codes, no simulator registration record, and a pending connection with the expected error and no platform. Start-refusal probes retain `PROVIDER_PROFILE_MISMATCH`. I do not report the deferred LG page-code change as a defect.
+- Simulator field corrections, UUID deployments, the legacy manual-self site-rule exception, and the disabled-connection expectation match their cited contracts. Removing the nonexistent rotated-key simulator option does not remove TEST-STRATEGY L2's required unknown-key and wrong-issuer cases. L4's open-world checks cover the discovered fixtures and a synthetic extra family.
+- K-HYG still requires the secret inventory, all three service logs, simulator records and recursive public evidence, and fails missing inputs or any hit. Its changed default simulator transport uses the M1 helper. The runner's new host actions and cleanup remain tied to its clone and project; no global prune or unrelated-project mutation was found in this diff.
+- Read-only inspection of the saved r7 evidence confirms **195 unique ledger IDs, 195 PASS, one run ID, zero failures/skips/duplicates**, and **196/196 Vitest assertions PASS** (including SUMMARY). All host aggregate entries, including H1 and TEARDOWN, are PASS. The three frozen-source SHA-256 digests match their recorded files. Comparing each tracked kit blob at `825cc0c4` with the saved run clone finds only the README changed after the run. These results establish what r7 executed; they do not repair the false-PASS cases above.
+
+### Round 7 verification and boundaries
+
+Private clone `/tmp/la-review-a-f6bdf6a3d468`, created with `git clone --no-hardlinks` and detached at `825cc0c4`; dependencies copied into that clone only:
+
+- Kit K0: `LA_LEVEL=k0 node_modules/.bin/vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` — **26/26 PASS**, 168 ms (`reviewer-r7-k0.log`).
+- Kit typecheck: `node_modules/.bin/tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0** (`reviewer-r7-types.log`). `node --check tests/ltiaas/kit/run-k1sim.mjs` also passes; the runner was not executed.
+- Independent boundary probes: `node_modules/.bin/vitest run --reporter=verbose --config reviewer-r7.config.mts` — **8/8 diagnostic assertions PASS**, 231 ms (`reviewer-r7.probe.test.ts`, `reviewer-r7-probes.log`). These include detecting controls and assertions that demonstrate the three defects, so they are not K1 acceptance results. Transport is mocked; the audience probe runs only R3's happy segment, while the redirect probe runs the complete L6 callback. The wave probe executes only the two evidence functions extracted from the runner and the real downstream evaluator. Synthetic probe inputs and generated artifacts are in `reviewer-r7-probe-data/`; saved-run metadata is in `reviewer-r7-evidence.json`.
+
+The reviewed diff changes only the permitted kit and QA-report files. No product, simulator or frozen-test edits and no LMS name added to core paths. No Docker, stack, stack-starting runner, fresh K1 run, integration install or commit was performed by this reviewer. Reviewer-B's file and probes were not opened. Only this review file was edited in integration; concurrent changes were left untouched.
