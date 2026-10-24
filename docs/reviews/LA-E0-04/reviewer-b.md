@@ -1,9 +1,9 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 # Gate test overlay — Reviewer-B
 
-Current decision: **Round 2 CHANGES_REQUESTED — 0 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT.** B-LA-E0-04-01 is closed; the new B-LA-E0-04-02 concerns registered cards with disabled controls. The Round 1 record below is historical.
+Current decision: **Round 3 CHANGES_REQUESTED — 1 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT.** B-LA-E0-04-01 remains closed; B-LA-E0-04-02 remains open, and B-LA-E0-04-03 is a new false-acceptance regression. Earlier rounds below are historical.
 
 ## Round 1
 
@@ -80,3 +80,42 @@ No Docker, stack, browser, live acceptance run or commit. Only this review file 
 - Evidence: `/tmp/reviewer-b-gate-overlay-r2.patch`, `/tmp/reviewer-b-gate-overlay-r2-checks.json`, `/tmp/reviewer-b-gate-overlay-r2-ld1.log`, `/tmp/reviewer-b-gate-overlay-r2-vitest.log`, `/tmp/reviewer-b-gate-overlay-r2-typecheck.log`, `/tmp/reviewer-b-gate-overlay-r2-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r2-probes.json`, and the readiness artifacts above.
 
 No Docker, stack, browser, live acceptance run or commit. Only this review file was written in the integration worktree. After the remaining membership fix, the listed live re-gate rows must use the final reviewed test SHA.
+
+
+## Round 3
+
+**Verdict: CHANGES_REQUESTED — 1 BLOCKER, 1 MAJOR.** Reviewed Lead QA `ea203472`, integration `3f2d8a634142439d906a4bd52373c33c8bee1821`, specifically the regenerated complete diff in `ld9-addendum-r5.md` **Round 2 / §5.2** against `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`). Reviewer-B: Codex GPT-6-Astra xhigh. This is review round 3, after fix round 2; blind review maintained.
+
+### Closure decisions
+
+| Item | Decision |
+| --- | --- |
+| B-LA-E0-04-01 | **Remains CLOSED.** The original Sakai / generic `LMS` counterexample still fails as required. The new title-suffix regression is recorded separately as B-LA-E0-04-03. |
+| B-LA-E0-04-02 | **Still OPEN, MAJOR.** The exact prior `Campus Learning` example and the default not-ready sentence now pass. Arbitrary valid manifest titles and not-ready texts still do not work; see below. |
+| Loading settlement | **APPROVE current behavior.** Running the actual extractor with Playwright's real `expect.poll` waits through two loading reads and returns the settled card; a permanently loading card times out. The helper also rejects unsettled cards. These host checks used no browser. |
+| LD-24 / migration count | **APPROVE.** The ledger check still preserves the independent old prefix, required migration 012 and exact candidate file comparison; the previous 14 focused checks pass. The corrected counts match the pinned tree: 21 LTI SQL migrations and 18 app SQL migrations. Plan LD-24 names the assertion change. |
+| Scope | The complete patch touches the same eight QA files, with 966 insertions and 60 deletions. No product file or unrelated acceptance assertion changes. Previous approval of the other overlay parts remains. The listed live re-gate evidence is still pending. |
+
+### B-LA-E0-04-02 — MAJOR — Still open: disabled-card identity depends on optional English copy
+
+- **File:** `tests/e2e/M2/01-cards.m2.ts:51`, with fallback at `tests/acceptance/lib/open-world.mjs:280` and its LTIAAS copy; line numbers refer to the proposed applied patch.
+- **Problem:** The disabled control still has no channel id. The extractor now recovers a name only from the exact sentence fragment `is not set up for this Cogniate service yet`, then assigns that name to `channel`. A manifest may supply its own `texts.notReady` and any `card.title`; LA-ADR-01 D9 does not require this sentence or a relation between title and API name. The schema accepts `notReady: TEXT.nullable()` (`packages/channel-kernel/src/manifest.ts:189`), and the portal uses the supplied text before its default (`apps/portal/src/Integrations.tsx:140`).
+- **Evidence:** Keep registered id `campus`, name `Campus` and label `Campus LMS`; use title `Teaching Hub`, description `Publish courses to your platform.`, and valid not-ready text `Ask your operator to enable {LMS}.`. In the disabled branch, the actual extractor returns `channel: null`, `name: 'Teaching Hub'`, `disabled: true`, `loading: false`; `checkCards` rejects it. The same title passes with the default notice, isolating the text dependency. The old `Campus Learning` stub passes because `learning` is now a special suffix, not because identity was preserved.
+- **Suggested fix:** Expose a stable channel id on the card or its disabled control through the product owner lane, or use an explicit authoritative card-to-channel mapping available in every state. Then test registered cards with unrelated titles and custom notices. Do not extend the list of accepted English words: this would make every new channel a possible frozen-test edit.
+
+### B-LA-E0-04-03 — BLOCKER — Title-suffix guessing admits an unregistered card
+
+- **File:** `tests/acceptance/lib/open-world.mjs:233` (`matchesAllowedCardName`), invoked at `:281`, and the identical LTIAAS helper.
+- **Problem:** The new `GENERIC_TITLE_SUFFIX_WORDS` rule accepts names that are not in the registered set. With `Campus` registered, `Campus Cloud`, `Campus Server`, and other generated variants count as registered identities. This weakens the membership oracle and fails LA-E0-04 AC-06's required rejection of unregistered additions. The helper comment still promises exact identity/name matching.
+- **Evidence:** With allowed names `['campus', 'Campus', 'Campus LMS']`, feed a disabled extra card titled `Campus Cloud` beside the valid registered Campus card, with description `Publish courses to your platform.` and notice `Ask your operator to enable Campus Cloud.`. Neither its id `campus-cloud` nor its display name is in the catalogue. The actual extractor returns `channel: null`, `name: 'Campus Cloud'`; the proposed helper **ACCEPTS** it. The prior Round 2 helper **REJECTS** the same descriptor. A separate control with an explicit `data-channel='campus-cloud'` correctly rejects it, confirming that the suffix fallback creates the false acceptance. This is a negative recorded-DOM fixture for the membership oracle, not a claim of a live product failure.
+- **Suggested fix:** Remove title-stem/suffix inference and the channel-specific title exception. Use the stable identity mechanism above and exact registered-id membership. Add the unregistered lookalike beside a legitimate registered card to the negative probes, including the disabled/custom-notice state; keep the original generic-name regression.
+
+### Independent verification
+
+- Cloned the supplied clean gate source with `git clone --no-hardlinks` into `/tmp/review-b-gate-overlay-r3-1nw12ik_`, detached at the exact base. Extracted only §5.2's diff. **`git apply --check` and `git diff --check` PASS.** The supplied source was not changed.
+- **44/44 Node LD-1 tests PASS; 44/44 targeted Vitest LD-1 tests PASS; standalone tests typecheck PASS.** Dependencies were installed only under `/tmp`. The complete 149-test K0 run remains Lead-reported; it was not needed for these focused checks.
+- Previous independent card/ledger probes: **14/14 PASS**. Actual extractor probes: **9 required outcomes pass, 2 fail** (the findings above). They include the original ready/disabled pair, default/custom notices, known/unknown identities, Sakai with generic registration, delayed loading, and permanently unresolved loading.
+- Extractor checks transpile the proposed TypeScript function unchanged, use a LinkeDOM document with display/geometry stubs, and invoke real Playwright `expect.poll`; they do not copy the polling loop. A stable-identity control accepts the valid custom-title card and rejects the unknown lookalike. No product patch is implied by that synthetic control.
+- Evidence: `/tmp/reviewer-b-gate-overlay-r3.patch`, `/tmp/reviewer-b-gate-overlay-r3-checks.json`, `/tmp/reviewer-b-gate-overlay-r3-ld1.log`, `/tmp/reviewer-b-gate-overlay-r3-vitest.log`, `/tmp/reviewer-b-gate-overlay-r3-typecheck.log`, `/tmp/reviewer-b-gate-overlay-r3-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r3-probes.json`, `/tmp/reviewer-b-gate-overlay-r3-dom-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r3-dom-probes.json`, `/tmp/reviewer-b-gate-overlay-r3-regression.json`.
+
+No Docker, stack, browser, live acceptance run or commit. Only this review file was changed in the integration worktree. The remaining identity fix needs review before the listed live re-gate rows run on the final test SHA.

@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 ## Round 1
 
@@ -100,3 +100,36 @@ Used a fresh private `git clone --no-hardlinks` at `/tmp/la-review-a-682458c10f9
 - The additional real-browser DOM probe reproduces A-LA-E0-04-03 without a server, application stack or network request. Evidence: `reviewer-r2-browser.{mjs,json}`. The JS DOM probes and ledger probes are in `reviewer-r2-probe.{mjs,json,log}` and `reviewer-r2-no-action.{mjs,json}`; the suite log is `reviewer-ld1-r2.log`, all in the private clone.
 
 The shared gate source remains clean at its original tag. No Docker, stack, host stack runner, live product request or commit. Only this review file was edited in integration, and no other reviewer's files or probes were opened. Live gate rows remain pending; this review is not a re-grade of their prior results.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Reviewed QA `ea203472b9c5ce9b8e82a119ca42e2410d5c091f`, integration `3f2d8a63`, and the regenerated patch in `ld9-addendum-r5.md` §5.2 against `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`). **Verdict: CHANGES_REQUESTED. Open findings: 1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round 2 disposition
+
+- **A-LA-E0-04-03 CLOSED:** the exact revised extractor waits for a delayed DOM change, then accepts the registered generic card. A permanently loading grid rejects within the default 5-second poll bound. The previous visibility checks still pass during loading, so the positive probe exercises the original race. The helper also rejects descriptors marked as loading.
+- **A-LA-E0-04-04 CLOSED:** the ledger authority is now LD-24 in the helper comments, addendum and gate plan; the candidate app count is corrected to 18. References to LA-H21 remain only in descriptions of the correction.
+- A-LA-E0-04-01 and A-LA-E0-04-02 remain closed for their original counterexamples. The snapshot runner is byte-identical to the version approved in Round 2. A new disabled-card identity defect is below.
+
+### A-LA-E0-04-05 — BLOCKER — A setup notice is promoted to channel identity, admitting an unregistered card
+
+**Location:** proposed `tests/e2e/M2/01-cards.m2.ts:47`–`:54`; `tests/acceptance/lib/open-world.mjs:264`–`:269` and the matching `tests/ltiaas/lib` copy. Related name inference: `open-world.mjs:219`–`:239`, `:278`–`:282`.
+
+**Problem:** The new disabled-card fallback puts the name parsed from a setup notice into `channel`, then treats that name as an authoritative id, so common display text can admit an unregistered card and legitimate custom text can reject a registered card.
+
+**Evidence:** The exact patched extractor and helper were run in Chromium against a visible grid containing the baseline cards and registered generic card. The normal disabled Campus case passes, and a mixed Campus/Sakai grid with each card's own default notice rejects. Two further cases expose the gap:
+
+1. Add an unregistered card with a disabled Connect button, heading `Sakai Learning`, description `Publish Cogniate courses to Sakai LMS with LTI 1.3.`, and notice `LMS is not set up for this Cogniate service yet. Ask your Cogniate operator.`. The extractor returns `channel:'LMS'`, `name:'Sakai Learning'`, `notReadyLms:'LMS'`. With only the generic and Campus channels added to the baseline registry, the new helper **accepts** this card: both checks use the allowed generic text `LMS`, then return before checking the Sakai heading or target. The Round 2 extractor/helper reject the same DOM. A notice can be generic or misbound; it cannot prove that the card belongs to the registered `lti-generic` id. This violates AC-LA-E0-04-06's unregistered-extra rejection.
+2. For registered `campus` (`channelName:'Campus'`, `label:'Campus LMS'`, `ready:false`), use `card.title:'Teaching Hub'`, description `Publish your courses to Campus.`, and `texts.notReady:'{LMS} is unavailable until your operator completes setup.'`. The settled card is **rejected** as `channel:null,name:'Teaching Hub'`. These independent title and message values are legal in `packages/channel-kernel/src/manifest.ts:69`, `:108`, `:159`–`:163`, `:189`; the portal uses the custom notice. `/lms-providers` supplies the id and names, not `card.title` (`services/cogniate-app/src/app/connections.ts:148`–`:153`). A vocabulary of title suffixes cannot establish this mapping.
+
+**Suggested fix:** Keep card identity separate from display names and notices. Obtain a stable exact channel id for every channel card, including disabled cards, and compare it with the ids returned by `/lms-providers`. If the current public DOM cannot supply it, request the owning Author's small attribute change through the Lead; do not invent an id from prose. Remove the fuzzy title rules and generic-title special case. Preserve the loading wait and baseline checks, and add DOM-level positives for custom title/custom notice plus negatives for an unknown card with a generic or copied notice.
+
+### Verification and boundary
+
+Private clone: `/tmp/la-review-a-a47115e29036`, created with `git clone --no-hardlinks` at the exact gate tag. The 1,198-line regenerated patch passes `git apply --check --verbose`; it applies cleanly and passes `git diff --check`: **8 files, 966 insertions, 60 deletions**. All seven helper/declaration/M2/probe blobs match the reviewed QA commit; the eighth file is the unchanged Round 2 snapshot runner. Both helper copies and both declarations remain identical.
+
+- LD-1 node suite: **44/44 PASS**. Private `npm --prefix tests run typecheck`: **PASS**, using the existing QA dependencies without installation.
+- Host-only browser checks use the real patched `lmsCardTexts`, the real baseline `card()` locator and the real helper. Delayed loading passes only after DOM settlement; permanent loading rejects in about 4.9 seconds; default-notice disabled Campus passes; mixed disabled Campus/Sakai rejects. The two additional identity counterexamples above are reproduced, including the old-code rejection control.
+- Evidence in the private clone: `reviewer-r3.patch`, `reviewer-r3-ld1.log`, `reviewer-r3-browser.{mjs,json,log}`. The source gate checkout remains clean at `9de01429`.
+
+No Docker, stack, host stack runner, live product request, install or commit. Only this review file changed in integration. No other reviewer's file or probe was opened. Live re-gate results remain pending and are not regraded here.
