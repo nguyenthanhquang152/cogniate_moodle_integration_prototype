@@ -1,5 +1,23 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
+
+# Architect A1 conformance, milestone LA: round 2 (final SHA `a8bbac53`)
+
+Round 2 checks the four records that round 1 asked for, and the one product change since round 1 (BD-A1-119). The final product SHA `a8bbac53` is `8fadb828` plus that change: `git diff --stat 8fadb828 a8bbac53 -- services packages apps infra` shows only `apps/portal/src/Integrations.tsx` (1 line) and `apps/portal/src/portal.test.ts` (30 lines). Everything else in round 1 (below) stands.
+
+| Item | Status | Evidence | Note |
+| --- | --- | --- | --- |
+| 1. LD-6 review of the LA-IC-09 P5 fixture diff | Closed | `docs/reviews/LA-E0-04/reviewer-a.md` (overlay table, row "LD-6 / LA-IC-09 P5 fixture": APPROVE; Round 4: APPROVE, 0 open) and `reviewer-b.md` (row "LD-6 / LA-IC-09; H29": APPROVE; Round 4: APPROVE, 0 open) | Both reviewers reviewed the whole gate test overlay `80133d6b..8ad12926 -- tests` |
+| 2. LD-1 list approvals (LA-E0-04, `f0a7b306`) | Closed | the same two review files, Round 4 APPROVE; `docs/reviews/LA-E7-08/ld9-addendum-r5.md`; Lead decision LD-23 | The card oracle now reads only `article[data-channel-id]` against `GET /app-api/lms-providers` (Reviewer-A A-LA-E0-04-05 closed) |
+| 3. Empty lists for LA-IC-02, -05, -10, -11 | Closed | Lead decision LD-23 (`docs/team/ltiaas/plan.md` §6.1) with the final-gate results per test id | |
+| 4. Runner change `tests/host/m1-migration.mjs:331-338` | Closed | LD-9 addendum r1 (A and B APPROVE); Lead decision LD-24 (the ledger assertion: old ledger a non-empty prefix, `012` present, new ledger equals the candidate's files); Reviewer-B LA-E0-04 Round 3 row "LD-24 / migration count": APPROVE | Stricter than the baseline check |
+| BD-A1-119 card identity in the product | Built as designed | `a8bbac53:apps/portal/src/Integrations.tsx` (`data-channel-id={item.channel ?? undefined}` on the card `article`); `apps/portal/src/portal.test.ts` (loading, not ready, ready, and connected states: values equal the visible channel ids in order; no static card has one) | No visible change, no LA-IC (LA-ADR-01 D9 rule) |
+
+Note (not blocking): the status line of `docs/reviews/LA-E0-04/qa.md:10` still says "review ready"; the reviews it waits for are now APPROVE. The slot 3F re-run on `a8bbac53` (M2, migration phases, G1–G4, T6, T7) is the Lead's gate evidence; this verdict covers design conformance and the records.
+
+---
+
+Round 1 (history; verdict then: CHANGES_REQUESTED for records only)
 
 # Architect A1 conformance, milestone LA (final SHA `8fadb828`)
 
