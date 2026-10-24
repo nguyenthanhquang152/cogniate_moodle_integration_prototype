@@ -273,7 +273,23 @@
       "G3.canvas.connection.bindingAuthority",
       "G3.canvas.connection.channel",
       "G3.canvas.connection.channelCapabilities",
-      "G3.canvas.connection.channelName"
+      "G3.canvas.connection.channelName",
+      "G1.connections.moodle-connected.bindingAuthority",
+      "G1.connections.moodle-connected.channel",
+      "G1.connections.moodle-connected.channelCapabilities",
+      "G1.connections.moodle-connected.channelName",
+      "G1.connections.moodle-disabled.bindingAuthority",
+      "G1.connections.moodle-disabled.channel",
+      "G1.connections.moodle-disabled.channelCapabilities",
+      "G1.connections.moodle-disabled.channelName",
+      "G1.connections.moodle-registered.bindingAuthority",
+      "G1.connections.moodle-registered.channel",
+      "G1.connections.moodle-registered.channelCapabilities",
+      "G1.connections.moodle-registered.channelName",
+      "G3.moodle.connection.bindingAuthority",
+      "G3.moodle.connection.channel",
+      "G3.moodle.connection.channelCapabilities",
+      "G3.moodle.connection.channelName"
     ],
     "authorUnitTestChanges": [
       "packages/channel-kernel/src/registry.test.ts:71-106,153-260 (verifies loadChannelFolders folder discovery, buildChannelRegistry channel order moodle, canvas, blackboard followed by new channels, lti-generic loading without app.ts at lines 230-260 with LA-ADR-02 D3 capabilities and legacy flags, and AC-LA-E2-03-08 load check 6 at lines 234-245)",
@@ -3053,6 +3069,206 @@
       "file": "G3",
       "path": "canvas.connection.channelName",
       "value": "Canvas"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-connected.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-connected.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-connected.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-connected.channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-disabled.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-disabled.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-disabled.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-disabled.channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-registered.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-registered.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-registered.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G1",
+      "path": "connections.moodle-registered.channelName",
+      "value": "Moodle"
+    },
+    {
+      "file": "G3",
+      "path": "moodle.connection.bindingAuthority",
+      "value": "self"
+    },
+    {
+      "file": "G3",
+      "path": "moodle.connection.channel",
+      "value": "moodle"
+    },
+    {
+      "file": "G3",
+      "path": "moodle.connection.channelCapabilities",
+      "value": {
+        "binding.authority": {
+          "dynamic": "self",
+          "manual": "self"
+        },
+        "content.multiple": false,
+        "content.ungraded": false,
+        "deployments.multiple": false,
+        "export.packages": [
+          "mbz"
+        ],
+        "launch.topLevelContinue": false,
+        "launch.windowHint": false,
+        "platform.sharing": "exclusive",
+        "publish.createCourse": true,
+        "records.readBack": true,
+        "records.reporters": [
+          "lti-ags"
+        ],
+        "registration.dynamic": true,
+        "registration.scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "setup.artifacts": [],
+        "setup.connectionCheck": false,
+        "site.serviceOrigin": false,
+        "siteApi.token": true
+      }
+    },
+    {
+      "file": "G3",
+      "path": "moodle.connection.channelName",
+      "value": "Moodle"
     }
   ]
 }
