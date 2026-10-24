@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -51,3 +51,52 @@ Used `/tmp/la-review-a-2e58bf738cb5`, a fresh `git clone --no-hardlinks` at the 
 - Evidence: `review-overlay.diff`, `review-hunk-inventory.json`, `reviewer-ld1.log`, `reviewer-p5-selftest.log`, `review-overlay-probe.mjs` and `review-overlay-probe.{json,log}` in the private clone.
 
 No Docker, stack, host stack runner, live request or commit. Only this review file was written in integration; no other reviewer's file or probes were opened. Live gate evidence is not rerun or regraded here. The two findings and the final Lead approval remain open.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Reviewed QA `445bd87f1b25ce8cd66054587a833c6f90237bb8`, integrated at `953de0d7`, and the exact fenced patch in `docs/reviews/LA-E7-08/ld9-addendum-r5.md` against `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`). The patch changes **8 files, 480 insertions, 48 deletions**. The Round 1 findings close, but the new DOM extractor introduces a timing-dependent rejection of the registered generic card.
+
+**Verdict: CHANGES_REQUESTED. Open findings: 0 BLOCKER, 1 MAJOR, 1 MINOR, 0 NIT.**
+
+### Round 1 disposition
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| A-LA-E0-04-01 — substring membership | CLOSED | Exact channel membership rejects the original Sakai string and a mixed generic/Sakai grid. The actual patched extractor accepts the registered generic card in both Connect and Manage states and extracts `sakai` for the unregistered card. The separate loading-state regression is A-LA-E0-04-03 below. |
+| A-LA-E0-04-02 — ledger preservation and approval | CLOSED | Each old ledger must be a non-empty prefix of the new ledger; app migration `012` remains required; exact equality with candidate files remains. The exact runner block rejects a deleted historical entry even when that file is also absent from the candidate, rejects historical reordering, and rejects an unapplied candidate migration in each database. The addendum now calls this an assertion change on `M1-41.common.j-snapshot`. The Lead explicitly approved these three checks in reply to this review and recorded **LD-24**, plan §6.1. |
+
+The previously approved overlay parts and the historical WE-F3/WE-F5 corrections remain as assessed in Round 1. This round does not reopen those corrections.
+
+### A-LA-E0-04-03 — MAJOR — Card membership can fail while the registered generic card is loading
+
+**Location:** proposed `tests/e2e/M2/01-cards.m2.ts:23`–`:31`, used at `:45`; fallback in `tests/acceptance/lib/open-world.mjs:220`–`:223` (and its `tests/ltiaas/lib` copy).
+
+**Problem:** The new extractor depends on a Connect/Manage action to recover the channel id, but `M2-01.cards` can reach the assertion before that action exists, causing a valid registered card to fail exact name membership.
+
+**Evidence:** The portal renders the headings and descriptions while `/connections` is loading, with a loading indicator instead of each action (`apps/portal/src/Integrations.tsx:167`). The generic manifest's card title is `LTI 1.3`, while its public names are `LMS` and `Other LTI 1.3 platform` (`packages/channels/lti-generic/manifest.ts:10`–`:12`). The extracted descriptor is therefore `{channel:null,name:'LTI 1.3',text:'Loading…LTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.'}`; its name is not in `['lti-generic','LMS','Other LTI 1.3 platform']` and the new helper rejects it.
+
+A host-only Chromium probe ran the exact patched extractor and the existing `card()` locator against this loading grid. Both heading checks and all three baseline visibility checks passed: `card()` resolves to the enclosing grid while Kajabi supplies its disabled Connect button (`tests/e2e/M2/lib/m2.ts:115`–`:118`). The old card oracle passed the same text; R5 rejected it. Adding the generic Connect link made R5 pass. The separate Node-side provider request at `:44` does not synchronize the browser's `/connections` request. Thus a slow, eventually successful load can fail this row. All 42 committed K0 probes still pass because they do not exercise this extractor/loading sequence.
+
+**Suggested fix:** Before extracting, wait with a bounded observable condition for the relevant card actions/loading state to settle, or obtain the exact channel identity from a stable card attribute that also exists during loading. Preserve rejection of unknown channel ids; do not restore substring membership or hard-code the generic title. Add a deterministic DOM-level probe with delayed connections and a registered generic card, alongside the mixed unregistered-card negative. A permanently unresolved load must still fail within the test timeout.
+
+### A-LA-E0-04-04 — MINOR — R5 cites the wrong decision and app migration count
+
+**Location:** `docs/reviews/LA-E7-08/ld9-addendum-r5.md:9`, `:26`, `:29`, `:178`, `:697`, `:793`; repeated classification in `tests/ltiaas/GATE-RUN-PLAN.md:207` and `:892`.
+
+**Problem:** The ledger evidence cites `LA-H21` as approval and says the candidate has 14 app migrations, but neither statement matches the source.
+
+**Evidence:** Plan §6.2 defines LA-H21 as the operator-key policy. The explicit ledger approval is now LD-24 in §6.1. Candidate `8fadb828` has **21 LTI and 18 app** migration files, not 21 and 14; the independent runner probe accepts those complete lists. The implementation enumerates the files, so the wrong written count does not weaken the check.
+
+**Suggested fix:** Cite BD-A2-108 and LD-24 consistently in the addendum, helper comments and gate plan; correct the app count to 18.
+
+### Verification and boundary
+
+Used a fresh private `git clone --no-hardlinks` at `/tmp/la-review-a-682458c10f9c`. Extracted the fenced patch from pinned integration `953de0d7`; `git apply --check --verbose`, application and `git diff --check` pass. The eight touched paths are the two helper/declaration pairs, the two K0 probe files, M2 cards and the snapshot runner. The four unfrozen helper/probe files match the integrated versions; the frozen edits remain proposals in the addendum.
+
+- LD-1 host suite: **42/42 pass**; private `npm --prefix tests run typecheck`: **PASS**, using already installed QA dependencies through a private symlink.
+- Both helper copies and both declaration copies are byte-identical. Baseline checks remain unchanged.
+- Own Round 1 card counterexample now rejects; exact DOM extraction accepts generic Connect/Manage states and rejects mixed generic/Sakai grids.
+- Exact snapshot runner block accepts 21/18 candidate ledgers. Six negative checks cover historical deletion with matching candidate-file deletion, historical reordering, and unapplied candidate migration in each database. The old gate-6 runner accepts the historical-deletion counterexample; R5 rejects it.
+- The additional real-browser DOM probe reproduces A-LA-E0-04-03 without a server, application stack or network request. Evidence: `reviewer-r2-browser.{mjs,json}`. The JS DOM probes and ledger probes are in `reviewer-r2-probe.{mjs,json,log}` and `reviewer-r2-no-action.{mjs,json}`; the suite log is `reviewer-ld1-r2.log`, all in the private clone.
+
+The shared gate source remains clean at its original tag. No Docker, stack, host stack runner, live product request or commit. Only this review file was edited in integration, and no other reviewer's files or probes were opened. Live gate rows remain pending; this review is not a re-grade of their prior results.
