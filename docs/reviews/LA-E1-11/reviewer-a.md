@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LA-E1-11 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -119,3 +119,12 @@ Round: 3
 Validation at `9c87853`: the full portal project passes **8 files, 114 tests**, including the shell UNIT AC-01–03 tests. Both portal TypeScript projects pass, and F1 passes. Both mutants fail at the expected assertions; all scratch files were restored. The diff changes only P-owned portal files and adds no LMS-specific production branch or visible wizard change. The earlier `vitest.config.ts` ownership note is acknowledged as RQ-2 in the Lead's fix brief.
 
 This was a blind review in a private `git clone --no-hardlinks`. No Docker, stack, build-server start, commit, or other reviewer's file. K2 and M1/M2/T7 remain QA gates; this small fix does not claim to rerun them.
+
+
+## Round 4 — BD-A1-119 card identity
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Diff: `a8bbac53^1..a8bbac53` (P `0eedb055`), against LA-ADR-01 D9, BD-A1-119 and the LA-E1-11 card-identity note. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. Prior findings remain closed.**
+
+- `Integrations.tsx:144` adds the attribute to the common `Card as="article"`, outside all loading, readiness and connection branches. Its value comes from `manifest.id`; static cards use `null`, converted to `undefined`, so React omits their attribute. `Card` spreads the prop onto the article. This also covers disabled Connect and connected/Manage cards. Text, markup structure, styles and behavior are unchanged; no production selector uses this new attribute.
+- **27/27 portal-file tests pass.** The new case checks the ordered visible manifest ids while requests are pending, after not-ready data, after ready data, and with a connection/Manage link; it also checks all eight static cards and the total card count. Seven private mutants each fail this new test at an assertion: remove the attribute entirely (old behavior), omit it only while loading, only when not ready/Connect disabled, only for ready Connect, or only for Manage; add it to static cards; substitute the title for the manifest id.
+- Only the two P-owned portal files changed; no forbidden file or LMS-specific production branch was added. Verification used fresh `/tmp/la-reviewer-a-ctx-7e7f8f4848c6` (`--no-hardlinks`, HEAD `b0bac2e5`, own `npm ci`, Vitest cache cleared before each run); the two reviewed files match the merge, and the clone is restored clean. Logs and mutant results: `/tmp/la-reviewer-a-ctx-7e7f8f4848c6-evidence/`. No Docker, stack, commit or other reviewer's file was used. The M2/K2 re-gate remains QA's work.

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E1-11 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -117,3 +117,14 @@ The shell is small and easy to find. `channels/registry.ts` discovers the manife
 
 - K2 U1/U2, K1-SIM AC-06 and K0 AC-07/08/09 (QA). I did not run `npm run build -w apps/portal`.
 - Lens-A items: the simulation-only route timing and the BD-A1-24 authority for a staged connection beyond the unit rows.
+
+
+## Round 3 (BD-A1-119)
+
+Verdict: **APPROVE**. Counts for this bounded follow-up: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 new NIT**. Reviewed `git diff a8bbac53^1 a8bbac53` (author `0eedb055`) against BD-A1-119, LA-ADR-01 D9 and the LA-E1-11 card-identity note. Earlier B-LA-E1-11-06 is outside this follow-up.
+
+The attribute is on the common `Card as="article"`, before all loading/readiness/connection branches. Its value comes from the manifest id; `undefined` omits it on static cards, and `Card` already forwards the prop. D9 clearly specifies the element, states and API oracle. The test names BD-A1-119, derives expected channel ids in visible order, checks loading, not-ready, ready and connected/Manage states, and excludes every static card. Both changed files belong to lane P; no forbidden file or LMS-specific branch is added. This is only the approved additive DOM identity, with no visible change.
+
+Fresh private clone at `a8bbac53`, own `npm ci`: **27/27** tests in `portal.test.ts` passed; changed-file ESLint and portal typecheck passed. With the previous `Integrations.tsx` and the new test unchanged, BD-A1-119 fails because the marked-card list is empty. Restoring the shipped file makes it pass again. Vitest cache cleared before each run. Evidence: `/tmp/e1-11-bd119-review-b-lw7_6crt/{portal-tests,old-behaviour,restored,lint,typecheck}.log`.
+
+No new findings. The LD-1 M2 consumer and final re-gate remain QA's work. Blind review maintained; no Docker, stack or commit; only this report was edited in integration.
