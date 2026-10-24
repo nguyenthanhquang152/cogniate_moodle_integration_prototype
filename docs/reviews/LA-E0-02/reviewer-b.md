@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 # LA-E0-02 — Reviewer-B
 
@@ -65,3 +65,21 @@ Run 45's P5 is `9a-best-score.spec.ts:15`, checking that deleting only failed sy
 **Required correction:** Derive §7.1 from each `container-<suite>/playwright-results.json` and `cmd/*test-acceptance-<suite>.log`; preserve the real error, test variant and duration, and keep inferred causes separate from observed failures. Existing artifacts suffice for this correction. Keep baseline-3 legacy results and rates pending until their scheduled runs supply the missing evidence; this review grants no live acceptance credit.
 
 Read-only evidence: the same four `SLOT3D/artifacts/qalead-la-{45,46,48,49}-*` folders named above. Extracted accounting: `/tmp/reviewer-b-ld9-r8-qa4kpgty/baseline-reconciliation.json` and `baseline-test-details.json`. No Docker, stack, product/test edit or commit; blind review maintained.
+
+## Round 3
+
+Reviewed 2026-10-24 at QA `44907ced` / integration `ab8e8938`, limited to the corrected §7.1 and baseline-3 handoff. **CHANGES_REQUESTED: B-LA-E0-02-01 remains OPEN, BLOCKER pending baseline-3; 1 new MINOR below.** The substantive Round 2 reconciliation errors are corrected. No live acceptance is granted before the missing results and rates exist.
+
+- Re-extracted the raw Playwright results for runs 45, 46, 48 and 49. All previously disputed failure and rerun durations now match: AC-T5-36 **74,264 / 12,519 ms**, P5 **29,205 / 29,025 ms**, T6 **15,136 / 15,882 / 17,994 ms**, and T8 no-token **15,121 ms**. The suite durations and summary counts also match the cited records.
+- P5 is now correctly identified as `9a-best-score.spec.ts:15`, with the **“both attempts unchanged”** assertion and the observed `updatedAt` change. The separate passing host restart step is clearly distinguished. Cause explanations occupy a separate column; the passing rerun supports an intermittent failure, while the background-sync attribution remains an interpretation of the timestamp change, not independently proved by that rerun.
+- All three T8 serial skips are retained, including **AC-T8-10 (with token)** at 0 ms. The T5a TTL knob skip and dedicated passing run are also retained. AC-04/06/07 remain explicitly pending, bound to product `78971b03` and test `1ae6716b`. The scheduled baseline groups cover the missing legacy cases and rate extraction, but their results are not yet present.
+
+### B-LA-E0-02-02 — MINOR — Distinguish the remaining knob-test durations from suite durations
+
+**File:line:** `docs/reviews/LA-E0-02/qa.md:154`, `:155`, `:156`.
+
+**Problem / evidence:** The new observed-variant column says AC-T5-15's dedicated knob test passed in **25,880.3 / 26,162.5 / 26,340.7 ms** for runs 45/46/48. Those numbers are `stats.duration` for the whole single-test Playwright invocation. The actual test `results[].duration` values are **25,144 / 25,304 / 25,464 ms**. The suite column can retain its current numbers; only the claim that these are exact individual test times is wrong. Statuses and skip dispositions are correct.
+
+**Suggested fix:** Use the individual values in the test-variant column, or label the existing values explicitly as suite durations. Keep the separate suite and command timings. Existing raw files suffice; no rerun is needed for this correction.
+
+Independent extraction: `/tmp/reviewer-b-ld9-r8-r2-tofad1og/baseline-reconciliation-r3.json`, derived from the four previously cited Slot 3D artifact folders, including each `container-knob-PLAY_TTL_SECONDS/playwright-results.json`. The separate [LD-9 r8 Round 2 review](../LA-E7-08/ld9-addendum-r8-reviewer-b.md) verifies all three rebuilt source pins and records the remaining invocation defects. No Docker, stack, product/test edit, commit or other reviewer's file was used.

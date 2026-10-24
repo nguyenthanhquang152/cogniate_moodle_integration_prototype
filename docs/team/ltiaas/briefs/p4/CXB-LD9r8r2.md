@@ -1,0 +1,18 @@
+# Review dispatch: Reviewer-B (Codex, same session), LD-9 addendum r8 round 2, the rebuilt gate sources, the re-gate plan, and LA-E0-02 round 3
+
+Item 1: the lead QA's part A fix round 1 (la-qa 44907ced; integration ab8e8938). Diff: `git diff eefa1c9c ab8e8938 -- docs/reviews/LA-E7-08/ld9-addendum-r8.md tests/ltiaas/GATE-RUN-PLAN.md docs/reviews/LA-E0-02/qa.md`. Your round 1 findings to close:
+- A-LA-E7-08-LD9-R8-01 (MAJOR): the golden pin. Both gate sources were rebuilt with an explicit top commit that adds golden v2 (tests/ltiaas/golden tree 1909e58f, from la-qa 5e2579a0 + d1603f4d; LA-E0-03 round 2 A and B APPROVE, including the 17 LA-IC-01/12 Moodle entries). baseline-3 = 1ae6716b (on d854183f, 0 non-test diff from 78971b03). la-final-test-3 = 794f649c, in both src-final-3 and src-final-3-d4 (on 57b6a78c, kit tree d7e50b5d, 0 non-test diff from 4f10c5fd).
+- A-LA-E7-08-LD9-R8-02 (MAJOR): the Moodle overlap. The Lead ruled LD-31 (plan §6.1): one active Moodle-lane workload at a time; a SIM stack with an idle seeded Moodle container may overlap; M2 and K2 run with no other stack starting, seeding or tearing down; a failure under overlap is rerun alone and recorded as a flake. Check that §10 follows LD-31 exactly and lists each overlap, and that the critical path is recomputed.
+- B-LA-E7-08-LD9-R8-01 (MAJOR): each kit run is bound to the exact tests, the overlay and the wave inputs.
+- B-LA-E7-08-LD9-R8-02 (MINOR): the carried drill evidence.
+- A-LA-E0-02-02 (BLOCKER): §7.1 is regenerated from playwright-results.json, with observations kept apart from the root-cause evidence. A-LA-E0-02-01 and B-LA-E0-02-01 stay pending until the baseline-3 runs.
+Done since round 1 (for context): R2a, the walk clone with 6 channels, 234/234 (LA-E8-02 qa Round 3). R2b, K2 on 4f10c5fd, 12/12 (LA-E7-07 qa Round 6).
+Verify the rebuilt trees in a private `git clone --no-hardlinks` of each source: tree hashes, 0 non-test diff, the golden tree, and the host self-tests. Do not start Docker. Add "## Round 2" to docs/reviews/LA-E7-08/ld9-addendum-r8-reviewer-b.md, and "## Round 3" to docs/reviews/LA-E0-02/reviewer-b.md. Keep the first lines "Verdict:" and "Round:" current. If you approve r8, the Lead lets the Docker runs R1 (baseline-3) and R3 (D3/D4) start.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
