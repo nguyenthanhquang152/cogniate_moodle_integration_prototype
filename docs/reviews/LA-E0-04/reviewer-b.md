@@ -1,9 +1,9 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # Gate test overlay — Reviewer-B
 
-Current decision: **Round 3 CHANGES_REQUESTED — 1 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT.** B-LA-E0-04-01 remains closed; B-LA-E0-04-02 remains open, and B-LA-E0-04-03 is a new false-acceptance regression. Earlier rounds below are historical.
+Current decision: **Round 4 APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** B-LA-E0-04-01, -02 and -03 are closed. Approval covers the exact patch pinned below; live re-gate evidence remains pending. Earlier rounds below are historical.
 
 ## Round 1
 
@@ -119,3 +119,29 @@ No Docker, stack, browser, live acceptance run or commit. Only this review file 
 - Evidence: `/tmp/reviewer-b-gate-overlay-r3.patch`, `/tmp/reviewer-b-gate-overlay-r3-checks.json`, `/tmp/reviewer-b-gate-overlay-r3-ld1.log`, `/tmp/reviewer-b-gate-overlay-r3-vitest.log`, `/tmp/reviewer-b-gate-overlay-r3-typecheck.log`, `/tmp/reviewer-b-gate-overlay-r3-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r3-probes.json`, `/tmp/reviewer-b-gate-overlay-r3-dom-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r3-dom-probes.json`, `/tmp/reviewer-b-gate-overlay-r3-regression.json`.
 
 No Docker, stack, browser, live acceptance run or commit. Only this review file was changed in the integration worktree. The remaining identity fix needs review before the listed live re-gate rows run on the final test SHA.
+
+
+## Round 4
+
+**Verdict: APPROVE. Open findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** Reviewed the final fix round from Lead QA `c6b99a509ca2efa909f962d2790c5a874c0bd190` in a private clone of `la-qa`, specifically `docs/reviews/LA-E7-08/ld9-addendum-r5.md` **Round 3 / §6.2**. Patch SHA-256: `e6b0c719c4bb7a83762df45b46382012070ebbf70acec16735cab986bb289aec`; base: `la-gate-test-6` / `9de014298fbe133ebbd8d40365da84988ccabf5d`. This approval does not refer to the deliberately older test copies in the integration worktree. Reviewer-B: Codex GPT-6-Astra xhigh; blind review maintained.
+
+### Finding closure
+
+| Finding | Decision and evidence |
+| --- | --- |
+| B-LA-E0-04-01 | **Remains CLOSED.** Sakai cards fail with an unknown id or no attribute, including when generic `LMS` is registered and when the card copies a registered channel's notice. |
+| B-LA-E0-04-02 | **CLOSED.** The extractor reads `article[data-channel-id]` under BD-A1-119. The `Teaching Hub` card with `Ask your operator to enable Campus.` now passes in the disabled state, as do ready and connected variants. Neither the title nor the notice determines identity. Product `a8bbac53` adds the attribute on the shared channel-card article, outside the action-state branches. |
+| B-LA-E0-04-03 | **CLOSED.** Stem/suffix matching, notice parsing and the generic-channel title exception are removed. `Campus Cloud` beside the legitimate Campus card fails with no attribute or unknown id; a duplicate registered id also fails. A display name such as `Campus` is not accepted as id `campus`. The prior helper accepts the unattributed lookalike; the revised helper rejects the same input. |
+
+The attributed-page check preserves the three baseline texts, their order and their fixed channel identities. Extra ids must be unique and equal the registered extra-channel set, so a missing registered card fails as well as an unknown addition. Every unattributed extra must be a frozen static card. The separate no-attribute branch preserves the recorded G-BASE page with three baseline cards and optional Kajabi, and rejects an extra card or an unsatisfied registered addition. The loading wait and LD-24 migration-ledger check remain approved.
+
+### Scope and independent verification
+
+- The complete patch changes the same **8 QA files, 1,625 insertions and 62 deletions**. The product attribute is a separate lane-P change under BD-A1-119. No unrelated acceptance assertions or product core paths change in this overlay; earlier decisions on the other overlay parts remain approved.
+- Read QA source in `/tmp/review-b-gate-overlay-r4-qa-0_a4cliu`, detached at the exact QA SHA and left clean. Applied only the extracted §6.2 patch in `/tmp/review-b-gate-overlay-r4-duhv2qyd`, a separate `git clone --no-hardlinks` detached at the exact gate base. **Patch digest, `git apply --check`, and `git diff --check` PASS.** The supplied gate source stayed untouched.
+- **46/46 Node LD-1 tests PASS; 46/46 targeted Vitest LD-1 tests PASS; standalone tests typecheck PASS.** The frozen/non-frozen helpers and declarations are byte-identical and match the pinned QA versions. The full 151-test K0 run remains Lead QA's evidence, not an independent run claimed here.
+- **26/26 independent DOM probes PASS.** These cover Sakai, Campus Cloud, custom title and custom not-ready text, delayed/permanent loading, unknown or missing attributes, wrong baseline identity, static-card identity, duplicate/missing registered cards, the no-attribute baseline with and without Kajabi, and an extra card on that baseline. They run the actual proposed extractor unchanged with a LinkeDOM host document, geometry/display stubs, and real Playwright `expect.poll`; no browser or server runs.
+- **7/7 independent migration-ledger probes PASS.** Two old/new controls confirm that the previous helper accepts an unknown lookalike and a missing registered card, while this helper rejects both. The new K0 DOM tests also execute the actual `page.evaluate` callback when the frozen M2 source is present, rather than relying only on hand-written descriptors.
+- Evidence: `/tmp/reviewer-b-gate-overlay-r4.patch`, `/tmp/reviewer-b-gate-overlay-r4-checks.json`, `/tmp/reviewer-b-gate-overlay-r4-ld1.log`, `/tmp/reviewer-b-gate-overlay-r4-vitest.log`, `/tmp/reviewer-b-gate-overlay-r4-typecheck.log`, `/tmp/reviewer-b-gate-overlay-r4-dom-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r4-dom-probes.json`, `/tmp/reviewer-b-gate-overlay-r4-ledger-probes.mjs`, `/tmp/reviewer-b-gate-overlay-r4-ledger-probes.json`, `/tmp/reviewer-b-gate-overlay-r4-counterfactuals.json`.
+
+No Docker, stack, browser, live acceptance run or commit. Only this review file was changed in the integration worktree. The current-product live re-gate must pair this reviewed test patch with a product revision containing `a8bbac53` / BD-A1-119; the no-attribute branch is for G-BASE parity. The three M2 card cases, six snapshot-upgrade rows and twelve migration rows remain the recorded live re-gate scope.

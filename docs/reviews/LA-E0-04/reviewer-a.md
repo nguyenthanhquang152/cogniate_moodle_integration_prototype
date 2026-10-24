@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 ## Round 1
 
@@ -133,3 +133,21 @@ Private clone: `/tmp/la-review-a-a47115e29036`, created with `git clone --no-har
 - Evidence in the private clone: `reviewer-r3.patch`, `reviewer-r3-ld1.log`, `reviewer-r3-browser.{mjs,json,log}`. The source gate checkout remains clean at `9de01429`.
 
 No Docker, stack, host stack runner, live product request, install or commit. Only this review file changed in integration. No other reviewer's file or probe was opened. Live re-gate results remain pending and are not regraded here.
+
+## Round 4
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Reviewed QA `c6b99a50` in a private clone and the complete regenerated patch in `docs/reviews/LA-E7-08/ld9-addendum-r5.md` §6.2, against `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`). Design basis: **BD-A1-119 / LA-ADR-01 D9**, with the product's `article[data-channel-id]` change at `a8bbac53`; the older integration test copies are not the reviewed candidate. **Verdict: APPROVE. Open findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+**A-LA-E0-04-05 CLOSED.** Card identity now comes only from `article[data-channel-id]`; the allowed values come from provider channel ids. Display names, title suffixes, setup notices and action URLs no longer supply identity. Attributed baseline cards must have their expected ids; extra ids must be unique and equal the registered extra set; an unattributed extra must be a frozen static card. The unattributed G-BASE branch permits only the baseline list and cannot satisfy extra registered channels. The loading wait and LD-24 migration checks remain. All earlier findings stay closed.
+
+### Verification
+
+- Created private `git clone --no-hardlinks` copies at `/tmp/la-review-a-1d5550430621-qa` (pinned to `c6b99a50`) and `/tmp/la-review-a-1d5550430621-gate` (pinned to `9de01429`). The extracted 1,886-line patch has SHA256 **`e6b0c719c4bb7a83762df45b46382012070ebbf70acec16735cab986bb289aec`**, matching the dispatch. `git apply --check --verbose`, application and `git diff --check` pass: **8 files, 1,625 insertions, 62 deletions**.
+- All eight applied files equal the QA commit. Both helper copies and both declarations match. The snapshot runner and `checkMigrationLedgers` implementation are unchanged from the approved earlier version. The patch stays within the previously reviewed test paths; it contains no product change.
+- LD-1 node suite: **46/46 PASS**. Private `npm --prefix tests run typecheck`: **PASS**, using existing QA dependencies through a private symlink, without installation. The new DOM probes execute the actual M2 extraction callback when the M2 file is present.
+- Independent Chromium checks use the exact patched extractor and helper: **6 expected passes, 18 expected rejections, 1 old-code control**. Custom titles and two custom not-ready notices pass for registered Campus in disabled, ready and Manage states. Sakai with generic or copied notices, Campus Cloud lookalikes, unknown/display-name ids, duplicate ids, a missing registered card, wrong/missing baseline attributes and an attribute on the static card all reject. The unattributed baseline passes; an extra card there rejects. The original Sakai DOM still passes the old Round 3 oracle and now rejects, proving the fix changes that result.
+- The original loading race remains closed: the baseline visibility checks pass while loading, but extraction waits for an actual DOM update before succeeding. A permanently loading grid rejects in about **4.9 seconds**. No service was started for these browser checks.
+
+Evidence in the private gate clone: `reviewer-r4.patch`, `reviewer-r4-ld1.log`, `reviewer-r4-browser.{mjs,json,log}`. The source gate checkout remains clean at `9de01429`. The LA re-gate must use the reviewed product attribute change (`a8bbac53` or a descendant); only the frozen G-BASE page uses the unattributed branch.
+
+No Docker, stack, host stack runner, live product request, install or commit. Only this review file changed in integration, and no other reviewer's files or probes were opened. Live re-gate evidence remains pending; this approval is for the reviewed overlay, not a claim that the live gate ran.
