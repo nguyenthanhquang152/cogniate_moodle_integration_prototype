@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -27,3 +27,21 @@ Reviewed `a2dc6270`, `ld9-addendum-r6.md`, its exact patch against `la-final-tes
 - Ran `node --test tests/host/storage-docker.selftest.mjs` in the private clone: **6 passed, 0 failed**. All Docker-facing calls use the inspected fake functions. With only the implementation restored temporarily to the old binding, the updated test suite failed the A-S-14 test (**5 passed, 1 failed**). Restored the patched implementation afterward. All six single-field mismatch assertions remain present.
 
 Local evidence: `/tmp/la-reviewer-a-ctx-7bfc9aefe96f-evidence/` (`identity-hashes.json`, `round1.patch`, `apply-check.txt`, `scope-check.txt`, `storage-docker-selftest.txt`, `old-binding-new-selftest.txt`). Private clone: `/tmp/la-reviewer-a-ctx-7bfc9aefe96f`. No install, Docker invocation, stack, live acceptance run or commit. The frozen source remains at the pinned SHA with no tracked changes. Only this review file was added in integration. D1/D2 runtime evidence remains a separate requirement after the reviewed binding is adopted.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the r6 documentation correction at `be4557f4`; the separate r7 addendum is outside this dispatch. **APPROVE**: the Round 1 MAJOR is closed; one new MINOR, no open BLOCKER or MAJOR findings.
+
+**A-LA-E7-08-LD9-R6-01 — CLOSED.** Section 6.1 explicitly supersedes the incorrect Round 1 summary. It matches both reports: two independent repetitions with `/bin/bash` and `perl setpgrp`, the dependency gate before target creation, parent-only and whole-group SIGKILL, all four container filters, event checks and positive controls. The whole-group watches are correctly recorded as 29 samples through 30.94 seconds and 28 through 30.49 seconds. The corrected scope excludes plain `docker run`, other shells and the other unmeasured paths. Design-gate evidence gives no acceptance credit.
+
+Rechecked both report hashes against the same sources reviewed in Round 1. Compared the two pinned patch blocks and the artifact byte for byte: unchanged, SHA-256 `051af77f1aa074e328d879a576435ba9848daaeffed222c6e7a39663f83eff2e`. Round 1's apply check, six passing mocked tests and old-binding regression result therefore remain applicable; no executable change needs another run. Section 6.2 now separates injected tests, direct host checks and pending D1/D2 runtime evidence, consistent with LD-25. All ten exact source-file references exist at `be4557f4`; the M1 preflight calls the identity check and writes the stated artifacts.
+
+### A-LA-E7-08-LD9-R6-02 — MINOR — Incorrect helper name in the proof table
+
+**File:** `docs/reviews/LA-E7-08/ld9-addendum-r6.md:266` at `be4557f4`.
+
+**Problem and evidence:** The table names `checkClientIdentity`, but `tests/host/core.mjs:155` defines `identityBoundary()`, called from M1 preflight at `:206`. There is no `checkClientIdentity` in that file. The cited file, line range, output artifacts and behavior are correct, so this is safe to defer.
+
+**Suggested fix:** Change the helper name to `identityBoundary()`; if deferred, have the Lead record this MINOR in the deferred list.
+
+This round used read-only git, source and artifact checks. No tests, Docker invocation, stack, install or commit. Only this review file changed. Live D1/D2 verification remains pending as stated in the corrected addendum.
