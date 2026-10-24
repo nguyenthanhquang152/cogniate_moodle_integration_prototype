@@ -32,6 +32,9 @@ export interface CardDescriptor {
   id?: string | null;
   name?: string | null;
   title?: string | null;
+  disabled?: boolean;
+  loading?: boolean;
+  notReadyLms?: string | null;
 }
 export type CardInput = string | CardDescriptor;
 export function checkCards<T extends CardInput>(
