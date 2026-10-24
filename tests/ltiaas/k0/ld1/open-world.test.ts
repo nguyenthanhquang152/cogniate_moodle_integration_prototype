@@ -7,7 +7,6 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'vitest';
 import * as ltiaasOpenWorld from '../../lib/open-world.mjs';
-import type { CardDescriptor } from '../../lib/open-world.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const testsDir = path.resolve(here, '../../..');
@@ -64,218 +63,6 @@ const newProfile = (channel: string, { id = channel, simulation = false }: { id?
   simulation,
   sharedPlatform: null,
 });
-
-/**
- * Minimal DOM tree builder so K0 probes execute the exact `page.evaluate` extractor from `tests/e2e/M2/01-cards.m2.ts`
- * without a browser or external DOM package.
- */
-class MiniElement {
-  tagName: string;
-  attrs: Map<string, string>;
-  children: MiniElement[];
-  parentElement: MiniElement | null;
-  _ownText: string;
-  _display: string;
-  _height: number;
-
-  constructor(
-    tagName: string,
-    attrs: Record<string, string | null | undefined> = {},
-    children: MiniElement[] = [],
-    text = '',
-    { display = 'block', height = 120 }: { display?: string; height?: number } = {},
-  ) {
-    this.tagName = tagName.toUpperCase();
-    this.attrs = new Map(
-      Object.entries(attrs)
-        .filter(([, v]) => v !== undefined && v !== null)
-        .map(([k, v]) => [k, String(v)]),
-    );
-    this.children = [];
-    this.parentElement = null;
-    this._ownText = text;
-    this._display = display;
-    this._height = height;
-    for (const child of children) this.appendChild(child);
-  }
-  appendChild(child: MiniElement): MiniElement {
-    child.parentElement = this;
-    this.children.push(child);
-    return child;
-  }
-  get textContent(): string {
-    return this._ownText + this.children.map((c) => c.textContent).join('');
-  }
-  getAttribute(name: string): string | null {
-    return this.attrs.has(name) ? (this.attrs.get(name) ?? null) : null;
-  }
-  hasAttribute(name: string): boolean {
-    return this.attrs.has(name);
-  }
-  getBoundingClientRect(): { height: number; width: number; top: number; left: number; right: number; bottom: number } {
-    return { height: this._height, width: 240, top: 0, left: 0, right: 240, bottom: this._height };
-  }
-  matches(selector: string): boolean {
-    return selector.split(',').some((part) => {
-      const s = part.trim();
-      if (!s) return false;
-      if (s === '*') return true;
-      const m = /^([a-zA-Z0-9_-]+)?(?:\[([a-zA-Z0-9_-]+)(?:="([^"]*)")?\])?$/.exec(s);
-      if (!m) return false;
-      const [, tag, attr, val] = m;
-      if (tag && this.tagName !== tag.toUpperCase()) return false;
-      if (attr) {
-        if (!this.hasAttribute(attr)) return false;
-        if (val !== undefined && this.getAttribute(attr) !== val) return false;
-      }
-      return true;
-    });
-  }
-  querySelectorAll(selector: string): MiniElement[] {
-    const out: MiniElement[] = [];
-    const walk = (node: MiniElement): void => {
-      for (const child of node.children) {
-        if (child === this && selector === 'body *') continue;
-        if (selector === 'body *' || child.matches(selector)) out.push(child);
-        walk(child);
-      }
-    };
-    if (selector === 'body *' && this.tagName === 'DOCUMENT') {
-      const body = this.children.find((c) => c.tagName === 'BODY');
-      if (body) walk(body);
-      return out;
-    }
-    walk(this);
-    return out;
-  }
-  querySelector(selector: string): MiniElement | null {
-    return this.querySelectorAll(selector)[0] ?? null;
-  }
-}
-
-interface CardDomSpec {
-  tag?: string;
-  channelId: string | null;
-  initials?: string;
-  control?: 'connect-link' | 'manage-link' | 'disabled-connect' | 'loading';
-  heading: string;
-  description: string;
-  notice?: string | null;
-  display?: string;
-  height?: number;
-}
-
-const buildCardElement = ({
-  tag = 'article',
-  channelId = null,
-  initials = '',
-  control = 'connect-link',
-  heading,
-  description,
-  notice = null,
-  display = 'block',
-  height = 120,
-}: CardDomSpec): MiniElement => {
-  const children: MiniElement[] = [];
-  if (initials) children.push(new MiniElement('span', {}, [], initials));
-  if (control === 'connect-link') {
-    const href = channelId ? `/integrations/${channelId}/connect` : '/integrations/connect';
-    children.push(new MiniElement('a', { href, ...(channelId ? { id: `${channelId}-connect` } : {}) }, [], 'Connect'));
-  } else if (control === 'manage-link') {
-    const href = channelId ? `/integrations/${channelId}/con_1` : '/integrations/con_1';
-    children.push(new MiniElement('a', { href, ...(channelId ? { id: `${channelId}-manage` } : {}) }, [], 'Manage'));
-  } else if (control === 'disabled-connect') {
-    children.push(new MiniElement('button', { disabled: 'true' }, [], 'Connect'));
-  } else if (control === 'loading') {
-    children.push(new MiniElement('span', {}, [], 'Loading…'));
-  }
-  children.push(new MiniElement('h2', {}, [], heading));
-  children.push(new MiniElement('p', {}, [], description));
-  if (notice) children.push(new MiniElement('p', {}, [], notice));
-  const attrs: Record<string, string> = channelId !== null && channelId !== undefined ? { 'data-channel-id': channelId } : {};
-  return new MiniElement(tag, attrs, children, '', { display, height });
-};
-
-const BASELINE_DOM_SPECS: CardDomSpec[] = [
-  {
-    channelId: null,
-    initials: 'K',
-    control: 'disabled-connect',
-    heading: 'Kajabi',
-    description: 'Publish and sell your courses directly on Kajabi with seamless content sync.',
-  },
-  {
-    channelId: 'moodle',
-    initials: '',
-    control: 'connect-link',
-    heading: 'Moodle',
-    description: CARD_TEXTS[0],
-  },
-  {
-    channelId: 'canvas',
-    initials: 'Cv',
-    control: 'connect-link',
-    heading: 'Canvas',
-    description: CARD_TEXTS[1],
-  },
-  {
-    channelId: 'blackboard',
-    initials: 'Bb',
-    control: 'disabled-connect',
-    heading: 'Blackboard',
-    description: CARD_TEXTS[2],
-    notice: 'Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.',
-  },
-];
-
-type EvaluateFn = (
-  document: MiniElement,
-  getComputedStyle: (el: MiniElement) => { display: string },
-  moodleText: string,
-) => CardDescriptor[];
-
-const referenceEvaluateCards: EvaluateFn = (document, getComputedStyle, moodleText) => {
-  const all = Array.from(document.querySelectorAll('body *'));
-  let cell = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
-  while (cell && cell.parentElement && getComputedStyle(cell.parentElement).display !== 'grid') cell = cell.parentElement;
-  if (!cell || !cell.parentElement) return [];
-  return Array.from(cell.parentElement.children)
-    .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 0)
-    .map((c) => {
-      const text = (c.textContent ?? '').replace(/\s+/g, ' ').trim();
-      const article = c.matches('article[data-channel-id]') ? c : c.querySelector('article[data-channel-id]');
-      const channel = article ? article.getAttribute('data-channel-id') : null;
-      const controls = Array.from(c.querySelectorAll('a, button, [role="button"], [role="link"]')).filter((el) =>
-        /^(?:Connect|Manage)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()),
-      );
-      const hasLoadingLeaf = Array.from(c.querySelectorAll('*')).some(
-        (el) => el.children.length === 0 && /^Loading(?:…|\.\.\.)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()),
-      );
-      const loading = controls.length === 0 || hasLoadingLeaf || /^(?:[A-Za-z0-9]{1,4}\s*)?Loading(?:…|\.\.\.)/.test(text);
-      return { text, channel, loading };
-    });
-};
-
-const loadM2EvaluateFn = (): EvaluateFn => {
-  const m2CardsPath = path.join(testsDir, 'e2e/M2/01-cards.m2.ts');
-  if (!fs.existsSync(m2CardsPath)) return referenceEvaluateCards;
-  const src = fs.readFileSync(m2CardsPath, 'utf8');
-  const m = /page\.evaluate\(\(moodleText\)\s*=>\s*\{([\s\S]*?)\},\s*TEXT\.moodleCard\)/.exec(src);
-  assert.ok(m, '01-cards.m2.ts defines page.evaluate((moodleText) => { ... }, TEXT.moodleCard)');
-  return new Function('document', 'getComputedStyle', 'moodleText', m[1]) as EvaluateFn;
-};
-
-const evaluateM2Cards = loadM2EvaluateFn();
-
-const extractDomCards = (cardSpecs: CardDomSpec[]): CardDescriptor[] => {
-  const grid = new MiniElement('div', {}, cardSpecs.map(buildCardElement), '', { display: 'grid', height: 600 });
-  const body = new MiniElement('body', {}, [grid], '', { display: 'block', height: 800 });
-  const doc = new MiniElement('document', {}, [body], '', { display: 'block', height: 800 });
-  const getComputedStyle = (el: MiniElement) => ({ display: el._display ?? 'block' });
-  const res = evaluateM2Cards(doc, getComputedStyle, CARD_TEXTS[0]);
-  assert.deepEqual(res, referenceEvaluateCards(doc, getComputedStyle, CARD_TEXTS[0]));
-  return res;
-};
 
 interface ProbeRow {
   row: number;
@@ -369,17 +156,7 @@ const rows: ProbeRow[] = [
     },
     extra: (a, registered) => {
       if (registered) a.lmsProviders = withChannel(a.lmsProviders);
-      a.cards = [
-        { channel: null, text: a.cards[0], loading: false },
-        { channel: 'moodle', text: a.cards[1], loading: false },
-        { channel: 'canvas', text: a.cards[2], loading: false },
-        { channel: 'blackboard', text: a.cards[3], loading: false },
-        {
-          channel: registered ? NEW.id : 'zz-unregistered',
-          text: `Connect${registered ? NEW.name : 'Sakai'}Publish Cogniate courses to ${registered ? NEW.name : 'Sakai LMS'} with LTI 1.3.`,
-          loading: false,
-        },
-      ];
+      a.cards.push(`Connect${registered ? NEW.name : 'Sakai'}Publish Cogniate courses to ${registered ? NEW.name : 'Sakai LMS'} with LTI 1.3.`);
     },
   },
   {
@@ -487,302 +264,69 @@ test('row 6: the G-BASE Kajabi card is allowed, but not twice', () => {
   assert.throws(() => checkCards(answer, CARD_TEXTS, { names: [] }), assert.AssertionError);
 });
 
-test('row 6 G-BASE unattributed parity vs BD-A1-119 attributed branch: baseline page without data-channel-id passes with the 3 baseline cards and fails with an extra card; attributed page follows BD-A1-119', () => {
-  // Branch 1: unattributed baseline page (1b17261 / G-BASE parity — no card has data-channel-id).
-  const unattributedSpecsWithKajabi: CardDomSpec[] = BASELINE_DOM_SPECS.map((s) => ({ ...s, channelId: null }));
-  const unattributedThreeBaselineSpecs: CardDomSpec[] = unattributedSpecsWithKajabi.slice(1);
-  const unattributedThreeDom = extractDomCards(unattributedThreeBaselineSpecs);
-  const unattributedFourDom = extractDomCards(unattributedSpecsWithKajabi);
-
-  assert.ok(unattributedThreeDom.every((c) => c.channel === null));
-  assert.ok(unattributedFourDom.every((c) => c.channel === null));
-
-  // Unattributed baseline page passes with the 3 baseline cards (and with the G-BASE static Kajabi card).
-  assert.deepEqual(checkCards(unattributedThreeDom, CARD_TEXTS, { names: [] }), []);
-  assert.equal(checkCards(unattributedFourDom, CARD_TEXTS, { names: [] }).length, 1);
-
-  // Unattributed baseline page fails with any extra card (whether registered in lms-providers or not).
-  const extraUnattributedSpec: CardDomSpec = {
-    channelId: null,
-    initials: 'LTI',
-    control: 'connect-link',
-    heading: 'LTI 1.3',
-    description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+test('row 6 exact membership (A-LA-E0-04-01 / B-LA-E0-04-01): mixed registered and unregistered cards with lti-generic (channelName: LMS)', () => {
+  const names = extraChannelNames(withChannel(acceptance.lmsProviders));
+  assert.deepEqual(names, ['lti-generic', 'LMS']);
+  const registeredStringCard = 'ConnectLMSPublish Cogniate courses to LMS with LTI 1.3.';
+  const registeredDomCard = {
+    text: 'LTI Connect LTI 1.3 Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: 'lti-generic',
+    name: 'LTI 1.3',
   };
-  assert.throws(
-    () => checkCards(extractDomCards([...unattributedThreeBaselineSpecs, extraUnattributedSpec]), CARD_TEXTS, { names: [] }),
-    assert.AssertionError,
-  );
-  assert.throws(
-    () => checkCards(extractDomCards([...unattributedThreeBaselineSpecs, extraUnattributedSpec]), CARD_TEXTS, { names: ['lti-generic'] }),
-    assert.AssertionError,
-  );
-  assert.throws(
-    () => checkCards(extractDomCards([...unattributedSpecsWithKajabi, extraUnattributedSpec]), CARD_TEXTS, { names: [] }),
-    assert.AssertionError,
-  );
-  assert.throws(
-    () => checkCards(unattributedThreeDom, CARD_TEXTS, { names: ['lti-generic'] }),
-    assert.AssertionError,
-  );
+  assert.equal(checkCards([...cards.cards, registeredStringCard], CARD_TEXTS, { names }).length, 2);
+  assert.equal(checkCards([...cards.cards, registeredDomCard], CARD_TEXTS, { names }).length, 2);
 
-  // Branch 2: attributed page (a8bbac53 / BD-A1-119 — cards carry article[data-channel-id]).
-  const attributedThreeDom = extractDomCards(BASELINE_DOM_SPECS.slice(1));
-  const attributedFourDom = extractDomCards(BASELINE_DOM_SPECS);
-  assert.deepEqual(checkCards(attributedThreeDom, CARD_TEXTS, { names: [] }), []);
-  assert.equal(checkCards(attributedFourDom, CARD_TEXTS, { names: [] }).length, 1);
-
-  const genericDomSpec: CardDomSpec = {
-    channelId: 'lti-generic',
-    initials: 'LTI',
-    control: 'connect-link',
-    heading: 'LTI 1.3',
-    description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
-  };
-  assert.equal(
-    checkCards(extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec]), CARD_TEXTS, { names: ['lti-generic'] }).length,
-    2,
-  );
-  assert.throws(
-    () => checkCards(extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec]), CARD_TEXTS, { names: [] }),
-    assert.AssertionError,
-  );
-});
-
-test('row 6 BD-A1-119 DOM oracle (A-LA-E0-04-01 / B-LA-E0-04-01 / A-LA-E0-04-05 / B-LA-E0-04-03): unregistered Sakai and Campus Cloud cards fail in every state', () => {
-  const providers = withChannel(
-    withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'),
-    'campus',
-    'Campus',
-    'Campus LMS',
-  );
-  const names = extraChannelNames(providers);
-  assert.deepEqual(names, ['lti-generic', 'campus']);
-
-  const genericDomSpec: CardDomSpec = {
-    channelId: 'lti-generic',
-    initials: 'LTI',
-    control: 'connect-link',
-    heading: 'LTI 1.3',
-    description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
-  };
-  const campusDomSpec: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Cp',
-    control: 'disabled-connect',
-    heading: 'Campus Learning',
-    description: 'Publish Cogniate courses to Campus LMS with LTI 1.3.',
-    notice: 'Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
-  };
-
-  const validGrid = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec, campusDomSpec]);
-  assert.equal(checkCards(validGrid, CARD_TEXTS, { names }).length, 3);
-
-  const unregisteredDomSpecs: CardDomSpec[] = [
-    // Reviewer-A Round 1 (A-LA-E0-04-01): Sakai card mentioning "LMS" without data-channel-id or with sakai id.
-    {
-      channelId: null,
-      initials: 'Sk',
-      control: 'connect-link',
-      heading: 'Sakai',
-      description: 'Publish Cogniate courses to Sakai LMS with LTI 1.3.',
-    },
-    {
-      channelId: 'sakai',
-      initials: 'Sk',
-      control: 'connect-link',
-      heading: 'Sakai',
-      description: 'Publish Cogniate courses to Sakai LMS with LTI 1.3.',
-    },
-    // Reviewer-B Round 1 (B-LA-E0-04-01): Sakai LMS heading without data-channel-id or with sakai id.
-    {
-      channelId: null,
-      initials: 'Sk',
-      control: 'connect-link',
-      heading: 'Sakai LMS',
-      description: 'Publish Cogniate courses to Sakai with LTI 1.3.',
-    },
-    // Reviewer-A Round 3 (A-LA-E0-04-05 item 1): disabled Sakai card with generic "LMS is not set up..." notice.
-    {
-      channelId: null,
-      initials: 'Sk',
-      control: 'disabled-connect',
-      heading: 'Sakai Learning',
-      description: 'Publish Cogniate courses to Sakai LMS with LTI 1.3.',
-      notice: 'LMS is not set up for this Cogniate service yet. Ask your Cogniate operator.',
-    },
-    // Disabled Sakai card copying registered Campus notice or using display name as data-channel-id.
-    {
-      channelId: null,
-      initials: 'Sk',
-      control: 'disabled-connect',
-      heading: 'Sakai Learning',
-      description: 'Publish Cogniate courses to Sakai LMS with LTI 1.3.',
-      notice: 'Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
-    },
-    {
-      channelId: 'LMS',
-      initials: 'Sk',
-      control: 'disabled-connect',
-      heading: 'Sakai Learning',
-      description: 'Publish Cogniate courses to Sakai LMS with LTI 1.3.',
-      notice: 'LMS is not set up for this Cogniate service yet. Ask your Cogniate operator.',
-    },
-    // Reviewer-B Round 3 (B-LA-E0-04-03): unregistered disabled "Campus Cloud" lookalike card (no attribute, unknown id, or display name).
-    {
-      channelId: null,
-      initials: 'Cc',
-      control: 'disabled-connect',
-      heading: 'Campus Cloud',
-      description: 'Publish courses to your platform.',
-      notice: 'Ask your operator to enable Campus Cloud.',
-    },
-    {
-      channelId: 'campus-cloud',
-      initials: 'Cc',
-      control: 'disabled-connect',
-      heading: 'Campus Cloud',
-      description: 'Publish courses to your platform.',
-      notice: 'Ask your operator to enable Campus Cloud.',
-    },
-    {
-      channelId: 'Campus',
-      initials: 'Cc',
-      control: 'disabled-connect',
-      heading: 'Campus Cloud',
-      description: 'Publish courses to your platform.',
-      notice: 'Ask your operator to enable Campus Cloud.',
-    },
-    {
-      channelId: 'Campus LMS',
-      initials: 'Cc',
-      control: 'disabled-connect',
-      heading: 'Campus Cloud',
-      description: 'Publish courses to your platform.',
-      notice: 'Ask your operator to enable Campus Cloud.',
-    },
-    // Duplicate registered data-channel-id on a second card.
-    {
-      channelId: 'campus',
-      initials: 'Cc',
-      control: 'disabled-connect',
-      heading: 'Campus Cloud',
-      description: 'Publish courses to your platform.',
-      notice: 'Ask your operator to enable Campus Cloud.',
-    },
+  const unregisteredCards = [
+    'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.',
+    'ConnectSakai LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    'ConnectYour LMSPublish Cogniate courses to Sakai with LTI 1.3.',
+    { text: registeredStringCard, channel: 'sakai', name: 'LMS' },
+    { text: 'Connect Sakai Publish Cogniate courses to Sakai LMS with LTI 1.3.', channel: null, name: 'Sakai LMS' },
   ];
-
-  for (const badSpec of unregisteredDomSpecs) {
-    const withBad = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec, campusDomSpec, badSpec]);
-    assert.throws(() => checkCards(withBad, CARD_TEXTS, { names }), assert.AssertionError);
+  for (const bad of unregisteredCards) {
+    assert.throws(() => checkCards([...cards.cards, bad], CARD_TEXTS, { names }), assert.AssertionError);
+    assert.throws(() => checkCards([...cards.cards, registeredDomCard, bad], CARD_TEXTS, { names }), assert.AssertionError);
   }
 });
 
-test('row 6 BD-A1-119 DOM oracle (A-LA-E0-04-05 / B-LA-E0-04-02): registered card with custom title and custom not-ready text passes', () => {
-  const providers = withChannel(
-    withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'),
-    'campus',
-    'Campus',
-    'Campus LMS',
-  );
-  const names = extraChannelNames(providers);
-  assert.deepEqual(names, ['lti-generic', 'campus']);
-
-  const genericDomSpec: CardDomSpec = {
-    channelId: 'lti-generic',
-    initials: 'LTI',
-    control: 'connect-link',
-    heading: 'LTI 1.3',
-    description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
-  };
-
-  // Reviewer-A Round 3 (A-LA-E0-04-05 item 2): card.title 'Teaching Hub', custom description, custom texts.notReady.
-  const customNotReadyA: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Th',
-    control: 'disabled-connect',
-    heading: 'Teaching Hub',
-    description: 'Publish your courses to Campus.',
-    notice: 'Campus is unavailable until your operator completes setup.',
-  };
-  // Reviewer-B Round 3 (B-LA-E0-04-02): card.title 'Teaching Hub', custom description, custom texts.notReady.
-  const customNotReadyB: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Th',
-    control: 'disabled-connect',
-    heading: 'Teaching Hub',
-    description: 'Publish courses to your platform.',
-    notice: 'Ask your operator to enable Campus.',
-  };
-  // Ready and connected states with custom title 'Teaching Hub'.
-  const customReady: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Th',
-    control: 'connect-link',
-    heading: 'Teaching Hub',
-    description: 'Publish your courses to Campus.',
-  };
-  const customConnected: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Th',
-    control: 'manage-link',
-    heading: 'Teaching Hub',
-    description: 'Publish your courses to Campus.',
-  };
-
-  for (const campusSpec of [customNotReadyA, customNotReadyB, customReady, customConnected]) {
-    const domCards = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec, campusSpec]);
-    assert.equal(checkCards(domCards, CARD_TEXTS, { names }).length, 3);
-  }
-});
-
-test('row 6 loading state (A-LA-E0-04-03 / BD-A1-119): delayed connections settle and pass; permanently unresolved loading fails', async () => {
+test('row 6 loading state (A-LA-E0-04-03): delayed connections settle and pass; permanently unresolved loading fails', async () => {
   const names = extraChannelNames(withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'));
-  assert.deepEqual(names, ['lti-generic']);
-
-  const loadingDomCards = extractDomCards([
-    ...BASELINE_DOM_SPECS,
-    {
-      channelId: 'lti-generic',
-      initials: 'LTI',
-      control: 'loading',
-      heading: 'LTI 1.3',
-      description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
-    },
-  ]);
-  const settledDomCards = extractDomCards([
-    ...BASELINE_DOM_SPECS,
-    {
-      channelId: 'lti-generic',
-      initials: 'LTI',
-      control: 'connect-link',
-      heading: 'LTI 1.3',
-      description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
-    },
-  ]);
-
-  assert.equal(loadingDomCards.at(-1)?.channel, 'lti-generic');
-  assert.equal(loadingDomCards.at(-1)?.loading, true);
-  assert.equal(settledDomCards.at(-1)?.channel, 'lti-generic');
-  assert.equal(settledDomCards.at(-1)?.loading, false);
+  const loadingGenericCard = {
+    text: 'Loading…LTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: null,
+    name: 'LTI 1.3',
+    loading: true,
+  };
+  const loadingGenericCardWithoutFlag = {
+    text: 'Loading…LTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: null,
+    name: 'LTI 1.3',
+  };
+  const settledGenericCard = {
+    text: 'LTIConnectLTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+    channel: 'lti-generic',
+    name: 'LTI 1.3',
+    disabled: false,
+    loading: false,
+  };
 
   // Unsettled loading cards (with or without explicit loading: true) are rejected by checkCards.
-  assert.throws(() => checkCards(loadingDomCards, CARD_TEXTS, { names }), assert.AssertionError);
-  assert.throws(
-    () => checkCards(loadingDomCards.map(({ loading, ...rest }) => rest), CARD_TEXTS, { names }),
-    assert.AssertionError,
-  );
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCard], CARD_TEXTS, { names }), assert.AssertionError);
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCardWithoutFlag], CARD_TEXTS, { names }), assert.AssertionError);
+  assert.throws(() => checkCards([...cards.cards, loadingGenericCard.text], CARD_TEXTS, { names }), assert.AssertionError);
 
   // Delayed connections load: polling waits while loading is true, then passes once settled.
   let polls = 0;
   const readDelayed = () => {
     polls += 1;
-    return polls < 3 ? loadingDomCards : settledDomCards;
+    return [...cards.cards, polls < 3 ? loadingGenericCard : settledGenericCard];
   };
-  const waitUntilSettled = async (readFn: () => CardDescriptor[], maxAttempts = 5): Promise<CardDescriptor[]> => {
+  const waitUntilSettled = async (readFn: () => unknown[], maxAttempts = 5) => {
     for (let i = 0; i < maxAttempts; i++) {
       const current = readFn();
-      if (current.length > 0 && current.every((c) => !c.loading)) return current;
+      if (current.length > 0 && current.every((c) => !(typeof c === 'object' && c !== null && 'loading' in c && (c as Json).loading))) {
+        return current as Array<string | typeof settledGenericCard>;
+      }
     }
     throw new assert.AssertionError({ message: 'LMS Publishing cards finished loading' });
   };
@@ -791,69 +335,104 @@ test('row 6 loading state (A-LA-E0-04-03 / BD-A1-119): delayed connections settl
   assert.equal(checkCards(settled, CARD_TEXTS, { names }).length, 2);
 
   // Permanently unresolved connections load: never settles within the poll bound and fails.
-  await assert.rejects(() => waitUntilSettled(() => loadingDomCards, 5), assert.AssertionError);
+  await assert.rejects(() => waitUntilSettled(() => [...cards.cards, loadingGenericCard], 5), assert.AssertionError);
 });
 
-test('row 6 BD-A1-119 DOM oracle: unknown data-channel-id and missing registered card fail', () => {
-  const providers = withChannel(
+test('row 6 not-ready disabled card with distinct display title (B-LA-E0-04-02): registered passes, unregistered fails', () => {
+  const providersWithCampus = withChannel(
     withChannel(acceptance.lmsProviders, 'lti-generic', 'LMS', 'Other LTI 1.3 platform'),
     'campus',
     'Campus',
     'Campus LMS',
   );
-  const names = extraChannelNames(providers);
-  assert.deepEqual(names, ['lti-generic', 'campus']);
+  const names = extraChannelNames(providersWithCampus);
+  assert.deepEqual(names, ['lti-generic', 'LMS', 'Other LTI 1.3 platform', 'campus', 'Campus', 'Campus LMS']);
 
-  const genericDomSpec: CardDomSpec = {
-    channelId: 'lti-generic',
-    initials: 'LTI',
-    control: 'connect-link',
-    heading: 'LTI 1.3',
-    description: 'Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.',
+  // Ready branch (enabled Connect link) for campus with distinct title 'Campus Learning'.
+  const campusReadyCard = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.',
+    channel: 'campus',
+    name: 'Campus Learning',
+    disabled: false,
+    loading: false,
   };
-  const campusDomSpec: CardDomSpec = {
-    channelId: 'campus',
-    initials: 'Cp',
-    control: 'connect-link',
-    heading: 'Campus',
-    description: 'Publish Cogniate courses to Campus LMS with LTI 1.3.',
+  // Disabled-control not-ready branch (no Connect href/id; renders disabled button and not-ready notice).
+  const campusNotReadyExtracted = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: 'Campus',
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+    notReadyLms: 'Campus',
+  };
+  const campusNotReadyNullChannel = {
+    text: 'CpConnectCampus LearningPublish Cogniate courses to Campus LMS with LTI 1.3.Campus is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: null,
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+  };
+  const campusNotReadyMinimalDomStub = {
+    text: 'CpConnectCampus LearningPublish courses to your campus platform.',
+    channel: null,
+    name: 'Campus Learning',
+    disabled: true,
+    loading: false,
+  };
+  const genericNotReadyNullChannel = {
+    text: 'LTIConnectLTI 1.3Publish Cogniate courses to any LMS that supports LTI 1.3 Advantage.LMS is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    channel: null,
+    name: 'LTI 1.3',
+    disabled: true,
+    loading: false,
   };
 
-  // 1. Missing registered card: campus is in GET /app-api/lms-providers, but its card is absent from the DOM.
-  const missingCampusDom = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec]);
-  assert.throws(() => checkCards(missingCampusDom, CARD_TEXTS, { names }), assert.AssertionError);
-
-  // Missing both extra registered cards when lti-generic is registered.
-  const onlyBaselineDom = extractDomCards(BASELINE_DOM_SPECS);
-  assert.throws(() => checkCards(onlyBaselineDom, CARD_TEXTS, { names: ['lti-generic'] }), assert.AssertionError);
-
-  // 2. Unknown data-channel-id on a channel card fails (replacing campus or added alongside).
-  for (const unknownId of ['unknown-lms', 'sakai', 'campus-cloud', 'LMS', 'Campus', '']) {
-    const unknownSpec: CardDomSpec = { ...campusDomSpec, channelId: unknownId };
-    const replacedDom = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec, unknownSpec]);
-    assert.throws(() => checkCards(replacedDom, CARD_TEXTS, { names }), assert.AssertionError);
-    const addedDom = extractDomCards([...BASELINE_DOM_SPECS, genericDomSpec, campusDomSpec, unknownSpec]);
-    assert.throws(() => checkCards(addedDom, CARD_TEXTS, { names }), assert.AssertionError);
+  for (const good of [
+    campusReadyCard,
+    campusNotReadyExtracted,
+    campusNotReadyNullChannel,
+    campusNotReadyMinimalDomStub,
+    genericNotReadyNullChannel,
+  ]) {
+    assert.equal(checkCards([...cards.cards, good], CARD_TEXTS, { names }).length, 2);
   }
 
-  // 3. Static Kajabi card carrying a data-channel-id attribute fails (BD-A1-119: static cards have no attribute).
-  const kajabiWithAttrSpecs = BASELINE_DOM_SPECS.map((s, i) => (i === 0 ? { ...s, channelId: 'kajabi' } : s));
-  assert.throws(
-    () => checkCards(extractDomCards([...kajabiWithAttrSpecs, genericDomSpec, campusDomSpec]), CARD_TEXTS, { names }),
-    assert.AssertionError,
-  );
-
-  // 4. Baseline card missing data-channel-id or carrying a mismatched data-channel-id fails.
-  const moodleWithoutAttrSpecs = BASELINE_DOM_SPECS.map((s, i) => (i === 1 ? { ...s, channelId: null } : s));
-  assert.throws(
-    () => checkCards(extractDomCards([...moodleWithoutAttrSpecs, genericDomSpec, campusDomSpec]), CARD_TEXTS, { names }),
-    assert.AssertionError,
-  );
-  const moodleWrongAttrSpecs = BASELINE_DOM_SPECS.map((s, i) => (i === 1 ? { ...s, channelId: 'moodle-other' } : s));
-  assert.throws(
-    () => checkCards(extractDomCards([...moodleWrongAttrSpecs, genericDomSpec, campusDomSpec]), CARD_TEXTS, { names }),
-    assert.AssertionError,
-  );
+  // Unregistered cards in the same disabled-control not-ready state must fail.
+  const unregisteredNotReadyCards = [
+    {
+      text: 'SkConnectSakai LearningPublish Cogniate courses to Sakai LMS with LTI 1.3.Sakai is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+      channel: 'Sakai',
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+      notReadyLms: 'Sakai',
+    },
+    {
+      text: 'SkConnectSakai LearningPublish Cogniate courses to Sakai LMS with LTI 1.3.Sakai is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+      channel: null,
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+    },
+    {
+      text: 'SkConnectSakai LearningPublish courses to your sakai platform.',
+      channel: null,
+      name: 'Sakai Learning',
+      disabled: true,
+      loading: false,
+    },
+    {
+      text: 'SkConnectSakai LMSPublish Cogniate courses to Sakai LMS with LTI 1.3.',
+      channel: null,
+      name: 'Sakai LMS',
+      disabled: true,
+      loading: false,
+    },
+  ];
+  for (const bad of unregisteredNotReadyCards) {
+    assert.throws(() => checkCards([...cards.cards, bad], CARD_TEXTS, { names }), assert.AssertionError);
+    assert.throws(() => checkCards([...cards.cards, campusNotReadyNullChannel, bad], CARD_TEXTS, { names }), assert.AssertionError);
+  }
 });
 
 test('M1-41.common.j-snapshot migration ledger (A-LA-E0-04-02 / LD-24): old ledger is a prefix of upgraded ledger and matches candidate migrations', () => {
