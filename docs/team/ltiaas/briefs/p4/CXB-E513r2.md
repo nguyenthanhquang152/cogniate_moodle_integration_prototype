@@ -1,0 +1,12 @@
+# Review dispatch: Reviewer-B (Codex, same session), LA-E5-13 round 2
+
+Item 1: LA-E5-13 round 2, QA-3's fix round 1 of the two-tenant isolation suite (la-qa 0a9a2a2d + 894e9421; integration 6fa8586b). Diff: `git diff cdee5d83 HEAD -- tests/ltiaas/tasks-qa/LA-E5-13 docs/reviews/LA-E5-13/qa.md`. Findings to close: B-LA-E5-13-01 (MAJOR) and A-LA-E5-13-01 (MINOR), the `json.lms` envelope; B-LA-E5-13-02 (MAJOR), the before/after victim state. QA-3 reports K0 self-tests 6/6, including both reviewers' counterexamples as negatives. It also ran the SIM rerun on the new final product 4f10c5fd (integration 4064df6d, project qa3-la-e513-r2): 5/5 K1-SIM ACs, 5 channels, 7 fixtures, 100 cross-tenant calls including 26 Brightspace probes, 0 outbound calls, and 0 diffs in Library B's stored DTO fields. The raw evidence path is in qa.md Round 2.
+Rerun your round 1 probes against the new suite in a private `git clone --no-hardlinks`, host only. Add "## Round 2" to docs/reviews/LA-E5-13/reviewer-b.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
