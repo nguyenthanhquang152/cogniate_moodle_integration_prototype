@@ -1,8 +1,8 @@
 # QA Review — `LA-E7-09` (`R2-sim` Moodle-Shaped Standard Simulator Channel End-to-End & Wave-End Gate)
 
 Verdict: PASS
-Round: 3
-SHA: `b5f68c4b` / `f34b27dfe45599676b47f09fae85924ccfdbe5d5` (product `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`; Slot 6 `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`)
+Round: 4
+SHA: `a7bd110e9c6d504c69a6c0608cbdeef80feff942` (`a7bd110e`, product `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`; Slot 8 `f34b27dfe45599676b47f09fae85924ccfdbe5d5`; Slot 6 `195930c1b56c7b78bfaa7776cbeec6da40cf4f87`)
 
 - **Lane / Slot**: `QA-E2E` (`term_80640d06-310f-4eac-bc95-872fd936d43c`), Docker Slot 6 (`12:07Z–13:05Z`)
 - **Compose Project**: `COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r1` (`PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`)
@@ -185,6 +185,92 @@ Every ID from `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_pr
 | `B-LA-E7-09-02` | **MINOR** | **Fixed in `tests/e2e/ltiaas/run-slot8-moodle.mjs`**: Applied `PUBLIC_PORT ??= '9543'` and `STACK_SUBNET ??= '172.21.0.0/16'` before `createRunner(...)` so the slot defaults take effect when env overrides are omitted, and added `SLOT8_HELP` (`--help` / `-h`) naming `node tests/e2e/ltiaas/run-slot8-moodle.mjs`, the default port/subnet/project, `COURSE_FIXTURES_DIR`, and `--selftest` (`slot8-help.txt`). |
 | `A-LA-E7-09-03` / `B-LA-E7-09-03` | **MINOR** | **Fixed in `docs/reviews/LA-E7-09/qa.md` Round 2**: Added the complete 10-run table for all saved `tests/host/artifacts/qa-e2e-la-s8-*` folders (including `22-48-18-037Z` and `22-49-50-271Z`, and distinguishing `test.describe.serial` skips `S8-03..05` in `22-52-08-040Z` and `S8-05` in `22-58-50-994Z` from executed assertion failures), labeled `AC-LA-E3-05-04` as `MOODLE-LIVE picker part`, corrected the `S8-01` card order to `moodle, canvas, blackboard, lti-generic, brightspace`, and stated accurately that `S8-06` verified HTTP `200` on `PUT /web-services` and `7 sealed values` in `app:keys status`. |
 | `A-LA-E7-09-04` | **NIT** | **Fixed in `tests/e2e/ltiaas/05-moodle-live-slot8.moodle.ts`**: Added `expect(!modalVisibleAfterCancel \|\| returnFrameText.length > 0, 'AC-LA-E3-05-11: Moodle closes the dialog or shows a message').toBe(true)` at line 654 and tightened the Rule 1 fallback regex at line 332 from `/Do not add a path\.\|No path\.\|origin/i` to `/Do not add a path\.\|No path\./i`. |
+
+---
+
+## Round 4 — Slot 8b `MOODLE-LIVE` Full Rerun with Repaired In-Run Secret Scan (`M3-07-S8`) on `a7bd110e` / Product `8fadb828` (`2026-10-24T01:35:33Z`)
+
+- **Verdict**: **PASS** (`16/16` runner IDs **PASS** in `summary.json`, including `M3-07-S8: PASS` with `58` secrets scanned across `43` files and `0` hits; exit code `0`; zero `--replace-tests` overrides)
+- **UTC Timestamp (`date -u`)**: `2026-10-24T01:35:33Z`
+- **Integration SHA**: `a7bd110e9c6d504c69a6c0608cbdeef80feff942` (`a7bd110e`)
+- **Product Code SHA (`WAVE-END`)**: `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`8fadb828`)
+- **Lane / Slot**: `QA-E2E` (`term_80640d06-310f-4eac-bc95-872fd936d43c`), Wave-End Docker Slot 8b (`2026-10-24T01:28:48Z`–`2026-10-24T01:35:09Z`)
+- **Compose Project**: `COMPOSE_PROJECT_NAME=qa-e2e-la-s8b-r1` (`PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`)
+- **Run ID**: `qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z`
+- **Fresh Clone (`git clone --no-hardlinks`, no `--replace-tests`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/clone-s8b-r1`
+- **Artifacts**: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/host/artifacts/qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z`
+- **Boundary & Watcher Dir (`umask 077`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/boundary/`
+
+### 1. Command Executed
+
+```sh
+umask 077
+COMPOSE_PROJECT_NAME=qa-e2e-la-s8b-r1 \
+PUBLIC_PORT=9543 \
+STACK_SUBNET=172.21.0.0/16 \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures \
+node tests/e2e/ltiaas/run-slot8-moodle.mjs \
+  --sha a7bd110e9c6d504c69a6c0608cbdeef80feff942 \
+  --source /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone \
+  --workdir /Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/clone-s8b-r1
+```
+
+### 2. Exact Runner Result Accounting (`summary.json` of `qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z`)
+
+Every ID from `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/host/artifacts/qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z/summary.json` (`16/16 PASS`, zero omitted rows):
+
+| Runner ID | Status | Duration | Notes / Evidence from `summary.json` |
+|---|---|---|---|
+| `PRE` | **PASS** | — | `node 24.21.0, docker 29.9.1, compose 5.6.0`; `project qa-e2e-la-s8b-r1, PUBLIC_PORT 9543, STACK_SUBNET 172.21.0.0/16`; `other containers on this Docker host: 0 (not touched by QA)` |
+| `CLONE` | **PASS** | — | `HEAD a7bd110e9c6d504c69a6c0608cbdeef80feff942 A1 build64: BD-A1-116 (WE-F10: frozen T5b AC-T5-36 test race on both SHAs; no product fix)`; `clone /Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/clone-s8b-r1` (committed test files only; no `--replace-tests`) |
+| `FIXTURES` | **PASS** | — | `Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip: copied (a685744e5fd9…)`; `Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-html.zip: copied (9f04d3abd65f…)` |
+| `SETUP` | **PASS** | — | `npm ci 0, gen-env 0, e2e:reset 0` (`cmd/03-root-npm-ci.log`, `cmd/04-gen-env.log`, `cmd/06-e2e-reset.log`) |
+| `H1` | **PASS** | — | `services: cogniate-app, lti-service, moodle, postgres, proxy` under `qa-e2e-la-s8b-r1` |
+| `S8-01` | **PASS** | `1.69 s` | `[LA-E7-09 / AC-LA-E7-09-03 / AC-LA-E7-09-04] K2.MOODLE.U1-cards: default profile /healthz is clean and Integrations hub renders all 5 channels in manifest card.order` (`cmd/07-playwright-pass1.log`, `evidence-s8-01-health-start.json`) |
+| `S8-02` | **PASS** | `3.77 s` | `[LA-E7-09 / AC-LA-E7-09-04 / LA-E3-07 AC-03] K2.MOODLE.U2-wizards: Step 1 createFields + Rule 1, Step 2 artifacts + 16 Moodle tool rows (row 13 "Do not use this service"), Step 3 bindingFields + defaults + adminSteps across all 5 channels on default profile` (`cmd/07-playwright-pass1.log`) |
+| `S8-03` | **PASS** | `7.64 s` | `[LA-E7-09 / LA-E2-02 AC-08 / LA-E3-07 AC-03 / LA-E5-22 AC-06] K2.MOODLE.connect-and-publish: live Moodle 5.2.4 Dynamic Registration, Web Services token sealing, course shell creation, and HTML + SCORM 1.2 publish` (`cmd/07-playwright-pass1.log`) |
+| `S8-04` | **PASS** | `17.05 s` | `[LA-E3-05 AC-LA-E3-05-04 & AC-LA-E3-05-11] Moodle 5.2.4 Deep Linking picker: sends accept_multiple: true yet renders single-select radios; Cancel posts content_items: [] ("No course was added."), closes modal without creating an activity, and consumes the session; picking adds SCORM & HTML activities` (`cmd/07-playwright-pass1.log`, `evidence-s8-04-moodle-picker-cancel.json`) |
+| `S8-05` | **PASS** | `39.57 s` | `[LA-E4-03 AC-LA-E4-03-09] Browser grade delivery on live Moodle 5.2.4: cg_student completes SCORM 1.2 and HTML activities (100.00 in Moodle gradebook & grader report, Sent in portal results)` (`cmd/07-playwright-pass1.log`, `evidence-s8-05-grader-report-101.json`) |
+| `S8-U1-PREP` | **PASS** | — | `{"ok":true,"beforeHeaders":{"ws_token_encrypted":"cgk1","ref_token_encrypted":"cgk1","service_key_encrypted":"cgk1","ltik_encrypted":"cgk1"},"afterWsHeader":"QAS8","legacyBlobLength":60}` (`cmd/08-stage-legacy-u1-ws-token.log`) |
+| `S8-U2-RESTART` | **PASS** | — | `lti-service restart exit 0 (health ok=true); cogniate-app restart exit 0 (health ok=true)` (`cmd/09-restart-lti-service.log`, `cmd/10-restart-cogniate-app.log`) |
+| `S8-06` | **PASS** | `29.96 s` | `[LA-E7-09 MOODLE U1/U2 continuity & LA-E5-22 AC-LA-E5-22-06 / A-LAB-09 & AC-LA-E7-09-03] After lti-service + cogniate-app restart and legacy ws_token_encrypted U1 fixture: Moodle course shell creation succeeds, pre-restart open picker session unseals, new Deep Linking pick in COGNIATE-DEV-102 succeeds, cg_student2 launch + score sync on pre-restart activity reaches 100.00, and /healthz is default/no-knobs` (`cmd/11-playwright-pass2.log`, `evidence-s8-06-health-end.json`) |
+| `S8-KEYS-STATUS` | **PASS** | — | `Key provider: local-keyring Active version: legacy Version legacy (active): 7 sealed values` (`cmd/12-app-keys-status.log`) |
+| `M3-07-S8` | **PASS** | — | `scanned 58 secrets across 43 files, hits: 0` (`slot8-secret-scan.json`: `{"ok":true,"secretCount":58,"scannedFileCount":43,"hitCount":0,"hits":[]}`) |
+| `TEARDOWN` | **PASS** | — | `npm run stack:down exit 0`; `left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks`; `other projects' containers that stopped or restarted: none (information)` |
+
+### 3. In-Run Secret Scan Result (`slot8-secret-scan.json`)
+
+- **File**: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/host/artifacts/qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z/slot8-secret-scan.json`
+- **Result**: `{"ok": true, "secretCount": 58, "scannedFileCount": 43, "hitCount": 0, "hits": []}`
+- **Scope**: `58` secrets loaded into `Redactor` (from `.env`, `infra/.secrets` including `seed.json` leaves, `tests/e2e/artifacts/captured-secrets.jsonl`, `tests/acceptance/artifacts/m1-secrets.raw.jsonl` including the Dynamic Registration `ref` and WS token, and `tests/acceptance/artifacts/captured-secrets.txt`) and scanned across all `43` files (`infra/.logs/*.jsonl`, `docker-logs/*.log`, `service-logs/*.jsonl`, `cmd/*.log`, `evidence/*.json`, and Playwright reports) with `0` hits. In `docker-logs/moodle-939bf8c5.log`, the Dynamic Registration `ref` parameter was automatically redacted to `<redacted:43>` prior to scanning.
+
+### 4. Hashes of Committed Test Files That Ran in `clone-s8b-r1` (`a7bd110e`)
+
+Recorded in `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/boundary/test-files-sha256.txt` and `test-files-git-blobs.txt`:
+
+| File (in `clone-s8b-r1` at `a7bd110e9c6d504c69a6c0608cbdeef80feff942`) | Git Blob SHA-1 | SHA-256 |
+|---|---|---|
+| `tests/e2e/ltiaas/05-moodle-live-slot8.moodle.ts` | `44ed7e2343139152826a1a6bc63e467d3c33480e` | `349f612ff0c001653fe16ce366d46bf6bcddc8df793f8cc972b30125c1e87859` |
+| `tests/e2e/ltiaas/playwright.moodle-live.config.ts` | `a549ddf7c531f0318a8995dd689d5ed76c6b9844` | `afab106e6b462a098f3497c4e919e17eaf34bb202489892fe6f53d6f37375950` |
+| `tests/e2e/ltiaas/run-slot8-moodle.mjs` | `105710600d0c070314632fc8963e31dea9a5914a` | `715410e6e627679a6d3b2c7172f5205aab348b0bf40604bc68ade81884b85601` |
+| `tests/e2e/ltiaas/lib/k2.ts` | `568035a1a7252689009c96cf8a7287e98fe49b5a` | `4204c2de964977bdc2d6a2145c8f63c5d213ea5cb53d4a10795bc811cb10df54` |
+| `tests/e2e/ltiaas/r2-moodle-sim.r2sim.ts` | `3ff4f3d10b4f2881e49dbe8a6b6440d22ab2e5c2` | `367a87af70606242e81c977413ffe20e027b96e8a3867c749edb7fdf09cea8fb` |
+
+### 5. Slot 8b Docker Boundary, 32 Protected Volumes & Watcher Records (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8B-QA-E2E/boundary/`)
+
+- **Before-slot timestamp**: `2026-10-24T01:28:48Z` (`before-timestamp.txt`)
+- **After-slot timestamp**: `2026-10-24T01:35:09Z` (`after-timestamp.txt`)
+- **Owned-only cleanup**:
+  - `qa-e2e-la-s8b-*` containers remaining: `0` (`after-owned-containers.txt`)
+  - `qa-e2e-la-s8b-*` volumes remaining: `0` (`after-owned-volumes.txt`)
+  - `qa-e2e-la-s8b-*` networks remaining: `0` (`after-owned-networks.txt`)
+- **32 Protected Baseline Volumes (`docker volume inspect`)**:
+  - `before-32-baseline-volumes-inspect.json` vs `after-32-baseline-volumes-inspect.json`: **`0` diff lines** (`baseline-32-volumes-inspect.diff` is `0` bytes; all 32 baseline volumes untouched).
+- **Non-`sto-*` Containers**:
+  - `before-non-sto-containers.txt` vs `after-non-sto-containers.txt`: **`0` diff lines** (`non-sto-containers.diff` is `0` bytes). Ephemeral `sto-proj-c45deec31cab` present at `01:28:48Z` was listed apart (`before-sto-containers.txt`) and never touched.
+- **Continuous Watchers**:
+  - `docker-events-watch.log` (`docker events --since 2026-10-24T01:28:48Z`) and `host-ps-watcher.log` (5-second `ps` snapshots) ran continuously from before clone/stack start through teardown and were stopped cleanly at `2026-10-24T01:35:09Z`.
+
 
 
 
