@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # LA-E8-01 — Reviewer-A
 
@@ -87,3 +87,12 @@ Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed Docs `4b5fc743` and `270
 - **A-LA-E8-01-05 closed:** checked ids now suppress only unknown-family `CHECK` lines. Eight executions of the exact filter with fake API data pass, including a checked id that later signs the matching family, case variants, inactive rows, unrelated families and a completed move. The prior filter still misses the newly known affected row.
 - Step 9 correctly describes the 17 capability fields, optional `coveredBy` evidence, automatic fixture discovery/default selection and source audit. With a sixth fake fixture in `/tmp`, the committed helpers discover/select all six, audit all six, and generate the new fixture's expected cases. The K0 canary uses dynamic counts; QA Round 4 §4.2 records the cited 16/16 full host result, and those kit files are unchanged between `86a50df8` and `a400c78e`. Removing that pending-canary note is supported. The full K0 suite was not rerun here.
 - The kit K1-SIM labels, scratch-branch AC-02 run and migration SIM verification remain pending. Only the guide's changed text was reviewed; no product behavior or new core LMS name is added. Evidence: `/tmp/la-reviewer-a-ctx-65622814dac7-probes/` (`migration-filter.js`, `migration-results.json`, `kit-discovery.json`, `command-path-results.json`, fake fixtures/runner). Only local fake data was executed; no Docker, stack, package install, commit or Reviewer-B file was used. Only this review file changed in integration.
+
+
+## Round 4
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed Docs `2960639e` (merge `e8aacf54`) and the corresponding README command correction in `29fcb01d`. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. A-LA-E8-01-06 is closed; earlier findings remain closed.**
+
+- Step 10.2 now explicitly runs `npm --prefix tests run acceptance:api` from `/repo`, or `node acceptance/run-api.mjs` after entering `/repo/tests`. Both resolve the runner's executable and config relative to `tests/`. This fixes the same command defect identified as B-LA-E8-01-05; no Reviewer-B file was opened.
+- Repeated the fake-runner probe with commands extracted from the pinned guide, the unchanged real runner and package script, and a local fake Vitest executable. Both corrected forms exit 0, find the config and preserve `LA_RUN_DIR`, `QA_KIT_CHANNELS` and `QA_TASK`. The old root command still fails (exit 2, missing config). The kit README §3 now gives the same working-directory rule and corrected commands.
+- No new defect in the changed text. The guide still marks the actual K1-SIM and scratch-branch checks pending; a path probe is not a SIM pass. Only the permitted guide changes in the Docs merge, with no product or core LMS-name change. Evidence: `/tmp/la-reviewer-a-ctx-bcbd1967b810-probes/command-path-results.json` and its fake runner tree. No real test suite, Docker, stack, network request, package install or commit ran. Only this review file changed in integration.
