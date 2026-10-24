@@ -1,37 +1,36 @@
 {
-  "goldenVersion": 2,
+  "goldenVersion": 1,
   "productSha": "1b17261be97c4701b928fa9dc2fa74c6d23028f6",
-  "label": "g-base-v2-1",
-  "project": "qalead-la-110",
-  "capturedAt": "2026-10-24T15:47:22.966Z",
-  "captureSeconds": 62,
-  "totalSeconds": 126,
+  "label": "r7",
+  "project": "qa-la-sim-r7",
+  "capturedAt": "2026-10-22T07:07:13.828Z",
+  "captureSeconds": 45,
+  "totalSeconds": 92,
   "normalization": {
     "G1": {
-      "ids": 17,
+      "ids": 13,
       "secrets": 2,
       "dropped": {}
     },
     "G2": {
-      "ids": 70,
-      "secrets": 6,
+      "ids": 47,
+      "secrets": 4,
       "dropped": {
-        "nonce": 6,
-        "timestamp": 33
+        "nonce": 4,
+        "timestamp": 22
       }
     },
     "G3": {
-      "ids": 162,
+      "ids": 111,
       "secrets": 0,
       "dropped": {}
     },
     "G4": {
-      "ids": 20,
+      "ids": 14,
       "secrets": 0,
       "dropped": {}
     }
   },
-  "secretValuesChecked": 184,
-  "secretHits": 0,
-  "baseline3Sha": "78971b0300ab171029e8ce94dbba30db37b23dea"
+  "secretValuesChecked": 128,
+  "secretHits": 0
 }

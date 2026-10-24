@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Golden capture runner (LA-E0-03; TEST-STRATEGY §4.6). One fresh clone and stack per capture (QA SIM lane):
-//   COMPOSE_PROJECT_NAME=qa-la-sim-r<N> PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \
+//   COMPOSE_PROJECT_NAME=qa-la-sim-r<N> PUBLIC_PORT=9643 STACK_SUBNET=172.22.0.0/16 \
 //   node tests/ltiaas/golden/run-golden.mjs --sha <product sha> --label <name> --out <folder> \
 //        [--workdir <clone folder>] [--replace-tests --tests-from <tests folder>]
+// Re-gate baseline (Golden v2, LA-H27 / LD-29): tests/ltiaas/golden/78971b0300ab171029e8ce94dbba30db37b23dea/
+// Original G-BASE v1 record (AC-LA-E0-03-01): tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/
 // Steps: preflight, clone (core.mjs) → npm ci, gen-env, stack:up (default profile), seed → G1 `default` answers →
 // stack:up (acceptance) → the capture script in the e2e container (M1 host control for the operator CLI) → copy the
 // normalized G1–G4 to --out after a secret scan → label-scoped teardown (core.mjs).

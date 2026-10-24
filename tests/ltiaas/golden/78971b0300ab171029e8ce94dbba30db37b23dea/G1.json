@@ -1,0 +1,1533 @@
+{
+  "acceptance": {
+    "appHealth": {
+      "knobs": [],
+      "outbound_allowlist": [
+        "lti.cogniate.test",
+        "moodle.test",
+        "qa-platform.test",
+        "evil.test",
+        "lti-gate.test"
+      ],
+      "profile": "acceptance",
+      "service": "cogniate-app",
+      "status": "ok"
+    },
+    "lmsProviders": {
+      "lms": [
+        {
+          "capabilities": {
+            "addDeployment": false,
+            "canvasConfiguration": false,
+            "courseShell": true,
+            "dynamicRegistration": true,
+            "operatorApproval": false,
+            "webServices": true
+          },
+          "label": "Moodle",
+          "lms": "moodle",
+          "methods": [
+            "dynamic",
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "standard",
+              "label": "Moodle site",
+              "ready": true,
+              "simulation": false
+            }
+          ]
+        },
+        {
+          "capabilities": {
+            "addDeployment": true,
+            "canvasConfiguration": true,
+            "courseShell": false,
+            "dynamicRegistration": false,
+            "operatorApproval": true,
+            "webServices": false
+          },
+          "label": "Canvas",
+          "lms": "canvas",
+          "methods": [
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "canvas-cloud-production",
+              "label": "Instructure-hosted Canvas (production)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-cloud-beta",
+              "label": "Instructure-hosted Canvas (beta)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-cloud-test",
+              "label": "Instructure-hosted Canvas (test)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-self-hosted",
+              "label": "Self-hosted Canvas",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-sim-cloud",
+              "label": "Canvas cloud (simulation)",
+              "ready": true,
+              "simulation": true
+            }
+          ]
+        },
+        {
+          "capabilities": {
+            "addDeployment": false,
+            "canvasConfiguration": false,
+            "courseShell": false,
+            "dynamicRegistration": false,
+            "operatorApproval": true,
+            "webServices": false
+          },
+          "label": "Blackboard Learn",
+          "lms": "blackboard",
+          "methods": [
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "blackboard",
+              "label": "Blackboard Learn",
+              "ready": false,
+              "simulation": false
+            },
+            {
+              "clientId": "qa-bb-app",
+              "id": "blackboard-sim",
+              "label": "Blackboard Learn (simulation)",
+              "ready": true,
+              "simulation": true
+            }
+          ]
+        }
+      ]
+    },
+    "ltiHealth": {
+      "knobs": [],
+      "outbound_allowlist": [
+        "moodle.test",
+        "qa-platform.test",
+        "evil.test",
+        "developer.blackboard.sim.test",
+        "learn-a.blackboard.sim.test",
+        "learn-b.blackboard.sim.test",
+        "sso.canvas.sim.test",
+        "school-a.canvas.sim.test",
+        "school-b.canvas.sim.test",
+        "canvas-self.sim.test",
+        "api.canvas-self.sim.test"
+      ],
+      "profile": "acceptance",
+      "service": "lti-service",
+      "simulation_profiles": [
+        "blackboard-sim",
+        "canvas-sim-cloud"
+      ],
+      "status": "ok"
+    },
+    "providers": {
+      "profiles": [
+        {
+          "accesstokenEndpoint": null,
+          "authenticationEndpoint": null,
+          "id": "standard",
+          "issuer": null,
+          "jwksUrl": null,
+          "label": "Standard LTI 1.3 platform",
+          "lms": null,
+          "serviceUrl": false,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": null
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-production",
+          "issuer": "https://canvas.instructure.com",
+          "jwksUrl": "https://sso.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (production)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.beta.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-beta",
+          "issuer": "https://canvas.beta.instructure.com",
+          "jwksUrl": "https://sso.beta.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (beta)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.test.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-test",
+          "issuer": "https://canvas.test.instructure.com",
+          "jwksUrl": "https://sso.test.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (test)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "{siteUrl}/api/lti/authorize_redirect",
+          "id": "canvas-self-hosted",
+          "issuer": "{siteUrl}",
+          "jwksUrl": "{siteUrl}/api/lti/security/jwks",
+          "label": "Self-hosted Canvas",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken",
+          "authenticationEndpoint": "https://developer.blackboard.com/api/v1/gateway/oidcauth",
+          "id": "blackboard",
+          "issuer": "https://blackboard.com",
+          "jwksUrl": "https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json",
+          "label": "Blackboard Learn",
+          "lms": "blackboard",
+          "serviceUrl": false,
+          "sharedPlatform": null,
+          "sharing": "shared",
+          "simulation": false,
+          "siteUrlOn": "deployment"
+        },
+        {
+          "accesstokenEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken",
+          "authenticationEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+          "id": "blackboard-sim",
+          "issuer": "https://blackboard.sim.test",
+          "jwksUrl": "https://developer.blackboard.sim.test/api/v1/management/applications/{clientId}/jwks.json",
+          "label": "Blackboard Learn (simulation)",
+          "lms": "blackboard",
+          "serviceUrl": false,
+          "sharedPlatform": {
+            "active": true,
+            "clientId": "qa-bb-app",
+            "id": "<id:1>"
+          },
+          "sharing": "shared",
+          "simulation": true,
+          "siteUrlOn": "deployment"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+          "id": "canvas-sim-cloud",
+          "issuer": "https://canvas.sim.test",
+          "jwksUrl": "https://sso.canvas.sim.test/api/lti/security/jwks",
+          "label": "Canvas cloud (simulation)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": true,
+          "siteUrlOn": "platform"
+        }
+      ]
+    }
+  },
+  "canvasConfiguration": {
+    "jwk=inline": {
+      "custom_fields": {},
+      "description": "Cogniate courses (SCORM 1.2 and HTML) with grade return.",
+      "extensions": [
+        {
+          "domain": "lti.cogniate.test:9643",
+          "platform": "canvas.instructure.com",
+          "privacy_level": "anonymous",
+          "settings": {
+            "placements": [
+              {
+                "message_type": "LtiDeepLinkingRequest",
+                "placement": "assignment_selection",
+                "target_link_uri": "https://lti.cogniate.test:9643/lti/launch/cogniate",
+                "text": "Cogniate"
+              }
+            ],
+            "text": "Cogniate"
+          },
+          "tool_id": "cogniate"
+        }
+      ],
+      "oidc_initiation_url": "https://lti.cogniate.test:9643/lti/login/cogniate",
+      "public_jwk": {
+        "alg": "RS256",
+        "e": "<public-key:4>",
+        "kid": "<id:2>",
+        "kty": "RSA",
+        "n": "<public-key:342>",
+        "use": "sig"
+      },
+      "scopes": [
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+        "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+      ],
+      "target_link_uri": "https://lti.cogniate.test:9643/lti/launch/cogniate",
+      "title": "Cogniate (Thanh's Library)"
+    },
+    "jwk=url": {
+      "custom_fields": {},
+      "description": "Cogniate courses (SCORM 1.2 and HTML) with grade return.",
+      "extensions": [
+        {
+          "domain": "lti.cogniate.test:9643",
+          "platform": "canvas.instructure.com",
+          "privacy_level": "anonymous",
+          "settings": {
+            "placements": [
+              {
+                "message_type": "LtiDeepLinkingRequest",
+                "placement": "assignment_selection",
+                "target_link_uri": "https://lti.cogniate.test:9643/lti/launch/cogniate",
+                "text": "Cogniate"
+              }
+            ],
+            "text": "Cogniate"
+          },
+          "tool_id": "cogniate"
+        }
+      ],
+      "oidc_initiation_url": "https://lti.cogniate.test:9643/lti/login/cogniate",
+      "public_jwk_url": "https://lti.cogniate.test:9643/lti/keys/cogniate",
+      "scopes": [
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+        "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+        "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+      ],
+      "target_link_uri": "https://lti.cogniate.test:9643/lti/launch/cogniate",
+      "title": "Cogniate (Thanh's Library)"
+    }
+  },
+  "connectionList": {
+    "connections": [
+      {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": true,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "createdAt": "<t>",
+        "id": "<id:3>",
+        "lastError": null,
+        "lastLaunchAt": "<t>",
+        "lms": "canvas",
+        "method": "manual",
+        "name": "Golden Canvas",
+        "platform": {
+          "clientId": "10000000000042",
+          "deploymentIds": [
+            "7:<id:4>"
+          ],
+          "id": "<id:5>",
+          "issuer": "https://canvas.sim.test",
+          "productFamilyCode": null,
+          "serviceUrl": "https://school-a.canvas.sim.test",
+          "siteUrl": "https://school-a.canvas.sim.test"
+        },
+        "profile": "canvas-sim-cloud",
+        "registrationUrl": null,
+        "registrationUrlExpiresAt": null,
+        "serviceUrl": "https://school-a.canvas.sim.test",
+        "siteUrl": "https://school-a.canvas.sim.test",
+        "status": "connected",
+        "webServices": null
+      },
+      {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": true,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "createdAt": "<t>",
+        "id": "<id:6>",
+        "lastError": null,
+        "lastLaunchAt": null,
+        "lms": "canvas",
+        "method": "manual",
+        "name": "Golden Canvas pending",
+        "platform": null,
+        "profile": "canvas-sim-cloud",
+        "registrationUrl": null,
+        "registrationUrlExpiresAt": null,
+        "serviceUrl": "https://school-b.canvas.sim.test",
+        "siteUrl": "https://school-b.canvas.sim.test",
+        "status": "pending",
+        "webServices": null
+      },
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "createdAt": "<t>",
+        "id": "<id:7>",
+        "lastError": null,
+        "lastLaunchAt": "<t>",
+        "lms": "blackboard",
+        "method": "manual",
+        "name": "Golden Blackboard",
+        "platform": {
+          "clientId": "qa-bb-app",
+          "deploymentIds": [
+            "golden-bb-1"
+          ],
+          "id": "<id:1>",
+          "issuer": "https://blackboard.sim.test",
+          "productFamilyCode": null,
+          "serviceUrl": "https://learn-a.blackboard.sim.test",
+          "siteUrl": "https://learn-a.blackboard.sim.test"
+        },
+        "profile": "blackboard-sim",
+        "registrationUrl": null,
+        "registrationUrlExpiresAt": null,
+        "serviceUrl": "https://learn-a.blackboard.sim.test",
+        "siteUrl": "https://learn-a.blackboard.sim.test",
+        "status": "connected",
+        "webServices": null
+      },
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "createdAt": "<t>",
+        "id": "<id:8>",
+        "lastError": null,
+        "lastLaunchAt": null,
+        "lms": "blackboard",
+        "method": "manual",
+        "name": "Golden Blackboard pending",
+        "platform": null,
+        "profile": "blackboard-sim",
+        "registrationUrl": null,
+        "registrationUrlExpiresAt": null,
+        "serviceUrl": "https://learn-b.blackboard.sim.test",
+        "siteUrl": "https://learn-b.blackboard.sim.test",
+        "status": "pending",
+        "webServices": null
+      },
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": true,
+          "dynamicRegistration": true,
+          "operatorApproval": false,
+          "webServices": true
+        },
+        "createdAt": "<t>",
+        "id": "<id:9>",
+        "lastError": null,
+        "lastLaunchAt": null,
+        "lms": "moodle",
+        "method": "manual",
+        "name": "Golden Moodle manual",
+        "platform": null,
+        "profile": "standard",
+        "registrationUrl": null,
+        "registrationUrlExpiresAt": null,
+        "serviceUrl": "https://moodle.test:9643",
+        "siteUrl": "https://moodle.test:9643",
+        "status": "pending",
+        "webServices": null
+      },
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": true,
+          "dynamicRegistration": true,
+          "operatorApproval": false,
+          "webServices": true
+        },
+        "createdAt": "<t>",
+        "id": "<id:10>",
+        "lastError": null,
+        "lastLaunchAt": null,
+        "lms": "moodle",
+        "method": "dynamic",
+        "name": "Golden Moodle dynamic",
+        "platform": null,
+        "profile": "standard",
+        "registrationUrl": "https://lti.cogniate.test:9643/lti/register/cogniate?ref=<redacted:43>",
+        "registrationUrlExpiresAt": "<t>",
+        "serviceUrl": "https://moodle.test:9643",
+        "siteUrl": "https://moodle.test:9643",
+        "status": "pending",
+        "webServices": null
+      }
+    ]
+  },
+  "connections": {
+    "blackboard-connected": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:7>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "blackboard",
+      "method": "manual",
+      "name": "Golden Blackboard",
+      "platform": {
+        "clientId": "qa-bb-app",
+        "deploymentIds": [
+          "golden-bb-1"
+        ],
+        "id": "<id:1>",
+        "issuer": "https://blackboard.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://learn-a.blackboard.sim.test",
+        "siteUrl": "https://learn-a.blackboard.sim.test"
+      },
+      "profile": "blackboard-sim",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://learn-a.blackboard.sim.test",
+      "siteUrl": "https://learn-a.blackboard.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "blackboard-disabled": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:11>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "blackboard",
+      "method": "manual",
+      "name": "Golden Blackboard disabled",
+      "platform": {
+        "clientId": "qa-bb-app",
+        "deploymentIds": [
+          "golden-bb-2"
+        ],
+        "id": "<id:1>",
+        "issuer": "https://blackboard.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://learn-b.blackboard.sim.test",
+        "siteUrl": "https://learn-b.blackboard.sim.test"
+      },
+      "profile": "blackboard-sim",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://learn-b.blackboard.sim.test",
+      "siteUrl": "https://learn-b.blackboard.sim.test",
+      "status": "disabled",
+      "webServices": null
+    },
+    "blackboard-pending": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:8>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "blackboard",
+      "method": "manual",
+      "name": "Golden Blackboard pending",
+      "platform": null,
+      "profile": "blackboard-sim",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://learn-b.blackboard.sim.test",
+      "siteUrl": "https://learn-b.blackboard.sim.test",
+      "status": "pending",
+      "webServices": null
+    },
+    "blackboard-registered": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:7>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "blackboard",
+      "method": "manual",
+      "name": "Golden Blackboard",
+      "platform": {
+        "clientId": "qa-bb-app",
+        "deploymentIds": [
+          "golden-bb-1"
+        ],
+        "id": "<id:1>",
+        "issuer": "https://blackboard.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://learn-a.blackboard.sim.test",
+        "siteUrl": "https://learn-a.blackboard.sim.test"
+      },
+      "profile": "blackboard-sim",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://learn-a.blackboard.sim.test",
+      "siteUrl": "https://learn-a.blackboard.sim.test",
+      "status": "registered",
+      "webServices": null
+    },
+    "canvas-connected": {
+      "capabilities": {
+        "addDeployment": true,
+        "canvasConfiguration": true,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:3>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "canvas",
+      "method": "manual",
+      "name": "Golden Canvas",
+      "platform": {
+        "clientId": "10000000000042",
+        "deploymentIds": [
+          "7:<id:4>"
+        ],
+        "id": "<id:5>",
+        "issuer": "https://canvas.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://school-a.canvas.sim.test",
+        "siteUrl": "https://school-a.canvas.sim.test"
+      },
+      "profile": "canvas-sim-cloud",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://school-a.canvas.sim.test",
+      "siteUrl": "https://school-a.canvas.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "canvas-disabled": {
+      "capabilities": {
+        "addDeployment": true,
+        "canvasConfiguration": true,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:12>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "canvas",
+      "method": "manual",
+      "name": "Golden Canvas disabled",
+      "platform": {
+        "clientId": "10000000000043",
+        "deploymentIds": [
+          "8:golden"
+        ],
+        "id": "<id:13>",
+        "issuer": "https://canvas.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://school-b.canvas.sim.test",
+        "siteUrl": "https://school-b.canvas.sim.test"
+      },
+      "profile": "canvas-sim-cloud",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://school-b.canvas.sim.test",
+      "siteUrl": "https://school-b.canvas.sim.test",
+      "status": "disabled",
+      "webServices": null
+    },
+    "canvas-pending": {
+      "capabilities": {
+        "addDeployment": true,
+        "canvasConfiguration": true,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:6>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "canvas",
+      "method": "manual",
+      "name": "Golden Canvas pending",
+      "platform": null,
+      "profile": "canvas-sim-cloud",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://school-b.canvas.sim.test",
+      "siteUrl": "https://school-b.canvas.sim.test",
+      "status": "pending",
+      "webServices": null
+    },
+    "canvas-registered": {
+      "capabilities": {
+        "addDeployment": true,
+        "canvasConfiguration": true,
+        "courseShell": false,
+        "dynamicRegistration": false,
+        "operatorApproval": true,
+        "webServices": false
+      },
+      "createdAt": "<t>",
+      "id": "<id:3>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "canvas",
+      "method": "manual",
+      "name": "Golden Canvas",
+      "platform": {
+        "clientId": "10000000000042",
+        "deploymentIds": [
+          "7:<id:4>"
+        ],
+        "id": "<id:5>",
+        "issuer": "https://canvas.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://school-a.canvas.sim.test",
+        "siteUrl": "https://school-a.canvas.sim.test"
+      },
+      "profile": "canvas-sim-cloud",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://school-a.canvas.sim.test",
+      "siteUrl": "https://school-a.canvas.sim.test",
+      "status": "registered",
+      "webServices": null
+    },
+    "moodle-connected": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:14>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle",
+      "platform": {
+        "clientId": "golden-moodle-1",
+        "deploymentIds": [
+          "1"
+        ],
+        "id": "<id:15>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "moodle-disabled": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:16>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle disabled",
+      "platform": {
+        "clientId": "golden-moodle-2",
+        "deploymentIds": [
+          "2"
+        ],
+        "id": "<id:17>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "disabled",
+      "webServices": null
+    },
+    "moodle-dynamic-pending": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:10>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "dynamic",
+      "name": "Golden Moodle dynamic",
+      "platform": null,
+      "profile": "standard",
+      "registrationUrl": "https://lti.cogniate.test:9643/lti/register/cogniate?ref=<redacted:43>",
+      "registrationUrlExpiresAt": "<t>",
+      "serviceUrl": "https://moodle.test:9643",
+      "siteUrl": "https://moodle.test:9643",
+      "status": "pending",
+      "webServices": null
+    },
+    "moodle-manual-pending": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:9>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle manual",
+      "platform": null,
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.test:9643",
+      "siteUrl": "https://moodle.test:9643",
+      "status": "pending",
+      "webServices": null
+    },
+    "moodle-registered": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:14>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle",
+      "platform": {
+        "clientId": "golden-moodle-1",
+        "deploymentIds": [
+          "1"
+        ],
+        "id": "<id:15>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "registered",
+      "webServices": null
+    }
+  },
+  "default": {
+    "appHealth": {
+      "knobs": [],
+      "outbound_allowlist": [
+        "lti.cogniate.test",
+        "moodle.test"
+      ],
+      "profile": "default",
+      "service": "cogniate-app",
+      "status": "ok"
+    },
+    "lmsProviders": {
+      "lms": [
+        {
+          "capabilities": {
+            "addDeployment": false,
+            "canvasConfiguration": false,
+            "courseShell": true,
+            "dynamicRegistration": true,
+            "operatorApproval": false,
+            "webServices": true
+          },
+          "label": "Moodle",
+          "lms": "moodle",
+          "methods": [
+            "dynamic",
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "standard",
+              "label": "Moodle site",
+              "ready": true,
+              "simulation": false
+            }
+          ]
+        },
+        {
+          "capabilities": {
+            "addDeployment": true,
+            "canvasConfiguration": true,
+            "courseShell": false,
+            "dynamicRegistration": false,
+            "operatorApproval": true,
+            "webServices": false
+          },
+          "label": "Canvas",
+          "lms": "canvas",
+          "methods": [
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "canvas-cloud-production",
+              "label": "Instructure-hosted Canvas (production)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-cloud-beta",
+              "label": "Instructure-hosted Canvas (beta)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-cloud-test",
+              "label": "Instructure-hosted Canvas (test)",
+              "ready": true,
+              "simulation": false
+            },
+            {
+              "clientId": null,
+              "id": "canvas-self-hosted",
+              "label": "Self-hosted Canvas",
+              "ready": true,
+              "simulation": false
+            }
+          ]
+        },
+        {
+          "capabilities": {
+            "addDeployment": false,
+            "canvasConfiguration": false,
+            "courseShell": false,
+            "dynamicRegistration": false,
+            "operatorApproval": true,
+            "webServices": false
+          },
+          "label": "Blackboard Learn",
+          "lms": "blackboard",
+          "methods": [
+            "manual"
+          ],
+          "profiles": [
+            {
+              "clientId": null,
+              "id": "blackboard",
+              "label": "Blackboard Learn",
+              "ready": false,
+              "simulation": false
+            }
+          ]
+        }
+      ]
+    },
+    "ltiHealth": {
+      "knobs": [],
+      "outbound_allowlist": [
+        "moodle.test"
+      ],
+      "profile": "default",
+      "service": "lti-service",
+      "simulation_profiles": [],
+      "status": "ok"
+    },
+    "providers": {
+      "profiles": [
+        {
+          "accesstokenEndpoint": null,
+          "authenticationEndpoint": null,
+          "id": "standard",
+          "issuer": null,
+          "jwksUrl": null,
+          "label": "Standard LTI 1.3 platform",
+          "lms": null,
+          "serviceUrl": false,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": null
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-production",
+          "issuer": "https://canvas.instructure.com",
+          "jwksUrl": "https://sso.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (production)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.beta.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-beta",
+          "issuer": "https://canvas.beta.instructure.com",
+          "jwksUrl": "https://sso.beta.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (beta)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "https://sso.test.canvaslms.com/api/lti/authorize_redirect",
+          "id": "canvas-cloud-test",
+          "issuer": "https://canvas.test.instructure.com",
+          "jwksUrl": "https://sso.test.canvaslms.com/api/lti/security/jwks",
+          "label": "Instructure-hosted Canvas (test)",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+          "authenticationEndpoint": "{siteUrl}/api/lti/authorize_redirect",
+          "id": "canvas-self-hosted",
+          "issuer": "{siteUrl}",
+          "jwksUrl": "{siteUrl}/api/lti/security/jwks",
+          "label": "Self-hosted Canvas",
+          "lms": "canvas",
+          "serviceUrl": true,
+          "sharedPlatform": null,
+          "sharing": "exclusive",
+          "simulation": false,
+          "siteUrlOn": "platform"
+        },
+        {
+          "accesstokenEndpoint": "https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken",
+          "authenticationEndpoint": "https://developer.blackboard.com/api/v1/gateway/oidcauth",
+          "id": "blackboard",
+          "issuer": "https://blackboard.com",
+          "jwksUrl": "https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json",
+          "label": "Blackboard Learn",
+          "lms": "blackboard",
+          "serviceUrl": false,
+          "sharedPlatform": null,
+          "sharing": "shared",
+          "simulation": false,
+          "siteUrlOn": "deployment"
+        }
+      ]
+    }
+  },
+  "lmsProvidersAfter": {
+    "lms": [
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": true,
+          "dynamicRegistration": true,
+          "operatorApproval": false,
+          "webServices": true
+        },
+        "label": "Moodle",
+        "lms": "moodle",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "standard",
+            "label": "Moodle site",
+            "ready": true,
+            "simulation": false
+          }
+        ]
+      },
+      {
+        "capabilities": {
+          "addDeployment": true,
+          "canvasConfiguration": true,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "label": "Canvas",
+        "lms": "canvas",
+        "methods": [
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "canvas-cloud-production",
+            "label": "Instructure-hosted Canvas (production)",
+            "ready": true,
+            "simulation": false
+          },
+          {
+            "clientId": null,
+            "id": "canvas-cloud-beta",
+            "label": "Instructure-hosted Canvas (beta)",
+            "ready": true,
+            "simulation": false
+          },
+          {
+            "clientId": null,
+            "id": "canvas-cloud-test",
+            "label": "Instructure-hosted Canvas (test)",
+            "ready": true,
+            "simulation": false
+          },
+          {
+            "clientId": null,
+            "id": "canvas-self-hosted",
+            "label": "Self-hosted Canvas",
+            "ready": true,
+            "simulation": false
+          },
+          {
+            "clientId": null,
+            "id": "canvas-sim-cloud",
+            "label": "Canvas cloud (simulation)",
+            "ready": true,
+            "simulation": true
+          }
+        ]
+      },
+      {
+        "capabilities": {
+          "addDeployment": false,
+          "canvasConfiguration": false,
+          "courseShell": false,
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false
+        },
+        "label": "Blackboard Learn",
+        "lms": "blackboard",
+        "methods": [
+          "manual"
+        ],
+        "profiles": [
+          {
+            "clientId": null,
+            "id": "blackboard",
+            "label": "Blackboard Learn",
+            "ready": false,
+            "simulation": false
+          },
+          {
+            "clientId": "qa-bb-app",
+            "id": "blackboard-sim",
+            "label": "Blackboard Learn (simulation)",
+            "ready": true,
+            "simulation": true
+          }
+        ]
+      }
+    ]
+  },
+  "providersAfter": {
+    "profiles": [
+      {
+        "accesstokenEndpoint": null,
+        "authenticationEndpoint": null,
+        "id": "standard",
+        "issuer": null,
+        "jwksUrl": null,
+        "label": "Standard LTI 1.3 platform",
+        "lms": null,
+        "serviceUrl": false,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": null
+      },
+      {
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "authenticationEndpoint": "https://sso.canvaslms.com/api/lti/authorize_redirect",
+        "id": "canvas-cloud-production",
+        "issuer": "https://canvas.instructure.com",
+        "jwksUrl": "https://sso.canvaslms.com/api/lti/security/jwks",
+        "label": "Instructure-hosted Canvas (production)",
+        "lms": "canvas",
+        "serviceUrl": true,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": "platform"
+      },
+      {
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "authenticationEndpoint": "https://sso.beta.canvaslms.com/api/lti/authorize_redirect",
+        "id": "canvas-cloud-beta",
+        "issuer": "https://canvas.beta.instructure.com",
+        "jwksUrl": "https://sso.beta.canvaslms.com/api/lti/security/jwks",
+        "label": "Instructure-hosted Canvas (beta)",
+        "lms": "canvas",
+        "serviceUrl": true,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": "platform"
+      },
+      {
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "authenticationEndpoint": "https://sso.test.canvaslms.com/api/lti/authorize_redirect",
+        "id": "canvas-cloud-test",
+        "issuer": "https://canvas.test.instructure.com",
+        "jwksUrl": "https://sso.test.canvaslms.com/api/lti/security/jwks",
+        "label": "Instructure-hosted Canvas (test)",
+        "lms": "canvas",
+        "serviceUrl": true,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": "platform"
+      },
+      {
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "authenticationEndpoint": "{siteUrl}/api/lti/authorize_redirect",
+        "id": "canvas-self-hosted",
+        "issuer": "{siteUrl}",
+        "jwksUrl": "{siteUrl}/api/lti/security/jwks",
+        "label": "Self-hosted Canvas",
+        "lms": "canvas",
+        "serviceUrl": true,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": false,
+        "siteUrlOn": "platform"
+      },
+      {
+        "accesstokenEndpoint": "https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken",
+        "authenticationEndpoint": "https://developer.blackboard.com/api/v1/gateway/oidcauth",
+        "id": "blackboard",
+        "issuer": "https://blackboard.com",
+        "jwksUrl": "https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json",
+        "label": "Blackboard Learn",
+        "lms": "blackboard",
+        "serviceUrl": false,
+        "sharedPlatform": null,
+        "sharing": "shared",
+        "simulation": false,
+        "siteUrlOn": "deployment"
+      },
+      {
+        "accesstokenEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken",
+        "authenticationEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+        "id": "blackboard-sim",
+        "issuer": "https://blackboard.sim.test",
+        "jwksUrl": "https://developer.blackboard.sim.test/api/v1/management/applications/{clientId}/jwks.json",
+        "label": "Blackboard Learn (simulation)",
+        "lms": "blackboard",
+        "serviceUrl": false,
+        "sharedPlatform": {
+          "active": true,
+          "clientId": "qa-bb-app",
+          "id": "<id:1>"
+        },
+        "sharing": "shared",
+        "simulation": true,
+        "siteUrlOn": "deployment"
+      },
+      {
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "authenticationEndpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+        "id": "canvas-sim-cloud",
+        "issuer": "https://canvas.sim.test",
+        "jwksUrl": "https://sso.canvas.sim.test/api/lti/security/jwks",
+        "label": "Canvas cloud (simulation)",
+        "lms": "canvas",
+        "serviceUrl": true,
+        "sharedPlatform": null,
+        "sharing": "exclusive",
+        "simulation": true,
+        "siteUrlOn": "platform"
+      }
+    ]
+  },
+  "toolConfiguration": {
+    "blackboard": [
+      {
+        "key": "client_id",
+        "label": "Client ID",
+        "value": "qa-bb-app"
+      },
+      {
+        "key": "login_initiation_url",
+        "label": "Login Initiation URL",
+        "value": "https://lti.cogniate.test:9643/lti/login/cogniate"
+      },
+      {
+        "key": "tool_redirect_url",
+        "label": "Tool Redirect URL(s)",
+        "value": "https://lti.cogniate.test:9643/lti/launch/cogniate"
+      },
+      {
+        "key": "tool_jwks_url",
+        "label": "Tool JWKS URL",
+        "value": "https://lti.cogniate.test:9643/lti/keys/cogniate"
+      },
+      {
+        "key": "tool_status",
+        "label": "Tool Status",
+        "value": "Approved"
+      },
+      {
+        "key": "user_fields",
+        "label": "User Fields to Send",
+        "value": "Role in Course only. Do not send Name or Email Address."
+      },
+      {
+        "key": "grade_service",
+        "label": "Allow grade service access",
+        "value": "Yes"
+      },
+      {
+        "key": "membership_service",
+        "label": "Allow Membership Service access",
+        "value": "Yes"
+      },
+      {
+        "key": "placement",
+        "label": "Placement",
+        "value": "Cogniate: type Deep Linking, Target Link URI https://lti.cogniate.test:9643/lti/launch/cogniate, student access off"
+      }
+    ],
+    "canvas": [
+      {
+        "key": "key_name",
+        "label": "Key Name",
+        "value": "Cogniate (Thanh's Library)"
+      },
+      {
+        "key": "redirect_uris",
+        "label": "Redirect URIs",
+        "value": "https://lti.cogniate.test:9643/lti/launch/cogniate"
+      },
+      {
+        "key": "method",
+        "label": "Method",
+        "value": "Paste JSON"
+      },
+      {
+        "key": "lti_json",
+        "label": "LTI 1.3 Configuration",
+        "value": "Paste the JSON from \"Copy JSON\" or \"Download JSON\". Do not edit it."
+      }
+    ],
+    "moodle": [
+      {
+        "key": "tool_name",
+        "label": "Tool name",
+        "value": "Cogniate (Thanh's Library)"
+      },
+      {
+        "key": "tool_url",
+        "label": "Tool URL",
+        "value": "https://lti.cogniate.test:9643/lti/launch/cogniate"
+      },
+      {
+        "key": "lti_version",
+        "label": "LTI version",
+        "value": "LTI 1.3"
+      },
+      {
+        "key": "public_key_type",
+        "label": "Public key type",
+        "value": "Keyset URL"
+      },
+      {
+        "key": "public_keyset_url",
+        "label": "Public keyset",
+        "value": "https://lti.cogniate.test:9643/lti/keys/cogniate"
+      },
+      {
+        "key": "initiate_login_url",
+        "label": "Initiate login URL",
+        "value": "https://lti.cogniate.test:9643/lti/login/cogniate"
+      },
+      {
+        "key": "redirection_uris",
+        "label": "Redirection URI(s)",
+        "value": "https://lti.cogniate.test:9643/lti/launch/cogniate"
+      },
+      {
+        "key": "deep_linking",
+        "label": "Supports Deep Linking (Content-Item Message)",
+        "value": "Yes"
+      },
+      {
+        "key": "content_selection_url",
+        "label": "Content Selection URL",
+        "value": "https://lti.cogniate.test:9643/lti/launch/cogniate"
+      },
+      {
+        "key": "tool_configuration_usage",
+        "label": "Tool configuration usage",
+        "value": "Show in activity chooser and as a preconfigured tool"
+      },
+      {
+        "key": "launch_container",
+        "label": "Default launch container",
+        "value": "New window"
+      },
+      {
+        "key": "ags",
+        "label": "IMS LTI Assignment and Grade Services",
+        "value": "Use this service for grade sync and column management"
+      },
+      {
+        "key": "nrps",
+        "label": "IMS LTI Names and Role Provisioning",
+        "value": "Use this service to retrieve members' information as per privacy settings"
+      },
+      {
+        "key": "share_name",
+        "label": "Share launcher's name with tool",
+        "value": "Never"
+      },
+      {
+        "key": "share_email",
+        "label": "Share launcher's email with tool",
+        "value": "Never"
+      },
+      {
+        "key": "accept_grades",
+        "label": "Accept grades from the tool",
+        "value": "As specified in Deep Linking definition or Delegate to teacher"
+      }
+    ]
+  }
+}

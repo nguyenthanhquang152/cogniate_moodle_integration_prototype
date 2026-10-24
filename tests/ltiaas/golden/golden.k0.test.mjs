@@ -14,8 +14,10 @@ import {
 import { DROP, normalize, normalizeFile, secretScan } from './lib/normalize.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const BASELINE = '1b17261be97c4701b928fa9dc2fa74c6d23028f6';
+export const BASELINE = '78971b0300ab171029e8ce94dbba30db37b23dea';
+export const G_BASE_V1 = '1b17261be97c4701b928fa9dc2fa74c6d23028f6';
 const baseDir = path.join(here, BASELINE);
+const v1Dir = path.join(here, G_BASE_V1);
 const FILES = ['G1', 'G2', 'G3', 'G4'];
 const load = (dir) => Object.fromEntries(FILES.map((f) => [f, JSON.parse(fs.readFileSync(path.join(dir, `${f}.json`), 'utf8'))]));
 // A fake JWT (no real key), joined at run time so that this file itself passes the secret scan.
@@ -55,8 +57,10 @@ test('AC-05 secret scan: a planted value, a JWT and a 43-character value are hit
   assert.deepEqual(secretScan(planted, ['s3cr3t-value-123']).map((h) => h.kind).sort(),
     ['43-character random value', 'JWT', 'captured secret value']);
   const files = FILES.map((f) => [f, fs.readFileSync(path.join(baseDir, `${f}.json`), 'utf8')]);
+  const v1Files = FILES.map((f) => [f, fs.readFileSync(path.join(v1Dir, `${f}.json`), 'utf8')]);
   for (const name of fs.readdirSync(here)) assert.ok(!/private|raw|secret/i.test(name), `no private file in tests/ltiaas/golden: ${name}`);
   assert.deepEqual(secretScan(files), []);
+  assert.deepEqual(secretScan(v1Files), []);
 });
 
 test('AC-06 compare without Docker: the CLI compares the stored capture with itself in under 5 s', () => {
@@ -154,6 +158,11 @@ test('AC-04 support: the stored capture is complete across moodle, blackboard an
   const meta = JSON.parse(fs.readFileSync(path.join(baseDir, 'meta.json'), 'utf8'));
   assert.equal(meta.goldenVersion, 2);
   assert.equal(meta.productSha, BASELINE); assert.equal(meta.secretHits, 0);
+  const v1 = load(v1Dir);
+  for (const key of ['default', 'acceptance', 'connections', 'toolConfiguration', 'canvasConfiguration']) assert.ok(v1.G1[key], `v1 G1.${key}`);
+  const v1Meta = JSON.parse(fs.readFileSync(path.join(v1Dir, 'meta.json'), 'utf8'));
+  assert.equal(v1Meta.goldenVersion, 1);
+  assert.equal(v1Meta.productSha, G_BASE_V1); assert.equal(v1Meta.secretHits, 0);
 });
 
 test('cliBinding: compare, differingPaths, captureDocuments and expected-delta file path work for task suites', () => {
