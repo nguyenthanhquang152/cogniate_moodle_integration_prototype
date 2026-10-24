@@ -15,6 +15,7 @@ import {
   findStorageAuthUrl,
   runFamilyGuardCase,
   runPlatformStorageCase,
+  runSingleSelectRefusal,
   STORAGE_HELP_TEXT,
   waitForLearnerSync,
   waitForThrottledDispatch,
@@ -59,6 +60,7 @@ import {
 } from './lib/fixtures.js';
 import {
   deriveCurrentWaveIdFromRun,
+  DL,
   evaluateKitRunPassRule,
   initKitRunLedger,
   isK1SimEnabled,
@@ -231,11 +233,20 @@ function makeCheck14Fake(platformChannel: string, platformId: string, mutant?: C
   return { io, logs, launched };
 }
 
-type StorageMutant = 'replayAccepted' | 'wrongValueAccepted' | 'noCheckLog' | 'ignoreTarget';
+type StorageMutant =
+  | 'replayAccepted'
+  | 'wrongValueAccepted'
+  | 'noCheckLog'
+  | 'ignoreTarget'
+  | 'checkInInputOnly'
+  | 'dataBlockWithoutId'
+  | 'stateInDataBlock';
 
 // LTI login, simulator authorize, launch and storage check as lti-service-api-delta.md §2.1/§2.2 and
-// LA-ADR-05 D1 rules 1, 3, 6-8 state them. Page JSON keys are free (the contract names none); the
-// JSON escapes `<`, `>`, `&` as `\u` sequences; the storage-check page builds its form in script.
+// LA-ADR-05 D1 rules 1, 3, 6-8 state them. The JSON escapes `<`, `>`, `&` as `\u` sequences. Login page
+// keys are free (no ruling names them). The storage-check page has the one data block of ruling
+// A2 BD-A2-112 (`<script id="lti-storage-data" type="application/json">`, members postUrl, check,
+// target, origin, key, messageId) and builds its form in script.
 function makeStorageContractFake(opts: {
   storageProfile: boolean;
   authEndpoint: string;
@@ -373,12 +384,23 @@ function makeStorageContractFake(opts: {
       if (badSignature) return fakeErrorPage('INVALID_SIGNATURE');
       const check = rnd();
       checks.set(check, { stateHash: sha(state), used: false });
-      const body = `<!doctype html><html><head><script type="application/json" id="k0-check">${escapeJson({
-        check,
+      const members: Record<string, unknown> = {
         postUrl: checkUrl,
-        key: `cog_state_${sha(state)[0]}`,
+        check,
+        target: login.target,
         origin: new URL(opts.authEndpoint).origin,
-      })}</script><script nonce="k0">/* lti.get_data, then builds and posts the form */</script></head><body></body></html>`;
+        key: `cog_state_${sha(state)[0]}`,
+        messageId: rnd(),
+      };
+      if (opts.mutant === 'checkInInputOnly') delete members.check;
+      if (opts.mutant === 'stateInDataBlock') members.value = state;
+      const blockAttrs =
+        opts.mutant === 'dataBlockWithoutId' ? 'type="application/json"' : 'id="lti-storage-data" type="application/json"';
+      const hiddenInput =
+        opts.mutant === 'checkInInputOnly' ? `<input type="hidden" name="check" value="${check}">` : '';
+      const body = `<!doctype html><html><head><script ${blockAttrs}>${escapeJson(
+        members,
+      )}</script><script nonce="k0">/* lti.get_data, then builds and posts the form */</script></head><body>${hiddenInput}</body></html>`;
       pages.push(body);
       return { status: 200, headers: { 'content-type': 'text/html', 'referrer-policy': 'same-origin' }, body };
     },
@@ -436,6 +458,51 @@ function contractL7Raw() {
     learner1: 'u1',
     learner2: 'u2',
     publicationId: 'pub_k0',
+  };
+}
+
+type PickerMutant = 'firstIdWins' | 'usedOnRefusal' | 'wrongCode' | 'jwtOnRefusal';
+
+// `POST /tool/picker/{pickerId}` of a single-select (radio) picker as cogniate-app-api.md §6 and
+// ruling A1 BD-A1-120 state it: repeated `publicationId`; two ids give the 400 page
+// PUBLICATION_NOT_AVAILABLE with no JWT and leave the picker unused; one id gives a response JWT.
+function makeSingleSelectPickerFake(mutant?: PickerMutant) {
+  let used = false;
+  const success = (ids: string[]): HttpResultLike => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        [`${DL}content_items`]: ids.map((id) => ({
+          type: 'ltiResourceLink',
+          url: `https://lti.cogniate.test/lti/launch/cogniate?resource=${id}`,
+        })),
+      }),
+    ).toString('base64url');
+    return {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: `<form method="post" action="https://moodle.sim.test/mod/lti/contentitem_return.php"><input type="hidden" name="JWT" value="eyJhbGciOiJSUzI1NiJ9.${payload}.sig"></form><script nonce="k0">document.forms[0].submit()</script>`,
+    };
+  };
+  return {
+    postSelection: async (_url: string, form: Array<[string, string]>): Promise<HttpResultLike> => {
+      if (used) return { ...fakeErrorPage('PICKER_USED'), status: 410 };
+      const ids = new URLSearchParams(form).getAll('publicationId');
+      if (ids.length !== 1) {
+        if (mutant === 'firstIdWins') {
+          used = true;
+          return success([ids[0]]);
+        }
+        if (mutant === 'usedOnRefusal') used = true;
+        if (mutant === 'wrongCode') return fakeErrorPage('INVALID_REQUEST');
+        if (mutant === 'jwtOnRefusal') {
+          const page = fakeErrorPage('PUBLICATION_NOT_AVAILABLE');
+          return { ...page, body: `${page.body}<input type="hidden" name="JWT" value="x.y.z">` };
+        }
+        return fakeErrorPage('PUBLICATION_NOT_AVAILABLE');
+      }
+      used = true;
+      return success(ids);
+    },
   };
 }
 
@@ -1445,6 +1512,7 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
 
     const dlSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-dl.k1sim.test.ts'), 'utf8');
     expect(dlSrc).toContain('buildPickerSelectionForm(');
+    expect(dlSrc).toContain('runSingleSelectRefusal(');
     expect(dlSrc).not.toContain("'publicationIds'");
 
     const agsSrc = fs.readFileSync(path.join(SUITES_DIR, 'k1-ags.k1sim.test.ts'), 'utf8');
@@ -1736,6 +1804,11 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     await expect(run(canvas, true, 'ignoreTarget')).rejects.toThrow(/expected the 200 login page/);
     await expect(run(canvas, false)).rejects.toThrow(/expected the 200 login page/);
     await expect(run(loadChannelFixture('moodle'), true)).rejects.toThrow(/platformStorage-null profile answered 200/);
+    // Ruling A2 BD-A2-112: the check comes only from the member `check` of the one
+    // `lti-storage-data` block, and the block never carries the state
+    await expect(run(canvas, true, 'checkInInputOnly')).rejects.toThrow(/no string member "check"/);
+    await expect(run(canvas, true, 'dataBlockWithoutId')).rejects.toThrow(/exactly one <script id="lti-storage-data"/);
+    await expect(run(canvas, true, 'stateInDataBlock')).rejects.toThrow(/carries the state/);
   });
 
   it('A-LA-E7-06-08 / B-LA-E7-06-07 (picker): the picker handoff keeps the observed status; a redirect loop stays 303', async () => {
@@ -1807,6 +1880,29 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
         { type: 'ltiResourceLink', url: 'https://lti.cogniate.test/lti/launch/cogniate?resource=pub_a' },
       ]),
     ).toEqual(['pub_c', 'pub_a']);
+  });
+
+  it('A-LA-E7-06-08 (D3, ruling A1 BD-A1-120): two ids on a single-select picker give 400 PUBLICATION_NOT_AVAILABLE with no JWT, and one id on the same picker then succeeds', async () => {
+    const ctx = {
+      pickerUrl: 'https://app.cogniate.test/tool/picker/pck_k0',
+      publicationIds: ['pub_a', 'pub_b'] as [string, string],
+    };
+    const ok = await runSingleSelectRefusal(ctx, makeSingleSelectPickerFake());
+    expect(ok).toEqual({ refusedStatus: 400, controlIds: ['pub_a'] });
+
+    // Wrong product behaviour fails the case body
+    await expect(runSingleSelectRefusal(ctx, makeSingleSelectPickerFake('firstIdWins'))).rejects.toThrow(
+      /answered 200, expected 400/,
+    );
+    await expect(runSingleSelectRefusal(ctx, makeSingleSelectPickerFake('usedOnRefusal'))).rejects.toThrow(
+      /same picker after the refusal answered 410/,
+    );
+    await expect(runSingleSelectRefusal(ctx, makeSingleSelectPickerFake('wrongCode'))).rejects.toThrow(
+      /PUBLICATION_NOT_AVAILABLE/,
+    );
+    await expect(runSingleSelectRefusal(ctx, makeSingleSelectPickerFake('jwtOnRefusal'))).rejects.toThrow(
+      /carries a Deep Linking response JWT/,
+    );
   });
 
   it('B-LA-E7-06-02 (A3): the A3 waits return only after a tried send', async () => {
