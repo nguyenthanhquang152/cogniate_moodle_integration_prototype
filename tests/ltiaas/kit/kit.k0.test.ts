@@ -39,7 +39,9 @@ import {
   deriveLegacyFlagsFromCapabilities,
   evaluateChannelPassRule,
   ExecutedCaseRecord,
+  drFamilyGuardRefusedAtComplete,
   getChannelsDir,
+  isAnyHttpsChannel,
   isK1SimLevelEnabled,
   K1_SIM_SUITE_FILES,
   listChannelFixtureIds,
@@ -55,6 +57,7 @@ import {
   resolveSelectedChannelIds,
   selectFamilyGuardProbes,
   selectProtocolControlFixture,
+  takesAdminEndpoints,
   validateFamilyGuardLaunchObservation,
   verifyBilateralCapabilities,
   verifyContextlessSharedPlacement,
@@ -69,6 +72,8 @@ import {
   issueOperatorGrantForChannel,
   loadWaveEvidenceFromRun,
   LTI,
+  newDeploymentId,
+  retryAfterMs,
   readAllExecutedCases,
   recordRedactedEvidence,
   recordSecret,
@@ -153,6 +158,31 @@ const DESIGN_FAMILY_GUARDS: Record<string, { channel: string; level: 'launch' | 
 };
 const DESIGN_MANUAL_SELF_LEGACY = ['moodle'];
 
+// Open world (LA-E8-02 walker): a channel outside the baseline brings its own guarded families. The design table
+// stays frozen for the baseline families; any other family takes the guard that its fixture declares.
+function fakeFamilyGuardOf(
+  family: string,
+  fixtures: ChannelFixture[],
+): { channel: string; level: 'launch' | 'registration' } | undefined {
+  if (DESIGN_FAMILY_GUARDS[family]) return DESIGN_FAMILY_GUARDS[family];
+  for (const fixture of fixtures) {
+    if ((BASELINE_CHANNEL_IDS as readonly string[]).includes(fixture.id)) continue;
+    const entry = fixture.expect.guardedFamilies.find((g) => g.family.toLowerCase() === family);
+    if (entry) return { channel: fixture.id, level: entry.level };
+  }
+  return undefined;
+}
+
+// A channel outside the baseline that guards its own family at the registration level (the form that the add-channel
+// guide allows), built from the generic fixture. K0 adds it to prove that the L4 helpers stay open world.
+function openWorldExtraFixture(id = 'zz-k0-open-world', family = 'k0-open-world-family'): ChannelFixture {
+  const extra = structuredClone(loadChannelFixture('lti-generic'));
+  extra.id = id;
+  extra.sim.family = family;
+  extra.expect.guardedFamilies = [{ family, level: 'registration' }];
+  return extra;
+}
+
 function fakeClock() {
   let t = 1_700_000_000_000;
   return {
@@ -189,7 +219,12 @@ function fakeLogReader(logs: Array<Record<string, unknown>>) {
 type Check14Mutant = 'refuseRegistration' | 'appLogOnly' | 'noLog' | 'passLaunchGuard' | 'guardMoodle';
 
 // LTI check 14 and its log as LA-ADR-01 D6 states them, on one platform of `platformChannel`.
-function makeCheck14Fake(platformChannel: string, platformId: string, mutant?: Check14Mutant) {
+function makeCheck14Fake(
+  platformChannel: string,
+  platformId: string,
+  mutant?: Check14Mutant,
+  fixtures: ChannelFixture[] = loadAllChannelFixtures(),
+) {
   const clock = fakeClock();
   const logs: Array<Record<string, unknown>> = [];
   const launched: string[] = [];
@@ -205,7 +240,7 @@ function makeCheck14Fake(platformChannel: string, platformId: string, mutant?: C
       const guard =
         mutant === 'guardMoodle' && family === 'moodle'
           ? { channel: 'zz-other', level: 'registration' as const }
-          : DESIGN_FAMILY_GUARDS[family];
+          : fakeFamilyGuardOf(family, fixtures);
       const pass = {
         response: {
           status: 303,
@@ -1646,6 +1681,72 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     }
   });
 
+  it('Round 7 (K1-SIM live fixes): simulator option names, UUID deployments, admin-endpoint profiles and Retry-After waits', () => {
+    // The option names that the kit used before Round 7 are not documented options of tests/sim/core/runtime.mjs
+    // (SCENARIO_OPTIONS, DR_OPTIONS), and the kit no longer uses them.
+    const simSrc = fs.readFileSync(path.join(REPO_ROOT, 'tests/sim/core/runtime.mjs'), 'utf8');
+    const listOf = (name: string) => {
+      const m = new RegExp(`export const ${name} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\)`).exec(simSrc);
+      return [...(m?.[1] ?? '').matchAll(/'([A-Za-z]+)'/g)].map((x) => x[1]);
+    };
+    const documented = new Set([...listOf('SCENARIO_OPTIONS'), ...listOf('DR_OPTIONS')]);
+    expect(documented.has('secondKey') && documented.has('dlSettings') && documented.has('dlAllowCancel')).toBe(true);
+    const removed = ['rotatedKey', 'tokenError', 'deepLinkingSettings', 'issuerPath', 'productFamilyCode'];
+    for (const name of removed) expect(documented.has(name)).toBe(false);
+    const kitSrc = [
+      ...fs.readdirSync(SUITES_DIR).map((f) => fs.readFileSync(path.join(SUITES_DIR, f), 'utf8')),
+      fs.readFileSync(path.join(__dirname, 'lib/runtime.ts'), 'utf8'),
+    ].join('\n');
+    for (const name of removed) expect(kitSrc).not.toMatch(new RegExp(`\\b${name}\\s*:`));
+
+    // Deployment ids follow the simulator's form: UUIDs where the fixture's deployments are UUIDs
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const fixture of loadAllChannelFixtures()) {
+      const allUuid = fixture.sim.deployments.every((d) => uuid.test(d));
+      expect(uuid.test(newDeploymentId(fixture, 'k0'))).toBe(allUuid);
+    }
+
+    // Profile kinds (LA-ADR-02 D2): admin endpoints for manual-self and admin-value channels; any-https only for the
+    // admin-value operatorGrant channels
+    const kinds = Object.fromEntries(
+      loadAllChannelFixtures()
+        .filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id))
+        .map((f) => [f.id, `${takesAdminEndpoints(f)}/${isAnyHttpsChannel(f)}`]),
+    );
+    expect(kinds).toEqual({
+      moodle: 'true/false',
+      canvas: 'false/false',
+      blackboard: 'false/false',
+      'lti-generic': 'true/true',
+      brightspace: 'true/true',
+    });
+
+    // R3 part 5 branch (BD-A1-121 recorded deviation): `complete` refuses a registration-level family when the DR start
+    // also lets the owner channel pass; else the start keeps the PROVIDER_PROFILE_MISMATCH page
+    const shipped = loadAllChannelFixtures().filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id));
+    const drBranch = Object.fromEntries(
+      shipped
+        .filter((f) => f.capabilities['registration.dynamic'])
+        .map((f) => [
+          f.id,
+          selectFamilyGuardProbes(f, shipped)
+            .probes.filter((p) => p.foreignFamilyCategory !== 'unguarded')
+            .map((p) => `${p.foreignFamily}:${drFamilyGuardRefusedAtComplete(f, p, shipped) ? 'complete' : 'start'}`),
+        ]),
+    );
+    expect(drBranch).toEqual({
+      moodle: ['canvas:start', 'desire2learn:complete'],
+      canvas: ['blackboardlearn:start', 'desire2learn:start'],
+      'lti-generic': ['canvas:start', 'desire2learn:complete'],
+      brightspace: ['canvas:start'],
+    });
+
+    // Retry-After waits: seconds from the header, bounded, with a 1 s default
+    expect(retryAfterMs({ headers: { 'retry-after': '3' } })).toBe(3_250);
+    expect(retryAfterMs({ headers: { 'retry-after': '600' } })).toBe(60_250);
+    expect(retryAfterMs({ headers: {} })).toBe(1_250);
+  });
+
   it('A-LA-E7-06-09: selectProtocolControlFixture selects lti-generic (generic-sim) and throws when missing or duplicated', () => {
     const all = loadAllChannelFixtures();
     const control = selectProtocolControlFixture(all);
@@ -1680,8 +1781,11 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
       );
     }
 
+    // The pinned tables are for the baseline fixture set (the design table). Discovered extra channels
+    // (open world, for example the LA-E8-02 walker's channel) are checked by the properties below.
+    const baseline = all.filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id));
     const table = (id: string) =>
-      selectFamilyGuardProbes(loadChannelFixture(id), all).probes.map(
+      selectFamilyGuardProbes(loadChannelFixture(id), baseline).probes.map(
         (p) => `${p.foreignFamily}:${p.foreignFamilyCategory}:${p.expectedOutcome}`,
       );
     // Round 4 counterexamples: Blackboard gets a launch-guarded probe (no undefined), Canvas gets
@@ -1707,10 +1811,58 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
       'moodle:unguarded:pass',
     ]);
     expect(table('brightspace')).toEqual(['canvas:launch_guarded:refuse', 'moodle:unguarded:pass']);
-    expect(selectFamilyGuardProbes(loadChannelFixture('brightspace'), all).notes[0]).toContain(
+    expect(selectFamilyGuardProbes(loadChannelFixture('brightspace'), baseline).notes[0]).toContain(
       'no family that another channel guards at the registration level',
     );
     expect(deriveExpectedFamilyGuardOutcome(loadChannelFixture('canvas'), 'moodle', all).expectedOutcome).toBe('pass');
+
+    // Open world: the probes come from the declared guard data of every discovered fixture, for the shipped set and
+    // for the shipped set plus a channel outside the baseline that guards its own family at the registration level.
+    const extra = openWorldExtraFixture();
+    for (const set of [all, [...all, extra]]) {
+      const owners = new Map<string, { channel: string; level: string }>();
+      for (const f of set) {
+        for (const g of f.expect.guardedFamilies) owners.set(g.family.toLowerCase(), { channel: f.id, level: g.level });
+      }
+      for (const target of set) {
+        const { probes } = selectFamilyGuardProbes(target, set);
+        const own = new Set([
+          String(target.sim.family ?? '').toLowerCase(),
+          ...target.expect.guardedFamilies.map((g) => g.family.toLowerCase()),
+        ]);
+        const legacySelf = DESIGN_MANUAL_SELF_LEGACY.includes(target.id);
+        const hasForeignRegistration = [...owners.entries()].some(
+          ([family, o]) => o.level === 'registration' && o.channel !== target.id && !own.has(family),
+        );
+        expect(probes.length, target.id).toBe(hasForeignRegistration ? 3 : 2);
+        for (const probe of probes) {
+          const owner = owners.get(probe.foreignFamily);
+          expect(own.has(probe.foreignFamily), `${target.id}: ${probe.foreignFamily}`).toBe(false);
+          if (probe.foreignFamilyCategory === 'unguarded') {
+            expect(owner, `${target.id}: ${probe.foreignFamily}`).toBeUndefined();
+            expect(probe.expectedOutcome).toBe('pass');
+          } else {
+            expect(owner?.level, `${target.id}: ${probe.foreignFamily}`).toBe(
+              probe.foreignFamilyCategory === 'launch_guarded' ? 'launch' : 'registration',
+            );
+            expect(probe.expectedOutcome, `${target.id}: ${probe.foreignFamily}`).toBe(
+              probe.foreignFamilyCategory === 'launch_guarded' || legacySelf ? 'refuse' : 'warn_passthrough',
+            );
+          }
+        }
+      }
+    }
+    // With the baseline set plus the extra channel, the extra family is brightspace's registration-level probe (the
+    // baseline has no other foreign registration-level family for brightspace)
+    expect(
+      selectFamilyGuardProbes(loadChannelFixture('brightspace'), [...baseline, extra]).probes.map(
+        (p) => `${p.foreignFamily}:${p.foreignFamilyCategory}:${p.expectedOutcome}`,
+      ),
+    ).toEqual([
+      'canvas:launch_guarded:refuse',
+      `${extra.sim.family}:registration_guarded:warn_passthrough`,
+      'moodle:unguarded:pass',
+    ]);
 
     // Every discovered fixture (open world) gets a launch-guarded probe
     for (const fixture of all) {
@@ -1741,15 +1893,16 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
 
   it('A-LA-E7-06-07 / B-LA-E7-06-02 (L4): the L4 case body passes on a check-14 fake for every shipped target and fails on wrong product behaviour', async () => {
     const all = loadAllChannelFixtures();
-    for (const fixture of all.filter((f) =>
-      (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id),
-    )) {
-      const fake = makeCheck14Fake(fixture.id, `plt_${fixture.id}`);
-      const report = await runFamilyGuardCase(
-        { target: fixture, allFixtures: all, platformId: `plt_${fixture.id}`, resourceId: 'pub_k0' },
-        fake.io,
-      );
-      expect(report.probes.map((p) => p.expected.foreignFamily)).toEqual(fake.launched);
+    // Every discovered target (open world), with the shipped fixtures and with an extra registration-guarded channel
+    for (const set of [all, [...all, openWorldExtraFixture()]]) {
+      for (const fixture of set) {
+        const fake = makeCheck14Fake(fixture.id, `plt_${fixture.id}`, undefined, set);
+        const report = await runFamilyGuardCase(
+          { target: fixture, allFixtures: set, platformId: `plt_${fixture.id}`, resourceId: 'pub_k0' },
+          fake.io,
+        );
+        expect(report.probes.map((p) => p.expected.foreignFamily)).toEqual(fake.launched);
+      }
     }
 
     const canvas = loadChannelFixture('canvas');

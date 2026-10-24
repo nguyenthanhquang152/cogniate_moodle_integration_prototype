@@ -164,8 +164,6 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
 
     it('GLOBAL:K1-NRPS:N2 — exercises GET /api/memberships with NRPS 2.0, refuses service_versions: ["1.0"], and propagates 429 Retry-After', async () => {
       await runKitCase('GLOBAL', 'K1-NRPS', 'N2', async () => {
-        const nrpsUrl = `${genericFixture.sim.serviceUrl}/nrps/memberships/ctx-1`;
-
         // Enable NRPS scope on the protocol-control platform for the N2 service-layer test
         await admin('PATCH', `/api/platforms/${nrpsBinding.platformId}`, {
           scopes: [
@@ -174,16 +172,23 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           ],
         });
 
-        // 1. Launch with NRPS 2.0 claim -> GET /api/memberships returns members without personal fields (lti-service-api.md §3.3; lti-service-api-delta.md §4.4)
+        // 1. Launch with the simulator's NRPS 2.0 claim (its own memberships URL) and members that carry personal
+        // fields (tests/sim scenario option `members`) -> GET /api/memberships returns members without personal fields
+        // (lti-service-api.md §3.3; lti-service-api-delta.md §4.4)
         const launched = await launchOnChannel(nrpsBinding, {
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
-          claims: {
-            [NRPS_CLAIM]: {
-              context_memberships_url: nrpsUrl,
-              service_versions: ['2.0'],
+          members: [
+            {
+              user_id: 'kit-nrps-learner-1',
+              status: 'Active',
+              roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
+              name: 'Kit Learner',
+              email: 'kit.learner@example.test',
+              given_name: 'Kit',
+              family_name: 'Learner',
             },
-          },
+          ],
         });
         expect(launched.response.status).toBe(303);
         const tok = await idToken(launched.ltik!);
@@ -206,7 +211,14 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           expect(m.familyName).toBeUndefined();
         }
 
-        // 2. Launch with service_versions: ['1.0'] only -> refuses or marks namesAndRoles unavailable
+        // 2. Launch with service_versions: ['1.0'] only (same memberships URL as the launch above, read from its raw
+        // claims) -> refuses or marks namesAndRoles unavailable
+        const rawTok = await idToken(launched.ltik!, true);
+        expectStatus(rawTok, 200);
+        const nrpsUrl = String(
+          (rawTok.json?.[NRPS_CLAIM] as Record<string, unknown> | undefined)?.context_memberships_url ?? '',
+        );
+        expect(nrpsUrl).toMatch(/^https:\/\//);
         const launched10 = await launchOnChannel(nrpsBinding, {
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
@@ -235,12 +247,6 @@ describe('K1-NRPS — Port 5 Names & Role Provisioning Services across selected 
           resource: nrpsPub.id,
           roles: [ROLE_INSTRUCTOR],
           nrpsAnswers: [{ status: 429, retryAfter: 45 }],
-          claims: {
-            [NRPS_CLAIM]: {
-              context_memberships_url: nrpsUrl,
-              service_versions: ['2.0'],
-            },
-          },
         });
         expect(launched429.response.status).toBe(303);
         const tok429 = await idToken(launched429.ltik!);

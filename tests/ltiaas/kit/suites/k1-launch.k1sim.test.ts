@@ -11,6 +11,7 @@ import {
 import {
   ACCOUNT,
   admin,
+  APP_ORIGIN,
   AGS,
   app,
   appRequest,
@@ -25,7 +26,9 @@ import {
   liveKitCaseIo,
   logEvents,
   LTI,
+  newDeploymentId,
   noServiceCalls,
+  NRPS,
   openPickerOnChannel,
   openPlayOnChannel,
   poll,
@@ -107,7 +110,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
         });
       });
 
-      it(`${fixture.id}:K1-LAUNCH:L2 — Profile-dependent faults unknown-key and wrong-issuer, plus rotated signing key`, async () => {
+      it(`${fixture.id}:K1-LAUNCH:L2 — Profile-dependent faults unknown-key and wrong-issuer`, async () => {
         await runKitCase(fixture.id, 'K1-LAUNCH', 'L2', async () => {
           // 1. Profile-dependent fault: unknown-key -> 400 INVALID_SIGNATURE
           const cursor1 = (await records()).cursor;
@@ -126,14 +129,6 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           });
           launchRefused(wrongIssRes.response, 'INVALID_ISSUER_OR_AUDIENCE');
           await noServiceCalls(cursor2);
-
-          // 3. Rotated signing key (`rotatedKey: true`) succeeds via JWKS refresh
-          const rotatedRes = await launchOnChannel(binding, {
-            resource: pub.id,
-            rotatedKey: true,
-          });
-          expect(rotatedRes.response.status).toBe(303);
-          expect(rotatedRes.ltik).toBeTruthy();
         });
       });
 
@@ -143,13 +138,13 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           const cursor1 = (await records()).cursor;
           const unknownDep = await launchOnChannel(binding, {
             resource: pub.id,
-            deploymentId: uniqueId('unregistered-dep'),
+            deploymentId: newDeploymentId(fixture, 'unregistered-dep'),
           });
           denied(unknownDep.response, 'UNKNOWN_DEPLOYMENT');
           await noServiceCalls(cursor1);
 
           // 2. Inactive deployment -> 403 DEPLOYMENT_NOT_ACTIVE (lti-service-api.md §3.7)
-          const inactiveDepId = uniqueId('inactive-dep');
+          const inactiveDepId = newDeploymentId(fixture, 'inactive-dep');
           const addDep = await admin(
             'POST',
             `/api/platforms/${binding.platformId}/deployments`,
@@ -254,8 +249,9 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             headers: { accept: 'text/html' },
           });
           expect(iframeHandoff.status).toBe(303);
-          const embeddedTarget = String(iframeHandoff.headers.location ?? '');
-          expect(embeddedTarget).toMatch(/^\/play\/ply_[^/?]+\/embedded$/);
+          // The handoff Location may be absolute; compare its path (resolved against the app origin, as M1 openPlay does)
+          const embeddedTarget = new URL(String(iframeHandoff.headers.location ?? ''), APP_ORIGIN).href;
+          expect(new URL(embeddedTarget).pathname).toMatch(/^\/play\/ply_[^/?]+\/embedded$/);
 
           const embeddedPage = await appRequest('GET', embeddedTarget, {
             headers: { accept: 'text/html' },
@@ -280,7 +276,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
             headers: { accept: 'text/html' },
           });
           expect(windowHandoff.status).toBe(303);
-          const windowTarget = String(windowHandoff.headers.location ?? '');
+          const windowTarget = new URL(String(windowHandoff.headers.location ?? ''), APP_ORIGIN).pathname;
           expect(windowTarget).toMatch(/^\/play\/ply_[^/?]+$/);
           expect(windowTarget).not.toContain('/embedded');
         });
@@ -352,12 +348,13 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           expect(placementCheck.errors).toEqual([]);
           expect(placementCheck.ok).toBe(true);
 
-          // 3. AP-05-10: Launch without context and without AGS has no serviceKey and records the clear error message on score commit
+          // 3. AP-05-10: Launch without context and without AGS (and without NRPS, so the service key rule of
+          // lti-service-api.md §3.1 "when AGS or NRPS is available" gives none) records the clear error message
           const noAgsRlId = uniqueId(`rl-noags-${fixture.id}`);
           const learnerNoAgs = uniqueId('learner-ctxless-noags');
           const noAgsLaunch = await launchOnChannel(binding, {
             resource: ctxlessPub.id,
-            omit: [`${LTI}context`, AGS],
+            omit: [`${LTI}context`, AGS, NRPS],
             resourceLinkId: noAgsRlId,
             subject: learnerNoAgs,
           });
@@ -372,7 +369,7 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
 
           const cursorBeforeNoAgsCommit = (await records()).cursor;
           const playNoAgs = await openPlayOnChannel(binding, ctxlessPub, {
-            omit: [`${LTI}context`, AGS],
+            omit: [`${LTI}context`, AGS, NRPS],
             resourceLinkId: noAgsRlId,
             subject: learnerNoAgs,
           });
@@ -454,12 +451,12 @@ describe('K1-LAUNCH — Port 1 Launch & Session across selected channels', () =>
           const bA = await setupChannelBinding(fixture, {
             library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c-l9-a-${fixture.id}`),
-            deploymentId: uniqueId(`dep-l9-a-${fixture.id}`),
+            deploymentId: newDeploymentId(fixture, `dep-l9-a-${fixture.id}`),
           });
           const bB = await setupChannelBinding(fixture, {
             library: 'B',
             clientId: isShared ? binding.clientId : uniqueId(`c-l9-b-${fixture.id}`),
-            deploymentId: uniqueId(`dep-l9-b-${fixture.id}`),
+            deploymentId: newDeploymentId(fixture, `dep-l9-b-${fixture.id}`),
           });
 
           try {

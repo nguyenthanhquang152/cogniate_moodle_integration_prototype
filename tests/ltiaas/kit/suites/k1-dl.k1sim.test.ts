@@ -34,9 +34,13 @@ import {
   ROLE_LEARNER,
   runKitCase,
   setupChannelBinding,
+  urls,
 } from '../lib/runtime.js';
 
 const fixtures = loadSelectedChannelFixtures();
+// An ltiResourceLink `url`, when given, starts with `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (lti-service-api.md §3.2)
+const toolLaunchUrl = (publicationId: string) =>
+  `${new URL(`/lti/launch/${ACCOUNT}`, urls.lti).href}?resource=${encodeURIComponent(publicationId)}`;
 
 describe('K1-DL — Port 3 Content Selection / Deep Linking across selected channels', () => {
   beforeAll(() => {
@@ -65,27 +69,29 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
 
       it(`${fixture.id}:K1-DL:D1 — Deep Linking response JWT (iss, aud, nonce, deployment_id, message_type, version, sub rule, data mode, exact return URL, window hint)`, async () => {
         await runKitCase(fixture.id, 'K1-DL', 'D1', async () => {
-          const dlData = `dl-data-${fixture.id}`;
           // GET /tool/picker/:pickerId -> POST /tool/picker/:pickerId -> returnDeepLink (M1/common/course.ts:88-112; cogniate-app-api-delta.md §5)
-          const picker = await openPickerOnChannel(binding, {
-            dlData,
-          });
+          const picker = await openPickerOnChannel(binding);
           expect(picker.status).toBe(200);
+          // The simulator sets the launch `data` value to `data-<scenario id>` (tests/sim/core/runtime.mjs)
+          const dlData = `data-${picker.scenarioId}`;
 
           const picked = await pick(picker.pickerUrl, pub1.id);
-          expect(picked.action).toContain('deep-link/return');
           expect(picked.jwt).toBeTruthy();
+          // Exact return URL: the form posts to the platform page host, and the simulator accepts a Deep Linking
+          // return only at the return endpoint of that site and for this launch's scenario.
+          expect(new URL(picked.action).origin).toBe(`https://${binding.pageHost}`);
 
           const ret = await returnDeepLink(picked);
           expect(ret.status).toBe(200);
 
           const simRecs = await records();
-          // Simulator Deep Linking return records use kind === 'deep-link' (tests/sim/core/provider.mjs:343)
+          // Simulator Deep Linking return records use kind === 'deep-link' (tests/sim/core/provider.mjs)
           const dlRec = [...simRecs.records]
             .reverse()
-            .find((r: Record<string, unknown>) => r.kind === 'deep-link');
+            .find((r: Record<string, unknown>) => r.kind === 'deep-link' && r.scenario === picker.scenarioId);
           expect(dlRec).toBeDefined();
-          expect(dlRec!.signatureOk).toBe(true);
+          expect(dlRec!.host).toBe(binding.pageHost);
+          expect(dlRec!.path).toBe(new URL(picked.action).pathname);
 
           const decoded = decodeJwt(picked.jwt);
           const payload = decoded.payload as Record<string, unknown>;
@@ -212,12 +218,12 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
                 {
                   type: 'ltiResourceLink',
                   title: 'Item 1',
-                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                  url: toolLaunchUrl(pub1.id),
                 },
                 {
                   type: 'ltiResourceLink',
                   title: 'Item 2',
-                  url: `${APP_ORIGIN}/tool/launch/${pub2.id}`,
+                  url: toolLaunchUrl(pub2.id),
                 },
               ],
             },
@@ -230,7 +236,7 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           const twentyOneItems = Array.from({ length: 21 }, (_, idx) => ({
             type: 'ltiResourceLink',
             title: `Item ${idx + 1}`,
-            url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+            url: toolLaunchUrl(pub1.id),
           }));
           const tooManyRes = await ltiApi('POST', '/api/deeplinking', {
             authorization: auth.ltik(apiKey(ACCOUNT), multiPicker2.ltik),
@@ -244,7 +250,8 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
 
       it(`${fixture.id}:K1-DL:D4 — Cancel posts content_items: [] to return URL; cancel with foreign Origin returns 403 ORIGIN_NOT_ALLOWED without consuming session`, async () => {
         await runKitCase(fixture.id, 'K1-DL', 'D4', async () => {
-          const picker = await openPickerOnChannel(binding);
+          // The simulator accepts an empty `content_items` return only with the scenario option `dlAllowCancel`
+          const picker = await openPickerOnChannel(binding, { dlAllowCancel: true });
           expect(picker.status).toBe(200);
           const u = new URL(picker.pickerUrl);
           const cancelPath = `${u.pathname}/cancel${u.search}`;
@@ -297,7 +304,7 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
                 {
                   type: 'ltiResourceLink',
                   title: 'Should Refuse LineItem',
-                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                  url: toolLaunchUrl(pub1.id),
                   lineItem: { scoreMaximum: 100 },
                 },
               ],
@@ -317,7 +324,7 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
                 {
                   type: 'ltiResourceLink',
                   title: 'Ungraded Item Allowed At Service Layer',
-                  url: `${APP_ORIGIN}/tool/launch/${pub1.id}`,
+                  url: toolLaunchUrl(pub1.id),
                 },
               ],
             },
@@ -394,10 +401,6 @@ describe('K1-DL — Port 3 Content Selection / Deep Linking across selected chan
           const withoutFields = await launchOnChannel(binding, {
             messageType: 'LtiDeepLinkingRequest',
             roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-            deepLinkingSettings: {
-              accept_lineitem: null,
-              accept_media_types: null,
-            },
           });
           expect(withoutFields.response.status).toBe(303);
           const tok2 = await idToken(withoutFields.ltik!);

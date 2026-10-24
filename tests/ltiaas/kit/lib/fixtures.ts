@@ -377,6 +377,22 @@ export function selectProtocolControlFixture(
   return matches[0];
 }
 
+// The channel's profile takes admin endpoints in POST /api/platforms (`endpoints: admin`: the manual `self`
+// profile and the admin-value operatorGrant profiles); fixed profiles take none (LA-ADR-02 D2 trait table).
+export function takesAdminEndpoints(fixture: ChannelFixture): boolean {
+  const caps = fixture.capabilities;
+  return (
+    caps['binding.authority'].manual === 'self' ||
+    (!caps['site.serviceOrigin'] && caps['platform.sharing'] !== 'shared')
+  );
+}
+
+// The channel's profile has `endpointOrigins: any-https` (admin values with an operator grant; LA-ADR-02 D2):
+// the profiles of the I-SELF origin-binding rules (TEST-STRATEGY §2.4 R6) and of the generic reserved-issuer path.
+export function isAnyHttpsChannel(fixture: ChannelFixture): boolean {
+  return takesAdminEndpoints(fixture) && fixture.capabilities['binding.authority'].manual !== 'self';
+}
+
 export function loadAllChannelFixtures(dir: string = getChannelsDir()): ChannelFixture[] {
   return listChannelFixtureIds(dir).map((id) => loadChannelFixture(id, dir));
 }
@@ -1749,6 +1765,28 @@ export function selectFamilyGuardProbes(
     'kit-unguarded-family';
   probes.push(deriveExpectedFamilyGuardOutcome(target, unguarded, allFixtures));
   return { probes, notes };
+}
+
+// Where a Dynamic Registration with a guarded foreign family is refused (R3 part 5). Contract: the start or the
+// confirm step gives the PROVIDER_PROFILE_MISMATCH page (cogniate-app-api-delta.md §5; AC-LA-E2-05-05). Recorded
+// deviation at the final SHA a8bbac53 (Architect A1 ruling BD-A1-121; fix planned for LG): when the family is guarded
+// at the `registration` level and the DR start rule also lets the owner channel pass the configuration, the start
+// (303) and the confirm page (200) pass, and `complete` refuses (400 INVALID_REQUEST, reason `family=<family>`), so
+// the app page is REGISTRATION_FAILED (502). The start lets the owner pass when the owner takes `any-https` admin
+// endpoints and the target's configuration is not bound to a fixed or issuer-bound profile (the target takes admin
+// endpoints). Else no loaded channel lets the configuration pass, and the start keeps the PROVIDER_PROFILE_MISMATCH
+// page.
+export function drFamilyGuardRefusedAtComplete(
+  target: ChannelFixture,
+  probe: Pick<FamilyGuardExpectation, 'foreignFamily' | 'foreignFamilyCategory'>,
+  allFixtures: ChannelFixture[],
+): boolean {
+  if (probe.foreignFamilyCategory !== 'registration_guarded') return false;
+  const family = probe.foreignFamily.toLowerCase();
+  const owner = allFixtures.find(
+    (f) => f.id !== target.id && f.expect.guardedFamilies.some((g) => g.family.toLowerCase() === family),
+  );
+  return Boolean(owner && isAnyHttpsChannel(owner) && takesAdminEndpoints(target));
 }
 
 export function validateFamilyGuardLaunchObservation(

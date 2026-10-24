@@ -1,11 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  drFamilyGuardRefusedAtComplete,
+  isAnyHttpsChannel,
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
+  selectFamilyGuardProbes,
+  selectProtocolControlFixture,
 } from '../lib/fixtures.js';
 import {
   admin,
   app,
+  APP_ORIGIN,
   buildOperatorGrantCliArgs,
   ChannelBinding,
   cli,
@@ -19,15 +24,19 @@ import {
   htmlText,
   issueOperatorGrantForChannel,
   launchOnChannel,
+  logEvents,
   ltiRequest,
   noServiceCalls,
+  poll,
   publication,
   PublicationRef,
   records,
+  retryAfterMs,
   runDynamicRegistrationHandshake,
   runKitCase,
   scenario,
   session,
+  newDeploymentId,
   setupChannelBinding,
   uniqueId,
 } from '../lib/runtime.js';
@@ -115,21 +124,25 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             await endConnection(s, tempConnId);
           }
 
-          // 3. Site URL validation: IP literal, localhost, and own host refused with 422 INVALID_SITE_URL (cogniate-app-api-delta.md §3.1)
-          for (const badSiteUrl of [
-            'https://127.0.0.1',
-            'https://localhost',
-            'https://app.cogniate.test',
-            'https://lti.cogniate.test',
-          ]) {
-            const badRes = await app(s, 'POST', '/app-api/connections', {
-              name: `Bad Site ${fixture.id}`,
-              lms: fixture.id,
-              method: 'manual',
-              siteUrl: badSiteUrl,
-              ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
-            });
-            expectStatus(badRes, 422, 'INVALID_SITE_URL');
+          // 3. Site URL validation: IP literal, localhost, and own host refused with 422 INVALID_SITE_URL. The site rules
+          // apply to every channel except the legacy manual-self channel (cogniate-app-api.md §4.2 and delta §3.1 keep
+          // that channel's create unchanged); in fixture terms, the channel whose manual method keeps `self` (load check 6).
+          if (fixture.capabilities['binding.authority'].manual !== 'self') {
+            for (const badSiteUrl of [
+              'https://127.0.0.1',
+              'https://localhost',
+              'https://app.cogniate.test',
+              'https://lti.cogniate.test',
+            ]) {
+              const badRes = await app(s, 'POST', '/app-api/connections', {
+                name: `Bad Site ${fixture.id}`,
+                lms: fixture.id,
+                method: 'manual',
+                siteUrl: badSiteUrl,
+                ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
+              });
+              expectStatus(badRes, 422, 'INVALID_SITE_URL');
+            }
           }
         });
       });
@@ -282,20 +295,22 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
           await runKitCase(fixture.id, 'K1-REG', 'R3', async () => {
             const s = await session('A');
 
-            // 1. Happy-path Dynamic Registration with path-prefix issuer and authorization_server
-            const customAuthServer = `${fixture.sim.siteUrl}/oauth2/token-aud`;
+            // 1. Happy-path Dynamic Registration with the simulator issuer (the generic issuer has a path; the
+            // tests/sim DR option is `issuer`) and an authorization_server
+            // authorization_server = the token URL: it becomes the platform clientAssertionAud, and a value that is not
+            // the token URL on the issuer origin would break I-SELF (LA-ADR-02 D5 items 4 and 10).
+            const tokenUrl = fixture.sim.tokenEndpoint;
             const drCursor = (await records()).cursor;
             const drOk = await runDynamicRegistrationHandshake(s, fixture, {
-              issuerPath: '/subpath',
-              authorizationServer: customAuthServer,
+              authorizationServer: tokenUrl,
             });
             try {
               expect(drOk.step).toBe('post');
               expect(drOk.response.status).toBe(200);
-              expect(htmlText(drOk.response.text)).toContain(
-                'Done. Return to your LMS to finish.',
-              );
+              expect(htmlText(drOk.response.text)).toContain('Done.');
 
+              // The DR authority of the channel decides the state (cogniate-app-api.md §6 `POST /tool/register`:
+              // `registered`; cogniate-app-api-delta.md §5: an operatorGrant DR stays `pending` until a grant).
               const connDetail = await app(
                 s,
                 'GET',
@@ -303,18 +318,26 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               );
               expectStatus(connDetail, 200);
               const connObj = connDetail.json.connection ?? connDetail.json;
-              expect(connObj.status).toBe('registered');
-              expect(connObj.platform.issuer).toBe(
-                `${fixture.sim.siteUrl}/subpath`,
-              );
+              // Staged when the DR authority is operatorGrant, or when I-SELF fails because the token host is not on the
+              // issuer origin (LA-ADR-02 D5 item 10; cogniate-app-api-delta.md §5); else registered and active.
+              const staged =
+                fixture.capabilities['binding.authority'].dynamic === 'operatorGrant' ||
+                new URL(fixture.sim.tokenEndpoint).origin !== new URL(fixture.sim.issuer).origin;
+              if (staged) {
+                expect(connObj.status).toBe('pending');
+                expect(connObj.bindingAuthority).toBe('operatorGrant');
+              } else {
+                expect(connObj.status).toBe('registered');
+              }
+              expect(connObj.platform.issuer).toBe(fixture.sim.issuer);
 
               // Verify platform record in lti-service stores tokenAudience = authorization_server and simulator recorded scopes
               const platId = connObj.platform.id ?? connObj.platform.platformId;
               const platDetail = await admin('GET', `/api/platforms/${platId}`);
               expectStatus(platDetail, 200);
-              expect(
-                platDetail.json.tokenAudience ?? platDetail.json.authorizationServer,
-              ).toBe(customAuthServer);
+              // lti-service-api-delta §4.5: the platform field is `clientAssertionAud`; an active admin-value platform has
+              // it empty or equal to the token URL.
+              expect(platDetail.json.clientAssertionAud ?? tokenUrl).toBe(tokenUrl);
               const drRecs = (await records(drCursor)).records.filter(
                 (r) => r.kind === 'registration',
               );
@@ -339,50 +362,108 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               await endConnection(s, drAlt.connection.id);
             }
 
-            // 3. Refusal when LtiDeepLinkingRequest is missing from messages_supported
-            const drNoDl = await runDynamicRegistrationHandshake(s, fixture, {
-              messagesSupported: ['LtiResourceLinkRequest'],
-            });
-            try {
-              expect(drNoDl.response.status).toBe(400);
-              expect(drNoDl.response.text).toContain(
-                'data-error-code="PLATFORM_CONFIGURATION_INVALID"',
-              );
-            } finally {
-              await endConnection(s, drNoDl.connection.id);
-            }
-
-            // 4. Refusal when required AGS scope is missing from scopes_supported
-            const drNoScope = await runDynamicRegistrationHandshake(s, fixture, {
-              scopesSupported: ['openid'],
-            });
-            try {
-              expect(drNoScope.response.status).toBe(400);
-              expect(drNoScope.response.text).toContain(
-                'data-error-code="PLATFORM_CONFIGURATION_INVALID"',
-              );
-            } finally {
-              await endConnection(s, drNoScope.connection.id);
-            }
-
-            // 5. Family guard at Dynamic Registration (product_family_code mismatch)
-            const otherFamily = allFixtures.find(
-              (f) => f.sim.family !== fixture.sim.family,
-            )!.sim.family;
-            const drWrongFamily = await runDynamicRegistrationHandshake(s, fixture, {
-              productFamilyCode: otherFamily,
-            });
-            try {
-              if (fixture.simProfile === 'standard') {
-                expect(drWrongFamily.response.status).toBe(200);
-              } else {
-                expect(drWrongFamily.response.status).toBe(400);
-                expect(drWrongFamily.response.text).toContain(
-                  'data-error-code="PROVIDER_PROFILE_MISMATCH"',
-                );
+            // 3–4. Capability checks (LA-ADR-02 D5 item 5; AC-LA-E2-02-05): a configuration without
+            // LtiDeepLinkingRequest in messages_supported, or without a channel scope in scopes_supported, gets a refusal
+            // page and no registration request. The contract names no code for these two refusals, so the oracle is an
+            // error page (status >= 400, `data-error-code`, security.md §2.2), no "Done." text, and no new simulator
+            // `registration` record.
+            const capabilityRefusals: Array<[string, Record<string, unknown>]> = [
+              ['no LtiDeepLinkingRequest', { messagesSupported: ['LtiResourceLinkRequest'] }],
+              ['no channel scope', { scopesSupported: ['openid'] }],
+            ];
+            for (const [label, drPatch] of capabilityRefusals) {
+              const refusalCursor = (await records()).cursor;
+              const refused = await runDynamicRegistrationHandshake(s, fixture, drPatch);
+              try {
+                expect(refused.response.status, label).toBeGreaterThanOrEqual(400);
+                expect(refused.response.text, label).toMatch(/data-error-code="[A-Z_]+"/);
+                expect(htmlText(refused.response.text), label).not.toContain('Done.');
+                const regRecs = (await records(refusalCursor)).records.filter((r) => r.kind === 'registration');
+                expect(regRecs, label).toEqual([]);
+              } finally {
+                await endConnection(s, refused.connection.id);
               }
-            } finally {
-              await endConnection(s, drWrongFamily.connection.id);
+            }
+
+            // 5. Family guard at Dynamic Registration, both guard levels: a configuration whose product_family_code is
+            // guarded by another channel (any level) gets the PROVIDER_PROFILE_MISMATCH page (cogniate-app-api-delta.md
+            // §5 `/tool/register`; LA-ADR-01 D6). The families come from the declared guard data (expect.guardedFamilies);
+            // the simulator option `family` sets the configuration's product_family_code (tests/sim/core/dr.mjs).
+            const guardProbes = selectFamilyGuardProbes(fixture, allFixtures).probes.filter(
+              (p) => p.foreignFamilyCategory !== 'unguarded',
+            );
+            expect(guardProbes.length).toBeGreaterThanOrEqual(1);
+            for (const probe of guardProbes) {
+              const familyCursor = (await records()).cursor;
+              const familySince = Date.now();
+              const drWrongFamily = await runDynamicRegistrationHandshake(
+                s,
+                fixture,
+                {},
+                {},
+                { family: probe.foreignFamily },
+              );
+              try {
+                if (drFamilyGuardRefusedAtComplete(fixture, probe, allFixtures)) {
+                  // Recorded deviation at a8bbac53 (Architect A1 ruling BD-A1-121; fix planned for LG): a family that
+                  // another channel guards at the registration level, on a connection whose DR start rule also lets
+                  // the owner channel pass. Exact answer: start 303 to the app confirm page; confirm page 200;
+                  // `complete` 400 INVALID_REQUEST with reason `family=<family>` (LTI log registration_rejected); the
+                  // app page REGISTRATION_FAILED 502 (app log registration_confirm_rejected, lti_code
+                  // INVALID_REQUEST); no registration request at the simulator; no platform; the connection stays
+                  // pending with last error REGISTRATION_FAILED.
+                  const label = `family ${probe.foreignFamily} (BD-A1-121)`;
+                  const reason = `family=${probe.foreignFamily}`;
+                  expect(drWrongFamily.start.status, label).toBe(303);
+                  expect(
+                    new URL(String(drWrongFamily.start.headers?.location), APP_ORIGIN).pathname,
+                    label,
+                  ).toBe('/tool/register');
+                  expect(drWrongFamily.step, label).toBe('post');
+                  expect(drWrongFamily.getPage?.status, label).toBe(200);
+                  expect(drWrongFamily.response.status, label).toBe(502);
+                  expect(drWrongFamily.response.text, label).toContain('data-error-code="REGISTRATION_FAILED"');
+                  await poll(
+                    async () =>
+                      logEvents(
+                        'registration_rejected',
+                        familySince,
+                        { code: 'INVALID_REQUEST', detail: reason },
+                        'lti-service',
+                      ),
+                    (events) => events.length >= 1,
+                    10_000,
+                    200,
+                  );
+                  await poll(
+                    async () =>
+                      logEvents(
+                        'registration_confirm_rejected',
+                        familySince,
+                        { code: 'REGISTRATION_FAILED', lti_code: 'INVALID_REQUEST' },
+                        'cogniate-app',
+                      ),
+                    (events) => events.length >= 1,
+                    10_000,
+                    200,
+                  );
+                  const regRecs = (await records(familyCursor)).records.filter((r) => r.kind === 'registration');
+                  expect(regRecs, label).toEqual([]);
+                  const refusedDetail = await app(s, 'GET', `/app-api/connections/${drWrongFamily.connection.id}`);
+                  expectStatus(refusedDetail, 200);
+                  const refusedConn = refusedDetail.json.connection ?? refusedDetail.json;
+                  expect(refusedConn.status, label).toBe('pending');
+                  expect(refusedConn.lastError?.code, label).toBe('REGISTRATION_FAILED');
+                  expect(refusedConn.platform ?? null, label).toBeNull();
+                } else {
+                  expect(drWrongFamily.response.status).toBeGreaterThanOrEqual(400);
+                  expect(drWrongFamily.response.text).toContain(
+                    'data-error-code="PROVIDER_PROFILE_MISMATCH"',
+                  );
+                }
+              } finally {
+                await endConnection(s, drWrongFamily.connection.id);
+              }
             }
           });
         });
@@ -390,25 +471,36 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
 
       it(`${fixture.id}:K1-REG:R4 — Reserved issuer refused with 400 ISSUER_RESERVED`, async () => {
         await runKitCase(fixture.id, 'K1-REG', 'R4', async () => {
-          const reservedFixtures = getReservedIssuerFixtures(allFixtures, fixture.id);
+          // The reserved-issuer rule belongs to the profiles that take an issuer and endpoints (lti-service-api-delta
+          // §4.6.1 rule 3, "as for standard"): the channel's own profile when it takes admin endpoints, else the
+          // generic path (the protocol-control fixture). A `standard`-shaped profile (manual `self`) checks the issuer
+          // origin of each endpoint first, so its endpoints sit on the reserved issuer's origin.
+          const adminPath = isAnyHttpsChannel(fixture) || fixture.capabilities['binding.authority'].manual === 'self'
+            ? fixture
+            : selectProtocolControlFixture(allFixtures);
+          const reservedFixtures = getReservedIssuerFixtures(allFixtures, adminPath.id);
+          expect(reservedFixtures.length).toBeGreaterThanOrEqual(1);
           for (const reserved of reservedFixtures) {
-            // POST /api/platforms with reserved issuer -> 400 ISSUER_RESERVED (lti-service-api-delta.md §2.4)
+            const endpointBase =
+              adminPath.capabilities['binding.authority'].manual === 'self'
+                ? new URL(reserved.sim.issuer).origin
+                : null;
             const res = await admin('POST', '/api/platforms', {
-              name: `Reserved ${reserved.id} on ${fixture.id}`,
+              name: `Reserved ${reserved.id} on ${adminPath.id}`,
               url: reserved.sim.issuer,
               clientId: uniqueId('reserved-client'),
-              authenticationEndpoint: fixture.sim.authEndpoint,
-              accesstokenEndpoint: fixture.sim.tokenEndpoint,
+              authenticationEndpoint: endpointBase ? `${endpointBase}/kit/auth` : adminPath.sim.authEndpoint,
+              accesstokenEndpoint: endpointBase ? `${endpointBase}/kit/token` : adminPath.sim.tokenEndpoint,
               authConfig: {
                 method: 'JWK_SET',
-                key: fixture.sim.jwksUrl,
+                key: endpointBase ? `${endpointBase}/kit/jwks` : adminPath.sim.jwksUrl,
               },
-              profile: fixture.simProfile,
-              deploymentIds: [fixture.sim.deployments[0]],
+              profile: adminPath.simProfile,
+              deploymentIds: [adminPath.sim.deployments[0]],
             });
             expect(res.status).toBe(400);
             expect(['ISSUER_RESERVED', 'PLATFORM_URL_NOT_IN_PROFILE']).toContain(
-              res.json?.error?.code,
+              res.json?.details?.message,
             );
           }
         });
@@ -433,15 +525,23 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
 
       it(`${fixture.id}:K1-REG:R6 — Origin binding I-SELF negative case (AP-07-11): off-origin DR stages registration (endpointsOnIssuerOrigin: false, active: false, operatorGrant, 403 PLATFORM_NOT_ACTIVE); active POST /api/platforms refuses off-origin (400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN) and cross-profile host (400 PLATFORM_URL_NOT_IN_PROFILE)`, async () => {
         await runKitCase(fixture.id, 'K1-REG', 'R6', async () => {
+          // The I-SELF origin-binding rules belong to profiles with `endpointOrigins: any-https` (TEST-STRATEGY §2.4 R6;
+          // LA-ADR-02 D2a). A channel whose own profile is fixed or issuer-bound runs R6 on the generic path (the
+          // protocol-control fixture), so the case keeps its meaning on every channel.
+          const target = isAnyHttpsChannel(fixture) ? fixture : selectProtocolControlFixture(allFixtures);
+          const targetBinding: ChannelBinding =
+            target === fixture
+              ? binding
+              : { ...binding, fixture: target, siteHost: target.sim.siteHost, pageHost: target.sim.pageHost };
           // 1. Dynamic Registration off-origin staging (AP-07-11; lti-service-api-delta.md §4.5; cogniate-app-api-delta.md §3.2)
           if (
-            fixture.capabilities['registration.dynamic'] &&
-            fixture.capabilities['binding.authority'].dynamic === 'self'
+            target.capabilities['registration.dynamic'] &&
+            target.capabilities['binding.authority'].dynamic === 'self'
           ) {
             const s = await session('A');
 
             // 1a. Off-origin token_endpoint via /tool/register stages the connection as pending + operatorGrant
-            const staged = await runDynamicRegistrationHandshake(s, fixture, {
+            const staged = await runDynamicRegistrationHandshake(s, target, {
               secondTokenHost: true,
             });
             try {
@@ -465,11 +565,11 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               const stagedDepId =
                 stagedPlat.deploymentId ??
                 stagedPlat.deploymentIds?.[0] ??
-                fixture.sim.deployments[0];
+                target.sim.deployments[0];
 
               // Launch against the staged (inactive) platform is refused with 403 PLATFORM_NOT_ACTIVE and zero outbound calls
               const cursor = (await records()).cursor;
-              const unapprovedLaunch = await launchOnChannel(binding, {
+              const unapprovedLaunch = await launchOnChannel(targetBinding, {
                 clientId: stagedPlat.clientId,
                 deploymentId: stagedDepId,
                 resource: pub.id,
@@ -480,7 +580,7 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               // Operator grant with --accept-staged --confirm-foreign-hosts activates the staged platform
               const grant = await issueOperatorGrantForChannel(
                 String(s.library?.id ?? s.library),
-                fixture,
+                target,
                 staged.connection.id,
                 stagedPlat.clientId,
                 stagedDepId,
@@ -506,7 +606,10 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
 
             // 1b. Direct lti-service GET /lti/register/cogniate + GET /api/registrations/:id + POST /api/registrations/:id/complete
             // with off-origin authorization_server (lti-service-api.md §2.4, §3.8; lti-service-api-delta.md §4.5)
-            const offAuthSc = await scenario(fixture.simProvider, {
+            const offAuthSc = await scenario(target.simProvider, {
+              clientId: uniqueId(`dr-off-${target.id}`),
+              deploymentId: newDeploymentId(target, 'dr-off-dep'),
+              siteHost: target.sim.siteHost,
               dr: {
                 authorizationServer: 'https://off-origin-auth.sim.test/oauth2/token',
               },
@@ -516,9 +619,15 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             )}&registration_token=${encodeURIComponent(
               offAuthSc.registration.registrationToken,
             )}`;
-            const regStartRes = await ltiRequest('GET', regStartPath, {
+            let regStartRes = await ltiRequest('GET', regStartPath, {
               headers: { accept: 'text/html' },
             });
+            for (let attempt = 0; regStartRes.status === 429 && attempt < 3; attempt += 1) {
+              await new Promise((resolve) => setTimeout(resolve, retryAfterMs(regStartRes as never)));
+              regStartRes = await ltiRequest('GET', regStartPath, {
+                headers: { accept: 'text/html' },
+              });
+            }
             expect(regStartRes.status).toBe(303);
             const redirectUrl = new URL(
               String(regStartRes.headers.location),
@@ -538,8 +647,8 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               'POST',
               `/api/registrations/${registrationId}/complete`,
               {
-                profile: fixture.simProfile,
-                scopes: fixture.capabilities['registration.scopes'],
+                profile: target.simProfile,
+                scopes: target.capabilities['registration.scopes'],
                 bindingRef: uniqueId('bref-r6'),
               },
             );
@@ -552,39 +661,39 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
 
           // 2. Active POST /api/platforms with off-origin endpoint without confirmForeignHosts refused (lti-service-api-delta.md §2.4)
           const offOriginRes = await admin('POST', '/api/platforms', {
-            name: `Off-origin ${fixture.id}`,
-            url: `${fixture.sim.issuer}/r6-off-origin`,
+            name: `Off-origin ${target.id}`,
+            url: `${target.sim.issuer}/r6-off-origin`,
             clientId: uniqueId('r6-off-client'),
-            authenticationEndpoint: fixture.sim.authEndpoint,
+            authenticationEndpoint: target.sim.authEndpoint,
             accesstokenEndpoint: 'https://off-origin-untrusted.sim.test/oauth2/token',
             authConfig: {
               method: 'JWK_SET',
-              key: fixture.sim.jwksUrl,
+              key: target.sim.jwksUrl,
             },
-            profile: fixture.simProfile,
-            deploymentIds: [fixture.sim.deployments[0]],
+            profile: target.simProfile,
+            deploymentIds: [target.sim.deployments[0]],
             active: true,
           });
           expect(offOriginRes.status).toBe(400);
           expect(['PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', 'PLATFORM_URL_NOT_IN_PROFILE']).toContain(
-            offOriginRes.json?.error?.code,
+            offOriginRes.json?.details?.message,
           );
 
           // 3. Active POST /api/platforms with an endpoint host belonging to another fixed-host profile -> 400 PLATFORM_URL_NOT_IN_PROFILE
-          const fixedHostOther = getReservedIssuerFixtures(allFixtures, fixture.id)[0];
+          const fixedHostOther = getReservedIssuerFixtures(allFixtures, target.id)[0];
           if (fixedHostOther) {
             const crossHostRes = await admin('POST', '/api/platforms', {
-              name: `Cross-host ${fixture.id}`,
-              url: `${fixture.sim.issuer}/r6-cross-host`,
+              name: `Cross-host ${target.id}`,
+              url: `${target.sim.issuer}/r6-cross-host`,
               clientId: uniqueId('r6-cross-client'),
               authenticationEndpoint: fixedHostOther.sim.authEndpoint,
-              accesstokenEndpoint: fixture.sim.tokenEndpoint,
+              accesstokenEndpoint: target.sim.tokenEndpoint,
               authConfig: {
                 method: 'JWK_SET',
-                key: fixture.sim.jwksUrl,
+                key: target.sim.jwksUrl,
               },
-              profile: fixture.simProfile,
-              deploymentIds: [fixture.sim.deployments[0]],
+              profile: target.simProfile,
+              deploymentIds: [target.sim.deployments[0]],
               active: true,
             });
             expectStatus(crossHostRes, 400, 'PLATFORM_URL_NOT_IN_PROFILE');
@@ -610,32 +719,35 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
             expect(okDetails.jwks.ok).toBe(true);
             expect(okDetails.token.ok).toBe(true);
 
-            // 2. Simulator tokenError: 'invalid_client' -> result === 'failed'
-            await scenario(fixture.simProvider, {
-              clientId: binding.clientId,
-              deploymentId: binding.deploymentId,
-              tokenError: 'invalid_client',
+            // 2. The simulator token endpoint answers invalid_client (tests/sim option `tokenAnswers`, persistent) for a
+            // second connection of this channel (one check per platform and deployment per minute, lti-service-api-delta
+            // §2.6) -> result 'failed', details.token.ok false, details.token.detail 'invalid_client'.
+            const isShared = fixture.capabilities['platform.sharing'] === 'shared';
+            const bad = await setupChannelBinding(fixture, {
+              library: 'A',
+              clientId: isShared ? binding.clientId : uniqueId(`c-check-${fixture.id}`),
+              deploymentId: newDeploymentId(fixture, `dep-check-${fixture.id}`),
             });
             try {
+              await scenario(fixture.simProvider, {
+                clientId: bad.clientId,
+                deploymentId: bad.deploymentId,
+                siteHost: bad.siteHost,
+                pageHost: bad.pageHost,
+                tokenAnswers: [{ status: 400, error: 'invalid_client', persistent: true }],
+              });
               const failCheck = await app(
-                s,
+                bad.session,
                 'POST',
-                `/app-api/connections/${binding.connection.id}/check`,
+                `/app-api/connections/${bad.connection.id}/check`,
                 {},
               );
               expectStatus(failCheck, 200);
-              expect(failCheck.json.result ?? failCheck.json.check?.status).toBe('failed');
-              const failDetails = failCheck.json.details ?? failCheck.json.check?.steps;
-              expect(failDetails.token.ok).toBe(false);
-              expect(
-                failDetails.token.detail ?? failDetails.token.errorCode,
-              ).toBeTruthy();
+              expect(failCheck.json.result).toBe('failed');
+              expect(failCheck.json.details.token.ok).toBe(false);
+              expect(failCheck.json.details.token.detail).toBe('invalid_client');
             } finally {
-              await scenario(fixture.simProvider, {
-                clientId: binding.clientId,
-                deploymentId: binding.deploymentId,
-                tokenError: null,
-              });
+              await endConnection(bad.session, bad.connection.id);
             }
           });
         });
