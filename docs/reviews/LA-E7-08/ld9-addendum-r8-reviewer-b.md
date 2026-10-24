@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # LD-9 addendum r8 and LD-29 re-gate — Reviewer-B
 
@@ -32,3 +32,43 @@ Reviewed 2026-10-24 at integration `2da33750` (QA `d736abb6` + `c55e9d05`), agai
 - The planned run set covers both full legacy/M1/M2 runs, golden comparison, both five-channel kits, the six-channel walk and K2. The stated phases keep at most two LA stacks and one Moodle stack, with distinct concurrent ports/subnets; unchanged migration and key/restore executable paths support carrying earlier task evidence. The baseline rows include each missing legacy group and its app/LTI rate extraction. Their results are still pending.
 
 Artifacts: `/tmp/reviewer-b-ld9-r8-qa4kpgty/{tree-audit,overlay-provenance,patch-checks,kit-command-checks,carry-scope}.json` and the `baseline-*.log` / `candidate-*.log` host logs. The separate baseline reconciliation review is [LA-E0-02 Round 2](../LA-E0-02/reviewer-b.md). No Docker, stack, live HTTP or commit; no other reviewer's file read. Only the two assigned review files were edited in integration.
+
+## Round 2
+
+Reviewed 2026-10-24, Codex GPT-6-Astra xhigh, against QA `44907ced`, integration `ab8e8938`, and plan LD-31. **CHANGES_REQUESTED: 0 BLOCKER, 2 MAJOR, 1 MINOR, 0 NIT.** The rebuilt source trees and revised concurrency schedule are approved. The execution examples still contain two reproducible failures. Live baseline and double-run acceptance remain pending.
+
+### B-LA-E7-08-LD9-R8-01 — MAJOR — OPEN: the wave input still does not match the pinned producer
+
+**File:line:** `tests/ltiaas/GATE-RUN-PLAN.md:1089`, `:1100`, `:1103` (D4 inherits the same instructions at `:1126`).
+
+**Problem / evidence:** The overlay flags, removal of `--channels`, and producer-run ordering are corrected. However, the example writes an object `{waveId, sources: [{id, kind, path}]}`. The pinned `writeWaveEvidence()` requires an **array of `{suite, file}` entries** and reads complete host `summary.json` files. Passing the documented object to that pure function throws `wave spec: a non-empty array is required`. Converting only the outer object to an array would still fail: the field names and `vitest` / `t7` / `playwright` kinds are wrong, and the selected container reports do not contain the required host phases, run identity and aggregate results. In the live runner this validation occurs after stack setup.
+
+The paths also do not follow the documented producer commands: core runners write under `$SRC_FINAL_3/tests/host/artifacts/<run-id>/`, while T7 writes under `$SRC_FINAL_3/tests/e2e/artifacts/runs/<run-id>/`. `--workdir` changes the product clone location, not either artifact root. No collection step creates the example's `$REGATEDIR/artifacts/`. The section also uses `REGATEDIR`, source variables and `BASELINE_3_SHA` without an initialization block. Finally, the walk's existing `wave-spec-r8.json` references T7 **qalead-la-66**, not the stated 56; that existing array passes the real producer for all three suites.
+
+**Suggested fix:** Define the variables once and select each completed run's actual `summary.json`: T3b from 131, T7 from 130, T8 from 137 for D3; 154, 153, 160 for D4. Write `[{"suite":"T3b","file":".../summary.json"}, ...]`, keep `LA_WAVE_ID` in the environment, and check the manifest with the pure producer before starting the kit stack. Use the existing working r8 manifest as the format reference. Correct the walk's T7 source number.
+
+### B-LA-E7-08-LD9-R8-03 — MAJOR — The normalization example empties every copied golden document
+
+**File:line:** `tests/ltiaas/GATE-RUN-PLAN.md:1073`.
+
+**Problem / evidence:** In `open(p,"w").write(open(p).read().replace(...))`, Python opens the write target and truncates it before evaluating the read argument. On disposable copies of the pinned golden files, the exact expression exits 0 but changes all four files from non-empty JSON to **0 bytes**. The following compare exits **2**, `Unexpected end of JSON input`. The original capture survives because the plan copies it first, but D3 cannot complete its golden comparison using this command.
+
+**Suggested fix:** Read each file completely before opening it for writing, for example `text = p.read_text(); p.write_text(text.replace(":9473", ":9643"))` using `pathlib.Path`. Check that all four outputs still parse and that only the intended port values changed. Smoke-test this command on disposable documents; no live rerun is needed to verify the correction.
+
+### B-LA-E7-08-LD9-R8-02 — MINOR — OPEN: correct the remaining drill identifiers
+
+**File:line:** `tests/ltiaas/GATE-RUN-PLAN.md:1013`.
+
+**Problem / evidence:** The separate continuity and backup rows now identify the right drill, lane and 10/10 count. The new full drill SHA `5603861829dd7da4cfaf98ebfb7323b45063e7df` is not a commit, and `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24-r2/` does not exist. The cited QA report and git resolve the real commit to **`5603861886909667a03d2aaf7843a9b17a4020ed`** and the artifact directory to **`/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24/r2/artifacts/qa-e2e-la-drill-r2-56038618-2026-10-23T20-36-36-947Z/`**.
+
+**Suggested fix:** Copy those exact identifiers from the cited record. The carry rationale and absence of executable infrastructure changes remain accepted; no repeat drill is requested.
+
+### Verified source and scheduling scope
+
+- Fresh `git clone --no-hardlinks` copies of **each** published source are under `/tmp/reviewer-b-ld9-r8-r2-tofad1og/{baseline,candidate,candidate-d4}`. Published sources and private tracked files are clean. Baseline is `1ae6716b` directly atop `d854183f`; both candidates are `794f649c` directly atop `57b6a78c`. All three have **zero non-test diff** from their stated product pins, and each new top commit changes only `tests/ltiaas/golden/**`.
+- All three golden trees equal **`1909e58f79e5214e7bb349a92811255391aa191c`**, independently matched to `d1603f4d`. Both candidate kit trees remain **`d7e50b5dea56382f849b213f006b73bcf5eb71aa`**. D3 and D4 full trees are identical (`847a3e0b232f569e4dc91e2013f9e1aac99ec3f9`). The r8 patch is unchanged at 3,366 bytes and its recorded SHA-256; reverse apply-check passes. The earlier frozen-test parity audit therefore remains valid.
+- Four host selftest files pass **37/37 on each of the three clones**. Golden K0 passes **12/12 on both candidate clones**. An extra baseline golden K0 check gives **10/12**, because its two candidate-only checks require `tests/sim/hosts.json` and `tests/ltiaas/k0/contract.test.ts`, absent from the pre-LA product. The plan claims 12/12 only for the candidate; this does not invalidate the baseline's stored golden tree or the scheduled R1 suites. No dependencies were installed in integration.
+- LD-31 is represented correctly: one active Moodle workload, at most two LA stacks, exactly two listed SIM/Moodle overlaps, solo M2/K2 windows after other teardown, and solo reruns retained as flake findings. D3's kit follows 130/131/137 and D4's follows 153/154/160. The critical-path arithmetic is **94 + 148 = 242 minutes remaining**, **266.4 minutes cumulative** including the listed completed/pre-R1 slots. The ancillary active-duration total should be **330.4**, not 332, when summed from the displayed row estimates; this does not affect the critical path.
+- Read the six-channel walk Round 3 and K2 Round 6 QA context. The new source-only changes do not invalidate their recorded 234/234 and 12/12 outcomes. They do not supply the pending R1/D3/D4 evidence.
+
+Artifacts: `tree-audit.json`, `host-checks.json`, the six `*-host.log` / `*-golden.log` files, `golden-command-probe.json`, `wave-command-probe.mjs`, `wave-command-probe.log`, and `final-checks.json` in the private directory above. Baseline reconciliation is [LA-E0-02 Round 3](../LA-E0-02/reviewer-b.md). No Docker, stack-starting runner, live HTTP, commit, or other reviewer's file was used. Only the two assigned Reviewer-B reports were edited in integration.

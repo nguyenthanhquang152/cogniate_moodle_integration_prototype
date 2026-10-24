@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 # LA-E0-02 — Reviewer-A
 
@@ -55,3 +55,15 @@ Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the reconciliation at 
 **Suggested fix:** Regenerate the test-level failure, skip and duration entries from each named `playwright-results.json`, preserve the actual assertion message and failing variant, and separate that observation from any later root-cause explanation. Cite separate evidence for a restart-probe diagnosis instead of substituting it for the P5 failure. Keep baseline-3 and the missing rate measurements pending.
 
 Exact extracts are in `/tmp/la-review-a-e1e451fa43ee/baseline-exact-errors.json`; summary recounts are in `baseline-reconciliation.json` (use any-failure aggregation for repeated host IDs). No new product run was performed, and no other reviewer's file was opened.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the corrected QA reconciliation at `ab8e8938` (QA `44907ced`) against fresh reads of the four saved Slot 3D runs. **0 new findings. A-LA-E0-02-02 is CLOSED; A-LA-E0-02-01 remains pending baseline-3.** The historical reconciliation is accepted. The task verdict stays **CHANGES_REQUESTED** because the required new baseline and request-rate measurements have not yet been supplied.
+
+The corrected `qa.md:154` now preserves P5's actual **“both attempts unchanged”** assertion, its `updatedAt` values and **29,205 ms** duration, separately from the passing host restart probe. AC-T5-36's **“Moodle grade,” expected 100, received null** and **74,264 ms** duration match the saved report. Run 46's corresponding passes are **12,519 / 29,025 ms**. Run 48's AC-T6-07/-13/-09 durations are **15,136 / 15,882 / 17,994 ms**, and run 49's failed AC-T8-10 (no token) is **15,121 ms**, with the recorded **15,000 ms** locator timeout. The table now retains all three subsequent T8 skips, including AC-T8-10 (with token), and the intentional T5a TTL skip alongside its separate passing knob run. Suite totals and the other cited sub-run durations also match the saved results.
+
+The four entry/unique-ID counts remain correct using any-failure aggregation. Failed attempts stay visible alongside the later passing run. Observed failures are now separated from root-cause explanations; the P5 rerun demonstrates a later pass, not by itself proof of the proposed background-update cause. The current review accepts the corrected observations without upgrading that inference into a measured cause.
+
+`qa.md:159` explicitly keeps AC-04 legacy results and AC-06/07 rate measurements pending on `78971b03`, with baseline test pin `1ae6716b7353becc0f053b46fb65e0ba86ff7873`. R1's schedule is not execution evidence and does not close A-LA-E0-02-01. No additional rerun is required for the historical transcription fix; close the remaining finding when the planned baseline results and measurements are reviewed.
+
+Evidence: `/tmp/la-review-a-6fc243f34f57-final/baseline-r3-audit.json`, extracted from the same four `SLOT3D/artifacts/qalead-la-45/46/48/49` run directories identified in Rounds 1–2, including each relevant `container-*/playwright-results.json`. No new product run, Docker or stack; no Reviewer-B report or probe was opened.
