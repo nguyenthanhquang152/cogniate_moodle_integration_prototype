@@ -1,5 +1,25 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
+
+## Round 3 (final SHA 4f10c5fd)
+
+Scope: the merge of the Blackboard and Canvas final result (`main` `78971b03`) into LA at `4f10c5fd` (product-owner decision LA-H27 (a); LD-29). The B/C part is `git log bd368ff..78971b03` (143 commits). In A1's lens (kernel, records, the app contract and its LA delta) I checked it with `git show`, `git diff` and `git grep` only.
+
+The product delta from round 2 is small: `git diff --stat a8bbac53 4f10c5fd -- apps packages services infra` shows only `apps/player/src/html/tracker.ts`, its test, and `infra/README.md`. `tracker.ts` at `4f10c5fd` equals the B/C final `78971b03`, and LA never changed `apps/player/src/html/` before (`bd368ff` and `1b17261` are equal there; BD-A1-116).
+
+| Item | Status | Evidence at `4f10c5fd` | Note |
+| --- | --- | --- | --- |
+| 1. Tracker repair against LA-E4-04 (record kinds from the tracking state) and LA-E1-09 (`{LMS}` player texts) | No conflict | Only `watchFrame` changes (`apps/player/src/html/tracker.ts:121`): it attaches at `DOMContentLoaded` and runs a 10 ms check around navigation. `createHtmlTracker` (`:27`), the commit body (`kind`, `event`, `sessionId`, `seq`, `progress {seenPages, answers}`) and the content host are unchanged, and the server-side record writer (`services/cogniate-app/src/kernel/records/**`) is not in the diff. The player status texts (`apps/player/src/lms-name.ts`, `packages/tracking/src/status-text.ts`) are not in the diff either | The records kernel gets the same commit shapes and kinds. The tracker only attaches earlier, so a fast learner's menu page is now recorded more often. This is the product side of WE-F10 (AC-T5-36), which BD-A1-116 left to ADR-004; that test fix stays valid and harmless |
+| Expected effect on the gates (the re-gate measures it) | None expected | The tracker runs only in the browser player | M1 (SIM, API-driven): none. G3 and G4 (API and DR pages): none. M2 and T7 (browser flows with the HTML player): the same results, possibly fewer timing failures. T5b AC-T5-36: more likely to pass |
+| 2. Base app contract `docs/architecture/contracts/cogniate-app-api.md` against the LA delta | Coherent; no LA row lost | B/C adds only the §9 observation (`:811`) and a dated §4.7.1 clarification at the end (`:942-948`): "No rule, outcome, invariant, timeout or product behavior changes". LA never edited this file (`git diff 1b17261 4f10c5fd` shows only the B/C lines), and the section numbers are unchanged | The delta still cites base §4.7.1 (S1–S3, rule A3) correctly (`cogniate-app-api-delta.md` §3.4). The clarification of a graceful stop agrees with BD-A1-97/106/107. Its line reference `packages/shared/src/http.ts:48` (`closeOnSignal`) is still right at `4f10c5fd`. The LTI base rows D22–D36 (`lti-service-api.md`, 15 rows) are not in the B/C diff and are all present |
+| 3. ADR-004, ADR-011 (and ADR-012) B/C edits against LA-ADR-01, -03, -04 | No conflict | ADR-004 `:47-60`: how the runtime observes child documents, and its limits. ADR-011 `:3`: status "Accepted for the prototype" plus history, no rule change. ADR-012 `:3` status and `:871` (a QA kill mode, no storage rule change) | LA-ADR-03 D3 takes its progress from the attempt state on the server; ADR-004 changes only when the browser attaches. LA-ADR-01 and LA-ADR-04 rely on the ADR-011 frozen wire and §4.7.1 rules, which are unchanged. ADR-012 §17 (identity binding, BD-A1-120) is unchanged by the merge |
+
+No finding. No new BD-A1 row is needed: the design facts are unchanged, and the WE-F10 note above links BD-A1-116 to the B/C repair.
+
+---
+
+Round 2 (history)
+
 
 # Architect A1 conformance, milestone LA: round 2 (final SHA `a8bbac53`)
 
