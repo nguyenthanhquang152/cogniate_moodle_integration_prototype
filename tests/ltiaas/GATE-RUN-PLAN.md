@@ -33,11 +33,12 @@
 | **LA-E5-13 SIM** | Lead QA | `LA-E5-13` `AC-01, -02, -03, -05` `K1-SIM` + `AC-06` `K0` on `fd146062` | `qalead-la-8..9` | `9443` / `172.20.0.0/16` | — | **DONE** (`43d5073c`) |
 | **Slot 3B** | Lead QA | Wave-end SIM gate (`LA-E7-08`) on `80133d6b` (code `02f5d420`): Golden `G1–G4` capture & compare (`280/280` explained), `M1 migration` (`12/12 PASS` in `m1-case-results.json`), `snapshot-upgrade` (`M1-38.h1..h5` `5/5 PASS`; `ERROR` `FAIL`, `M1-41.common.j-snapshot` not run), `U1` SIM (`37 PASS, 6 INFO`), `M1 sim` (`376/394 PASS, 18 FAIL, 1 ERROR`), `M2` (`64/64 PASS` + `M3-06-M2` env note) | `qalead-la-10..15` | `9473` / `172.23.0.0/16` | **`51 min`** (`16:57Z–17:48Z`) | **DONE (`FAIL` — `WE-F1..F5`, `docs/reviews/LA-E7-08/qa.md` §5)** |
 | **Slot 7** | Lead QA | Intake `1b17261` (`G-BASE`): `LA-E0-02` baseline + `LA-E0-04` `LD-1` parity with `357d1799` `--test-sha` (Run 7A `M1 sim` `394/394 PASS`, `M2` `64/64 PASS`, `M1 migration` `12/12 PASS`, `M1 snapshot-upgrade` `6/6 PASS`; Run 7B `T7×3` `3×17 PASS + 1 SKIP`; `WE-F4` baseline `7/7 PASS` with `8.2–8.4 s` restarts) | `qalead-la-16..20` | `9643` / `172.22.0.0/16` (7A SIM) then `9543` / `172.21.0.0/16` (7B Moodle) | **`48 min` actual** (`18:26Z–19:15Z`, one stack at a time) | **DONE (`PASS` — `56038618`, `docs/reviews/LA-E0-02/qa.md`)** |
-| **Slot 3C** | Lead QA | Wave-end SIM re-gate (`LA-E7-08`) on `$WAVE_SHA_2` in `src-wave-end-2` (`--test-sha $WAVE_TEST_SHA_2` = `8ad12926` overlay commit + approved `ld9-addendum-r1.md` Round 2 commit): `M1 sim` (`394` rows, all `18` `WE` rows must `PASS`), `M1 snapshot-upgrade` (`6` rows incl. `M1-41.common.j-snapshot`), `M2` (`64` cases), `G1–G4` golden capture & compare (`U1` and `M1 migration` not rerun — `0` migrations changed since `80133d6b`) | `qalead-la-40..43` | `9473` / `172.23.0.0/16` | **`35 min` sequential** (`24m` `M1 sim` + `3m` `snapshot-upgrade` + `4m` `M2` + `4m` `G1–G4`) | **READY (Pending Lead `$WAVE_SHA_2` & Addendum R2 Approval)** |
-| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `$WAVE_SHA_2` in `src-wave-end-2`: `T7×1` + `R2-lite` (`T2a..T8`, including `T4a`) + 6 frozen isolation ACs (`AC-T2-18`, `AC-T4-16`, `AC-T4-29`, `AC-T4-34`, `AC-T7-08`, `AC-T7-09`) + `AC-LA-E5-13-06` + all 12 task `MOODLE-LIVE` rows + QA-E2E `K2` `U1`/`U2` & `LA-E3-05` `AC-04, 11` | `qalead-la-30..36` | `9543` / `172.21.0.0/16` | **`57 min` Lead QA** (`+20 min` QA-E2E = **`77 min`**) | **READY** |
+| **Slot 3C** | Lead QA | Wave-end SIM re-gate (`LA-E7-08`) on `8fadb828` in `src-wave-end-3` (`--test-sha e46bb27c`): `M1 sim` (`393/394 PASS`, `1 FAIL` `WE-F6` `M1-08.canvas.login-redirect`), `M1 snapshot-upgrade` (`6/6 PASS` incl. `M1-41.common.j-snapshot`), `M2` (`64/64 PASS`), `G1–G4` golden capture & compare (`280/280` explained) | `qalead-la-40..43` | `9473` / `172.23.0.0/16` | **`31.8 min` actual** (`21:00Z–21:32Z`) | **DONE (`FAIL` — `WE-F6`, `docs/reviews/LA-E7-08/qa.md` §6)** |
+| **Slot 8** | Lead QA + QA-E2E | Wave-end `MOODLE-LIVE` gate on `8fadb828` in `src-wave-end-3`: `T7×1` + `R2-lite` (`T2a..T8`, including `T4a`) + 6 frozen isolation ACs + `AC-LA-E5-13-06` + all 12 task `MOODLE-LIVE` rows (`WE-F7..F10`) | `qalead-la-30..36` | `9543` / `172.21.0.0/16` | **`54.4 min` Lead QA** (`21:37Z–22:31Z`) | **Lead QA DONE (`docs/reviews/LA-E7-08/qa.md` §7)** |
+| **Slot 3D** | Lead QA | (1) `M1 --phase sim --provider all` (`394` rows) on `8fadb828` (`qalead-la-44`, `--test-sha 6ce8ffaf`, `src-wave-end-4`); (2) `WE-F10` `T5b` baseline on `1b17261` (`src-slot7-1b17261`, `357d1799`) × 2 (`qalead-la-45..46`) + `T6` baseline (`qalead-la-48`) + `T8` baseline (`qalead-la-49`); (3) wave-end `T5b` × 1 (`qalead-la-47`, `src-wave-end-4`) | `qalead-la-44..49` | `9473` / `172.23.0.0/16` (44) then `9543` / `172.21.0.0/16` (45..49) | **`100 min` window** | **READY (`src-wave-end-4` built at `6ce8ffaf`, waiting for `"GO slot 3D"`)** |
 
 > [!IMPORTANT]
-> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A), `qalead-la-8..9` (`LA-E5-13` SIM), `qalead-la-10..15` (Slot 3B), and `qalead-la-16..20` (Slot 7) have already been used. **Slot 8** reserves **`qalead-la-30..36`**, and **Slot 3C** exclusively uses **`qalead-la-40..43`**.
+> **Never reuse compose project numbers.** `qalead-la-1..3` (Slots 2 & 3A), `qalead-la-8..9` (`LA-E5-13` SIM), `qalead-la-10..15` (Slot 3B), `qalead-la-16..20` (Slot 7), `qalead-la-30..36` (Slot 8), and `qalead-la-40..43` (Slot 3C) have already been used. **Slot 3D** exclusively uses **`qalead-la-44..49`**.
 
 ---
 
@@ -419,6 +420,23 @@ node "$SRC_WAVE_3/tests/ltiaas/golden/compare.mjs" \
   --expected-dir "$SRC_WAVE_3/tests/ltiaas/golden/expected" \
   > "$SLOT3C_DIR/logs/qalead-la-43-golden-compare-port-aligned.txt"
 ```
+
+---
+
+## 3D. Slot 3D: Wave-End `M1 --phase sim` Re-Gate on `src-wave-end-4` (`WE-F6` / `LA-IC-06`) + `WE-F10` (`T5b` `AC-T5-36`) Baseline
+
+- **Gate Source Repo (`src-wave-end-4`):** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-4` (fresh `git clone --no-hardlinks` of `src-wave-end-3` at tag `la-gate-test-3` = `e46bb27c9487d332f40fcefd4dd880304d1d31f1`, with one new commit applying the approved Round 2 patch from `docs/reviews/LA-E7-08/ld9-addendum-r2.md` for `WE-F6` / `LA-IC-06` `M1-08.canvas.login-redirect`; `src-wave-end-3` untouched).
+- **Recorded Gate Source SHAs (`src-wave-end-4`):**
+  - **`$WAVE_SHA_3` (Product Base):** `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`tag: la-wave-end-product-3`)
+  - **`$BASE_OVERLAY_SHA_3` (Commit 1):** `e00b9651e29d835e1980732ba7037273f641ac7a` (`tag: la-gate-test-base-c1-3`)
+  - **`$WAVE_TEST_SHA_3` (Commit 2):** `e46bb27c9487d332f40fcefd4dd880304d1d31f1` (`tag: la-gate-test-3`)
+  - **`$WAVE_TEST_SHA_4` (Commit 3 — Approved `ld9-addendum-r2.md` Round 2 on `la-gate-test-3`):** `6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1` (`tag: la-gate-test-4`; `git diff --stat la-gate-test-3 HEAD` shows only `tests/acceptance/M1/canvas/21-canvas-protocol.test.ts | 25 ++++++++++++++++++----`, `1 file changed, 21 insertions(+), 4 deletions(-)`; `git diff --exit-code 8fadb828088ffe1b4db02179ab0fa3ab2388a12a HEAD -- . ':!tests'` exits `0` with `0` non-test files changed).
+- **Compose Projects & Order (`100 min` window after `"GO slot 3D"`, one stack at a time):**
+  1. **`qalead-la-44` (`SIM` lane, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`):** `M1 --phase sim --provider all` (`394` rows) on `--sha 8fadb828088ffe1b4db02179ab0fa3ab2388a12a --test-sha 6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1 --source /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-4`.
+  2. **`qalead-la-45` & `qalead-la-46` (`Moodle` lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`):** `WE-F10` baseline — `T5b` on intake `1b17261be97c4701b928fa9dc2fa74c6d23028f6` from `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` (`--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`), run twice (`qalead-la-45`, then `qalead-la-46`).
+  3. **`qalead-la-48` & `qalead-la-49` (`Moodle` lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`):** `WE-F7` / `WE-F8` (`BD-A1-115`) baseline — `T6` (`qalead-la-48`, `run-t5.mjs --tasks T5a,T6`) and `T8` (`qalead-la-49`, `run-t8.mjs`) on intake `1b17261be97c4701b928fa9dc2fa74c6d23028f6` from `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-1b17261` (`--test-sha 357d17997b4d36dbfb6bde7568a4d87c0e3a14fc`).
+  4. **`qalead-la-47` (`Moodle` lane, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`):** `T5b` once more on wave-end `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` from `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-4` (`--test-sha 6ce8ffafb9da767aa73dbcd5fb38e9844c543ff1`).
+  - Report `AC-T5-36` per run (`status`, `grade wait time`, and `outside requests held`), plus `AC-T6-07, -09, -12, -13` and `AC-T8-08, -10` per run.
 
 ---
 
