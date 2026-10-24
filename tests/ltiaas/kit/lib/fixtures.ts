@@ -163,9 +163,17 @@ export interface ChannelCapabilities {
 
 export type LegacyFlags = Record<LegacyFlagKey, boolean>;
 
+// One signed product family that the channel guards (LA-ADR-01 D2 `guardedFamilies`, D6 guard levels).
+// `family` is lower case, as check 14 compares it.
+export interface GuardedFamily {
+  family: string;
+  level: 'launch' | 'registration';
+}
+
 export interface ChannelExpectations {
   legacyFlags: LegacyFlags;
   toolConfigurationKeys: string[];
+  guardedFamilies: GuardedFamily[];
 }
 
 export interface ChannelPlatformStorageMetadata {
@@ -259,9 +267,10 @@ export interface PassRuleEvaluation {
   errors: string[];
 }
 
+// C1 operands (AC-LA-E7-06-04): the registry entry of GET /app-api/lms-providers (channel level,
+// cogniate-app-api-delta.md §2) and the connection DTO (§1), each against the fixture.
 export interface BilateralEqualityInput {
   fixture: ChannelFixture;
-  manifestCapabilities: Record<string, unknown>;
   providerChannelCapabilities: Record<string, unknown>;
   providerLegacyFlags: Record<string, unknown>;
   connectionChannelCapabilities: Record<string, unknown>;
@@ -327,43 +336,6 @@ export function loadChannelFixture(
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = JSON.parse(raw) as ChannelFixture;
   return parsed;
-}
-
-// Loads canonical channel capabilities for C1 bilateral verification without importing
-// product TypeScript source modules (charter-LA §2). When `manifestsRoot` or
-// `QA_CHANNEL_MANIFESTS_DIR` is provided, reads `<root>/<id>/manifest.json`; otherwise
-// resolves capabilities from the canonical channel fixture in `getChannelsDir()`.
-export function loadChannelManifestCapabilities(
-  fixture: ChannelFixture,
-  manifestsRoot?: string,
-): Record<string, unknown> {
-  const explicitRoot = manifestsRoot ?? process.env.QA_CHANNEL_MANIFESTS_DIR;
-  if (explicitRoot) {
-    const manifestPath = path.join(explicitRoot, fixture.id, 'manifest.json');
-    if (fs.existsSync(manifestPath)) {
-      const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
-        capabilities?: Record<string, unknown>;
-      };
-      if (isPlainObject(parsed.capabilities)) {
-        return JSON.parse(JSON.stringify(parsed.capabilities)) as Record<string, unknown>;
-      }
-    }
-    throw new Error(`Channel manifest not found or invalid at ${manifestPath}`);
-  }
-
-  const defaultFixturePath = path.join(getChannelsDir(), `${fixture.id}.json`);
-  if (fs.existsSync(defaultFixturePath)) {
-    const parsed = JSON.parse(fs.readFileSync(defaultFixturePath, 'utf8')) as {
-      capabilities?: Record<string, unknown>;
-    };
-    if (isPlainObject(parsed.capabilities)) {
-      return JSON.parse(JSON.stringify(parsed.capabilities)) as Record<string, unknown>;
-    }
-  }
-  if (fixture && isPlainObject(fixture.capabilities)) {
-    return JSON.parse(JSON.stringify(fixture.capabilities)) as Record<string, unknown>;
-  }
-  throw new Error(`Channel capabilities not found or invalid for channel "${fixture?.id ?? ''}"`);
 }
 
 // Selects the single generic-sim protocol-control fixture for once-per-run suites
@@ -615,6 +587,26 @@ export function auditFixtureSources(fixture: ChannelFixture): { ok: boolean; err
         `Fixture ${fixture.id}: "expect.toolConfigurationKeys" must be a non-empty string[]`,
       );
     }
+    if (!Array.isArray(fixture.expect.guardedFamilies)) {
+      errors.push(
+        `Fixture ${fixture.id}: "expect.guardedFamilies" must be an array of { family, level } (empty when the channel guards no family)`,
+      );
+    } else {
+      for (const entry of fixture.expect.guardedFamilies) {
+        const family = (entry as Partial<GuardedFamily> | undefined)?.family;
+        const level = (entry as Partial<GuardedFamily> | undefined)?.level;
+        if (typeof family !== 'string' || !family.trim() || family !== family.toLowerCase()) {
+          errors.push(
+            `Fixture ${fixture.id}: "expect.guardedFamilies" entry needs a non-empty lower-case family (LA-ADR-01 D2)`,
+          );
+        }
+        if (level !== 'launch' && level !== 'registration') {
+          errors.push(
+            `Fixture ${fixture.id}: "expect.guardedFamilies" entry level must be "launch" or "registration" (LA-ADR-01 D6)`,
+          );
+        }
+      }
+    }
   }
 
   if (!isPlainObject(fixture.coveredBy)) {
@@ -657,6 +649,7 @@ export function auditFixtureSources(fixture: ChannelFixture): { ok: boolean; err
       'notBuilt',
       'expect.legacyFlags',
       'expect.toolConfigurationKeys',
+      'expect.guardedFamilies',
       'sim',
     ];
     for (const reqSourceKey of requiredSourceKeys) {
@@ -1018,7 +1011,7 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
   add(
     'K1-CAP',
     'C1',
-    'Bilateral capability equality across manifest, fixture, GET /app-api/lms-providers, GET /app-api/connections/:id, legacyFlags, and toolConfigurationKeys',
+    'channelCapabilities of the registry entry (GET /app-api/lms-providers) and of the connection DTO equal the fixture set in both directions; six legacy flags; tool configuration keys',
     'RUN',
   );
   for (const cap of CONNECTION_GUARDED_CAPABILITIES) {
@@ -1443,9 +1436,6 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
   }
   const { fixture } = input;
 
-  if (!isPlainObject(input.manifestCapabilities)) {
-    errors.push('missing or invalid manifestCapabilities object');
-  }
   if (!isPlainObject(input.providerChannelCapabilities)) {
     errors.push('missing or invalid providerChannelCapabilities object');
   }
@@ -1471,14 +1461,6 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
 
   for (const key of CAPABILITY_KEYS) {
     const expectedVal = fixture.capabilities[key];
-    const manifestVal = input.manifestCapabilities[key];
-    if (JSON.stringify(manifestVal) !== JSON.stringify(expectedVal)) {
-      errors.push(
-        `manifest capability "${key}" mismatch on "${fixture.id}": expected ${JSON.stringify(
-          expectedVal,
-        )}, got ${JSON.stringify(manifestVal)}`,
-      );
-    }
     const provVal = input.providerChannelCapabilities[key];
     if (JSON.stringify(provVal) !== JSON.stringify(expectedVal)) {
       errors.push(
@@ -1497,11 +1479,6 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
     }
   }
 
-  for (const k of Object.keys(input.manifestCapabilities)) {
-    if (!(CAPABILITY_KEYS as readonly string[]).includes(k)) {
-      errors.push(`manifest has unknown capability key "${k}" on "${fixture.id}"`);
-    }
-  }
   for (const k of Object.keys(input.providerChannelCapabilities)) {
     if (!(CAPABILITY_KEYS as readonly string[]).includes(k)) {
       errors.push(
@@ -1553,31 +1530,92 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
   return { ok: errors.length === 0, errors };
 }
 
+// ---------------------------------------------------------------------------------------------
+// K1-LAUNCH L4: signed product family of another channel (TEST-STRATEGY §2.4 L4).
+// Design data: LA-ADR-01 D6 (generic check 14 and the two guard levels), cogniate-app-api-delta.md §5
+// (LMS check), LA-ADR-02 D1/D4 (brightspace guards desire2learn at the registration level).
+// The guard levels come from each fixture's `expect.guardedFamilies`; nothing here names a channel.
+// ---------------------------------------------------------------------------------------------
+
+export type FamilyGuardKind = 'launch_guarded' | 'registration_guarded' | 'unguarded';
+
 export interface FamilyGuardExpectation {
   targetChannelId: string;
   targetProductFamilyCode: string;
   foreignFamily: string;
-  foreignFamilyCategory: 'launch_guarded' | 'registration_guarded';
-  expectedOutcome: 'refuse' | 'warn_passthrough';
+  foreignFamilyCategory: FamilyGuardKind;
+  guardedBy?: string;
+  // refuse: 400 page PROVIDER_PROFILE_MISMATCH. warn_passthrough: 303 and an LTI log
+  // `family_guard_mismatch {platform_id, family}`. pass: 303 and no such log line.
+  expectedOutcome: 'refuse' | 'warn_passthrough' | 'pass';
   expectedStatus: 400 | 303;
   expectedCode?: 'PROVIDER_PROFILE_MISMATCH';
   expectedLogEvent?: 'family_guard_mismatch';
 }
 
-const LAUNCH_GUARDED_FAMILY_CODES = new Set(['canvas', 'BlackboardLearn']);
-const REGISTRATION_GUARDED_FAMILY_CODES = new Set(['moodle', 'desire2learn']);
+export interface FamilyGuardOwner {
+  family: string;
+  level: 'launch' | 'registration';
+  channelId: string;
+}
 
-// Derives the exact expected L4 family-guard outcome BEFORE sending a launch request
-// per TEST-STRATEGY.md §2.4 L4 and docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md §5:
-// - Launch-guarded families (`canvas`, `BlackboardLearn` — `LAUNCH_GUARD_CHANNELS`):
-//   always refused at launch on any other channel with 400 PROVIDER_PROFILE_MISMATCH.
-// - Registration-guarded families (`moodle`, `desire2learn`):
-//   refused at launch (400 PROVIDER_PROFILE_MISMATCH) ONLY on `MANUAL_SELF_LEGACY_CHANNELS`
-//   (`binding.authority.manual === 'self'`, i.e., `moodle`); on every other channel, launch
-//   passes (303) and emits `family_guard_mismatch` warning log.
+// Collects the guard declarations of all fixtures. One family has one guard level; a family that
+// two fixtures guard at different levels is a fixture error.
+export function buildFamilyGuardMap(fixtures: ChannelFixture[]): Map<string, FamilyGuardOwner[]> {
+  const map = new Map<string, FamilyGuardOwner[]>();
+  for (const fixture of fixtures) {
+    const declared = fixture?.expect?.guardedFamilies;
+    if (!Array.isArray(declared)) {
+      throw new Error(
+        `L4: fixture "${fixture?.id ?? ''}" has no expect.guardedFamilies array (LA-ADR-01 D2/D6)`,
+      );
+    }
+    for (const entry of declared) {
+      const family = String(entry.family ?? '').toLowerCase();
+      const owners = map.get(family) ?? [];
+      owners.push({ family, level: entry.level, channelId: fixture.id });
+      map.set(family, owners);
+    }
+  }
+  for (const [family, owners] of map) {
+    if (new Set(owners.map((o) => o.level)).size > 1) {
+      throw new Error(
+        `L4: family "${family}" is guarded at two levels (${owners
+          .map((o) => `${o.channelId}:${o.level}`)
+          .join(', ')})`,
+      );
+    }
+  }
+  return map;
+}
+
+function familyOwnerFor(
+  target: ChannelFixture,
+  family: string,
+  map: Map<string, FamilyGuardOwner[]>,
+): FamilyGuardOwner | undefined {
+  return (map.get(family.toLowerCase()) ?? []).find((o) => o.channelId !== target.id);
+}
+
+function ownFamiliesOf(target: ChannelFixture): Set<string> {
+  const own = new Set<string>([String(target.sim?.family ?? '').toLowerCase()]);
+  for (const entry of target.expect?.guardedFamilies ?? []) {
+    own.add(String(entry.family).toLowerCase());
+  }
+  return own;
+}
+
+// Derives the expected L4 outcome BEFORE the launch, from the declared guard levels only:
+// - a family that another channel guards at the `launch` level: 400 PROVIDER_PROFILE_MISMATCH;
+// - a family that another channel guards at the `registration` level: 400 on a platform of a
+//   MANUAL_SELF_LEGACY_CHANNELS channel (load check 6: the only channels whose manual method keeps
+//   authority `self`), else 303 and an LTI log `family_guard_mismatch`;
+// - a family that no channel guards: 303 and no `family_guard_mismatch` log ("an F that no channel
+//   guards, passes").
 export function deriveExpectedFamilyGuardOutcome(
   targetFixture: ChannelFixture,
   foreignFamily: string,
+  allFixtures: ChannelFixture[],
 ): FamilyGuardExpectation {
   if (!targetFixture || !targetFixture.sim) {
     throw new Error('deriveExpectedFamilyGuardOutcome requires a valid targetFixture');
@@ -1585,92 +1623,161 @@ export function deriveExpectedFamilyGuardOutcome(
   if (!foreignFamily || typeof foreignFamily !== 'string') {
     throw new Error('deriveExpectedFamilyGuardOutcome requires a non-empty foreignFamily');
   }
-  const ownFamily =
-    targetFixture.sim.family ??
-    (targetFixture.sim as { productFamilyCode?: string }).productFamilyCode ??
-    '';
-  if (foreignFamily === ownFamily) {
+  const ownFamily = String(targetFixture.sim.family ?? '');
+  if (ownFamiliesOf(targetFixture).has(foreignFamily.toLowerCase())) {
     throw new Error(
-      `foreignFamily "${foreignFamily}" matches target channel "${targetFixture.id}" own productFamilyCode`,
+      `foreignFamily "${foreignFamily}" is the own or a guarded family of target channel "${targetFixture.id}"`,
     );
   }
-
-  if (LAUNCH_GUARDED_FAMILY_CODES.has(foreignFamily)) {
+  const owner = familyOwnerFor(targetFixture, foreignFamily, buildFamilyGuardMap(allFixtures));
+  const base = {
+    targetChannelId: targetFixture.id,
+    targetProductFamilyCode: ownFamily,
+    foreignFamily,
+  };
+  if (!owner) {
     return {
-      targetChannelId: targetFixture.id,
-      targetProductFamilyCode: ownFamily,
-      foreignFamily,
+      ...base,
+      foreignFamilyCategory: 'unguarded',
+      expectedOutcome: 'pass',
+      expectedStatus: 303,
+    };
+  }
+  if (owner.level === 'launch') {
+    return {
+      ...base,
       foreignFamilyCategory: 'launch_guarded',
+      guardedBy: owner.channelId,
       expectedOutcome: 'refuse',
       expectedStatus: 400,
       expectedCode: 'PROVIDER_PROFILE_MISMATCH',
     };
   }
-
-  if (REGISTRATION_GUARDED_FAMILY_CODES.has(foreignFamily)) {
-    const isManualSelfLegacy =
-      targetFixture.capabilities?.['binding.authority']?.manual === 'self';
-    if (isManualSelfLegacy) {
-      return {
-        targetChannelId: targetFixture.id,
-        targetProductFamilyCode: ownFamily,
-        foreignFamily,
-        foreignFamilyCategory: 'registration_guarded',
-        expectedOutcome: 'refuse',
-        expectedStatus: 400,
-        expectedCode: 'PROVIDER_PROFILE_MISMATCH',
-      };
-    }
+  if (targetFixture.capabilities?.['binding.authority']?.manual === 'self') {
     return {
-      targetChannelId: targetFixture.id,
-      targetProductFamilyCode: ownFamily,
-      foreignFamily,
+      ...base,
       foreignFamilyCategory: 'registration_guarded',
-      expectedOutcome: 'warn_passthrough',
-      expectedStatus: 303,
-      expectedLogEvent: 'family_guard_mismatch',
+      guardedBy: owner.channelId,
+      expectedOutcome: 'refuse',
+      expectedStatus: 400,
+      expectedCode: 'PROVIDER_PROFILE_MISMATCH',
     };
   }
+  return {
+    ...base,
+    foreignFamilyCategory: 'registration_guarded',
+    guardedBy: owner.channelId,
+    expectedOutcome: 'warn_passthrough',
+    expectedStatus: 303,
+    expectedLogEvent: 'family_guard_mismatch',
+  };
+}
 
-  throw new Error(
-    `Unknown product_family_code "${foreignFamily}" in deriveExpectedFamilyGuardOutcome`,
-  );
+export interface FamilyGuardSelection {
+  probes: FamilyGuardExpectation[];
+  notes: string[];
+}
+
+// Selects the L4 probes for one target channel from all fixtures (discovery order):
+// 1. required: one family that another channel guards at the `launch` level;
+// 2. when one exists: one family that another channel guards at the `registration` level;
+// 3. control: one family that no fixture guards (a fixture `sim.family`, else a fixed test value).
+export function selectFamilyGuardProbes(
+  target: ChannelFixture,
+  allFixtures: ChannelFixture[],
+): FamilyGuardSelection {
+  const map = buildFamilyGuardMap(allFixtures);
+  const own = ownFamiliesOf(target);
+  const foreignAt = (level: 'launch' | 'registration') => {
+    for (const fixture of allFixtures) {
+      if (fixture.id === target.id) continue;
+      for (const entry of fixture.expect.guardedFamilies) {
+        const family = entry.family.toLowerCase();
+        if (entry.level === level && !own.has(family)) {
+          return family;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const notes: string[] = [];
+  const launchFamily = foreignAt('launch');
+  if (!launchFamily) {
+    throw new Error(
+      `L4: no family that another channel guards at the launch level for target "${target.id}" (LA-ADR-01 D6; check expect.guardedFamilies in the fixtures)`,
+    );
+  }
+  const probes = [deriveExpectedFamilyGuardOutcome(target, launchFamily, allFixtures)];
+
+  const registrationFamily = foreignAt('registration');
+  if (registrationFamily) {
+    probes.push(deriveExpectedFamilyGuardOutcome(target, registrationFamily, allFixtures));
+  } else {
+    notes.push(
+      `L4: no family that another channel guards at the registration level for target "${target.id}"; the registration-level probe has no input`,
+    );
+  }
+
+  const unguarded =
+    allFixtures
+      .map((f) => String(f.sim?.family ?? '').toLowerCase())
+      .find((family) => family && !own.has(family) && !map.has(family)) ??
+    'kit-unguarded-family';
+  probes.push(deriveExpectedFamilyGuardOutcome(target, unguarded, allFixtures));
+  return { probes, notes };
 }
 
 export function validateFamilyGuardLaunchObservation(
   expected: FamilyGuardExpectation,
-  observation: { status: number; body?: string; warnLogCount?: number },
+  observation: {
+    status: number;
+    body?: string;
+    location?: string;
+    warnLogCount?: number;
+  },
 ): { ok: boolean; error?: string } {
+  const label = `foreignFamily="${expected.foreignFamily}" (${expected.foreignFamilyCategory}) on "${expected.targetChannelId}"`;
   if (expected.expectedOutcome === 'refuse') {
     if (observation.status !== 400) {
-      return {
-        ok: false,
-        error: `expected 400 refusal for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got status=${observation.status}`,
-      };
+      return { ok: false, error: `expected 400 refusal for ${label}, got status=${observation.status}` };
     }
-    if (!String(observation.body ?? '').includes('PROVIDER_PROFILE_MISMATCH')) {
-      return {
-        ok: false,
-        error: `expected PROVIDER_PROFILE_MISMATCH in 400 body for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}"`,
-      };
+    if (!String(observation.body ?? '').includes('data-error-code="PROVIDER_PROFILE_MISMATCH"')) {
+      return { ok: false, error: `expected the PROVIDER_PROFILE_MISMATCH error page for ${label}` };
+    }
+    if (observation.location) {
+      return { ok: false, error: `expected no Location on the refusal for ${label}` };
     }
     return { ok: true };
   }
 
   if (observation.status !== 303) {
+    return { ok: false, error: `expected 303 for ${label}, got status=${observation.status}` };
+  }
+  const logs = observation.warnLogCount ?? 0;
+  if (expected.expectedOutcome === 'warn_passthrough' && logs <= 0) {
     return {
       ok: false,
-      error: `expected 303 warn_passthrough for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got status=${observation.status}`,
+      error: `expected an LTI log family_guard_mismatch for ${label}, got ${logs}`,
     };
   }
-  if ((observation.warnLogCount ?? 0) <= 0) {
+  if (expected.expectedOutcome === 'pass' && logs !== 0) {
     return {
       ok: false,
-      error: `expected family_guard_mismatch warning log for foreignFamily="${expected.foreignFamily}" on "${expected.targetChannelId}", got warnLogCount=${observation.warnLogCount ?? 0}`,
+      error: `expected no family_guard_mismatch log for unguarded ${label}, got ${logs}`,
     };
   }
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------------------------
+// K1-LAUNCH L7: launch without context (AP-05-08..11; LA-ADR-05 D2).
+// Contract facts: ResultRow is "one per learner per activity", `activity.resourceLinkId` is the
+// placement id (`rl_...`, cogniate-app-api.md §5; cogniate-app-api-delta.md §6), not the launch
+// `resource_link.id`; `stats.activities` counts the resource links of the publication (§5); the
+// score goes to the launch line item: `services.assignmentAndGrades.lineItemId` of /api/idtoken
+// (lti-service-api.md §3.1), path + `/scores` (AGS).
+// ---------------------------------------------------------------------------------------------
 
 export interface ContextlessResultRowLike {
   learner?: { sub?: string };
@@ -1680,97 +1787,189 @@ export interface ContextlessResultRowLike {
 
 export interface ContextlessScoreRecordLike {
   userId?: string;
-  resource?: string;
+  host?: string;
   path?: string;
+  resource?: string;
 }
 
-// Verifies the L7 contextless one-placement & per-learner score sync invariants:
-// 1. Both learner1 and learner2 have result rows (`row.learner.sub`).
-// 2. Both rows have at least one `scoreSyncs` entry with `status === 'sent'`.
-// 3. Both rows share the exact same non-empty `row.activity.resourceLinkId`, and the set of
-//    distinct `activity.resourceLinkId` across those learners has size === 1 (one-placement invariant).
-// 4. When `scoreRecords` is provided, both learners have simulator score records targeting the expected lineitem/resource.
-export function verifyContextlessSharedPlacement(input: {
+export interface ContextlessPlacementObservation {
   rows: ContextlessResultRowLike[];
   learner1: string;
   learner2: string;
-  scoreRecords?: ContextlessScoreRecordLike[];
-  expectedResourceId?: string;
-}): { ok: boolean; sharedResourceLinkId?: string; errors: string[] } {
+  placementCount: unknown;
+  launchLineItems: { learner1: unknown; learner2: unknown };
+  scoreRecords: ContextlessScoreRecordLike[];
+  expectedResourceId: string;
+}
+
+// Maps the raw contract answers to the L7 observation: results rows, the publication DTO,
+// the two /api/idtoken bodies and the simulator records since the case start.
+export function collectContextlessPlacementObservation(raw: {
+  rows: unknown;
+  publication: unknown;
+  idToken1: unknown;
+  idToken2: unknown;
+  simRecords: unknown;
+  learner1: string;
+  learner2: string;
+  publicationId: string;
+}): ContextlessPlacementObservation {
+  const lineItemOf = (token: unknown) =>
+    (token as { services?: { assignmentAndGrades?: { lineItemId?: unknown } } } | undefined)
+      ?.services?.assignmentAndGrades?.lineItemId;
+  const records = Array.isArray(raw.simRecords) ? (raw.simRecords as Array<Record<string, unknown>>) : [];
+  return {
+    rows: Array.isArray(raw.rows) ? (raw.rows as ContextlessResultRowLike[]) : [],
+    learner1: raw.learner1,
+    learner2: raw.learner2,
+    placementCount: (raw.publication as { stats?: { activities?: unknown } } | undefined)?.stats
+      ?.activities,
+    launchLineItems: { learner1: lineItemOf(raw.idToken1), learner2: lineItemOf(raw.idToken2) },
+    scoreRecords: records
+      .filter((r) => r.kind === 'score')
+      .map((r) => ({
+        userId: String((r.body as Record<string, unknown> | undefined)?.userId ?? ''),
+        host: String(r.host ?? ''),
+        path: String(r.path ?? ''),
+        resource: String(r.resource ?? ''),
+      })),
+    expectedResourceId: raw.publicationId,
+  };
+}
+
+// The L7 verdict. It never compares the placement id with the launch resource link id.
+// 1. Each learner has exactly one result row (one row per learner per activity).
+// 2. Both rows name the same non-empty placement (`activity.resourceLinkId`).
+// 3. The publication has exactly one placement (`stats.activities === 1`): one placement per
+//    resource link id and deployment.
+// 4. Each row has a sync with status `sent`.
+// 5. Each learner has at least one simulator score call, and every score call of that learner goes
+//    to `<launch line item path>/scores` on the line item host, for this publication.
+export function verifyContextlessSharedPlacement(input: ContextlessPlacementObservation): {
+  ok: boolean;
+  placementId?: string;
+  errors: string[];
+} {
   const errors: string[] = [];
   const rows = Array.isArray(input.rows) ? input.rows : [];
-  const l1Rows = rows.filter((r) => r?.learner?.sub === input.learner1);
-  const l2Rows = rows.filter((r) => r?.learner?.sub === input.learner2);
+  const learners = [
+    ['learner1', input.learner1, input.launchLineItems?.learner1],
+    ['learner2', input.learner2, input.launchLineItems?.learner2],
+  ] as const;
 
-  if (l1Rows.length === 0) {
-    errors.push(`missing result row for learner1="${input.learner1}"`);
-  }
-  if (l2Rows.length === 0) {
-    errors.push(`missing result row for learner2="${input.learner2}"`);
-  }
-
-  const matchedRows = [...l1Rows, ...l2Rows];
-  const distinctResourceLinkIds = new Set<string>();
-  for (const r of matchedRows) {
-    const rlId = r?.activity?.resourceLinkId;
-    if (typeof rlId === 'string' && rlId.trim().length > 0) {
-      distinctResourceLinkIds.add(rlId);
-    } else {
+  const placementIds = new Set<string>();
+  for (const [label, sub] of learners) {
+    const own = rows.filter((r) => r?.learner?.sub === sub);
+    if (own.length === 0) {
+      errors.push(`missing result row for ${label}="${sub}"`);
+      continue;
+    }
+    if (own.length > 1) {
       errors.push(
-        `result row for learner="${String(r?.learner?.sub ?? '')}" is missing activity.resourceLinkId`,
+        `duplicate result rows for ${label}="${sub}": ${own.length} rows (one row per learner per activity)`,
       );
     }
-  }
-
-  if (distinctResourceLinkIds.size !== 1) {
-    errors.push(
-      `contextless one-placement invariant violated: expected 1 distinct activity.resourceLinkId across learners, found ${distinctResourceLinkIds.size} (${Array.from(distinctResourceLinkIds).join(', ')})`,
-    );
-  }
-
-  for (const [label, learnerSub, learnerRows] of [
-    ['learner1', input.learner1, l1Rows],
-    ['learner2', input.learner2, l2Rows],
-  ] as const) {
-    if (learnerRows.length > 0) {
-      const hasSent = learnerRows.some(
-        (r) =>
-          Array.isArray(r.scoreSyncs) && r.scoreSyncs.some((s) => s?.status === 'sent'),
-      );
-      if (!hasSent) {
-        errors.push(`${label} ("${learnerSub}") has no scoreSyncs entry with status="sent"`);
+    for (const row of own) {
+      const id = row?.activity?.resourceLinkId;
+      if (typeof id === 'string' && id.trim()) {
+        placementIds.add(id);
+      } else {
+        errors.push(`result row for ${label}="${sub}" has no activity.resourceLinkId`);
+      }
+      if (!(Array.isArray(row.scoreSyncs) && row.scoreSyncs.some((s) => s?.status === 'sent'))) {
+        errors.push(`${label} ("${sub}") has no scoreSyncs entry with status="sent"`);
       }
     }
   }
+  if (placementIds.size !== 1) {
+    errors.push(
+      `contextless one-placement invariant violated: the learners' rows name ${placementIds.size} placements (${[
+        ...placementIds,
+      ].join(', ')})`,
+    );
+  }
+  if (input.placementCount !== 1) {
+    errors.push(
+      `contextless one-placement invariant violated: publication stats.activities is ${JSON.stringify(
+        input.placementCount,
+      )}, expected 1`,
+    );
+  }
 
-  if (Array.isArray(input.scoreRecords)) {
-    for (const [label, learnerSub] of [
-      ['learner1', input.learner1],
-      ['learner2', input.learner2],
-    ] as const) {
-      const hasScore = input.scoreRecords.some((rec) => {
-        if (rec?.userId !== learnerSub) return false;
-        if (input.expectedResourceId && rec?.resource) {
-          return rec.resource === input.expectedResourceId;
-        }
-        return true;
-      });
-      if (!hasScore) {
+  const records = Array.isArray(input.scoreRecords) ? input.scoreRecords : [];
+  for (const [label, sub, lineItem] of learners) {
+    let target: URL | undefined;
+    try {
+      target = new URL(String(lineItem ?? ''));
+    } catch {
+      errors.push(`${label} launch has no valid services.assignmentAndGrades.lineItemId (${String(lineItem)})`);
+    }
+    const calls = records.filter((r) => r?.userId === sub);
+    if (calls.length === 0) {
+      errors.push(`missing simulator score call for ${label} ("${sub}")`);
+      continue;
+    }
+    if (!target) continue;
+    const expectedPath = `${target.pathname.replace(/\/$/, '')}/scores`;
+    for (const call of calls) {
+      const host = String(call.host ?? '').replace(/:\d+$/, '');
+      if (host !== target.hostname || call.path !== expectedPath) {
         errors.push(
-          `missing simulator score record for ${label} ("${learnerSub}")${
-            input.expectedResourceId ? ` on resource "${input.expectedResourceId}"` : ''
-          }`,
+          `${label} score call went to https://${call.host}${call.path}, expected the launch line item https://${target.hostname}${expectedPath}`,
+        );
+      }
+      if (call.resource !== input.expectedResourceId) {
+        errors.push(
+          `${label} score call is for resource "${call.resource}", expected "${input.expectedResourceId}"`,
         );
       }
     }
   }
 
-  const sharedResourceLinkId =
-    distinctResourceLinkIds.size === 1 ? Array.from(distinctResourceLinkIds)[0] : undefined;
-
   return {
     ok: errors.length === 0,
-    sharedResourceLinkId,
+    placementId: placementIds.size === 1 ? [...placementIds][0] : undefined,
     errors,
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// K1-DL D3: picker selection (cogniate-app-api.md §6 `POST /tool/picker/{pickerId}` form
+// `publicationId`; LA-ADR-05 D3b: the POST takes 1 to 20 publication ids, items keep the list order;
+// cogniate-app-api-delta.md §0 rule 1: request fields are never renamed, so the field stays
+// `publicationId`, repeated).
+// ---------------------------------------------------------------------------------------------
+
+export const PICKER_SELECTION_FIELD = 'publicationId';
+
+export function buildPickerSelectionForm(publicationIds: string[]): Array<[string, string]> {
+  return publicationIds.map((id) => [PICKER_SELECTION_FIELD, id]);
+}
+
+// Orders publication ids as the picker page lists them (first appearance in the page).
+export function orderByPickerList(html: string, publicationIds: string[]): string[] {
+  const positions = publicationIds.map((id) => {
+    const at = String(html ?? '').indexOf(id);
+    if (at < 0) {
+      throw new Error(`publication "${id}" is not listed on the picker page`);
+    }
+    return { id, at };
+  });
+  return positions.sort((a, b) => a.at - b.at).map((p) => p.id);
+}
+
+// Reads the publication id of each Deep Linking content item from its launch URL
+// (`…/lti/launch/cogniate?resource=<publicationId>`).
+export function contentItemPublicationIds(items: unknown): string[] {
+  if (!Array.isArray(items)) {
+    throw new Error('content_items is not an array');
+  }
+  return items.map((item) => {
+    const url = String((item as { url?: unknown } | undefined)?.url ?? '');
+    try {
+      return new URL(url).searchParams.get('resource') ?? '';
+    } catch {
+      return '';
+    }
+  });
 }

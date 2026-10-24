@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { waitForLearnerSync, waitForThrottledDispatch } from '../lib/cases.js';
 import { loadSelectedChannelFixtures } from '../lib/fixtures.js';
 import {
   app,
@@ -250,7 +251,9 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             'has a grade with a newer time',
           );
 
-          // 4. 503 -> pending retry (tries >= 1)
+          // 4. 503 -> retry: wait until the learner's sync shows a tried send (tries >= 1); a new
+          // row is also `pending` before its first send (tries 0), so waitSync('pending') is not used.
+          // The next try is 5 s later (cogniate-app-api.md §10), so the tried row is still pending.
           const pub503 = await publication(binding, 'scorm12');
           const learner503 = uniqueId('learner-a3-503');
           const play503 = await openPlayOnChannel(binding, pub503, {
@@ -259,11 +262,21 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             scoreAnswers: [503],
           });
           await commitGrade(play503, 'scorm12', 7, 10);
-          const sync503 = await waitSync(binding, pub503, 'pending');
-          expect(sync503.status).toBe('pending');
-          expect(Number(sync503.tries ?? 0)).toBeGreaterThanOrEqual(1);
+          const tried503 = await waitForLearnerSync(
+            {
+              readRows: () => results(binding, pub503),
+              now: () => Date.now(),
+              sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            },
+            learner503,
+            (sync) => Number(sync.tries ?? 0) >= 1,
+            'a tried send (tries >= 1)',
+          );
+          expect(tried503.sync.status).toBe('pending');
+          expect(tried503.sync.tries).toBe(1);
 
-          // 5. 429 with Retry-After: 60 -> throttled pending with tries === 0 and no immediate retry
+          // 5. 429 with Retry-After: 60 -> throttled: the send was tried (one simulator score call and
+          // a dispatch_throttled event), the row stays pending and no try is counted.
           const pub429 = await publication(binding, 'scorm12');
           const learner429 = uniqueId('learner-a3-429');
           const since429 = Date.now();
@@ -275,38 +288,23 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           });
           await commitGrade(play429, 'scorm12', 8, 10);
 
-          let sync429: Record<string, unknown> | undefined;
-          let throttleEvents: Array<Record<string, unknown>> = [];
-          for (let i = 0; i < 20; i += 1) {
-            const currentRows = (await results(binding, pub429)) as Array<
-              Record<string, unknown>
-            >;
-            const row429 = currentRows.find(
-              (r) =>
-                (r.learner as Record<string, unknown> | undefined)?.sub ===
-                learner429,
-            );
-            sync429 =
-              (row429?.lastScoreSync as Record<string, unknown> | undefined) ??
-              ((row429?.scoreSyncs as Array<Record<string, unknown>> | undefined)?.[0]);
-            throttleEvents = logEvents('dispatch_throttled', since429);
-            if (sync429 && throttleEvents.length > 0) {
-              break;
-            }
-            await new Promise((r) => setTimeout(r, 150));
-          }
-          expect(sync429).toBeDefined();
-          expect(sync429?.status).toBe('pending');
-          expect(sync429?.tries).toBe(0);
-          expect(throttleEvents.length).toBeGreaterThanOrEqual(1);
-
-          const recs429 = await records(cursor429);
-          const scoreCalls429 = recs429.records.filter(
-            (r: Record<string, unknown>) =>
-              r.kind === 'score' &&
-              (r.body as Record<string, unknown> | undefined)?.userId === learner429,
+          const throttled = await waitForThrottledDispatch(
+            {
+              readRows: () => results(binding, pub429),
+              readScoreCalls: async () =>
+                (await records(cursor429)).records.filter(
+                  (r: Record<string, unknown>) => r.kind === 'score',
+                ),
+              throttleEvents: () => logEvents('dispatch_throttled', since429),
+              now: () => Date.now(),
+              sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+            },
+            learner429,
           );
-          expect(scoreCalls429.length).toBe(1);
+          expect(throttled.sync.status).toBe('pending');
+          expect(throttled.sync.tries).toBe(0);
+          expect(throttled.events.length).toBeGreaterThanOrEqual(1);
+          expect(throttled.scoreCalls.length).toBe(1);
         });
       });
 

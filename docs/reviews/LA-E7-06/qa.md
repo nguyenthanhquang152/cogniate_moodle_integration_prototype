@@ -1,12 +1,15 @@
+Verdict: PASS (host checks; K1-SIM rows pending: Docker window)
+Round: 5
+
 # QA Review — `LA-E7-06` (`K1` Simulator Suites per Port, Channel Fixtures, and the Pass Rule)
 
-- **Verdict:** `PASS`
-- **Round:** `4`
+- **Verdict:** `PASS` for the host checks of Round 5; every `K1-SIM` row stays `pending: Docker window`
+- **Round:** `5` (Rounds 1–4: QA-4; Round 5: QA-K, the extra fix round of LA-H25 = (a); see "Round 5" at the end)
 - **Task:** `LA-E7-06` — `K1` simulator suites per port, channel fixtures and the pass rule (Must, size L)
-- **Reviewer:** QA-4 (lane `L2`)
-- **Integration SHA:** `f0f9402e` (Round 3 reviews on `f0f9402e` / `af36ad31`; Round 2 reviews on `89f72196`; Round 1 on `053ea576`)
+- **Reviewer:** QA-4 (lane `L2`, Rounds 1–4); QA-K (Claude Code Opus 5.5 xhigh, Round 5)
+- **Integration SHA:** Round 5 on `b6bfbef2` with the Round 5 kit files on top (Round 4 on `f0f9402e`; Round 3 reviews on `f0f9402e` / `af36ad31`; Round 2 reviews on `89f72196`; Round 1 on `053ea576`)
 - **Verification Mode:** Host-only authoring and `K0` / `DOC` verification (`0` Docker commands executed; `K1-SIM` rows marked `pending: Docker window`)
-- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r4`
+- **Scratch Run Directory (`umask 077`):** `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-06/r5` (Round 4: `.../r4`)
 
 ---
 
@@ -208,3 +211,77 @@
    - Result: **17 / 17** kit (`fixtures.ts` & `runtime.ts`) probes **PASS** (`manifestError: ""`).
 
 
+
+---
+
+## Round 5
+
+QA-K (Claude Code Opus 5.5, xhigh, a new QA session; LA-H25 = (a): one extra fix round after the 3 rounds of QA-4). Scope: kit code and this file only.
+
+- **Base:** integration `b6bfbef2`. Its `tests/ltiaas/kit/**` is byte-equal to la-qa `70088264` (QA commit `30b5eb24`, the Round 4 review pin `3a8b0e6f`). Private clone `~/cogniate-qa-runs/LA/LA-E7-06/r5/clone` (`git clone --no-hardlinks`, `umask 077`); the la-qa working-tree kit is copied on top for every run.
+- **Mode:** host only, `0` Docker commands, no stack runner. The `K1-SIM` rows stay `pending: Docker window`.
+- **Independence:** I did not read product source (`services/**`, `packages/**`, `apps/**`). Facts come from `docs/architecture/contracts/*.md`, `docs/architecture/ltiaas/contracts/*.md`, LA-ADR-01/02/05, the frozen helpers (`tests/acceptance/M1/common/*`, `tests/acceptance/lib/*`), `tests/sim/**`, and QA tests and reports for facts (`tests/ltiaas/tasks-lti/LA-E3-01`, `LA-E3-02`; `docs/reviews/LA-E2-03/qa.md` AC-LA-E2-03-11). Where a reviewer cites product lines, the oracle uses the contract text.
+- **Reviewer probe files:** the Round 4 paths (`/tmp/la-review-a-29f08bae897a/reviewer-r4.*`, `/tmp/reviewer-b-e706r4-*.cjs`, `/tmp/review-b-e706-r4-mwv0u9p0`) do not exist on this host any more (`/tmp` was cleared). So every Round 4 counterexample and probe is written as a K0 probe in `tests/ltiaas/kit/kit.k0.test.ts` (list in R5.2).
+- **Design change:** the case bodies that the reviewers found wrong now live in `lib/cases.ts` with injected I/O. The suites call them with `liveKitCaseIo()` (bound to the frozen M1 `launch`, `beginLaunch`, `formPost`, `httpsRequest`, `logEvents`). K0 calls the same functions with contract-shaped host fakes, so K0 runs the real selectors, request shapes and final comparisons.
+
+### R5.1 Open findings
+
+| Finding | Fix | Test or probe (K0 unless named) | Result |
+| :--- | :--- | :--- | :--- |
+| `A-LA-E7-06-07` (L4, L7) | **L4:** new fixture field `expect.guardedFamilies` (LA-ADR-01 D2/D6, LA-ADR-02 D1/D3/D4; cited per fixture; audited). `selectFamilyGuardProbes` takes the probes from the declared levels of all fixtures, before any launch: a `launch`-level family of another channel (required; explicit error if none), a `registration`-level family of another channel (when one exists), and a family that no fixture guards. `deriveExpectedFamilyGuardOutcome`: `launch` → `400 PROVIDER_PROFILE_MISMATCH`; `registration` → `400` on a `MANUAL_SELF_LEGACY_CHANNELS` platform (`manual === 'self'`, load check 6), else `303` + LTI log; unguarded → `303` and no log. `runFamilyGuardCase` reads `family_guard_mismatch` from the **`lti-service`** log with `platform_id` and the family. **L7:** the suite's only final comparison is `verifyContextlessSharedPlacement(collectContextlessPlacementObservation(...))`; the comparisons with the external `sharedRlId` are removed. | `(L4): fixture guard data equals LA-ADR-01 D6, and the L4 selector picks probes ...` (Blackboard → `canvas`; Canvas → `desire2learn`, not `moodle`; `moodle` unguarded → pass); `(L4): the L4 case body passes on a check-14 fake ...` (5 targets; mutants: registration refusal, app-log-only, no log, launch guard passes, `moodle` guarded); `(L7): the L7 verdict accepts contract-shaped answers with an internal placement id ...` (`rl_9f2c41` ≠ launch id passes); static check: `sharedRlId` only in launch patches | PASS |
+| `A-LA-E7-06-08` (picker, L10, D3, C1) | **Picker:** `followPickerHandoff` returns the observed status; the `303 → 200` rewrite is removed. **L10:** `runPlatformStorageCase`: the auth URL is the JSON-parsed value of the page's one `<script type="application/json">` block on the same endpoint as the plain `302` `Location`; the state is that URL's `state`; the check comes from the storage-check page's JSON block (`check`); `POST /lti/launch/cogniate/storage-check` sends only `check` and `value` with `Origin` = the LTI origin. **D3:** the form field is `publicationId`, repeated (`buildPickerSelectionForm`), posted in the picker list order; item order is read from each item's `url` `resource` (the old oracle compared kit-local titles that the product never saw). **C1:** no manifest operand (it was a copy of the fixture). C1 compares the fixture with the registry entry of `GET /app-api/lms-providers` (exactly one entry, `lms` = `channel` = fixture id; the public projection of the manifest, delta §2) and with the connection DTO, both directions; tool configuration must be an array. | `(picker): ... a redirect loop stays 303` (loop 303; control 200; refusal 403); `(L10): the L10 case body completes on a contract-shaped storage fake ...` (Canvas, lti-generic; Moodle, Blackboard, Brightspace); `(L10): escaped JSON pages, script-built check form, and wrong storage behaviour` (regex URL has no `state`; `parseForm` throws `HTML form action present`); `(D3): picker selection uses the repeated publicationId field ...` (plural field gives 0 ids); `(C1 operand): ... a registry capability that differs from the fixture fails` | PASS |
+| `B-LA-E7-06-02` (L4, L7, A3) | **L4:** as A-07 (no inference from `operatorGrant`/DR; `moodle` declares `[]`). **L7:** the verdict requires exactly one row per learner, one placement id on both rows, `stats.activities === 1` on the publication (read before the no-AGS launches), a `sent` sync per row, and every score call of each learner on `<launch line item path>/scores` (`services.assignmentAndGrades.lineItemId` of that learner's `/api/idtoken`). **A3:** `503`: `waitForLearnerSync` waits for the learner's sync with `tries >= 1`, then asserts `pending`, `tries === 1`. `429`: `waitForThrottledDispatch` waits for the learner's score call and a `dispatch_throttled` line, then asserts `pending`, `tries === 0`, one call. | `(L4)` tests above; `(L7)`: duplicate row for one learner → `duplicate result rows`; both calls to `lineitems/other-item/scores` → 2 line-item errors; two ids → `name 2 placements`; `stats.activities` 2 → error; unsent; no call; no line item; `(A3): the A3 waits return only after a tried send` (pre-send `pending`/`tries 0` row is skipped; timeouts fail) | PASS |
+| `B-LA-E7-06-07` (picker, L10) | **Picker:** as A-08; L8's staff-picker `status` assertion now sees the real status. **L10:** documented body and `Origin` for every check request; wrong value, replay and unknown check each use an otherwise valid request on their own check and are told apart by the LTI log detail (`storage_mismatch` or `storage_check_unknown_used_or_expired`); empty value → `STATE_COOKIE_MISSING` with the help text; foreign `Origin` first leaves the check usable; bad signature → `INVALID_SIGNATURE` (AP-05-07). `pendingId` and `state` fields are gone. | `(picker)` and both `(L10)` tests; the fake records each check request: all have exactly `["check","value"]`, the accepted one has the LTI origin; mutants (replay accepted, wrong value accepted, no log, target ignored) fail the case body | PASS |
+| Lead item (`docs/reviews/LA-E8-01/reviewer-a.md` Round 3, `A-LA-E8-01-06`) | Kit README K1 commands now use `npm --prefix tests run acceptance:api` from the repository root (or `cd tests && node acceptance/run-api.mjs`), with the reason; default artifact path is `tests/.tmp/kit-run`. | Host probe (fake Vitest that only prints the config path; no stack): `~/cogniate-qa-runs/LA/LA-E7-06/r5/cmd-probe.log`. Old form from the root: `resolved .../fake-repo/ltiaas/kit/vitest.config.mts`, `exists: false`, exit 2. New form: `cwd .../fake-repo/tests`, `exists: true`, exit 0; `cd tests && node acceptance/run-api.mjs`: exit 0. | PASS |
+| QA-K extra (status of launch refusals) | security.md §2.2: every launch check failure gives an error page with status `400` or `401`; the frozen M1 `20-protocol.test.ts` checks the code and accepts the status it gets. The kit pinned `400`. New `launchRefused` (lib/cases.ts): status `400` or `401`, exact `data-error-code`, no `Location`. Used for L2 (`INVALID_SIGNATURE`, `INVALID_ISSUER_OR_AUDIENCE`), L7 (`MISSING_CLAIM`), the 12 L-FAULTS codes, and L10 launch-path refusals. `PROVIDER_PROFILE_MISMATCH` stays `400` (lti-service-api.md §2 page table); storage-check refusals stay `400` (delta §2.2); `UNKNOWN_DEPLOYMENT` stays `400` and `*_NOT_ACTIVE` `403`, as the frozen M1 tests assert them. | `(L10): escaped JSON pages, ...`: `400` and `401` pages pass; `403`, a page with `Location`, and a wrong code fail | PASS |
+| QA-K extra (found while fixing L10) | `channels/lti-generic.json` `sim.platformStorage` was `null`, but the `lti-generic` profile is `{ from-login, authOrigin }` (LA-ADR-05 D1 rule 1a; LA-E2-03 AC-LA-E2-03-11, K0 PASS in `docs/reviews/LA-E2-03/qa.md`). With `null`, L10 on `lti-generic` expected a `302` where the product answers the `200` login page. Now `{ frameName: post_message_forwarding, allowedOrigin: https://generic.sim.test }`, cited. | `(L10): the L10 case body completes ...` runs the storage path for `lti-generic` | PASS |
+
+### R5.2 Reviewer Round 4 probes run (rewritten as K0 probes; the probe files were gone)
+
+| Reviewer probe (Round 4 text) | K0 probe | Result |
+| :--- | :--- | :--- |
+| A: L4 selector on Blackboard has no candidate (`undefined.sim`) | L4 table: Blackboard → `canvas:launch_guarded:refuse`; case body runs for Blackboard; no launch-guard fixtures → explicit error | PASS |
+| A: L4 on Canvas picks `moodle` as registration-guarded; the real verdict is pass | L4 table: Canvas → `desire2learn:...:warn_passthrough`, `moodle:unguarded:pass`; mutant `guardMoodle` fails | PASS |
+| A: L4 warning read from the app log | mutant `appLogOnly` fails; the case reads `lti-service` with `platform_id` | PASS |
+| A: L7 shared `rl_…` id ≠ external id; suite equality throws | L7 positive with `rl_9f2c41`; static check: no `toBe(sharedRlId)` | PASS |
+| A: picker redirect loop becomes `200`; control: real `200` passes | picker probe: loop `303`, control `200` | PASS |
+| A: L10 regex auth URL differs and has no `state` (`&`) | regex result has no `state`; JSON-parsed URL has it | PASS |
+| A: L10 `parseForm` throws on the storage-check page | `parseForm` throws `HTML form action present`; `readStorageCheckToken` reads `check` | PASS |
+| A: D3 posts `publicationIds` | plural field gives `getAll('publicationId') = []`; suite uses `buildPickerSelectionForm` | PASS |
+| A: C1 manifest operand is a fixture copy (mutation passes) | C1 operand probe: one registry value differs → only that error; extra key → error | PASS |
+| B: actual Blackboard L4 callback throws | `runFamilyGuardCase` for all 5 targets on the check-14 fake | PASS |
+| B: Moodle declares `guardedFamilies: []`; helper treats `moodle` as guarded | fixture guard data equals the frozen LA-ADR-01 D6 table | PASS |
+| B: L7 second row for one learner and one id → `ok: true` | `duplicate result rows for learner1` | PASS |
+| B: L7 both score paths to another line item → `ok: true` | 2 `expected the launch line item` errors | PASS |
+| B: L7 "duplicate placement" control changed the id only | two ids → `name 2 placements`; one id with `stats.activities` 2 → error | PASS |
+| B: A3 `waitSync('pending')` returns the pre-send `tries 0` row | `waitForLearnerSync` returns the `tries 1` row on read 4 | PASS |
+| B: picker loop → `200`; controls normal `303 → 200` and `403` refusal | picker probe: `303`, `200`, `403` | PASS |
+| B: L10 Canvas callback sends `{check, value: '', state}` and no `Origin`; `400 INVALID_STATE` fails the expected `303` | L10 body on the storage fake: each request has `["check","value"]`; accepted one has the LTI origin | PASS |
+| B: wrong-value and missing-row requests reuse the bad shape (`pendingId`) | wrong value, replay and unknown check use `check`/`value` + `Origin`, told apart by log detail; static check: no `pendingId` | PASS |
+| B: one real sixth fixture `channels/review-canary.json` with the unchanged K0 command | canary copied from `lti-generic`, `brightspace`, `canvas` in turn: `23/23` each; file removed | PASS |
+| B: kit TypeScript check | `tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` exit 0 | PASS |
+
+Mutation check (private clone only, then restored): sending `state` instead of `value` fails 2 L10 probes; reading the L4 warning from `cogniate-app` fails the L4 body probe; removing the L7 duplicate-row and line-item checks fails the L7 probe.
+
+### R5.3 Earlier closed findings stay closed
+
+`A-01`/`B-01` (wave evidence: named, current-wave, on-disk artifacts), `A-02`/`B-03` (C1 rejects missing, `null` and array maps for all four API maps), `A-03`/`B-05` (hygiene inputs and leaks), `A-04`/`B-04` (ledger, unselected-channel records), `A-05` (grant CLI), `A-06` (D5 `PLACEMENT_NOT_GRADED`, unchanged), `A-09` (protocol-control fixture), `A-10`/`B-08` (level aliases), `B-06` (one-file onboarding: K0 `23/23` with a real sixth fixture, three variants). Their K0 tests run unchanged in the `23/23` run, except the C1 test, which drops only the removed manifest operand.
+
+### R5.4 Host verification (Round 5)
+
+| Check | Command (in the private clone) | Result | Time | Log |
+| :--- | :--- | :--- | :--- | :--- |
+| Kit K0 | `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` | **23/23 PASS** (was 16/16) | 180 ms | `r5/kit-k0.log` |
+| Root K0 | `npm run test:k0` | **149/149 PASS**, 3 files | 625 ms | `r5/test-k0.log` |
+| Kit typecheck | `npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` | exit 0 | — | `r5/kit-tsc.log` |
+| Tests typecheck | `npx --no-install tsc --noEmit -p tests/tsconfig.json` | exit 0 | — | `r5/tests-tsc.log` |
+| F1 suite neutrality | `grep -rniE '(moodle\|canvas\|blackboard\|brightspace\|sakai\|schoology\|d2l\|instructure\|anthology\|lti-generic)' tests/ltiaas/kit/suites/` | 0 hits | — | — |
+
+Baseline before the fix on the same clone: kit K0 16/16, root K0 149/149, kit typecheck exit 0.
+
+### R5.5 Pending and notes
+
+- `AC-LA-E7-06-01`, `-03`, `-04`, `-05`, `-06`, `-08`: `pending: Docker window` (K1-SIM). The changed live paths (L4, L7, L10, D3, A3, C1, every picker case) are proven on the host only.
+- Contract gaps sent to the Lead with the ask command (A-07, A-08, B-02, B-07; message `msg_8f4aaa9cbbb7`, no answer after 2 × 10 min, still open for A1/A2); the kit uses these defaults: (1) D3 single-select with two `publicationId` values: never more than one item (an error page without a JWT, or a JWT with one posted item), with a one-id control; (2) L10: the storage-check JSON key is `check` (fallback: a hidden input named `check`); (3) L7: `stats.activities` is the placement count of the publication.
+- L4 on Brightspace has no registration-level probe: no other channel guards a family at that level (recorded as a note in the case report).
+- Changed files: `tests/ltiaas/kit/lib/{cases.ts (new),fixtures.ts,runtime.ts}`, `tests/ltiaas/kit/suites/{k1-launch,k1-dl,k1-ags,k1-cap}.k1sim.test.ts`, `tests/ltiaas/kit/channels/{moodle,canvas,blackboard,lti-generic,brightspace}.json`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, this file. Other files that show as changed in the shared worktree are not from this round.

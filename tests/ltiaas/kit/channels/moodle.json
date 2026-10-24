@@ -62,7 +62,8 @@
       "share_name",
       "share_email",
       "accept_grades"
-    ]
+    ],
+    "guardedFamilies": []
   },
   "sim": {
     "siteUrl": "https://moodle.sim.test",
@@ -107,6 +108,7 @@
     "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
     "expect.legacyFlags": "LA-ADR-01 §D11 + LA-IC-01",
     "expect.toolConfigurationKeys": "cogniate-app-api.md §4.1 + cogniate-app-api-delta.md §3.3 + LA-IC-01",
+    "expect.guardedFamilies": "LA-ADR-01 §D6 generic check 14 (baseline manifests: Moodle guards nothing) + LA-ADR-01 §D4 load check 6 (MANUAL_SELF_LEGACY_CHANNELS)",
     "sim": "LA-ADR-02 §D2/§D7 + LA-ADR-07 §D3 + tests/sim/README.md"
   }
 }

@@ -3,7 +3,6 @@ import {
   CONNECTION_GUARDED_CAPABILITIES,
   isConnectionGuardedOff,
   LEGACY_FLAG_KEYS,
-  loadChannelManifestCapabilities,
   loadSelectedChannelFixtures,
   verifyBilateralCapabilities,
 } from '../lib/fixtures.js';
@@ -47,81 +46,58 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
         }
       });
 
-      it(`${fixture.id}:K1-CAP:C1 — Bilateral capability equality across manifest, fixture, GET /app-api/lms-providers, GET /app-api/connections/:id, legacyFlags, and toolConfigurationKeys`, async () => {
+      it(`${fixture.id}:K1-CAP:C1 — channelCapabilities of the registry entry (GET /app-api/lms-providers) and of the connection DTO equal the fixture set in both directions; six legacy flags; tool configuration keys`, async () => {
         await runKitCase(fixture.id, 'K1-CAP', 'C1', async () => {
           const s = binding.session;
 
-          // 1. GET /app-api/lms-providers -> { lms: [...] } with entry.lms, entry.channel, entry.channelCapabilities, and legacy flags (cogniate-app-api.md §4.5; cogniate-app-api-delta.md §2)
+          // 1. GET /app-api/lms-providers -> { lms: [...] }: one entry per channel of the registry with the
+          // channel-level channelCapabilities and the six legacy flags (cogniate-app-api.md §4.3;
+          // cogniate-app-api-delta.md §2). This entry is the public projection of the channel manifest.
           const providersRes = await app(s, 'GET', '/app-api/lms-providers');
           expectStatus(providersRes, 200);
-          const providerEntry = (
-            providersRes.json.lms as Array<Record<string, unknown>>
-          ).find((p) => p.lms === fixture.id);
-          expect(providerEntry).toBeDefined();
-
+          expect(Array.isArray(providersRes.json.lms)).toBe(true);
+          const providerEntries = (providersRes.json.lms as Array<Record<string, unknown>>).filter(
+            (p) => p.lms === fixture.id,
+          );
+          expect(providerEntries.length).toBe(1);
+          const providerEntry = providerEntries[0];
+          expect(providerEntry.channel).toBe(fixture.id);
+          const providerFlags = providerEntry.capabilities as Record<string, unknown> | undefined;
           const providerLegacyFlags: Record<string, unknown> = {};
           for (const flag of LEGACY_FLAG_KEYS) {
-            providerLegacyFlags[flag] = (
-              providerEntry!.capabilities as Record<string, unknown>
-            )[flag];
+            providerLegacyFlags[flag] = providerFlags?.[flag];
           }
 
-          // 2. GET /app-api/connections/:id -> flat Connection DTO with channelCapabilities + capabilities (cogniate-app-api.md §4.2; cogniate-app-api-delta.md §1, §2)
-          const connRes = await app(
-            s,
-            'GET',
-            `/app-api/connections/${binding.connection.id}`,
-          );
+          // 2. GET /app-api/connections/:id -> flat Connection DTO with channelCapabilities and the six
+          // legacy flags in `capabilities` (cogniate-app-api-delta.md §1)
+          const connRes = await app(s, 'GET', `/app-api/connections/${binding.connection.id}`);
           expectStatus(connRes, 200);
-          const connObj = (connRes.json.connection ?? connRes.json) as Record<
-            string,
-            unknown
-          >;
+          const connObj = connRes.json as Record<string, unknown>;
+          expect(connObj.channel).toBe(fixture.id);
+          const connFlags = connObj.capabilities as Record<string, unknown> | undefined;
           const connLegacyFlags: Record<string, unknown> = {};
           for (const flag of LEGACY_FLAG_KEYS) {
-            connLegacyFlags[flag] = (
-              connObj.capabilities as Record<string, unknown>
-            )[flag];
+            connLegacyFlags[flag] = connFlags?.[flag];
           }
 
-          // 3. GET /app-api/connections/:id/tool-configuration -> array of { key, label, value } rows (cogniate-app-api.md §4.6; cogniate-app-api-delta.md §3.6)
+          // 3. GET /app-api/connections/:id/tool-configuration -> array of { key, label, value } rows
+          // (cogniate-app-api.md §4.1; cogniate-app-api-delta.md §3.3)
           const toolCfgRes = await app(
             s,
             'GET',
             `/app-api/connections/${binding.connection.id}/tool-configuration`,
           );
           expectStatus(toolCfgRes, 200);
-          const toolRows = (
-            Array.isArray(toolCfgRes.json)
-              ? toolCfgRes.json
-              : toolCfgRes.json.fields
-          ) as Array<{ key: string }>;
-          const toolKeys = toolRows.map((f) => f.key);
+          expect(Array.isArray(toolCfgRes.json)).toBe(true);
+          const toolKeys = (toolCfgRes.json as Array<{ key: string }>).map((row) => row.key);
 
-          // 4. Canonical channel capabilities (LA-ADR-01 §D6)
-          const manifestCapabilities = loadChannelManifestCapabilities(fixture);
-
-          const providerChannelCapabilities =
-            (providerEntry!.channelCapabilities as
-              | Record<string, unknown>
-              | undefined) ??
-            ((providerEntry!.channel as Record<string, unknown> | undefined)
-              ?.capabilities as Record<string, unknown>) ??
-            {};
-          const connectionChannelCapabilities =
-            (connObj.channelCapabilities as
-              | Record<string, unknown>
-              | undefined) ??
-            ((connObj.channel as Record<string, unknown> | undefined)
-              ?.capabilities as Record<string, unknown>) ??
-            {};
-
+          // 4. Both capability maps against the fixture, both directions (AC-LA-E7-06-04). A missing
+          // map is passed as it is and fails the comparator.
           const bilateral = verifyBilateralCapabilities({
             fixture,
-            manifestCapabilities,
-            providerChannelCapabilities,
+            providerChannelCapabilities: providerEntry.channelCapabilities as Record<string, unknown>,
             providerLegacyFlags,
-            connectionChannelCapabilities,
+            connectionChannelCapabilities: connObj.channelCapabilities as Record<string, unknown>,
             connectionLegacyFlags: connLegacyFlags,
             toolConfigurationKeys: toolKeys,
           });

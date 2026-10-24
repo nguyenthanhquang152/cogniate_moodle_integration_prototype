@@ -49,7 +49,8 @@
       "deep_linking_url",
       "scopes",
       "privacy"
-    ]
+    ],
+    "guardedFamilies": []
   },
   "sim": {
     "siteUrl": "https://generic.sim.test",
@@ -67,7 +68,10 @@
     "dlDataMode": "claim",
     "dlRequiresSub": false,
     "privacyFloor": "allowlist",
-    "platformStorage": null
+    "platformStorage": {
+      "frameName": "post_message_forwarding",
+      "allowedOrigin": "https://generic.sim.test"
+    }
   },
   "sources": {
     "id": "LA-ADR-01 §D3 table + LA-ADR-02 §D2 (channel lti-generic)",
@@ -94,6 +98,7 @@
     "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
     "expect.legacyFlags": "LA-ADR-01 §D11 + cogniate-app-api-delta.md §1",
     "expect.toolConfigurationKeys": "cogniate-app-api-delta.md §3.3 (lti-generic row order)",
-    "sim": "LA-ADR-02 §D2..D7 + LA-ADR-07 §D3 + tests/sim/README.md"
+    "expect.guardedFamilies": "LA-ADR-02 §D3 manifest table (`lti.guardedFamilies`: none)",
+    "sim": "LA-ADR-02 §D2..D7 + LA-ADR-07 §D3 + tests/sim/README.md; platformStorage: LA-ADR-05 §D1 rule 1a (`lti-generic` { from-login, authOrigin }) + LA-E2-03 AC-LA-E2-03-11 (target sent at login; O = origin of the authenticationEndpoint)"
   }
 }

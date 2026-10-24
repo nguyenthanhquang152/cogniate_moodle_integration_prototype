@@ -45,6 +45,12 @@
       "redirect_uris",
       "method",
       "lti_json"
+    ],
+    "guardedFamilies": [
+      {
+        "family": "canvas",
+        "level": "launch"
+      }
     ]
   },
   "sim": {
@@ -93,6 +99,7 @@
     "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
     "expect.legacyFlags": "LA-ADR-01 §D11 + LA-IC-14 (dynamicRegistration: true after LA-E3-09)",
     "expect.toolConfigurationKeys": "ADR-011 §6 + cogniate-app-api.md §4.5 + LA-IC-01",
+    "expect.guardedFamilies": "LA-ADR-01 §D6 generic check 14 (Canvas guards `canvas` at the `launch` level) + LA-ADR-01 §D4 load check 8 (LAUNCH_GUARD_CHANNELS)",
     "sim": "ADR-011 §5 + LA-ADR-05 §D1 + LA-ADR-07 §D3 + tests/sim/README.md"
   }
 }

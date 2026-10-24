@@ -50,6 +50,12 @@
       "extensions",
       "roles",
       "privacy"
+    ],
+    "guardedFamilies": [
+      {
+        "family": "desire2learn",
+        "level": "registration"
+      }
     ]
   },
   "sim": {
@@ -99,6 +105,7 @@
     "notBuilt": "LA-ADR-05 §D5 + LA-E3-08 + TEST-STRATEGY.md §9.2 item 11",
     "expect.legacyFlags": "LA-ADR-01 §D11 + cogniate-app-api-delta.md §1",
     "expect.toolConfigurationKeys": "cogniate-app-api-delta.md §3.3 + R2 §5.4 (brightspace row order)",
+    "expect.guardedFamilies": "LA-ADR-02 §D1/§D4 (`brightspace` guards `desire2learn` at the `registration` level) + LA-E2-05 AC-LA-E2-05-05",
     "sim": "LA-ADR-02 §D3/§D4/§D7 + R2 §5.4 + LA-ADR-07 §D3 + tests/sim/README.md"
   }
 }
