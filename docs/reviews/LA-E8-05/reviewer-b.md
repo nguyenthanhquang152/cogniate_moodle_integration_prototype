@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E8-05 — Reviewer-B
 
@@ -35,3 +35,29 @@ The review used the task spec, charters, plan, LA-ADR-04 D8, both conformance su
 The product owner selected LA-H25 option (a) in plan §6.2 after the reviewed snapshot. Refresh that decision in the handover when applying the fix; the kit and final double-run results must still remain pending until new evidence arrives.
 
 Open findings: **1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT**.
+
+## Round 2
+
+Reviewed 2026-10-24: Docs fix `8656e1c656735242c5a7899f3e681951b173dc7e`, integration `5610a68a`. **APPROVE**. B-LA-E8-05-01 is **closed**; one new MINOR wording finding is safe to defer.
+
+### B-LA-E8-05-01 — CLOSED
+
+Both entry pages now link to `service-controls.md`. Its 20 rows give the named QA report and the AC numbers by evidence level. I checked every row against its report: LA-E5-01 through -17, -21, -22 and -24. The previously missing audit and metrics/readiness reports are linked. SIM and UNIT ranges match the reports, including the split AC-12 API-key evidence, the U1 checks, and the local MOODLE-LIVE rows for isolation and app keys. The outbox-wait proof is also reachable through the page's `spec-deviations` link, D23 → LA-E4-03.
+
+### B-LA-E8-05-02 — MINOR — Make the U1 definition cover both recorded starting builds
+
+- **File:line:** `docs/human_review/ltiaas/service-controls.md:11`.
+- **Problem:** The label definition says every U1 check starts from the intake build, but the app-key U1 check uses a later build from before that feature.
+- **Evidence:** The linked LA-E5-08 report records `1b17261` → `4209dcb`. The linked LA-E5-22 report, lines 12 and 22, records `48bc1c9e` → `cd347224`; it calls `48bc1c9e` the parent of the app-key implementation. The row's SIM label and AC-01 result are correct. Only the shared explanation of the starting build is too narrow.
+- **Suggested fix:** Say “a SIM check that upgrades an older stack to the candidate build; each QA report names both builds.” Keep the actual intake-build claim for LA-E5-08. This wording fix is safe to defer; the linked reports retain the exact evidence scope.
+
+### Other checks
+
+- D22 now distinguishes hard limits from the two soft account classes and lists the three exempt health/metrics paths. It also states that QA checked `/healthz`, keeping the design rule separate from that tested result. This matches contract delta §1.4 and the LA-E5-03 QA rows.
+- LA-H25 is marked decided (a), consistent with plan §6.2. The kit and final double-run checks remain pending; a decision is not presented as a test PASS.
+- The added step 10.2 citation in `add-a-channel.md` resolves to the kit README's “Full K1-SIM Run” heading. Both documented command forms match that section and its working-directory explanation from `29fcb01d`. No kit runner was executed.
+- All six changed documents and all 20 cited service-control QA reports match `5610a68a`. Across the six documents, all 225 local link occurrences resolve, with no missing anchor candidates or external links. Other-reviewer file contents were not read.
+- Reopened the HTML entry page in headless Chrome with networking blocked and followed its new proof-map link: zero external requests and zero page errors. The evidence table is readable, and the 390 px viewport has no page-level horizontal overflow. Evidence is in `/tmp/reviewer-b-la-e8-05-r2/` (`links.json`, `qa-pins.json`, `offline.json`, `offline.mjs`, `proved.png`).
+- The diff stays within the assigned Docs files. No product code, tests or architecture were changed by this fix. No Docker or stack runner was used; this reviewer edited only this report and made no commit.
+
+Open findings: **0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT**. The Lead can record B-02 in the deferred list if it is not fixed now.
