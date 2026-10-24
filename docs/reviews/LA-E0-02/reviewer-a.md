@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 3
+Round: 4
 
 # LA-E0-02 — Reviewer-A
 
@@ -67,3 +67,17 @@ The four entry/unique-ID counts remain correct using any-failure aggregation. Fa
 `qa.md:159` explicitly keeps AC-04 legacy results and AC-06/07 rate measurements pending on `78971b03`, with baseline test pin `1ae6716b7353becc0f053b46fb65e0ba86ff7873`. R1's schedule is not execution evidence and does not close A-LA-E0-02-01. No additional rerun is required for the historical transcription fix; close the remaining finding when the planned baseline results and measurements are reviewed.
 
 Evidence: `/tmp/la-review-a-6fc243f34f57-final/baseline-r3-audit.json`, extracted from the same four `SLOT3D/artifacts/qalead-la-45/46/48/49` run directories identified in Rounds 1–2, including each relevant `container-*/playwright-results.json`. No new product run, Docker or stack; no Reviewer-B report or probe was opened.
+
+## Round 4
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `a456ca03`, integrated at `61e3ca97`, against the three saved `container-knob-PLAY_TTL_SECONDS/playwright-results.json` reports. **0 new findings.** The duration correction is accepted: `qa.md:29` and `:154`–`:156` now distinguish whole-suite duration from the individual AC-T5-15 result.
+
+| Run | Suite duration | AC-T5-15 duration | Result |
+| --- | --- | --- | --- |
+| `qalead-la-45` | 25,880.3 ms | 25,144 ms | PASS |
+| `qalead-la-46` | 26,162.5 ms | 25,304 ms | PASS |
+| `qalead-la-48` | 26,340.7 ms | 25,464 ms | PASS |
+
+These values match fresh reads of the raw reports. The earlier failed/skipped variants remain visible, and A-LA-E0-02-02 stays closed. **A-LA-E0-02-01 remains pending**, so the task verdict stays **CHANGES_REQUESTED**: R1 has started under the Lead's decision, but its baseline-3 results and AC-06/07 measurements have not been reviewed in this round. Approval of the §10 extraction commands does not replace those measurements.
+
+Evidence: `/tmp/la-review-a-8400cc94ece5/reviewer-r4-knob-audit.json`, which records the exact raw paths, suite times and test results. No new product run, Docker or stack; no other reviewer's report or probe was opened.

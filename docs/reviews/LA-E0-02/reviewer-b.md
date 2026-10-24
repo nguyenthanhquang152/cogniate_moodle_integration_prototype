@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 3
+Round: 4
 
 # LA-E0-02 — Reviewer-B
 
@@ -83,3 +83,13 @@ Reviewed 2026-10-24 at QA `44907ced` / integration `ab8e8938`, limited to the co
 **Suggested fix:** Use the individual values in the test-variant column, or label the existing values explicitly as suite durations. Keep the separate suite and command timings. Existing raw files suffice; no rerun is needed for this correction.
 
 Independent extraction: `/tmp/reviewer-b-ld9-r8-r2-tofad1og/baseline-reconciliation-r3.json`, derived from the four previously cited Slot 3D artifact folders, including each `container-knob-PLAY_TTL_SECONDS/playwright-results.json`. The separate [LD-9 r8 Round 2 review](../LA-E7-08/ld9-addendum-r8-reviewer-b.md) verifies all three rebuilt source pins and records the remaining invocation defects. No Docker, stack, product/test edit, commit or other reviewer's file was used.
+
+## Round 4
+
+Reviewed 2026-10-24 UTC at QA `a456ca03` / integration `61e3ca97`, limited to the knob-duration correction. **CHANGES_REQUESTED: 1 existing BLOCKER pending baseline-3; 0 MAJOR, MINOR or NIT. No new finding.**
+
+**B-LA-E0-02-02 closes.** AC-04's summary and §7.1 now distinguish the three individual test durations (**25,144 / 25,304 / 25,464 ms**, runs 45/46/48) from the dedicated suite durations (**25,880.3 / 26,162.5 / 26,340.7 ms**). All values match the independently extracted raw Playwright records. The earlier failures, rerun outcomes and skips remain intact.
+
+**B-LA-E0-02-01 stays OPEN, BLOCKER pending R1's report.** AC-04/06/07 still correctly say pending baseline-3. The Lead has started R1, but neither that start nor the approved command handoff supplies its required legacy results and rate measurements. The [LD-9 r8 Round 3 review](../LA-E7-08/ld9-addendum-r8-reviewer-b.md) approves the corrected execution commands without granting live acceptance.
+
+Verification: `/tmp/reviewer-b-ld9-r8-r3-g5mxlvp3/remaining-checks.json` cross-checks the new rows against `/tmp/reviewer-b-ld9-r8-r2-tofad1og/baseline-reconciliation-r3.json` and its cited raw artifacts. No Docker, stack, product/test edit, install, commit or other reviewer's file was used.

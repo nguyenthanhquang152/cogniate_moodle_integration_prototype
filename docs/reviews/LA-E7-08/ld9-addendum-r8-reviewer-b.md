@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # LD-9 addendum r8 and LD-29 re-gate — Reviewer-B
 
@@ -72,3 +72,25 @@ The paths also do not follow the documented producer commands: core runners writ
 - Read the six-channel walk Round 3 and K2 Round 6 QA context. The new source-only changes do not invalidate their recorded 234/234 and 12/12 outcomes. They do not supply the pending R1/D3/D4 evidence.
 
 Artifacts: `tree-audit.json`, `host-checks.json`, the six `*-host.log` / `*-golden.log` files, `golden-command-probe.json`, `wave-command-probe.mjs`, `wave-command-probe.log`, and `final-checks.json` in the private directory above. Baseline reconciliation is [LA-E0-02 Round 3](../LA-E0-02/reviewer-b.md). No Docker, stack-starting runner, live HTTP, commit, or other reviewer's file was used. Only the two assigned Reviewer-B reports were edited in integration.
+
+## Round 3
+
+Reviewed 2026-10-24 UTC at QA `a456ca03` / integration `61e3ca97`, limited to the dispatched diff from `1c89e1ca`. **APPROVE: 0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.** B-LA-E7-08-LD9-R8-01, -02 and -03 close. The §10 commands are ready for D3/D4; the minor evidence-table correction below does not hold execution. Approval of the source trees and LD-31 schedule carries forward. This is not live gate acceptance.
+
+| Prior finding | Closure evidence |
+| --- | --- |
+| **-03, golden normalization** | Ran the exact new Python snippet on private copies of the real candidate capture. A `9643 → 9473 → 9643` round trip preserves all four files byte-for-byte. Compare exits 0 with **297 explained differences, 0 unexplained, 0 expected missing**. Empty, malformed and missing-file inputs each fail; one unexplained field makes compare exit 1. |
+| **-01, wave inputs** | Variables are initialized; the manifest uses an array of `{suite, file}` entries and the actual host/e2e summary roots. Ran the exact D3 manifest-generation and pure preflight shell block, and its documented D4 substitutions, against private mock artifact folders containing unchanged real prior summaries. Each produces three PASS results; changing T8's aggregate to FAIL makes each preflight exit 1. QA's negative log also retains the old object-schema rejection and unsupported `--channels` rejection. Readiness remains after 130/131/137 for D3 and 153/154/160 for D4. The walk correctly names T7 run 66. |
+| **-02, drill identifiers** | The corrected full commit resolves; the old value fails. The corrected artifact exists, its summary identifies `5603861886909667a03d2aaf7843a9b17a4020ed`, and all 10 aggregate rows pass. The walk's corrected full commit and kit-source commit also resolve. |
+
+Read all 18 positive/negative logs for groups 00–08 under `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/dry-run-r2/logs/`. They cover source identity, CLI parsing, saved coverage/results, rate extraction, golden comparison, wave production and walk construction. Independently repeated **21 CLI `--help` checks with the documented selection flags** in the prior private clones: all exit 0. These are host command checks against prior evidence, not proof of a new live run. The published heads remain `1ae6716b` / `794f649c`, golden tree remains `1909e58f`, and all three source copies have the same storage identity helper SHA-256 `bc9ecc8b5c8374ac3d73f6a1accc60af7b5d508763424f32ea9a15b38852b1c5` with CLI 29.9.2 / Compose 5.6.1. No source or frozen-test implementation changed in this round; no UNIT AC needs new coverage.
+
+### B-LA-E7-08-LD9-R8-04 — MINOR — Align the dry-run matrix with its cited logs
+
+**File:line:** `tests/ltiaas/GATE-RUN-PLAN.md:1227`, `:1228`, `:1232`.
+
+**Problem / evidence:** The matrix adds details that its logs do not show. Group 01's negative used **`--phase bad-phase`**, not `--sha deadbeef`; its positive prints **admin perMinute 395**, not 399, and does not print the claimed 394-row coverage check. Group 00's negative log records the invalid SHA only, not the separate old-path check. Group 05's positive records G1–G4 sizes **104,405 / 48,309 / 65,331 / 27,278 bytes**, not the four sizes in the table. The relevant positive and negative behaviors are present, and the independent command probes above pass, so this is an evidence-description correction.
+
+**Suggested fix:** Derive the row details from the named logs, or link the additional saved check if it exists. Keep the logs as recorded. No stack rerun is needed.
+
+Independent artifacts: `/tmp/reviewer-b-ld9-r8-r3-g5mxlvp3/` contains `normalizer.py`, `golden-checks.json`, positive/negative compare logs, `wave-{d3,d4}-host.sh`, `wave-checks.json`, the four wave logs, `remaining-checks.json` and 21 CLI logs. Only disposable copies were mutated. [LA-E0-02 Round 4](../LA-E0-02/reviewer-b.md) closes the knob-duration correction but retains the pending baseline finding. No Docker, stack-starting runner, install, commit or other reviewer's file was used; only the two assigned reports were edited in integration.
