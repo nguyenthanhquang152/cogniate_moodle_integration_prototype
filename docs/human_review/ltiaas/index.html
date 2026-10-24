@@ -7,7 +7,7 @@
 <!--
   One self-contained file. No CDN, no web font, no script, no image file, no network request. Open it from disk (file://).
   Owner: Docs (LA-E8-05). Sources: docs/guides/ltiaas/spec-deviations.md, docs/reviews/LA-*/qa.md, docs/team/ltiaas/plan.md §6.2.
-  Status: final for LA, except three labels: "pending: kit round 8 (LD-27)" (2 rows) and "round 5 review pending" (the add-a-channel guide).
+  Status: results on a8bbac53 (the SHA of the first final runs) are final for that SHA. Every gate and final-SHA claim says "pending: re-gate on 4f10c5fd (LD-29)".
 -->
 <style>
   :root {
@@ -74,9 +74,9 @@
 <a class="skip" href="#main">Skip to the content</a>
 <header>
   <h1>LTI as a Service v1 (milestone LA): review pack</h1>
-  <p class="lead">2026-10-24. Final product SHA <code>a8bbac53</code>. Read time: about 10 minutes.</p>
-  <span class="badge ok">Final for LA</span>
-  <span class="badge">1 gate row pending: the channel kit (kit round 8)</span>
+  <p class="lead">2026-10-24. The SHA of the first final runs: <code>a8bbac53</code>. The new final product SHA: <code>4f10c5fd</code> (LA plus the Blackboard and Canvas final result, LA-H27). Read time: about 10 minutes.</p>
+  <span class="badge ok">All gate checks PASS on a8bbac53</span>
+  <span class="badge">pending: re-gate on 4f10c5fd (LD-29)</span>
   <span class="badge no">No real LMS site tested in LA</span>
   <nav aria-label="Sections">
     <ul>
@@ -145,21 +145,21 @@
   <table>
     <thead><tr><th>Result</th><th>Label</th><th>Evidence</th></tr></thead>
     <tbody>
-      <tr><td>The frozen Moodle, Canvas and Blackboard regression suites give the baseline results: M1 394 of 394 rows and M2 64 of 64 browser cases, on the wave-end build <code>8fadb828</code> and again on the final build in both milestone-end runs.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §8, §12, §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
-      <tr><td>The API, log and page outputs of the baseline channels equal the frozen golden outputs, except the 13 approved intended changes (G1–G4 EQUAL, final build).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12</td></tr>
-      <tr><td>An upgrade from the intake build keeps the data: migration 12 of 12 (a real Moodle score before and after), snapshot upgrade 6 of 6, upgrade route U1 37 of 37.</td><td><span class="lbl live">MOODLE-LIVE</span> <span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12.4; <a href="../../reviews/LA-E5-08/qa.md">LA-E5-08 qa</a></td></tr>
-      <tr><td>The full Moodle scenario test (T7): 3 runs of 17 checks on the wave-end build, 1 run of 17 on the final build. The demo check is skipped, as in the baseline.</td><td><span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §11, §12; <a href="../../reviews/LA-E7-09/qa.md">LA-E7-09 qa</a></td></tr>
-      <tr><td>The legacy Moodle test groups T2a–T8 give the baseline result per test id.</td><td><span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §7–§10</td></tr>
-      <tr><td>Two milestone-end full runs (D1 and D2) on the final build, SIM and Moodle lanes: M1, M2, golden outputs, T7 and T2a–T8 all PASS in each run. Three recorded findings failed first and passed on their rerun: a test race in T8 (WE-F13, fixed in the test) and two load flakes in run D2.</td><td><span class="lbl sim">SIM</span> <span class="lbl live">MOODLE-LIVE</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
-      <tr><td>12 browser flows on the simulator, final build: portal cards, setup wizards, the LTI 1.3 and D2L Brightspace flows (registration, approval code, Deep Linking, score), and a framed launch without the cookie.</td><td><span class="lbl sim">K2</span></td><td><a href="../../reviews/LA-E7-07/qa.md">LA-E7-07 qa</a> (round 5)</td></tr>
+      <tr><td>The frozen Moodle, Canvas and Blackboard regression suites give the baseline results: M1 394 of 394 rows and M2 64 of 64 browser cases, on the wave-end build <code>8fadb828</code> and again on <code>a8bbac53</code>, the SHA of the first final runs, in both milestone-end runs.</td><td><span class="lbl sim">SIM</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §8, §12, §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
+      <tr><td>The API, log and page outputs of the baseline channels equal the frozen golden outputs, except the 13 approved intended changes (G1–G4 EQUAL on <code>a8bbac53</code>, the SHA of the first final runs).</td><td><span class="lbl sim">SIM</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12</td></tr>
+      <tr><td>An upgrade from the intake build keeps the data: migration 12 of 12 (a real Moodle score before and after), snapshot upgrade 6 of 6 (on <code>a8bbac53</code>, the SHA of the first final runs), upgrade route U1 37 of 37.</td><td><span class="lbl live">MOODLE-LIVE</span> <span class="lbl sim">SIM</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §12.4; <a href="../../reviews/LA-E5-08/qa.md">LA-E5-08 qa</a></td></tr>
+      <tr><td>The full Moodle scenario test (T7): 3 runs of 17 checks on the wave-end build, and on <code>a8bbac53</code>, the SHA of the first final runs (1 run in slot 3F, 3 runs in each milestone-end run). The demo check is skipped, as in the baseline.</td><td><span class="lbl live">MOODLE-LIVE</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §11, §12; <a href="../../reviews/LA-E7-09/qa.md">LA-E7-09 qa</a></td></tr>
+      <tr><td>The legacy Moodle test groups T2a–T8 give the baseline result per test id.</td><td><span class="lbl live">MOODLE-LIVE</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §7–§10</td></tr>
+      <tr><td>Two milestone-end full runs (D1 and D2) on <code>a8bbac53</code>, the SHA of the first final runs, SIM and Moodle lanes: M1, M2, golden outputs, T7 and T2a–T8 all PASS in each run. Three recorded findings failed first and passed on their rerun: a test race in T8 (WE-F13, fixed in the test) and two load flakes in run D2.</td><td><span class="lbl sim">SIM</span> <span class="lbl live">MOODLE-LIVE</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-08/qa.md">LA-E7-08 qa</a> §13; <a href="../../reviews/LA-E7-08/run-D2.md">run D2</a></td></tr>
+      <tr><td>12 browser flows on the simulator, on <code>a8bbac53</code>, the SHA of the first final runs: portal cards, setup wizards, the LTI 1.3 and D2L Brightspace flows (registration, approval code, Deep Linking, score), and a framed launch without the cookie.</td><td><span class="lbl sim">K2</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-07/qa.md">LA-E7-07 qa</a> (round 5)</td></tr>
       <tr><td>A new LTI LMS (D2L Brightspace) changed 0 core files (F2 <code>core = 0</code>).</td><td><span class="lbl">UNIT</span></td><td><a href="../../reviews/LA-E2-05/qa.md">LA-E2-05 qa</a>, AC-LA-E2-05-01</td></tr>
-      <tr><td>The LTI 1.3 and D2L Brightspace channels pass their task checks (launch, Deep Linking, grades, registration, capabilities) on their simulators. The full channel kit run with its pass rule is pending: kit round 8 (LD-27) (row below).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E2-04/qa.md">LA-E2-04 qa</a> (AC-08); <a href="../../reviews/LA-E2-05/qa.md">LA-E2-05 qa</a> (AC-10)</td></tr>
+      <tr><td>The LTI 1.3 and D2L Brightspace channels pass their task checks (launch, Deep Linking, grades, registration, capabilities) on their simulators. The full channel kit run with its pass rule also passed (last row).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E2-04/qa.md">LA-E2-04 qa</a> (AC-08); <a href="../../reviews/LA-E2-05/qa.md">LA-E2-05 qa</a> (AC-10)</td></tr>
       <tr><td>Service controls: rate limits, tool accounts, the operator API, the audit log, the key lifecycle (API keys, key rings and re-wrap, signing keys), service key revoke, safe retries, metrics and readiness, production start rules, backup and restore.</td><td><span class="lbl sim">SIM</span> <span class="lbl">UNIT</span></td><td><a href="service-controls.md">proof map</a>: each claim with its QA report (LA-E5-01 to LA-E5-24) and the label of each check</td></tr>
       <tr><td>Backup and restore drill: the restored stack works; QA recorded the restore time and the backup age.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E5-24/qa.md">LA-E5-24 qa</a></td></tr>
       <tr><td>One tool account cannot read or change the data of another one on the new routes.</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E5-13/qa.md">LA-E5-13 qa</a></td></tr>
       <tr><td>A walker who was new to the repository added the simulator LMS <code>acme-lms</code> as a new channel in 8 min 49 s (plan §4 measure 5). The F2 gate, K0, <code>npm run check</code> and the simulator checks pass.</td><td><span class="lbl">UNIT</span></td><td><a href="../../reviews/LA-E8-02/qa.md">LA-E8-02 qa</a> (AC-01, -02, -04, -05)</td></tr>
-      <tr><td>The <code>acme-lms</code> kit K1 run on the simulator (LA-E8-02 AC-03).</td><td><span class="lbl pend">pending: kit round 8 (LD-27)</span></td><td><a href="../../reviews/LA-E8-02/qa.md">LA-E8-02 qa</a></td></tr>
-      <tr><td>The channel kit run for every channel (AC-LA-E7-08-02). The live run r7 on the final build gave 195 of 195 expected cases PASS on all 5 channels, but the round 7 reviews ask for kit oracle fixes before they accept it.</td><td><span class="lbl pend">pending: kit round 8 (LD-27)</span></td><td><a href="../../reviews/LA-E7-06/qa.md">LA-E7-06 qa</a> (round 7); <a href="../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-and-milestone-end-results">spec-deviations §4</a></td></tr>
+      <tr><td>The <code>acme-lms</code> kit K1 run on the simulator (LA-E8-02 AC-03): 39 of 39 expected cases PASS under its pass rule. LA-E8-02 is QA PASS with 5 of 5 ACs; its reviews are in progress. The same run found a kit defect (F-LA-E7-06-WALK-02): with the extra channel, the kit expected a wrong answer from <code>brightspace</code> (a false FAIL). The kit fix is in progress (LD-30).</td><td><span class="lbl sim">SIM</span></td><td><a href="../../reviews/LA-E8-02/qa.md">LA-E8-02 qa</a> (round 2)</td></tr>
+      <tr><td>The channel kit run for every channel (AC-LA-E7-08-02): the live run r8 on <code>a8bbac53</code>, the SHA of the first final runs gave 195 of 195 expected cases PASS on all 5 channels. The round 8 reviews APPROVE, with 0 open findings.</td><td><span class="lbl sim">SIM</span> <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span></td><td><a href="../../reviews/LA-E7-06/qa.md">LA-E7-06 qa</a> (round 8); <a href="../../guides/ltiaas/spec-deviations.md#4-wave-end-gate-and-milestone-end-results">spec-deviations §4</a></td></tr>
     </tbody>
   </table>
   </div>
@@ -169,7 +169,8 @@
 
 <section id="gate" aria-labelledby="gate-h">
   <h2 id="gate-h">4. Wave-end gate and milestone-end runs</h2>
-  <p>The gate ran the frozen suites on the wave-end build and again on the final build. Then two milestone-end full runs (D1 and D2) ran on the final build. 10 of 11 gate checks pass. One waits: the channel kit run (pending: kit round 8 (LD-27)).</p>
+  <p>The gate ran the frozen suites on the wave-end build and again on <code>a8bbac53</code>, the SHA of the first final runs. Then two milestone-end full runs (D1 and D2) ran on <code>a8bbac53</code>. All 11 gate checks pass on <code>a8bbac53</code>.</p>
+  <p>LA-H27 merges the Blackboard and Canvas final result into LA. So the full gate runs again on the new final product SHA <code>4f10c5fd</code>: <span class="lbl pend">pending: re-gate on 4f10c5fd (LD-29)</span>. The <code>a8bbac53</code> results stay true for that SHA. The E0 close-out evidence (LA-E0-02: the legacy baseline and the rate peaks; LA-E0-03: the Moodle golden segment) is in progress (LD-29), on a re-captured baseline.</p>
   <p>QA found 13 differences (WE-F1 to WE-F13) and two load flakes. Each one has a recorded decision:</p>
   <ul>
     <li><strong>2 product fixes:</strong> a higher default rate limit for <code>admin</code> API calls (WE-F1), and a faster stop of open HTTP requests at shutdown (WE-F4).</li>
@@ -177,6 +178,7 @@
     <li><strong>A test or harness problem, not an LA difference:</strong> WE-F5, -F9, -F10, -F11, -F13.</li>
     <li><strong>Two load flakes in run D2</strong> (T7 under two Moodle stacks, one M2 keyboard case): each rerun passed. A flaky run never counts as PASS.</li>
     <li><strong>One flake stays open:</strong> WE-F12. One grade test fails sometimes, on the intake build too. Test hardening comes after LA.</li>
+    <li><strong>One kit defect is being fixed:</strong> F-LA-E7-06-WALK-02, a false FAIL in the kit when a new channel is added (LD-30). It is not a product defect.</li>
   </ul>
   <p>Details: <a href="../../guides/ltiaas/spec-deviations.md#5-wave-end-and-milestone-end-findings-we-f1-to-we-f13-and-the-d2-flakes">spec-deviations §5</a>.</p>
 </section>
@@ -185,12 +187,12 @@
   <h2 id="notproved-h">5. What is not proven</h2>
   <ul>
     <li><strong>No real Canvas, Blackboard, D2L Brightspace or other LTI 1.3 site took part.</strong> Every result for these LMSs is a simulator result. Their menu names and some field names come from vendor documentation. A live proof on an open-source LMS is decision LA-H26 (after LA).</li>
-    <li><strong>The channel kit run for every channel:</strong> pending: kit round 8 (LD-27). The product owner chose LA-H25 option (a), then a narrow fix, then a live fix-and-rerun window. The live run r7 gave 195 of 195, and the round 7 reviews ask for kit oracle fixes first. The <code>acme-lms</code> kit run of the walkthrough (LA-E8-02 AC-03) waits for the same round.</li>
+    <li><strong>The re-gate on the new final product SHA <code>4f10c5fd</code>:</strong> pending: re-gate on 4f10c5fd (LD-29). Every suite of the milestone-end double run and the kit K1 runs again on it. Until then, the gate results are results on <code>a8bbac53</code> only.</li>
     <li><strong>Known limit (BD-A1-121):</strong> a Dynamic Registration of a <code>desire2learn</code> site on a Moodle or LTI 1.3 connection is refused with the page <code>REGISTRATION_FAILED</code>, not with the page that names D2L Brightspace. Nothing is sent and nothing is stored. The fix is in LG (<a href="../../guides/ltiaas/spec-deviations.md#7-recorded-product-deviation-known-limit">spec-deviations §7</a>).</li>
     <li><strong>Canvas Dynamic Registration for Instructure-hosted Canvas:</strong> refused on purpose until a live Canvas check. Hosted Canvas uses the developer key.</li>
     <li><strong>A production host:</strong> the strict production start rules exist and pass their tests, but the LA Docker stack cannot run in production mode. A production host setup is milestone LG.</li>
     <li><strong>Load, scale, high availability and 1EdTech certification:</strong> not in LA (certification shape: LA-H9).</li>
-    <li><strong>Not built:</strong> the tenant reads <code>GET /api/audit</code> and <code>GET /api/account</code> (Should; no task had them); ungraded items (LA-H22); a claim policy per tool account (LA-H4); the verified admin launch (LA-H24); the record of launch refusals (LA-E6-06, deferred).</li>
+    <li><strong>Not built:</strong> the tenant reads <code>GET /api/audit</code> and <code>GET /api/account</code> (Should; no task had them); ungraded items (LA-H22); a claim policy per tool account (LA-H4); the verified admin launch (LA-H24); the record of launch refusals (LA-E6-06, deferred); the app-edge limit on the handoff pages (LA-E4-06) and other browser checks (LA-E7-12), both cut to LG (LD-28).</li>
   </ul>
 </section>
 
@@ -201,7 +203,8 @@
   <table>
     <thead><tr><th>Id</th><th>Question</th><th>Lead recommendation</th><th>What waits</th></tr></thead>
     <tbody>
-      <tr><td>LA-H25</td><td>The channel kit (LA-E7-06) used 3 fix rounds with open findings. How do we finish it?</td><td><strong>Decided (product owner, 2026-10-24): (a)</strong>, then a narrow fix, then a live fix-and-rerun window for the kit (LD-27)</td><td>kit round 8: the kit gate row and the <code>acme-lms</code> kit run</td></tr>
+      <tr><td>LA-H25</td><td>The channel kit (LA-E7-06) used 3 fix rounds with open findings. How do we finish it?</td><td><strong>Decided (product owner, 2026-10-24): (a)</strong>, then a narrow fix, then a live fix-and-rerun window for the kit (LD-27)</td><td>done: the kit passed on <code>a8bbac53</code> (round 8)</td></tr>
+      <tr><td>LA-H27</td><td>The Blackboard and Canvas final result was never merged into LA. When do we merge it?</td><td><strong>Decided (product owner, 2026-10-24): (a)</strong>, merge now and repeat the full gate on the new final SHA <code>4f10c5fd</code> (LD-29)</td><td>the re-gate on <code>4f10c5fd</code></td></tr>
       <tr><td>LA-H26</td><td>Which real open-source LMS gives the first live (not SIM) proof of the new-channel path?</td><td>Open edX first, Sakai as fallback; after LA (LG)</td><td>the first LIVE row for a new channel</td></tr>
       <tr><td>LA-H22</td><td>Do we offer ungraded items?</td><td>Yes for Canvas <code>link_selection</code> and LTI 1.3; no for Moodle</td><td>3 tasks (LA-IC-07)</td></tr>
       <tr><td>LA-H4</td><td>Privacy: which claims may a channel receive; retention; learner erase</td><td>Pseudonymous by default; a claim policy per tool account</td><td>1 task (LA-IC-08)</td></tr>
@@ -220,14 +223,14 @@
     <li><a href="../../guides/ltiaas/spec-deviations.md">Spec deviations, LTIAAS API differences, the status of each intended change (LA-IC), the gate results and findings</a></li>
     <li><a href="../../guides/ltiaas/operator-runbook.md">Operator runbook</a></li>
     <li><a href="../../guides/ltiaas/lti-generic-admin.md">LTI 1.3 admin guide</a>, <a href="../../guides/ltiaas/brightspace-admin.md">D2L Brightspace admin guide</a>, <a href="../../guides/ltiaas/baseline-admin-changes.md">LA changes for Moodle, Canvas and Blackboard</a></li>
-    <li><a href="../../guides/ltiaas/add-a-channel.md">Add a new LTI channel</a>, with the walkthrough fix (integration <code>77f58f62</code>): round 5 review pending</li>
+    <li><a href="../../guides/ltiaas/add-a-channel.md">Add a new LTI channel</a>, with the walkthrough fix (integration <code>77f58f62</code>; round 5: A and B APPROVE)</li>
     <li><a href="../../team/ltiaas/plan.md">LA plan</a> (§6.2: human decisions)</li>
   </ul>
 </section>
 
 </main>
 <footer>
-  <p>Final for LA. Owner: Docs (LA-E8-05). Sources are the QA files under <code>docs/reviews/</code>. This page makes no network request.</p>
+  <p>Review pack for LA. Owner: Docs (LA-E8-05). Sources are the QA files under <code>docs/reviews/</code>. This page makes no network request.</p>
 </footer>
 </body>
 </html>
