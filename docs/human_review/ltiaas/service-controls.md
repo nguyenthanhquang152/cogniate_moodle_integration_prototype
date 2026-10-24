@@ -1,6 +1,6 @@
 # LA service controls: proof map
 
-2026-10-24. `a8bbac53` is the SHA of the first final runs; the new final product SHA is `4f10c5fd` (pending: re-gate on 4f10c5fd (LD-29)). The task results on this page stay valid as task evidence (LD-29). Back to [start-here.md](start-here.md) or [index.html](index.html).
+2026-10-25. Final product SHA `4f10c5fd`. The task results on this page come from task QA runs before the merge (most on builds up to `a8bbac53`, the SHA of the first final runs); they stay valid as task evidence (LD-29). The merge changes only the player, not the LTI service (A1 round 3, A2 round 2). Back to [start-here.md](start-here.md) or [index.html](index.html).
 
 This page maps each service-control claim of the review pack to the QA report that proves it. The AC numbers come from the summary table at the top of each QA report. Each report has the verdict PASS.
 
