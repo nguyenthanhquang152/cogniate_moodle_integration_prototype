@@ -863,4 +863,22 @@ COMPOSE_PROJECT_NAME=qalead-la-55 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$SLOT8C_DIR/logs/qalead-la-55-t5b-2.log" 2>&1
 ```
 
+---
+
+## 8d. Slot 8d — Live Moodle `T7 × 3` on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`la-gate-test-6`, `AC-LA-E7-09-01`)
+
+- **Purpose (`AC-LA-E7-09-01` & `AC-LA-E7-09-03`):** `AC-LA-E7-09-01` requires `"T7: 3 runs × 17 PASS plus the demo skip, as in the baseline"` (baseline: Slot 7 `qalead-la-20` on `1b17261`, `3 × 17 PASS + 1 skip`). Slot 8b (`qalead-la-50`) ran `T7 × 1` only.
+- **Candidate Clone:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-6` at `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`), product SHA `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`.
+- **Compose Project & Network:** `qalead-la-56`, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16` (~`11 min` for `3` consecutive `npm run test:e2e` runs with `e2e:reset`).
+- **Command:**
+  ```bash
+  COMPOSE_PROJECT_NAME=qalead-la-56 PUBLIC_PORT=9543 STACK_SUBNET="172.21.0.0/16" \
+    COURSE_FIXTURES_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures" \
+    node "/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-6/tests/e2e/host/run-t7.mjs" \
+    --sha "8fadb828088ffe1b4db02179ab0fa3ab2388a12a" \
+    --runs 3 --replace-e2e \
+    > "/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8D/logs/qalead-la-56-t7x3.log" 2>&1
+  ```
+
+
 
