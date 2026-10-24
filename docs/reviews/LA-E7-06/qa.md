@@ -699,3 +699,7 @@ No Docker run in this round: the lead QA books the live runs in the re-gate (LD-
 ### R9.5 Result
 
 F-LA-E7-06-WALK-02 is fixed in the kit oracle. New kit tree (la-qa, `git add -A tests/ltiaas/kit && git write-tree --prefix=tests/ltiaas/kit/` on a temporary index): **`d7e50b5dea56382f849b213f006b73bcf5eb71aa`** (Round 8: `8ad870fa`). Changed files: `tests/ltiaas/kit/lib/fixtures.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/k0-data/extra-fixtures/acme-lms.json` (new), `tests/ltiaas/kit/README.md`, and this file. No commit.
+
+### R9.6 Live proof (re-gate slot R2a)
+
+The lead QA's re-gate slot R2a ran the round 9 kit live (QA-K, dispatch `ctx_9f8a8cc8773b`). Run `qa4-la-walk-r2` used the la-walk clone at `d6196d52` with kit tree `d7e50b5d` (integration `a3953243`) plus the walker's `acme-lms.json`, giving tree `3c82b609`. It ran all 6 channels, with `retries: 0`, 2026-10-24T15:52:50Z–16:00:12Z. Run id `kit-run-1792857229708-iyicfv`: **234 of 234 PASS**; every channel passes its pass rule (moodle 37, canvas 38, blackboard 39, lti-generic 39, brightspace 39, acme-lms 39); `L-FAULTS`, `N2` and `K-HYG:H1` PASS. `brightspace:K1-REG:R3` passes with `acme-lms` present. The `acme` probe took the start-refusal branch (`registration_rejected {PROVIDER_PROFILE_MISMATCH, family=acme}`), so F-LA-E7-06-WALK-02 is closed live. Details: `docs/reviews/LA-E8-02/qa.md` Round 3.

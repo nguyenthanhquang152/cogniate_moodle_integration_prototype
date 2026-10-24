@@ -1,5 +1,5 @@
-Verdict: PASS (Round 2: AC-LA-E8-02-03 PASS for acme-lms under its pass rule, 39/39 with K-HYG and the fault matrix; 5/5 ACs PASS; open kit finding F-LA-E7-06-WALK-02 for LA-E7-06)
-Round: 2
+Verdict: PASS (Round 3: re-gate slot R2a, 6-channel walk-clone K1-SIM run qa4-la-walk-r2 on kit tree d7e50b5d: 234/234, every channel passes its pass rule, acme-lms 39/39, brightspace 39/39 with acme-lms present (F-LA-E7-06-WALK-02 closed live); 5/5 ACs PASS)
+Round: 3
 
 # LA-E8-02 Timed walkthrough of the add-channel guide (`acme-lms`): QA verification
 
@@ -74,8 +74,8 @@ F2 PASS: core = 0, paths = 8
 - **Walker:** Fresh Claude Code session (model: Claude Opus 5.5, effort `xhigh`), new to the repository, designated by the Lead on `2026-10-24`.
 - **Walkthrough Branch & Commits (`nguyenthanhquang152/la-walk`, never merged):**
   1. Base: `3880a1b70d115c03f5a5accc813875332dcee64e`
-  2. `fe87eb45a9e33d87a83c3fd3ef988ef52cf50141` — `Walk: add channel acme-lms (manifest, profile, README, unit test)` (`4` files in `packages/channels/acme-lms/`)
-  3. `4d12a291bd780bd87158000511ff532c20f95ba6` — `Walk: add simulator provider acme-lms-sim and its hosts.json entry` (`3` files in `tests/sim/`)
+  2. `fe87eb456dd59da8a654e2713eb91e23b92c69ed` — `Walk: add channel acme-lms (manifest, profile, README, unit test)` (`4` files in `packages/channels/acme-lms/`)
+  3. `4d12a2914cd8e8c8f8ca432b4704e0190728cd8d` — `Walk: add simulator provider acme-lms-sim and its hosts.json entry` (`3` files in `tests/sim/`)
   4. `337b807dfe4f6b4201a1c0d122e7769944cc295e` — `Walk: add kit fixture acme-lms` (`1` file: `tests/ltiaas/kit/channels/acme-lms.json`)
   5. `d6196d5242863e33f76a0b7d06c45554463bec6b` — `Walk: WALKTHROUGH-LOG for LA-E8-02 (acme-lms)` (`1` root log file: `WALKTHROUGH-LOG.md`)
 - **Measured Timings (`la-walk/WALKTHROUGH-LOG.md` §1, §2, §6):**
@@ -200,3 +200,56 @@ Before and after (`ps -a`, networks, volumes, with inspect), `events-qa4-la-walk
 | --- | --- |
 | AC-LA-E8-02-01, -02, -04, -05 | PASS (Round 1, unchanged) |
 | AC-LA-E8-02-03 | **PASS** for `acme-lms` (R2.4: 39 of 39, its pass rule `ok: true`, K-HYG H1/H2 and the fault matrix PASS). Open: `F-LA-E7-06-WALK-02` (kit, LA-E7-06), which makes the whole-run SUMMARY fail on brightspace when the new channel is loaded |
+
+## Round 3
+
+Tester: QA-K (Claude Code Opus 5.5 xhigh; Orca task `task_33f18ed6cf48`, dispatch `ctx_9f8a8cc8773b`), 2026-10-24. Scope: re-gate slot R2a (`tests/ltiaas/GATE-RUN-PLAN.md` §10; plan LD-29, LD-30): the 6-channel walk-clone kit run with the round 9 kit. DOCKER-YES for 40 minutes from 2026-10-24T15:52:28Z. Rounds 1 and 2 are unchanged, except the A-LA-E8-02-01 fix below. No walk-branch file, kit file or product file was changed. No product source was read.
+
+### R3.1 A-LA-E8-02-01 (Reviewer-A, MINOR): two wrong commit ids in Round 1
+
+The full ids at lines 77–78 did not resolve (`git cat-file -t` fails). `git log 3880a1b7..d6196d52` gives the right ids: `fe87eb456dd59da8a654e2713eb91e23b92c69ed` (the channel commit) and `4d12a2914cd8e8c8f8ca432b4704e0190728cd8d` (the simulator commit). Both lines are corrected; the short prefixes, base, product SHA and log SHA were already right.
+
+### R3.2 Source and kit
+
+| Item | Value |
+| --- | --- |
+| Walk clone | `~/cogniate-qa-runs/LA/LA-E7-06/walk2/clone`: new `git clone --no-hardlinks` of the `la-walk` worktree, detached at `d6196d5242863e33f76a0b7d06c45554463bec6b` |
+| Kit tree of the walk branch at `d6196d52` | `564f4049991aa9cf577c40d55cbc355940d79ea4` |
+| Kit tree of integration `a3953243` (round 9 approved, LD-30) | `d7e50b5dea56382f849b213f006b73bcf5eb71aa` |
+| Copy | `tests/ltiaas/kit/**` replaced by `git archive a3953243 tests/ltiaas/kit`; the walker's `channels/acme-lms.json` restored from `d6196d52` (`cmp`: equal). `diff -r` against the `a3953243` kit: only `channels/acme-lms.json` |
+| Kit tree after the copy (the run clone's `KIT` result) | `3c82b60928d8b5f7c5e94cb834314a2a97c91cdb` |
+| `git status --short` of the walk clone after the copy | ` M` `tests/ltiaas/kit/README.md`, `kit.k0.test.ts`, `lib/cases.ts`, `lib/fixtures.ts`, `lib/runtime.ts`, `suites/k1-{ags,cap,dl,launch,nrps,reg}.k1sim.test.ts`; `??` `tests/ltiaas/kit/k0-data/`, `lib/wave-producer.d.mts`, `lib/wave-producer.mjs`, `run-k1sim.mjs` (`~/cogniate-qa-runs/LA/LA-E7-06/walk2/git-status-after-copy.txt`) |
+
+### R3.3 Run `qa4-la-walk-r2`
+
+| Item | Value |
+| --- | --- |
+| Procedure | LA-E7-06 Round 8 host procedure with the unchanged runner, as Round 2 (R2.2: the runner needs the wave spec and runs all channels): the round 8 wave spec (T3b, T7, T8; used only by Moodle's `coveredBy`), `QA_KIT_CHANNELS=all` (6 channels), `retries: 0`, `LA_WAVE_ID=la-final-wave-a8bbac53` |
+| Lane | project `qa4-la-walk-r2`, `PUBLIC_PORT 9443`, `STACK_SUBNET 172.20.0.0/16`; one stack |
+| Time (`date -u`) | 2026-10-24T15:52:50Z–16:00:12Z; in-container step 389 s |
+| Host results | `PRE`, `CLONE`, `KIT` (`3c82b609`), `H1`, `SETUP`, `WAVE` (T3b, T7, T8 PASS), `HOSTCTL` (m1-cli 74 of 74 exit 0, m1-restart 12 of 12 exit 0), `SUITE`, `PASSRULE`, `TEARDOWN`: **all PASS**; runner exit 0; no rerun |
+| Kit run | run id **`kit-run-1792857229708-iyicfv`**; ledger 234 records, 234 unique ids, one run id: **234 PASS**, 0 FAIL, 0 skipped, 0 duplicates; Vitest 235 of 235 passed (with `GLOBAL:K-HYG:SUMMARY`); `k1-kit-summary.json` `ok: true`, `globalErrors: []` |
+| Files | `~/cogniate-qa-runs/LA/LA-E7-06/walk2/clone/tests/host/artifacts/qa4-la-walk-r2-d6196d52-2026-10-24T15-52-50-540Z/` (`summary.json`, `kit-run/`, `container-k1/vitest-results.json`, `service-logs/`) |
+
+| Channel | Expected `RUN` | PASS | Pass rule |
+| --- | ---: | ---: | --- |
+| moodle | 37 | 37 | `ok: true` |
+| canvas | 38 | 38 | `ok: true` |
+| blackboard | 39 | 39 | `ok: true` |
+| lti-generic | 39 | 39 | `ok: true` |
+| brightspace | 39 | 39 | `ok: true` |
+| acme-lms | 39 | 39 | `ok: true` |
+| Global | 3 | 3 | `L-FAULTS`, `N2`, `K-HYG:H1` PASS |
+
+**F-LA-E7-06-WALK-02 closed live.** With `acme-lms` loaded, `brightspace:K1-REG:R3` PASS (15:56:44.946Z). Its registration-level probe `acme` (manual-only owner) took the start-refusal branch: LTI log `registration_rejected {PROVIDER_PROFILE_MISMATCH, family=acme}` (trace `22f1ebad788d11dda438e3c7d17b7527`, 15:56:44.942Z), as the round 9 oracle expects. The BD-A1-121 complete branch for `desire2learn` on moodle and lti-generic also passed.
+
+### R3.4 Docker records (umask 077: `~/cogniate-qa-runs/LA/LA-E7-06/walk2/r2/docker-records/`)
+
+Before and after (`ps -a`, networks, volumes, with inspect), `events-qa4-la-walk-r2.jsonl` (2,582 own-label events), `events-all.jsonl`, `ps-watch.log` (15 s), `compare.txt`. The stack is down: lane after 0 containers, 0 volumes, 0 networks; volumes 32 → 32, no inspect changed; protected lines (`qa3-la-*`, `qalead-la-*`, `qa-e2e-*`, `la-g1-diag-*`, `sto-*`) 0 → 0. QA-K's watchers stopped after the run.
+
+### R3.5 Acceptance criteria after Round 3
+
+| AC | Result |
+| --- | --- |
+| AC-LA-E8-02-01, -02, -04, -05 | PASS (Round 1; A-LA-E8-02-01 ids corrected in R3.1) |
+| AC-LA-E8-02-03 | **PASS**: K1 passes for `acme-lms` under the pass rule (39 of 39), and the whole 6-channel run passes (234 of 234) with no open kit finding |
