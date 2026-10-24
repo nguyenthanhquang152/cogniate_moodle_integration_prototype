@@ -115,6 +115,19 @@ export const CAPABILITY_KEYS = [
 
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
 
+// Capabilities whose value comes from the selected LTI profile, not from the channel: the rows of the
+// LA-ADR-01 D3 catalog whose "Source" is an LTI profile trait (`sharing`, `serviceUrl`). K0 checks this
+// list against that table. GET /app-api/lms-providers has no profile, so its `channelCapabilities`
+// (channel level, cogniate-app-api-delta.md §2) holds the other keys only; the connection DTO (§1) has a
+// selected profile and holds every key.
+export const PROFILE_LEVEL_CAPABILITY_KEYS: readonly CapabilityKey[] = [
+  'platform.sharing',
+  'site.serviceOrigin',
+];
+export const CHANNEL_LEVEL_CAPABILITY_KEYS: readonly CapabilityKey[] = CAPABILITY_KEYS.filter(
+  (key) => !PROFILE_LEVEL_CAPABILITY_KEYS.includes(key),
+);
+
 export const CONNECTION_GUARDED_CAPABILITIES: readonly CapabilityKey[] = [
   'registration.dynamic',
   'deployments.multiple',
@@ -268,7 +281,8 @@ export interface PassRuleEvaluation {
 }
 
 // C1 operands (AC-LA-E7-06-04): the registry entry of GET /app-api/lms-providers (channel level,
-// cogniate-app-api-delta.md §2) and the connection DTO (§1), each against the fixture.
+// cogniate-app-api-delta.md §2: the channel-level keys of the fixture) and the connection DTO (§1: every
+// key, for its selected profile), each against the fixture in both directions.
 export interface BilateralEqualityInput {
   fixture: ChannelFixture;
   providerChannelCapabilities: Record<string, unknown>;
@@ -1011,7 +1025,7 @@ export function computeExpectedCaseList(fixture: ChannelFixture): ExpectedCase[]
   add(
     'K1-CAP',
     'C1',
-    'channelCapabilities of the registry entry (GET /app-api/lms-providers) and of the connection DTO equal the fixture set in both directions; six legacy flags; tool configuration keys',
+    'channel-level channelCapabilities of the registry entry (GET /app-api/lms-providers) and the full set of the connection DTO equal the fixture in both directions; six legacy flags; tool configuration keys',
     'RUN',
   );
   for (const cap of CONNECTION_GUARDED_CAPABILITIES) {
@@ -1459,7 +1473,8 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
     return { ok: false, errors };
   }
 
-  for (const key of CAPABILITY_KEYS) {
+  // Channel level: the registry entry holds exactly the channel-level keys, with the fixture values.
+  for (const key of CHANNEL_LEVEL_CAPABILITY_KEYS) {
     const expectedVal = fixture.capabilities[key];
     const provVal = input.providerChannelCapabilities[key];
     if (JSON.stringify(provVal) !== JSON.stringify(expectedVal)) {
@@ -1469,20 +1484,28 @@ export function verifyBilateralCapabilities(input: BilateralEqualityInput): {
         }": expected ${JSON.stringify(expectedVal)}, got ${JSON.stringify(provVal)}`,
       );
     }
+  }
+  for (const k of Object.keys(input.providerChannelCapabilities)) {
+    if ((PROFILE_LEVEL_CAPABILITY_KEYS as readonly string[]).includes(k)) {
+      errors.push(
+        `GET /app-api/lms-providers channelCapabilities carries the profile-level key "${k}" on "${fixture.id}" (channel-level map; LA-ADR-01 D3)`,
+      );
+    } else if (!(CAPABILITY_KEYS as readonly string[]).includes(k)) {
+      errors.push(
+        `GET /app-api/lms-providers has unknown capability key "${k}" on "${fixture.id}"`,
+      );
+    }
+  }
+
+  // Selected profile: the connection DTO holds every key, with the fixture values.
+  for (const key of CAPABILITY_KEYS) {
+    const expectedVal = fixture.capabilities[key];
     const connVal = input.connectionChannelCapabilities[key];
     if (JSON.stringify(connVal) !== JSON.stringify(expectedVal)) {
       errors.push(
         `GET /app-api/connections/:id channelCapabilities["${key}"] mismatch on "${
           fixture.id
         }": expected ${JSON.stringify(expectedVal)}, got ${JSON.stringify(connVal)}`,
-      );
-    }
-  }
-
-  for (const k of Object.keys(input.providerChannelCapabilities)) {
-    if (!(CAPABILITY_KEYS as readonly string[]).includes(k)) {
-      errors.push(
-        `GET /app-api/lms-providers has unknown capability key "${k}" on "${fixture.id}"`,
       );
     }
   }
