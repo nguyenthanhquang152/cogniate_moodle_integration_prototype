@@ -1,0 +1,13 @@
+Second lead-QA session (same session as run D2; new dispatch): LA-E0-03 fix round 1, golden capture version 2 with the Moodle segment. Work in la-qa (merge quang/ltiaas-milestone first; it now has the B/C merge 4f10c5fd). Do not read product source.
+
+Findings: A-LA-E0-03-01 and B-LA-E0-03-01 (BLOCKER), in docs/reviews/LA-E0-03/reviewer-a.md and reviewer-b.md. Golden v1 (tests/ltiaas/golden/capture.golden.ts:9) captures Moodle only as two pending connections in G1. AC-LA-E0-03-02 and -03 need G2, G3 and G4 for each baseline channel, and Moodle is one. The note said v2 adds them when the Moodle-shaped simulator config exists. It exists now (LA-E7-02, LA-E7-05; the M1 `sim` phase uses it).
+
+Do this:
+1. Add the Moodle-shaped standard flow to the capture, as for Blackboard and Canvas. It needs one registered and connected Moodle connection, a Deep Linking pick, learner launches and grades, score sync rows in each status, the tool error pages, and a disabled connection. Use only public surfaces and the frozen M1 helpers (as v1 does). Keep v1's paths unchanged, so that old captures still compare.
+2. Update tests/ltiaas/golden/README.md (the path table and the U1 seed claim) and the K0 golden tests. Add a negative control for one Moodle G2 field and one Moodle G3 field.
+3. Check each LA-IC expected-delta file (tests/ltiaas/golden/expected/LA-IC-*.json) for Moodle paths that the new segment now captures, for example LA-IC-24 (BD-A1-121: the desire2learn guard changes two Moodle baseline answers) and LA-IC-04. List each change you need. Do not change an approved LA-IC file yourself: put the list in your report, and the Lead sends it to review with LD-9 addendum r8.
+4. Validate on SIM: capture twice on two fresh stacks at baseline-3 = main 78971b03 (AC-LA-E0-03-04: equal). Then capture once on 4f10c5fd, and compare with the expected deltas, as a dry run for D3/D4.
+   DOCKER-YES for 90 minutes from this dispatch, ONLY while fewer than 2 LA stacks run (`docker ps` names qa4-la-*, qa3-la-*, qalead-la-*, qa-e2e-*; wait if 2 are up). Project prefix `qalead-la-110` and up, PUBLIC_PORT 9643, STACK_SUBNET 172.22.0.0/16. Write before/after Docker records (umask 077), clean up only what you own, and run your own ps and docker events watchers. Never touch sto-* or another session's stacks.
+5. Update docs/reviews/LA-E0-03/qa.md with Round 2: AC-02, -03, -04 and -09 with the Moodle coverage, and the captures. Keep Round 1.
+
+Commit in la-qa: "QA: golden v2 with the Moodle segment (LA-E0-03 fix round 1)". Then send one worker_done with the SHA, the capture ids and the LA-IC change list, and stop.
