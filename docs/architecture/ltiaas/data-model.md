@@ -8,7 +8,7 @@ Status: v1 (A1, milestone LA P2, 2026-10-22); P4 build ratification BD-A1-04 in 
 | --- | --- | --- | --- | --- |
 | Cogniate app | `013_channel_kernel.sql` | E1 S4 | A1 ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `connection.channel`, `connection.binding_authority`, `binding_attempt.target_kind`, `binding_grant.bound_values` |
 | Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_instance`, `job_lease`; backfill from `resource_link` and `score_sync` |
-| Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event` |
+| Cogniate app | `015_audit_event.sql` (BD-A1-118: the built name) | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event` |
 | Cogniate app | `017_record_dispatch_pause.sql` | E4 (LA-E4-03, lane R, fix round 2) | A1 (BD-A1-71) | partial index `record_dispatch_pause` on `record_dispatch (partition_key, not_before) WHERE not_before IS NOT NULL` (the `429` partition pause, LA-ADR-03 D7); `016` stays reserved for LA-E6-02 |
 | Cogniate app | `016_connection_health.sql` (first E6 file; number: the Lead, in landing order) | E6 (Could), LA-E6-02 (P, B3) | shape A2 ([LA-ADR-08 D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
 | Cogniate app | second E6 file, `admin_launch_code` (number: the Lead, in landing order; plan LD-12) | E6 (Could), LA-E6-03 (K, B4) | shape A2 ([LA-ADR-08 D3](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `admin_launch_code` |
@@ -135,6 +135,7 @@ CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partit
 CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
 CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
 CREATE UNIQUE INDEX record_dispatch_seq ON record_dispatch (seq);
+CREATE INDEX record_dispatch_started ON record_dispatch (send_started_at) WHERE send_started_at IS NOT NULL;  -- built in 014 (BD-A1-118): the recovery scan
 -- 017_record_dispatch_pause.sql (LA-E4-03; BD-A1-71): the 429 pause lookup. A partition is paused while any of its
 -- rows has a future not_before, whatever its status (LA-ADR-03 D7).
 CREATE INDEX record_dispatch_pause ON record_dispatch (partition_key, not_before) WHERE not_before IS NOT NULL;
@@ -205,7 +206,7 @@ No LTI service change is needed for a new profile: `platform.profile` has no CHE
 ## 5. Cogniate app: migration `015` (E5 app part, E6)
 
 ```sql
--- 015_app_audit.sql (sketch). Shape and rules from A2 LA-ADR-06 D4.
+-- 015_audit_event.sql (sketch; built name, BD-A1-118). Shape and rules from A2 LA-ADR-06 D4.
 CREATE TABLE audit_event (
   id              TEXT PRIMARY KEY,                   -- aud_ + 16 random bytes (base64url)
   ts              INTEGER NOT NULL,                   -- epoch ms
@@ -297,7 +298,7 @@ CREATE TABLE picker_pick (
 
 | Rule | Detail |
 | --- | --- |
-| Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). |
+| Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). Migration `018` also copies every used single pick of `picker_session` (`publication_id` and `resource_link_id`) into `picker_pick` once, so each activities stat stays equal, and adds the index `picker_pick_publication (publication_id, resource_link_id)` (BD-A1-118: built additions). |
 | Stats | `stats.activities` counts picks from `picker_pick` that no launch has matched yet (today it counts one per session, base data model §2.1). |
 | Retention | An expired picker session (`expires_at` more than 24 h ago) stays if one of these two is true (BD-A1-98; the built rule in `domain/retention.ts`): (a) the base exception: the session is used, has a `publication_id` and has no `resource_link_id` yet; (b) the session has a `picker_pick` row with `resource_link_id` `NULL` (an unmatched pick of a multi-select). All other expired sessions are deleted. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
 
