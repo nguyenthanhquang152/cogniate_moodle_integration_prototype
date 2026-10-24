@@ -6,7 +6,7 @@
 - **New Baseline Product SHA (`main` B/C Final)**: `78971b0300ab171029e8ce94dbba30db37b23dea` (`78971b03`, tag `la-baseline-product-3`)
 - **New Baseline Gate Test SHA (`baseline-3`)**: `d854183f104a5573b83a56e280c088a6bc99c2d4` (`d854183f`, tag `baseline-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-baseline-3`)
 - **New Final Product SHA (LA + B/C Merge)**: `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` (`4f10c5fd`, tag `la-final-product-3`)
-- **New Final Gate Test SHA (`la-final-test-3`)**: `e7f1a818de773bbb82d8265b3ce4d4c227575ea7` (`e7f1a818`, tag `la-final-test-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3-d4`)
+- **New Final Gate Test SHA (`la-final-test-3`)**: `57b6a78c694e6244ffa0639957249c052345dca9` (`57b6a78c`, tag `la-final-test-3` in `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3-d4`; includes `LD-30` kit tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` from integration `a3953243`)
 - **Addendum r8 Patch File**: `/Users/quangnguyen/cogniate-qa-runs/LA/ld9-addendum-r8/ld9-addendum-r8.patch` (`3,366` bytes, SHA-256 `ddf3f1c3ff38c2e805fa0fdf668f7c0a05efe1dbb76a54c1d102b02c01e3c514`)
 - **Prior Addenda**:
   - `docs/reviews/LA-E7-08/ld9-addendum.md` (`r1`–`r4`)
@@ -84,7 +84,7 @@ All `31` remaining LA gate overlay/addendum files have `0` diff in `bd368ff..789
 
 ## 2. The Five Overlapping Files (B/C Change, LA Addendum Change, and Combined Result)
 
-Five files were touched by both B/C (`bd368ff..78971b03`) and LA addenda (`1b17261..la-final-test-2`): the four named in the brief (`tests/acceptance/T8/2-shell.spec.ts`, `tests/host/m1-control.mjs`, `tests/acceptance/T6/5-xss-a11y.spec.ts`, `tests/e2e/host/run-t7.mjs`) plus `tests/acceptance/T6/3-courses.spec.ts` uncovered by the full diff audit. In both `baseline-3` (`d854183f`) and `la-final-test-3` (`e7f1a818`), all five files have **100% identical combined content**.
+Five files were touched by both B/C (`bd368ff..78971b03`) and LA addenda (`1b17261..la-final-test-2`): the four named in the brief (`tests/acceptance/T8/2-shell.spec.ts`, `tests/host/m1-control.mjs`, `tests/acceptance/T6/5-xss-a11y.spec.ts`, `tests/e2e/host/run-t7.mjs`) plus `tests/acceptance/T6/3-courses.spec.ts` uncovered by the full diff audit. In both `baseline-3` (`d854183f`) and `la-final-test-3` (`57b6a78c`), all five files have **100% identical combined content**.
 
 ### 2.1 `tests/acceptance/T8/2-shell.spec.ts` (B/C `e1a057be` + `620c03d0`; LA `r3` + `r7`)
 
@@ -322,15 +322,15 @@ Five files were touched by both B/C (`bd368ff..78971b03`) and LA addenda (`1b172
 ### 3.2 Gate Source 2 — `la-final-test-3` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` and `src-final-3-d4`)
 
 - **Clone provenance**: Fresh `git clone --no-hardlinks` at `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` (`la-final-product-3`), with two explicit commits:
-  1. `a972bfb98aa75a6c57df848e37b403fc62d5f437`: `Final gate test overlay on 4f10c5fd (LD-1 + LD-9 addenda r1-r7 non-overlapping files)`
-  2. `e7f1a818de773bbb82d8265b3ce4d4c227575ea7` (tag `la-final-test-3`): `LA-E7-08 (LD-9 addendum r8, LD-29): combine r1-r7 test addenda with B/C final test changes on 4f10c5fd`
+  1. `5ee0ebd0f34e398d04cca7788c22c8af6352e159`: `Final gate test overlay on 4f10c5fd (LD-1 + LD-9 addenda r1-r7 non-overlapping files + LD-30 kit d7e50b5d)`
+  2. `57b6a78c694e6244ffa0639957249c052345dca9` (tag `la-final-test-3`): `LA-E7-08 (LD-9 addendum r8, LD-29): combine r1-r7 test addenda with B/C final test changes on 4f10c5fd`
 - **Non-test diff proof**:
   ```text
   $ git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3 diff --exit-code 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c la-final-test-3 -- . ':!tests'
   (exit code 0 — 0 non-test files differ)
   ```
 - **Test diff summary (`4f10c5fd..la-final-test-3`)**:
-  `35 files changed, 1685 insertions(+), 486 deletions(-)` (`LD-1` open-world overlay + `LD-9` addenda `r1–r8`, preserving `4f10c5fd:tests/ltiaas/kit` at tree `8ad870fa1b33c93268bb0cdfb11dd86289a650c4`).
+  `39 files changed, 1876 insertions(+), 495 deletions(-)` (`LD-1` open-world overlay + `LD-9` addenda `r1–r8` + `LD-30` `tests/ltiaas/kit` at tree `d7e50b5dea56382f849b213f006b73bcf5eb71aa` from integration `a3953243`).
 - **Patch verification**:
   ```text
   $ git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3 apply --check -R -v /Users/quangnguyen/cogniate-qa-runs/LA/ld9-addendum-r8/ld9-addendum-r8.patch
