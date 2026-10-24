@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 5
+Round: 6
 
 # LA-E0-02 — Reviewer-A
 
@@ -149,3 +149,28 @@ WE-F6 / LD-9 addendum r2 is the **M1-08 Canvas platform-storage login** assertio
 ### Verification boundary
 
 Evidence in **`/tmp/la-review-a-445b797fe69e/`**: `summary-audit.json` (all exact paths and counts), `rate-audit.py`, `rate-audit.json` (all 11 recomputations and complete per-pass comparison), `merged-123/` (deduplicated input copies), `t8-raw-evidence.json`, `t8-source-parity.json`, `run-source-parity.json`, and `t8-prior-runs.json` (exact D1/D2 summary paths). All work was host-only: read saved JSON/logs/traces, read Git objects, and execute the pure rate extractor against saved files. No Docker, live stack, install, product mutation or commit; no Reviewer-B report or probe was opened. Only this Reviewer-A report was edited in integration.
+
+## Round 6
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `f27bf214`, integrated at `4ac1672d`, through `git diff 1b447224 4ac1672d -- docs/reviews/LA-E0-02/qa.md`, with A2's BD-A2-114 / ADR-06 D1 ruling at `5991a114`. **The E0-02 evidence corrections are accepted: A-LA-E0-02-01 is CLOSED, and the E0-02 part of A-LA-E0-02-03 is resolved.** The overall verdict remains **CHANGES_REQUESTED** because the companion E7-08 portions of A-LA-E0-02-03 and A-LA-E0-02-04 remain open. That companion correction is explicitly outside this diff and is expected with Lead QA's D3 record. **New findings: 0 BLOCKER, 0 MAJOR, 1 MINOR. Remaining totals: 0 BLOCKER, 2 MAJOR limited to the companion record, 1 MINOR.**
+
+### Verified corrections
+
+- **Complete rates:** Repeated §9.2's exact `awk` deduplication against all four saved snapshot locations, writing only to `/tmp`, then ran the pure rate extractor. Both published all-pass JSON files equal the result and my independent Round 5 recovery. The merged logs contain **53 app / 340 LTI lines**, including **13 / 213 requests**. Launch peaks are **6/min / 5 per 10 s**; protocol **34/min / 23 per 10 s**; registration **6/min / 6 per 10 s**; auth failures **8/min / 8 per 10 s**. The retained passC-only output preserves its old measurements, with only its suite name changed. Snapshot unions for the other eight cited R1 runs also reproduce their published outputs exactly.
+- **Rate disposition:** AC-06/07 and §8.2 now retain the over-default flags and apply BD-A2-114. An independent replay of the six logged registration timestamps through the bucket rule gives offsets **0, 4.846, 7.754, 7.757, 7.762, 8.922 seconds** and **0.487 tokens** after the last request. The five known-account starts leave **15.129 tokens** in the soft account bucket; the unknown account has no account bucket. The recorded decision keeps built-in defaults and requires no acceptance override. This closes the missing measurement and disposition in A-LA-E0-02-01.
+- **Nineteen-summary audit:** Every §9.1 path exists and matches its raw `runId` and product SHA. Entry counts, unique-ID counts, failed IDs and manifest counts match, including historical failures. Both T7 summaries have eight successful host steps and three runs of **17 PASS / 0 FAIL / 1 demo SKIP**, with the stated run/reset times. The group wall-time values retain the previously reviewed record.
+- **T8 observations and comparison:** §8.1/§9.3 now distinguish the host's saved hold event, the test's missing observation and the later same-build cascade. The initial cause is correctly **not proven**; WE-F6 supplies no T8 fix. Both knob IDs are PASS in each cited D1 run **80/83** and D2 run **99/105**, while R1 preserves FAIL. D3/D4 remain pending and are not declared equal. Source comparison at the correct pins confirms parity for all seven named T8 specs, runner and helper files; retained R1, D1/D2 workdirs and gate sources agree where available. The run-105 workdir has been removed, so its result was verified from its retained summary, not a fresh workdir read.
+
+### A-LA-E0-02-05 — MINOR — The candidate source pin is transcribed incorrectly
+
+**Location:** `docs/reviews/LA-E0-02/qa.md:311`.
+
+**Problem and evidence:** The new parity statement names `794f649cb647703097253e7b11521a97fb29a192`. The approved candidate pin is **`794f649c3ebacf1a1b3ac599cffffe338dd7373d`**, as recorded in `LA-E7-08/ld9-addendum-r8.md:9` and independently resolved from the retained private Git clone. The printed full hash does not resolve there. The parity claim holds at the correct pin, so this is a reference correction rather than a source mismatch.
+
+**Suggested fix:** Replace the incorrect full hash with the approved candidate pin.
+
+### Remaining companion work and evidence boundary
+
+Fresh reading of `docs/reviews/LA-E7-08/qa.md:1351`–`:1360` confirms that its incorrect run IDs/rates and pre-WE-F6 T8 attribution remain. **A-LA-E0-02-04 stays open; A-LA-E0-02-03 stays open only for that companion attribution.** Review the planned companion correction before closing either finding. D3/D4 results need their own per-ID differential record when available; they are not a prerequisite for accepting the corrected historical E0-02 observations.
+
+Evidence: **`/tmp/la-review-a-6233f491561a/`**, including `audit.py`, `summary-audit.json`, `rates-recomputed.json`, `merged-123/`, `bucket-replay.json`, `other-snapshot-audit.json`, `t8-candidate-runs.json` and `t8-source-parity.json`; Round 5 trace evidence remains applicable. Only this Reviewer-A report was edited. No Docker, stack, host stack runner, install, product change or commit; no Reviewer-B report or probe was opened.
