@@ -1241,15 +1241,15 @@ Every run in §10(c) is reproduced from the exact shell variable definitions, ru
 - **Slot R0 (`golden v2` capture × 2 on `78971b03` + dry-run on `4f10c5fd`, Lead QA 2, solo)**: **`13 min`** (**DONE**; `0 min` remaining wall time).
 - **Slot R2a (`QA-K` 6-channel walk-clone `K1-SIM` `qa4-la-walk-r2` on `9443`, solo)**: **`7.4 min`** (**DONE** at `9b10f07c`, `234/234 PASS`; `0 min` remaining wall time).
 - **Slot R2b (`QA-E2E` `K2` `U1–U4` `qa-e2e-la-sim-r11` on `9443`, solo per `LD-31`)**: **`4 min`** (**DONE** in `SLOT-R2B-R6-QA-E2E`, `12/12 PASS`; `0 min` overlap with any other stack).
-- **Slot R1 (`baseline-3` runs on `78971b03`, Lead QA 1, `qalead-la-120..129`, sequential `1` stack at a time, `0` overlaps)**: **`94 min` wall time** (`24 min` `qalead-la-120` `M1 sim` + `4 min` solo `qalead-la-121` `M2` + `66 min` Moodle `qalead-la-122..129`, including `<1 min` per suite for `rate-peaks.mjs`).
+- **Slot R1 (`baseline-3` runs on `78971b03`, Lead QA 1, `qalead-la-120..129`, sequential `1` stack at a time, `0` overlaps)**: **`94 min` planned / `104.1 min` actual wall time** (**DONE** `2026-10-24T17:12:27Z–18:56:34Z`, recorded in `docs/reviews/LA-E0-02/qa.md` §8 & `docs/reviews/LA-E7-08/qa.md` §14; `0 min` remaining wall time).
 - **Slot R3 (`D3` + `D4` double full run on `4f10c5fd` / `la-final-test-3` under `LD-31`, Lead QA 1 & Lead QA 2)**: **`148 min` (`2 h 28 min`) wall time** across four phases:
   1. **Phase R3-A (`66 min` wall time — Planned Overlap #1):** `Lead QA 1` runs `D3` Moodle `qalead-la-130..137` (`66 min` on `9543`) while `Lead QA 2` runs `D4` non-`M2` SIM `qalead-la-150..151` (`golden v2` `4 min` + `M1 sim` `24 min` = `28 min` on `9643`).
   2. **Phase R3-B (`8 min` wall time — Solo `M2` Window per `LD-31`, `0` Overlaps):** `Lead QA 1` runs `D3` `M2` `qalead-la-138` (`4 min` solo on `9473`), then `Lead QA 2` runs `D4` `M2` `qalead-la-152` (`4 min` solo on `9643`), with no other stack starting, seeding, or tearing down.
   3. **Phase R3-C (`66 min` wall time — Planned Overlap #2):** `Lead QA 2` runs `D4` Moodle `qalead-la-153..160` (`66 min` on `9563`) while `Lead QA 1` runs `D3` non-`M2` SIM `qalead-la-139..141` (`golden v2` `4 min` + `M1 sim` `24 min` + `D3` 5-channel `K1-SIM` `8 min` = `36 min` on `9473`).
   4. **Phase R3-D (`8 min` wall time — Solo `D4` `K1-SIM` after `qalead-la-160` `T8` finishes, `0` Overlaps):** `Lead QA 2` runs `D4` 5-channel `K1-SIM` `qalead-la-161` (`8 min` solo on `9643`, fed by `D4`'s completed `153`/`154`/`160` wave outputs).
 - **Total Re-Gate Critical-Path Wall Time**:
-  - **Remaining critical-path wall time (`R1` + `R3-A..D`)**: **`242 min` (`4 h 02 min`)** (`94 min` Slot R1 + `148 min` Slot R3).
-  - **Cumulative re-gate critical-path wall time (including `R0` `13 min` + `R2a` `7.4 min` + `R2b` `4 min`)**: **`266.4 min` (`4 h 26 min`)** (`330.4 min` sum of active container suite durations across all 4 sessions: `13 + 7.4 + 4 + 94 + 66 + 28 + 8 + 66 + 36 + 8 = 330.4 min`).
+  - **Planned critical-path wall time (`R1` `94 min` + `R3-A..D` `148 min`)**: **`242 min` (`4 h 02 min`)** (with Slot R1 **DONE**, **`148 min` (`2 h 28 min`)** remaining for Slot R3 `D3` + `D4`).
+  - **Cumulative re-gate critical-path wall time (including `R0` `13 min` + `R2a` `7.4 min` + `R2b` `4 min`)**: **`266.4 min` (`4 h 26 min`) planned** (`330.4 min` sum of active container suite durations across all 4 sessions: `13 + 7.4 + 4 + 94 + 66 + 28 + 8 + 66 + 36 + 8 = 330.4 min`).
 
 
 
