@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 4
+Round: 5
 
 ## Round 1
 
@@ -329,3 +329,43 @@ The C1 loader no longer throws, but its default “manifest” operand is now re
 - Private files: `reviewer-r4.probe.test.ts`, `reviewer-r4.config.mts`, `reviewer-r4-probes.log`, `reviewer-r4-k0.log`, `reviewer-r4-types.log`, plus the retained Round 3 replay files. Private `node_modules/.vitest-cache` was cleared before each Vitest run. No additional root or live suite result is claimed.
 - The reviewed QA commit stays within the permitted kit and QA-report paths. No product, simulator or frozen-test changes, and no LMS name added to core paths; the suite-neutrality K0 check passes. The remaining gaps are in the safety oracles and runtime contracts, despite the green static/source-text checks.
 - No Docker, stack, stack-starting host runner, K1-SIM execution or commit. Reviewer-B's file and probes were not opened. Only this review file was changed by this reviewer in integration. Live evidence remains pending, and its absence is not an additional finding in this host-only review.
+
+## Round 5
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: CHANGES_REQUESTED — 1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed QA commits `7859b25b` and `c07b575c`, integrated at `1698489b`, with `git diff 3a8b0e6f 1698489b -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. All locations below refer to that pin. This is the extra fix round authorized by LA-H25(a), including the D3 ruling BD-A1-120 and storage-data ruling BD-A2-112. The previous page, picker and placement counterexamples are resolved; C1 still rejects a conforming API response.
+
+### Open Round 4 finding disposition
+
+| Finding | Round 5 status | Counterexample replay |
+| --- | --- | --- |
+| A-LA-E7-06-07 | **CLOSED** | L4 selects from explicit `guardedFamilies` data (`fixtures.ts:1685`) and runs the same case body in K0 and K1 (`cases.ts:83`; `k1-launch.k1sim.test.ts:185`). My replay uses the real registry and `familyGuardVerdict` for all five targets: Blackboard gets a Canvas launch guard, and Canvas gets the registration-guarded `desire2learn` warning in the LTI log. Removing that warning makes the case fail. L7's only final verdict now uses the two learners' internal placement IDs (`k1-launch.k1sim.test.ts:340`). Real in-memory SQLite placement/results with one generated ID pass; duplicate rows and wrong score paths fail. The publication placement count and both sent syncs remain required. |
+| A-LA-E7-06-08 | **OPEN, BLOCKER** | Picker handoff retains actual 200, 303 and 403 statuses, including a 303 loop. L10 parses escaped JSON and the required check block; complete Canvas and generic-channel case replays pass against the real in-process login, launch and storage-check routes, with `{check, value}` and Origin. D3 sends repeated singular `publicationId`: the real picker returns 400 `PUBLICATION_NOT_AVAILABLE`, makes no Deep Linking call, remains unused, and then accepts one item on that same picker. The self-comparison called a manifest check is removed and the scope is accurately limited to API/fixture equality. However, that equality still confuses channel-level and profile-level capabilities, as shown below. |
+
+Earlier closed findings remain closed. This round continues A-08 for the remaining C1 caller-contract failure rather than creating a duplicate finding ID.
+
+### A-LA-E7-06-08 — BLOCKER — C1 requires profile-only keys in the channel-level provider map
+
+**Locations:** `tests/ltiaas/kit/lib/fixtures.ts:1462`; `tests/ltiaas/kit/suites/k1-cap.k1sim.test.ts:102`; `tests/ltiaas/kit/kit.k0.test.ts:1542`.
+
+**Problem:** `verifyBilateralCapabilities` compares all 17 fixture keys with both API maps. The provider entry is expressly a **channel-level** map (`docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md:52`). Its two profile traits, `platform.sharing` and `site.serviceOrigin`, are absent by design. The connection DTO includes those traits for its selected profile. The C1 caller passes both maps directly and requires zero errors, so a correct product cannot pass AC-LA-E7-06-04.
+
+**Evidence:** My host probe authenticated against the real app, used Fastify injection to GET `/app-api/lms-providers`, created a Canvas simulation-profile connection, and GET that connection. The provider response has 15 keys for each of the five shipped channels. The Canvas connection has 17. Passing those actual response maps and legacy flags into the kit comparator produces exactly these two errors:
+
+```text
+GET /app-api/lms-providers channelCapabilities["platform.sharing"] mismatch on "canvas": expected "exclusive", got undefined
+GET /app-api/lms-providers channelCapabilities["site.serviceOrigin"] mismatch on "canvas": expected true, got undefined
+```
+
+The real route calls `channels.capabilities(m.id)` without a profile (`services/cogniate-app/src/app/connections.ts:149`); the connection DTO supplies one (`:94`). The kernel documents these keys as optional without a profile and conditionally emits them (`packages/channel-kernel/src/capabilities.ts:16`, `:19`, `:108`, `:110`). Artificially adding the two profile fields to the provider response makes the comparator pass; changing a fixture capability then correctly fails, confirming that the API comparison itself is active. The new K0 C1 test copies the entire 17-key fixture into its simulated registry answer (`kit.k0.test.ts:1542`), so it misses this boundary despite the green host suite.
+
+**Suggested fix:** Give the provider and connection comparisons separate expectations at their documented capability levels. Keep exact required-key, value and unknown-key checks for each level; do not change the product API or simply tolerate all missing keys. Add a positive host case with the real 15-key provider shape and 17-key connection shape, plus negatives for a missing channel capability and a missing connection profile trait. Keep the fixture-mismatch and unknown-key negatives.
+
+### Round 5 verification and boundaries
+
+- Private clone `/tmp/la-review-a-5bbade125d93`, made with `git clone --no-hardlinks`, detached at `1698489b`. Dependencies were copied into the private clone; no install or test ran in integration.
+- Kit K0: `LA_LEVEL=k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` — **24/24 PASS**, 1 file, 280 ms. Kit typecheck: `npx --no-install tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0**. Logs: `reviewer-kit-k0.log`, `reviewer-kit-types.log`.
+- Independent replay: `node_modules/.bin/vitest run --reporter=verbose --config reviewer-r5.config.mts` — **12/12 diagnostic assertions PASS**, 1 file, 1.24 s. Eleven checks verify corrected boundaries; the C1 check confirms the remaining defect, so this is not K1 acceptance. Source, config and final output are retained as `reviewer-r5.probe.test.ts`, `reviewer-r5.config.mts` and `reviewer-r5-probes.log` in the private clone. The probes use real product functions, in-memory SQLite and in-process HTTP injection; external transport and Deep Linking signing are test doubles where noted in the source.
+- The commits stay within the permitted kit and QA-report paths. They change no product, simulator or frozen M1 source and add no LMS name to core paths. The new executable case checks cover the old L4/L7, page and picker failures; the C1 host fixture shape remains the demonstrated coverage gap.
+- No Docker, stack, stack-starting runner, K1-SIM execution or commit. No Reviewer-B file or probe was opened. Only this review file was changed by this reviewer in integration. Live evidence remains pending; its absence is not an additional finding in this host-only review.
