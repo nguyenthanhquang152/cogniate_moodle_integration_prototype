@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 ## Round 1
 
@@ -82,3 +82,14 @@ Reviewed 2026-10-25 by Reviewer-A (Codex GPT-6-Astra xhigh). Scope: Docs parts 1
 - **AC-05:** opened `index.html` through `file://` in headless Chrome with the browser offline and HTTP(S) routes blocked, at 1280 × 900 and 390 × 844. Both render seven sections, with **zero HTTP(S) requests, page errors or horizontal page overflow**. All 47 HTML links resolve. Across the six documents, all **297 local links** and checked fragments resolve. No secret or personal local-path exposure found; `/tmp/kit-run` is the documented example output path.
 
 Verification artifacts: `/tmp/la-reviewer-a-ctx-a23bc39c36c0/reviewer-pack-browser.json`, `reviewer-pack-static.json`, `reviewer-u1-evidence.json`, the browser/static scripts, and screenshots. This private `git clone --no-hardlinks` is pinned to `05d823b8`; all six integration documents still matched it at completion. The task has DOC criteria, not UNIT criteria (AC-04 was removed). The dispatched guide changes are within the explicit scope; no product or architecture edit is part of the Docs commits. No Docker, stack runner, install or commit was used, and Reviewer-B files were not opened. Only this review file was changed in integration.
+
+## Round 4
+
+Reviewed 2026-10-25 by Reviewer-A (Codex GPT-6-Astra xhigh). Scope: Docs fix `6ed4204a`, integrated at `c3dc85ab`; dispatched diff from `c21bb1db` (five documentation files). **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No open Reviewer-A findings remain.
+
+- **A-LA-E8-05-04 closed.** All three pack copies now give the combined SIM U1 result: 43 entries, 37 PASS and 6 INFO, with 17/17 aggregate IDs PASS. A fresh read of the raw `qalead-la-13` summary confirms those counts. The live `qa-e2e-la-s8b-r1` summary confirms 16/16 PASS entries and IDs. The pages link corrected LA-E7-08 §14.6, retain the earlier source builds and carried-evidence qualification, and keep migration 12/12 per side, snapshot 6/6 per side and drill 10/10 separate. They claim no new continuity run on `4f10c5fd`.
+- **A-LA-E8-05-05 closed.** Step 9 now requires all four conditions for refusal at `complete`: registration-level guard, owner Dynamic Registration, owner `any-https` endpoints and target admin endpoints. The other cases refuse at `start`. This matches `drFamilyGuardRefusedAtComplete` and its K0 branch table, including Canvas and the manual-only walkthrough channel.
+- The replacement approval labels match Reviewer-A's E7-08 R2, E7-09 R7, E0-01 R2, E0-02 R7 and E8-01 R5 reports. Reviewer-B approval status was checked against the coordinator's supplied status, without opening Reviewer-B files. The guide identifies its post-R5 edits as subject to E8-05 review. The new E7-02 SIM citation has a corresponding PASS row; the five-channel 195/195 and six-channel 234/234 kit claims match the cited QA evidence. The guide still discloses that E8-01 AC02 has no separate QA record and requires a new kit run for each new channel. No failed or unverified result is promoted to PASS.
+- Repeated the offline browser check at 1280 × 900 and 390 × 844: seven sections, zero HTTP(S) requests, page errors or horizontal page overflow. All 48 HTML links and all 309 local links across the six pack/guide documents resolve, including checked fragments. The six deviation rows, 15 D-rows and 24 LA-IC statuses remain intact. Prior failure disclosures, evidence limits and pending human decisions are preserved.
+
+Verification used private `git clone --no-hardlinks` `/tmp/la-reviewer-a-ctx-6be1d571d271`, pinned to `c3dc85ab`; artifacts are `reviewer-pack-browser.json`, `reviewer-pack-static.json`, `reviewer-u1-evidence.json`, scripts and screenshots there. The integration documents still match that snapshot. The task has DOC criteria; no product, architecture or test file changed in the Docs commit. No Docker, stack runner, install or commit was used. Only this review file was changed in integration.

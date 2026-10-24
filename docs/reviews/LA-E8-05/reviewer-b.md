@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # LA-E8-05 — Reviewer-B
 
@@ -103,3 +103,18 @@ Reviewed 2026-10-25 by Codex GPT-6-Astra xhigh. **APPROVE**, with two MINOR repo
 Verification used a private clone pinned at `05d823b8`. Local artifacts are under `/private/tmp/la-e805-r3-review-b-vmfgkcoe/`: `offline.json`, `offline.mjs`, `links.json`, `links.py`, `u1-carry-records.json` and screenshots. No Docker, stack runner or integration dependency install was used. No other-reviewer file was opened. Only this review file was edited, and no commit was made.
 
 Open findings: **0 BLOCKER, 0 MAJOR, 2 MINOR, 0 NIT**. B-03 and B-04 are safe to defer, but should be included in the planned final Docs refresh.
+
+## Round 4
+
+Reviewed 2026-10-25: Docs fix `6ed4204a`, integrated at `c3dc85ab`, using the assigned diff from `c21bb1db`. **APPROVE: B-LA-E8-05-03 and B-LA-E8-05-04 closed; no new findings.** All five changed documents matched the review pin at integration `4fd9bc4c`.
+
+- **B-LA-E8-05-03 — CLOSED.** All three copies now describe one combined SIM U1 run: 43 entries, 37 PASS and six INFO, with 17 passing aggregate IDs. The local Moodle continuity run is correctly 16/16 on product `8fadb828`; migration and snapshot counts are 12/12 and 6/6 per side. The entry pages link directly to the corrected LA-E7-08 QA §14.6, and agree with its Final state AC-04 row and `run-D4.md:104`. The first-final-run table also uses the corrected SIM accounting. Earlier executions remain explicitly carried to `4f10c5fd`; the text does not claim a new D3/D4 continuity run.
+- **B-LA-E8-05-04 — CLOSED.** The guide replaces the obsolete kit-pending statements with the five-channel 195/195 and six-channel 234/234 evidence, records QA's actual command, and still requires a kit run for each new channel. It separately states that AC-LA-E8-01-02 has no dedicated QA record. The added SIM E7-02-02 citation matches that report's completed provider-loading stack evidence.
+- **R3 explanation:** Step 9 now requires all four conditions for completion-stage refusal: a registration-level family guard, an owner with Dynamic Registration, an owner profile accepting any HTTPS origin, and a target accepting admin endpoints. Otherwise the guarded-family probe is refused at start. This matches `drFamilyGuardRefusedAtComplete` and its helper predicates in `tests/ltiaas/kit/lib/fixtures.ts:1850`. The manual-only, launch-level and fixed-profile examples fit those conditions; BD-A1-121 remains visible.
+- **Verdict labels:** Reviewer-B files confirm APPROVE at E7-08 R2, E7-09 R7, E0-01 R2, E0-02 R7 and E8-01 R5. The Lead independently checked the first lines of the matching Reviewer-A files and confirmed the same verdicts and rounds through the orchestration ask reply. No other-reviewer file was opened; its link targets were checked for existence only.
+- **Links and offline page:** All 309 local link occurrences across the six pack/guide files resolve, including the new §14.6 links. A fresh headless Chrome context with networking blocked opened the pinned `file://` entry page with zero external requests and zero page errors. All seven section links and both local detail links worked; 1280 px and 390 px viewports had no page-level horizontal overflow. The approval badge and corrected proof row were visually checked.
+- **Scope:** Documentation only, within the dispatched Docs files; no product, tests, architecture or core path changes. This fix adds no UNIT AC. No Docker, stack runner, integration install or commit was used; only this review file was edited in the integration worktree.
+
+Verification artifacts: `/private/tmp/la-e805-r4-review-b-kotu65oy/` (`scope-audit.json`, `links.json`, `offline.json`, scripts and screenshots), with a private clone pinned at `c3dc85ab`.
+
+Open findings: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT**.
