@@ -7,16 +7,18 @@
 ### LA-H25: how do we finish the channel kit (LA-E7-06)? Decided: (a)
 
 - **Facts:** LA-E7-06 (the K1 channel certification kit, Must) used the 3 fix rounds of charter-LA §5. Each round-4 review still has 2 open BLOCKERs: some safety checks and some callers do not match the product contracts. The kit host checks pass, including the one-file onboarding of a sixth channel ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 4).
-- **What waits:**
-  - AC-LA-E7-08-02, the kit K1 run for every channel: pending: wave-end gate. QA corrected its earlier PASS: the per-task K1-SIM rows do not apply the kit pass rule ([LA-E7-08 qa §8.6](../../reviews/LA-E7-08/qa.md#86-disclosed-correction-of-ac-la-e7-08-02-pending-not-pass-and-final-verdict-for-la-e7-08-ac-la-e7-08-0106)).
-  - AC-LA-E7-09-05, the milestone-end double full run: pending: wave-end gate. Its scope includes the kit K1.
-  - LA-E8-02, the timed add-a-channel walkthrough.
+- **What waits (kit round 8):**
+  - AC-LA-E7-08-02, the kit K1 run for every channel: pending: kit round 8 (LD-27). QA corrected its earlier PASS: the per-task K1-SIM rows do not apply the kit pass rule ([LA-E7-08 qa §8.6](../../reviews/LA-E7-08/qa.md#86-disclosed-correction-of-ac-la-e7-08-02-pending-not-pass-and-final-verdict-for-la-e7-08-ac-la-e7-08-0106)).
+  - LA-E8-02 AC-03, the `acme-lms` kit K1 run of the timed walkthrough: pending: kit round 8 (LD-27). The other four ACs of LA-E8-02 PASS ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md)).
 - **Options:**
   - (a) One extra fix round by a fresh Claude Opus 5.5 xhigh QA session (a model exception for this task). The reviewers' round-4 counterexample probes are its acceptance test. Then round-5 reviews.
   - (b) One extra fix round on Antigravity QA-4.
   - (c) Move the kit K1 run to LG. The kit stays a host-only K0 check. AC-LA-E7-08-02 closes with the frozen M1, M2 and K2 results and the E2-N proof (D2L Brightspace, F2 `core = 0`). The LA-E8-05 pack then says so.
 - **Lead recommendation:** (a).
-- **Decision:** (a), by the product owner on 2026-10-24 ([plan §6.2](../../team/ltiaas/plan.md#62-human-decisions)): one extra fix round by a fresh QA session, then round-5 reviews and the kit K1-SIM run. The two gate rows stay pending: wave-end gate until QA records new evidence.
+- **Decision** (product owner, 2026-10-24; [plan §6.2](../../team/ltiaas/plan.md#62-human-decisions)):
+  1. About 09:25Z: option (a), one extra fix round by a fresh QA session, then round-5 reviews and the kit K1-SIM run.
+  2. About 13:15Z: Reviewer-A's last BLOCKER got a narrow fix (both reviewers APPROVE). The first live K1-SIM run failed on kit wiring defects only. The product owner chose a live fix-and-rerun window for QA-K, then one review of the whole diff and a clean final run.
+  3. Plan LD-27 (Lead): the live run r7 gave 195 of 195 ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 7), but the round 7 reviews ask for changes in kit oracles that the window added. So: one kit fix round by QA-K (kit files only, no product change), round 8 reviews of that fix, then a clean final live run. If BLOCKER or MAJOR findings stay open after round 8, the Lead escalates with option (c).
 
 ## Decide first
 
