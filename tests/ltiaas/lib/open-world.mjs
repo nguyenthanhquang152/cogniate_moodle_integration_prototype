@@ -59,31 +59,14 @@ export function registeredChannels(lmsProviders) {
 }
 
 /**
- * The exact channel ids and names of the registered channels that are not baseline channels
- * (`channel`/`lms`, `channelName`, `label`, and any explicit card `title`/`cardTitle`).
+ * The registered channel ids (`channel` of GET /app-api/lms-providers, or `lms` before LA-IC-01)
+ * that are not baseline channels (BD-A1-119).
  */
 export function extraChannelNames(lmsProviders) {
   assert.ok(Array.isArray(lmsProviders?.lms), 'GET /app-api/lms-providers has an lms list');
-  const names = [];
-  for (const entry of lmsProviders.lms) {
-    const id = entry.channel ?? entry.lms;
-    if (BASELINE_LMS.includes(id)) continue;
-    for (const candidate of [
-      id,
-      entry.channelName,
-      entry.label,
-      entry.cardTitle,
-      entry.title,
-      entry.card?.title,
-      entry.names?.text,
-      entry.names?.label,
-    ]) {
-      if (typeof candidate === 'string' && candidate.trim().length > 0 && !names.includes(candidate.trim())) {
-        names.push(candidate.trim());
-      }
-    }
-  }
-  return names;
+  const ids = lmsProviders.lms.map((entry) => entry.channel ?? entry.lms);
+  for (const id of ids) assert.equal(typeof id, 'string', 'Each lms-providers entry has a channel id');
+  return ids.filter((id) => id.length > 0 && !BASELINE_LMS.includes(id));
 }
 
 /**
@@ -202,127 +185,86 @@ export async function appLmsProviders(request, { appUrl, ca, user }) {
 
 const cardText = (card) => (typeof card === 'string' ? card : String(card?.text ?? ''));
 
+const cardChannel = (card) => {
+  if (!card || typeof card !== 'object') return null;
+  const ch = card.channel ?? null;
+  return ch === null || ch === undefined ? null : String(ch);
+};
+
 const isLoadingCard = (card) => {
   if (card && typeof card === 'object' && card.loading === true) return true;
   const raw = cardText(card).trim();
   return /^(?:[A-Za-z0-9]{1,4}\s*)?Loading(?:…|\.\.\.)/.test(raw);
 };
 
-const isOtherCard = (card, other) => {
-  if (card && typeof card === 'object') {
-    const channel = card.channel ?? card.id ?? null;
-    if (typeof channel === 'string' && channel.trim().length > 0) return false;
-  }
-  return cardText(card).includes(other);
-};
-
-const GENERIC_CHANNEL_NAMES = new Set(['lms', 'lti', 'lti 1.3', 'other lti 1.3 platform', 'lti-generic']);
-const GENERIC_TITLE_SUFFIX_WORDS = new Set(['learning', 'learn', 'lms', 'platform', 'cloud', 'server', 'lti', '1.3', 'edition', 'suite']);
-
-function matchesAllowedCardName(name, allowed) {
-  if (allowed.has(name)) return true;
-  if (name === 'LTI 1.3' && (allowed.has('lti-generic') || allowed.has('Other LTI 1.3 platform'))) return true;
-  for (const entry of allowed) {
-    if (GENERIC_CHANNEL_NAMES.has(entry.toLowerCase())) continue;
-    const words = entry.trim().split(/\s+/);
-    while (words.length > 1 && GENERIC_TITLE_SUFFIX_WORDS.has(words[words.length - 1].toLowerCase())) words.pop();
-    const stem = words.join(' ');
-    for (const prefix of new Set([entry, stem])) {
-      if (GENERIC_CHANNEL_NAMES.has(prefix.toLowerCase())) continue;
-      if (name === prefix) return true;
-      if (name.startsWith(prefix + ' ')) {
-        const rest = name.slice(prefix.length).trim().split(/\s+/);
-        if (rest.length > 0 && rest.every((w) => GENERIC_TITLE_SUFFIX_WORDS.has(w.toLowerCase()))) return true;
-      }
-    }
-  }
-  return false;
-}
-
-function checkExtraCard(card, allowed, label) {
-  assert.ok(!isLoadingCard(card), `${label}: card ${show(card)} is still loading`);
-  const raw = cardText(card).trim();
-  const notReadyMatch = /^(?:.*\.\s*)?([A-Za-z0-9][A-Za-z0-9 _/-]*?)\s+is not set up for this Cogniate service yet\b/.exec(raw);
-  const notReadyLms =
-    (card && typeof card === 'object' && typeof card.notReadyLms === 'string' && card.notReadyLms.trim().length > 0
-      ? card.notReadyLms.trim()
-      : null) ?? (notReadyMatch ? notReadyMatch[1].trim() : null);
-  const targetMatch = /Publish Cogniate courses to\s+(.+?)\s+with LTI 1\.3\./.exec(raw);
-  const target = targetMatch ? targetMatch[1].trim() : null;
-
-  if (card && typeof card === 'object') {
-    const channel = typeof card.channel === 'string' && card.channel.trim().length > 0
-      ? card.channel.trim()
-      : typeof card.id === 'string' && card.id.trim().length > 0
-        ? card.id.trim()
-        : null;
-    const name = typeof card.name === 'string' && card.name.trim().length > 0
-      ? card.name.trim()
-      : typeof card.title === 'string' && card.title.trim().length > 0
-        ? card.title.trim()
-        : null;
-    if (channel !== null) {
-      assert.ok(allowed.has(channel), `${label}: extra card ${show(card)} has unregistered channel ${show(channel)}`);
-      if (notReadyLms !== null) {
-        assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
-      }
-      return;
-    }
-    if (name !== null) {
-      if (target !== null) {
-        assert.ok(allowed.has(target), `${label}: extra card ${show(card)} names no registered channel (${show(target)})`);
-      }
-      if (notReadyLms !== null) {
-        assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
-      }
-      const hasNonGenericNotReady =
-        notReadyLms !== null && allowed.has(notReadyLms) && !GENERIC_CHANNEL_NAMES.has(notReadyLms.toLowerCase());
-      assert.ok(
-        matchesAllowedCardName(name, allowed) || hasNonGenericNotReady,
-        `${label}: extra card ${show(card)} names no registered channel (${show(name)})`,
-      );
-      return;
-    }
-  }
-  const headingMatch = /^(?:[A-Za-z0-9]{1,4}\s*)?(?:Connect|Manage)\s*(.+?)\s*(?:Publish|Export)\b/.exec(raw);
-  if (headingMatch) {
-    const heading = headingMatch[1].trim();
-    if (target !== null) {
-      assert.ok(allowed.has(target), `${label}: extra card ${show(card)} names no registered channel (${show(target)})`);
-    }
-    if (notReadyLms !== null) {
-      assert.ok(allowed.has(notReadyLms), `${label}: extra card ${show(card)} names no registered channel (${show(notReadyLms)})`);
-    }
-    const hasNonGenericNotReady =
-      notReadyLms !== null && allowed.has(notReadyLms) && !GENERIC_CHANNEL_NAMES.has(notReadyLms.toLowerCase());
-    assert.ok(
-      matchesAllowedCardName(heading, allowed) || hasNonGenericNotReady,
-      `${label}: extra card ${show(card)} names no registered channel (${show(heading)})`,
-    );
-    return;
-  }
-  assert.ok(raw.length > 0 && allowed.has(raw), `${label}: extra card ${show(card)} names no registered channel`);
-}
+const isOtherCard = (card, other) => cardChannel(card) === null && cardText(card).includes(other);
 
 /**
- * Row 6: the visible cards of the "LMS Publishing" filter, in page order. Each baseline card text is in
- * exactly one card, in the baseline order. An extra card is a G-BASE non-channel card (`others`, each at most
- * once) or matches a registered non-baseline channel by exact `id` or `name` (`names`, from extraChannelNames),
- * never by substring. Returns the extra cards.
+ * Row 6 (BD-A1-119): the visible cards of the "LMS Publishing" filter, in page order.
+ * - When the page has cards with `data-channel-id` (attributed page): each baseline card text is in exactly one card
+ *   in the baseline order with `data-channel-id` equal to the baseline channel id; every non-baseline channel card
+ *   carries `data-channel-id` (`channel`), and the set of those ids equals the non-baseline `channel` values of
+ *   GET /app-api/lms-providers (`names`, from extraChannelNames); every card without `data-channel-id` (`channel: null`)
+ *   must be one of the frozen static cards (`others`, each at most once).
+ * - When no card has `data-channel-id` (the unattributed G-BASE / 1b17261 baseline page): uses the closed baseline
+ *   card list (the 3 baseline cards in order, plus `others` each at most once, with no extra channel cards).
+ * Never uses text guessing. Returns the extra cards.
  */
 export function checkCards(cards, baselineTexts, { names, others = BASELINE_OTHER_CARDS, label = 'LMS Publishing cards' }) {
   assert.ok(Array.isArray(cards), `${label}: the answer is a list`);
+  assert.ok(Array.isArray(names), `${label}: names is a list`);
   for (const card of cards) {
     assert.ok(!isLoadingCard(card), `${label}: card ${show(card)} is still loading`);
   }
-  const allowed = new Set(names.filter((n) => typeof n === 'string' && n.trim().length > 0).map((n) => n.trim()));
-  const extras = openList(cards, baselineTexts, { label, matches: (card, expected) => cardText(card).includes(expected) });
+  const allowed = new Set();
+  for (const name of names) {
+    assert.ok(typeof name === 'string' && name.trim().length > 0, `${label}: invalid channel id ${show(name)}`);
+    allowed.add(name.trim());
+  }
+  assert.equal(allowed.size, names.length, `${label}: channel ids are unique`);
+  const hasChannelAttrs = cards.some((card) => cardChannel(card) !== null);
+  let baselineIndex = 0;
+  const extras = openList(cards, baselineTexts, {
+    label,
+    matches: (card, expected) => cardText(card).includes(expected),
+    check: (card) => {
+      const expectedChannel = BASELINE_LMS[baselineIndex++];
+      if (hasChannelAttrs) {
+        const ch = cardChannel(card);
+        assert.equal(ch, expectedChannel, `${label}: baseline card ${show(expectedChannel)} has channel ${show(ch)}`);
+      }
+    },
+  });
   for (const other of others) {
     assert.ok(extras.filter((card) => isOtherCard(card, other)).length <= 1, `${label}: the card ${show(other)} appears more than once`);
   }
+  if (!hasChannelAttrs) {
+    assert.equal(allowed.size, 0, `${label}: unattributed baseline page cannot satisfy extra registered channels ${show([...allowed])}`);
+    for (const card of extras) {
+      assert.ok(
+        others.some((other) => isOtherCard(card, other)),
+        `${label}: extra card ${show(card)} is not in the closed baseline card list`,
+      );
+    }
+    return extras;
+  }
+  const extraChannels = [];
   for (const card of extras) {
-    if (others.some((other) => isOtherCard(card, other))) continue;
-    checkExtraCard(card, allowed, label);
+    const ch = cardChannel(card);
+    if (ch === null) {
+      assert.ok(
+        others.some((other) => isOtherCard(card, other)),
+        `${label}: card without data-channel-id ${show(card)} is not a frozen static card`,
+      );
+      continue;
+    }
+    const id = ch.trim();
+    assert.ok(id.length > 0 && allowed.has(id), `${label}: extra card ${show(card)} has unregistered channel ${show(ch)}`);
+    extraChannels.push(id);
+  }
+  assert.equal(new Set(extraChannels).size, extraChannels.length, `${label}: duplicate channel card in ${show(extraChannels)}`);
+  for (const expectedId of allowed) {
+    assert.ok(extraChannels.includes(expectedId), `${label}: missing card for registered channel ${show(expectedId)}`);
   }
   return extras;
 }
