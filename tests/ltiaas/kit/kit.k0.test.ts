@@ -29,6 +29,7 @@ import {
   buildOperatorGrantNpmArgs,
   buildPickerSelectionForm,
   CAPABILITY_KEYS,
+  CHANNEL_LEVEL_CAPABILITY_KEYS,
   ChannelFixture,
   collectContextlessPlacementObservation,
   computeExpectedCaseList,
@@ -48,6 +49,7 @@ import {
   orderKitSuiteSpecs,
   parseOperatorGrantOutput,
   PICKER_SELECTION_FIELD,
+  PROFILE_LEVEL_CAPABILITY_KEYS,
   PROTOCOL_SECURITY_FAULTS,
   resolveKitLevel,
   resolveSelectedChannelIds,
@@ -506,6 +508,14 @@ function makeSingleSelectPickerFake(mutant?: PickerMutant) {
   };
 }
 
+// The channel-level map of a fixture: what GET /app-api/lms-providers carries per channel
+// (cogniate-app-api-delta.md §2), without the profile-level keys (LA-ADR-01 D3).
+function channelLevelOf(fixture: ChannelFixture): Record<string, unknown> {
+  const caps = structuredClone(fixture.capabilities) as unknown as Record<string, unknown>;
+  for (const key of PROFILE_LEVEL_CAPABILITY_KEYS) delete caps[key];
+  return caps;
+}
+
 describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
   it('AC-LA-E7-06-01 / F1: zero LMS-name or lti-generic tokens in tests/ltiaas/kit/suites/**', () => {
     const bannedRegex =
@@ -631,10 +641,7 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     const canvas = loadChannelFixture('canvas');
     const validInput: BilateralEqualityInput = {
       fixture: canvas,
-      providerChannelCapabilities: structuredClone(canvas.capabilities) as unknown as Record<
-        string,
-        unknown
-      >,
+      providerChannelCapabilities: channelLevelOf(canvas),
       providerLegacyFlags: structuredClone(canvas.expect.legacyFlags) as unknown as Record<
         string,
         unknown
@@ -684,7 +691,7 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     }
 
     const flippedCap = structuredClone(validInput);
-    flippedCap.providerChannelCapabilities['site.serviceOrigin'] = false;
+    flippedCap.connectionChannelCapabilities['site.serviceOrigin'] = false;
     const flippedRes = verifyBilateralCapabilities(flippedCap);
     expect(flippedRes.ok).toBe(false);
     expect(flippedRes.errors[0]).toContain('site.serviceOrigin');
@@ -1539,7 +1546,7 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     for (const fixture of loadAllChannelFixtures()) {
       // Registry answer (GET /app-api/lms-providers entry, cogniate-app-api-delta.md §2) and connection
       // DTO (§1) shaped from the documented example; one registry value differs from the fixture.
-      const registry = structuredClone(fixture.capabilities) as unknown as Record<string, unknown>;
+      const registry = channelLevelOf(fixture);
       registry['launch.windowHint'] = !fixture.capabilities['launch.windowHint'];
       const input: BilateralEqualityInput = {
         fixture,
@@ -1560,9 +1567,82 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
       // An extra registry key fails the other direction
       const extra = verifyBilateralCapabilities({
         ...input,
-        providerChannelCapabilities: { ...structuredClone(fixture.capabilities), 'zz.extra': true },
+        providerChannelCapabilities: { ...channelLevelOf(fixture), 'zz.extra': true },
       });
       expect(extra.errors).toEqual([expect.stringContaining('unknown capability key "zz.extra"')]);
+    }
+  });
+
+  it('A-LA-E7-06-08 (C1 levels, Round 5): the registry entry is compared at channel level and the connection DTO at its selected profile; the profile-level keys come from LA-ADR-01 D3', () => {
+    // The profile-level keys are the D3 catalog rows whose Source is an LTI profile trait
+    const adr = fs.readFileSync(
+      path.join(REPO_ROOT, 'docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md'),
+      'utf8',
+    );
+    const d3 = adr.slice(adr.indexOf('### D3. Capability model'), adr.indexOf('### D4.'));
+    // Table cells are split on unescaped pipes (cells such as `exclusive` \| `shared` hold escaped ones)
+    const rows = d3
+      .split('\n')
+      .filter((line) => /^\| `[a-zA-Z]+\.[a-zA-Z]+` \|/.test(line))
+      .map((line) => line.split(/(?<!\\)\|/).map((cell) => cell.trim()))
+      .map((cells) => ({ key: cells[1].replace(/`/g, ''), source: cells[3] }));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(CAPABILITY_KEYS as readonly string[]).toContain(row.key);
+    expect(rows.filter((r) => r.source.startsWith('LTI profile trait')).map((r) => r.key).sort()).toEqual(
+      [...PROFILE_LEVEL_CAPABILITY_KEYS].sort(),
+    );
+    expect([...CHANNEL_LEVEL_CAPABILITY_KEYS, ...PROFILE_LEVEL_CAPABILITY_KEYS].sort()).toEqual(
+      [...CAPABILITY_KEYS].sort(),
+    );
+
+    for (const fixture of loadAllChannelFixtures()) {
+      const provider = channelLevelOf(fixture);
+      const connection = structuredClone(fixture.capabilities) as unknown as Record<string, unknown>;
+      // The real shapes (Reviewer-A Round 5 replay): 15 keys per provider entry, 17 on the connection
+      expect(Object.keys(provider)).toHaveLength(15);
+      expect(Object.keys(connection)).toHaveLength(17);
+      const input: BilateralEqualityInput = {
+        fixture,
+        providerChannelCapabilities: provider,
+        providerLegacyFlags: { ...fixture.expect.legacyFlags },
+        connectionChannelCapabilities: connection,
+        connectionLegacyFlags: { ...fixture.expect.legacyFlags },
+        toolConfigurationKeys: [...fixture.expect.toolConfigurationKeys],
+      };
+      expect(verifyBilateralCapabilities(input)).toEqual({ ok: true, errors: [] });
+
+      // The registry entry carries a profile trait
+      for (const key of PROFILE_LEVEL_CAPABILITY_KEYS) {
+        const res = verifyBilateralCapabilities({
+          ...input,
+          providerChannelCapabilities: { ...provider, [key]: fixture.capabilities[key] },
+        });
+        expect(res.errors).toEqual([
+          expect.stringContaining(`carries the profile-level key "${key}"`),
+        ]);
+      }
+      // The registry entry lacks a channel-level key
+      const lacking = { ...provider };
+      delete lacking['deployments.multiple'];
+      expect(verifyBilateralCapabilities({ ...input, providerChannelCapabilities: lacking }).errors).toEqual([
+        expect.stringContaining('GET /app-api/lms-providers channelCapabilities["deployments.multiple"] mismatch'),
+      ]);
+      // The connection DTO lacks a profile trait
+      for (const key of PROFILE_LEVEL_CAPABILITY_KEYS) {
+        const noTrait = { ...connection };
+        delete noTrait[key];
+        expect(
+          verifyBilateralCapabilities({ ...input, connectionChannelCapabilities: noTrait }).errors,
+        ).toEqual([expect.stringContaining(`GET /app-api/connections/:id channelCapabilities["${key}"] mismatch`)]);
+      }
+      // A fixture value that differs from both maps, and unknown keys, still fail
+      const otherFixture = structuredClone(fixture);
+      otherFixture.capabilities['content.multiple'] = !fixture.capabilities['content.multiple'];
+      expect(verifyBilateralCapabilities({ ...input, fixture: otherFixture }).errors).toHaveLength(2);
+      expect(
+        verifyBilateralCapabilities({ ...input, connectionChannelCapabilities: { ...connection, 'zz.extra': 1 } })
+          .errors,
+      ).toEqual([expect.stringContaining('GET /app-api/connections/:id has unknown capability key "zz.extra"')]);
     }
   });
 

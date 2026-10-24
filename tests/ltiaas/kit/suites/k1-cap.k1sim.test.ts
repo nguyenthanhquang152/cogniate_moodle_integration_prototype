@@ -46,7 +46,7 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
         }
       });
 
-      it(`${fixture.id}:K1-CAP:C1 — channelCapabilities of the registry entry (GET /app-api/lms-providers) and of the connection DTO equal the fixture set in both directions; six legacy flags; tool configuration keys`, async () => {
+      it(`${fixture.id}:K1-CAP:C1 — channel-level channelCapabilities of the registry entry (GET /app-api/lms-providers) and the full set of the connection DTO equal the fixture in both directions; six legacy flags; tool configuration keys`, async () => {
         await runKitCase(fixture.id, 'K1-CAP', 'C1', async () => {
           const s = binding.session;
 
@@ -91,8 +91,10 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
           expect(Array.isArray(toolCfgRes.json)).toBe(true);
           const toolKeys = (toolCfgRes.json as Array<{ key: string }>).map((row) => row.key);
 
-          // 4. Both capability maps against the fixture, both directions (AC-LA-E7-06-04). A missing
-          // map is passed as it is and fails the comparator.
+          // 4. Both capability maps against the fixture, both directions (AC-LA-E7-06-04): the registry
+          // entry has no profile, so it holds the channel-level keys only (no profile-level trait, LA-ADR-01
+          // D3); the connection DTO holds every key for its selected profile. A missing map is passed as it
+          // is and fails the comparator.
           const bilateral = verifyBilateralCapabilities({
             fixture,
             providerChannelCapabilities: providerEntry.channelCapabilities as Record<string, unknown>,
