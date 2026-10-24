@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # LA-E0-02 — Reviewer-A
 
@@ -39,3 +39,19 @@ Raw root `/Users/quangnguyen/cogniate-qa-runs/LA/`:
 - `SLOT3D/artifacts/`: `qalead-la-45-1b17261b-2026-10-23T23-46-57-571Z/summary.json`, `qalead-la-46-1b17261b-2026-10-24T00-05-12-265Z/summary.json`, `qalead-la-48-1b17261b-2026-10-24T00-22-21-135Z/summary.json`, `qalead-la-49-1b17261b-2026-10-24T00-30-06-293Z/summary.json`.
 
 Also read this task's `qa.md`, `LA-E7-08/qa.md` baseline/wave-end sections, `LA-E7-09/qa.md` and `tests/ltiaas/GATE-RUN-PLAN.md` §4. Review extracts: `/tmp/la-reviewer-a-ctx-ec3c53d42903-evidence/{raw-audit,later-baseline-audit,supplemental-audit}.txt`. No stack or product changes.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the reconciliation at `2da33750` against the saved Slot 3D summaries and Playwright results. **CHANGES_REQUESTED: one new BLOCKER below; A-LA-E0-02-01 remains pending baseline-3, with its false full-task PASS claim corrected.** The four summary entry counts and unique-ID counts are correct when any failed occurrence makes that ID fail. The report now preserves the failed runs, the later passing run, and the pending legacy/rate scope. §10 R1 schedules the missing groups and measurements; a plan is not measurement evidence.
+
+### A-LA-E0-02-02 — BLOCKER — Round 2 misstates the saved failure evidence
+
+**Location:** `docs/reviews/LA-E0-02/qa.md:154` (also `:155`, `:156`, `:157`).
+
+**Problem:** The new “exact root cause” table attributes P5 to a different probe and gives test durations that do not match the cited runs, so AC-09's failure record is not yet accurate.
+
+**Evidence:** In `SLOT3D/artifacts/qalead-la-45-1b17261b-2026-10-23T23-46-57-571Z/container-T5b/playwright-results.json`, P5 fails **“both attempts unchanged”** because the second attempt's `updatedAt` changes from `00:04:29.156Z` to `00:04:33.069Z`; duration is **29,205 ms**, not the claimed 11,227 ms container-restart probe. AC-T5-36 fails **“Moodle grade,” expected 100, received null**, in **74,264 ms**, not 292,053 ms. Run 46 passes those tests in **12,519 / 29,025 ms**, not 229,115 / 11,249. Run 48's AC-T6-07/-13/-09 durations are **15,136 / 15,882 / 17,994 ms**; run 49's AC-T8-10 (no token) is **15,121 ms**, all with a **15,000 ms locator-click timeout**. Run 49 also skips the **AC-T8-10 (with token)** variant after the serial failure, in addition to AC-T8-08/-09; that third skipped test is absent from the new table.
+
+**Suggested fix:** Regenerate the test-level failure, skip and duration entries from each named `playwright-results.json`, preserve the actual assertion message and failing variant, and separate that observation from any later root-cause explanation. Cite separate evidence for a restart-probe diagnosis instead of substituting it for the P5 failure. Keep baseline-3 and the missing rate measurements pending.
+
+Exact extracts are in `/tmp/la-review-a-e1e451fa43ee/baseline-exact-errors.json`; summary recounts are in `baseline-reconciliation.json` (use any-failure aggregation for repeated host IDs). No new product run was performed, and no other reviewer's file was opened.
