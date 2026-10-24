@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 5
+Verdict: APPROVE
+Round: 6
 
 # LA-E0-02 — Reviewer-B
 
@@ -170,3 +170,19 @@ Recalculated all eleven files in `REGATE/slot-r1/rate-peaks/` from their stated 
 Additional T8 raw summaries, under `/Users/quangnguyen/cogniate-qa-runs/LA/`: `RUN-D1/artifacts/qalead-la-80-a8bbac53-2026-10-24T11-37-11-860Z/summary.json`, `RUN-D1/artifacts/qalead-la-83-a8bbac53-2026-10-24T13-04-38-988Z/summary.json`, `RUN-D2/artifacts/qalead-la-99-a8bbac53-2026-10-24T11-32-48-203Z/summary.json`, and `RUN-D2/artifacts/qalead-la-105-a8bbac53-2026-10-24T13-32-48-725Z/summary.json`. Run 129's two `container-knob-BUILD_RUNNER_{HOLD,FAIL_AT}/playwright-results.json` files and their `playwright/*/trace.zip` files establish the errors and build identity above.
 
 Independent accounting is in `/tmp/reviewer-b-e002-r5-rsnvkgau/`: `summary-audit.json`, `rate-audit.json`, `t2-complete-rate-peaks.json`, `t2-rate-sources.json`, `t8-evidence.json`, `d1d2-t8-audit.json`, and `memory-volume-audit.json`. No Docker, stack, install, product/test edit or commit. I changed only this review file. Blind review maintained.
+
+## Round 6
+
+Reviewed QA `f27bf214` / integration `4ac1672d`, diff from `1b447224`, with A2's `BD-A2-114` ruling at `5991a114`. **APPROVE for the E0 evidence correction: 0 open BLOCKER or MAJOR in this record; 0 new findings.** The existing companion-report MINOR remains outside this diff, as assigned by the Lead.
+
+**B-LA-E0-02-01 closes.** QA §9.2 names all eight retained log inputs and gives a reproducible deduplication and reader command. I rebuilt the inputs independently: **53 app / 340 LTI unique log lines**, containing **13 / 213 requests**. Every output field matches both corrected QA JSON files and my Round 5 recovery (apart from the earlier review's suite label). Launch peaks are **6/min, 5/10s**; registration peaks are **6/min, 6/10s**. The old passC-only file is preserved separately. AC-06/07 and §8.2 now include the complete measurement, both over-default reader flags, and the approved disposition.
+
+`BD-A2-114` and LA-ADR-06 D1 explicitly retain the built-in defaults for acceptance stacks. Independent arithmetic using the bucket refill rule and six raw request timestamps agrees: the sequence spans **8.922 s**, the hard bucket ends with **0.487 tokens**, and the five `cogniate` requests leave **15.1294 tokens** in the soft account bucket. Neither empties. The report now distinguishes the reader's conservative window flags from an actual bucket refusal and records why no override is required.
+
+**B-LA-E0-02-03 closes for the E0 record.** AC-04/09, §8.1 and §9.3 retain the exact HOLD failure (**421,171 ms**, event undefined) and FAIL_AT cascade (**423,075 ms**, the same build still running). They retract the WE-F6 attribution, state the first cause as **not proven**, and explicitly show both IDs as **baseline-3 FAIL versus D1/D2 PASS**, with D3/D4 pending. This agrees with the traces and file-parity evidence audited in Round 5; no new causal assertion replaces the withdrawn claim.
+
+**Audit table:** All **19** exact §9.1 paths exist. Their run IDs, product SHAs, entry counts, aggregate counts, case-ledger counts and T7 pass/skip counts match the raw files. Earlier M3, T5, T6 and T8 failures remain visible. The task change touches only QA's evidence document; no product, frozen assertion or UNIT behavior changes.
+
+**B-LA-E0-02-04 remains OPEN, MINOR, for the companion E7-08 summary.** Its artifact/rate correction and removal of the repeated obsolete T8 attribution are assigned to the Lead QA's D3 record and are not included here. This round accepts the E0 corrections; E7 companion reconciliation and the D3/D4 comparison remain separate work.
+
+Verification: `/tmp/reviewer-b-e002-r6-p8e5rhst/{summary-audit.json,rate-sources.json,t2-complete-rate-peaks.json,bucket-replay.json}`, plus the Round 5 T8 evidence named above. No Docker, stack, install, product/test edit or commit. Only my review file was edited; blind review maintained.
