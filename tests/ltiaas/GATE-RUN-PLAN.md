@@ -892,9 +892,32 @@ COMPOSE_PROJECT_NAME=qalead-la-55 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   2. **`A-LA-E0-04-02` (MAJOR, CLOSED in Round 2 and ratified as `LD-24` — `M1-41.common.j-snapshot` Migration-Ledger Prefix + Candidate Check & Classification):** `snapshotMigrationRun` (`tests/host/m1-migration.mjs:338-341`) calls `checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger })`, restoring the independent check that `oldLedger[db]` is a non-empty prefix of `newLedger[db]` while keeping exact equality with the candidate's sorted migration files (`BD-A2-108` / `LD-24` / `WE-F5`). Explicitly classified above under `AC-LA-E7-08-05` item 5 as an assertion change on `M1-41.common.j-snapshot`.
   3. **`A-LA-E0-04-03` (MAJOR, CLOSED in Round 3 — Wait for `/connections` Card Loading to Settle in `M2-01.cards`):** `lmsCardTexts(page)` (`tests/e2e/M2/01-cards.m2.ts`) marks cards without a `Connect`/`Manage` control or with `Loading…` as `loading: true` and polls via `await expect.poll(...)` until `cards.length > 0 && cards.every((c) => !c.loading)`, and `checkCards` (`open-world.mjs`) rejects any unsettled loading card.
   4. **`A-LA-E0-04-04` (MINOR, CLOSED in Round 3 — Cite `LD-24` and `18` App Migrations in `cogniate.db`):** Replaced `LA-H21` with `LD-24` across `open-world.mjs`, `open-world.test.{mjs,ts}`, and the review/plan docs, and updated `cogniate.db` migration count on `8fadb828` to `18` in `ld9-addendum-r5.md`.
-- **Re-Gate Rows (`pending: Docker window`):**
+- **Re-Gate Rows (Slot 3F below):**
   - `M2` (`01-cards.m2.ts`): `M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card`.
   - `M1` (`m1-migration.mjs`): `snapshot-upgrade` (`M1-38.common.h1..h5`, `M1-41.common.j-snapshot`) and `migration` (`M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`).
+
+---
+
+## 3F. Slot 3F — Final Gate Sources & Re-Gate on Final Product SHA `a8bbac53` (`la-final-test-1` & `la-slot7-test-2`)
+
+### (a) Recorded Gate Source SHAs (`set -euo pipefail`, assign then `export`)
+
+- **Final Product SHA (`$FINAL_SHA`):** `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`tag: la-final-product-1`; `8fadb828` + lane P `data-channel-id={item.channel}` on channel cards under `BD-A1-119`).
+- **Final Test Tree (`src-wave-end-7`, `tag: la-gate-test-7`):** `$WAVE_TEST_SHA_7` = `a675ee243f00780a4f9eaf79be2f4c717a1d8e11` (`src-wave-end-6` at `la-gate-test-6` `9de014298fbe133ebbd8d40365da84988ccabf5d` + approved `ld9-addendum-r5.patch`; `8 files changed, 1625 insertions(+), 62 deletions(-)`; `tests/` git tree `ac9f1e650f5cd7222691a9727837bb51c8835e1a`).
+- **Final Candidate Gate Clone (`src-final-1`, `tag: la-final-test-1`):** `$FINAL_TEST_SHA_1` = `85ddf97332063f75bdc5636cb410fc0d6ee25099` (`a8bbac538cfe1e305f410279d7879421d64a5a1f` with `tests/` restored from `la-gate-test-7`; `git rev-parse la-final-test-1:tests` = `ac9f1e650f5cd7222691a9727837bb51c8835e1a` = `la-gate-test-7:tests`; `git diff --exit-code a8bbac538cfe1e305f410279d7879421d64a5a1f la-final-test-1 -- . ':!tests'` exit `0`).
+- **Baseline `1b17261` LD-1 Parity Clone (`src-slot7-r2`, `tag: la-slot7-test-2`):** `$SLOT7_TEST_SHA_2` = `38de1c38815df53f9a39b1fa60427ef60416475d` (`src-slot7-1b17261` at `357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` + only the 3 LD-1 oracle files of `ld9-addendum-r5.patch`: `tests/acceptance/lib/open-world.d.mts`, `tests/acceptance/lib/open-world.mjs`, `tests/e2e/M2/01-cards.m2.ts`; `3 files changed, 171 insertions(+), 25 deletions(-)`; `0` non-test diff from `1b17261be97c4701b928fa9dc2fa74c6d23028f6`).
+
+### (b) Slot 3F Run Set & Exact Commands (`qalead-la-60..66`, `90 min` Window, One Stack at a Time)
+
+| Compose Project | Lane / Port / Subnet | Product SHA | Test SHA & Source | Suite & Purpose |
+| --- | --- | --- | --- | --- |
+| **`qalead-la-60`** | SIM (`9473`, `172.23.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `M2` (`64` cases; proves `BD-A1-119` `data-channel-id` on `/connections` cards & `LD-1` Round 3 oracle on `M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card`). |
+| **`qalead-la-61`** | SIM (`9473`, `172.23.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `M1 --phase migration --provider all` (`12` manifest rows; proves `LD-24` / `m1-migration.mjs` on `M1-23.common.{baseline,upgrade}` & `M1-30.common.{postwrite,rollback}`). |
+| **`qalead-la-62`** | SIM (`9473`, `172.23.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `M1 --phase snapshot-upgrade --provider all` (`6` manifest rows: `M1-38.common.h1..h5` & `M1-41.common.j-snapshot`; proves `checkMigrationLedgers` `LD-24`). |
+| **`qalead-la-63`** | SIM (`9473`, `172.23.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `G1–G4` golden capture (`run-golden.mjs`) & `compare.mjs` against `G-BASE` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`) with `expected/LA-IC-*.json` (`AC-LA-E7-08-03`). |
+| **`qalead-la-64`** | SIM (`9473`, `172.23.0.0/16`) | `1b17261be97c4701b928fa9dc2fa74c6d23028f6` | `la-slot7-test-2` (`38de1c38`), `src-slot7-r2` | `M2` on `1b17261` (`64` cases; proves `LD-1` unattributed baseline parity on `G-BASE`). |
+| **`qalead-la-65`** | Moodle (`9543`, `172.21.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `T6` (via `run-t5.mjs --tasks T5a,T6`; proves lane P `/connections` `data-channel-id` change on live Moodle portal integration cards `AC-T6-01..14`). |
+| **`qalead-la-66`** | Moodle (`9543`, `172.21.0.0/16`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` | `la-final-test-1` (`85ddf973`), `src-final-1` | `T7 × 1` (`run-t7.mjs --runs 1 --replace-e2e`; proves lane P `/connections` `data-channel-id` change on live Moodle end-to-end `T7` `17 PASS + 1 SKIP`). |
 
 
 

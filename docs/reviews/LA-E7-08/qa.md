@@ -1,5 +1,5 @@
-Verdict: PENDING (AC-LA-E7-08-01, -03, -04, -05, -06 PASS across Slots 3B/3C/3D; AC-LA-E7-08-02 PENDING LA-E7-06 kit K1 run per LA-H25; Slot 8d §11, 2026-10-24T02:51:15Z; Slot 8c §10, 2026-10-24T02:31:54Z; Slot 8b §9, 2026-10-24T01:30:05Z; Slot 3D §8, 2026-10-24T00:58:28Z; Slot 8 Lead QA part §7, 2026-10-23T22:40:33Z)
-Round: 7
+Verdict: PENDING (AC-LA-E7-08-01, -03, -04, -05, -06 PASS across Slots 3B/3C/3D and Slot 3F on final SHA a8bbac53 §12, 2026-10-24T09:02:00Z; AC-LA-E7-08-02 PENDING LA-E7-06 kit K1 run per LA-H25; Slot 8d §11, 2026-10-24T02:51:15Z; Slot 8c §10, 2026-10-24T02:31:54Z; Slot 8b §9, 2026-10-24T01:30:05Z; Slot 3D §8, 2026-10-24T00:58:28Z; Slot 8 Lead QA part §7, 2026-10-23T22:40:33Z)
+Round: 8
 
 # LA-E7-08 Wave-End and Final Regression Gates (SIM Lane): QA (Slot 3B on `80133d6b`)
 
@@ -1033,9 +1033,9 @@ In all 3 runs (`run1/evidence/health-start.json`, `run1/evidence/health-end.json
 
 ---
 
-## 12. LD-1 & LD-9 Gate Overlay Fix Rounds 1–3 (`docs/reviews/LA-E7-08/ld9-addendum-r5.md`, 2026-10-24)
+### 11.7 LD-1 & LD-9 Gate Overlay Fix Rounds 1–3 (`docs/reviews/LA-E7-08/ld9-addendum-r5.md`, 2026-10-24)
 
-- **Tasks / Dispatches:** Round 1 `task_5785f09e261c` / `ctx_0d5d78338442`; Round 2 `task_e4e91f923e4c` / `ctx_a0b10ce4f402`; Round 3 `task_a476d0cb4edf` / `ctx_20decc2fd3cd` (`HOST-ONLY`, `0` Docker commands run).
+- **Tasks / Dispatches:** Round 1 `task_5785f09e261c` / `ctx_0d5d78338442`; Round 2 `task_e4e91f923e4c` / `ctx_a0b10ce4f402`; Round 3 `task_a476d0cb4edf` / `ctx_20decc2fd3cd` (`HOST-ONLY`, `0` Docker commands run; approved by Reviewer-A and Reviewer-B in `docs/reviews/LA-E0-04/`).
 - **Base Gate Test Tag / SHA:** `la-gate-test-6` = `9de014298fbe133ebbd8d40365da84988ccabf5d` (`/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-6`, untouched).
 - **Addendum Report & Patch:** `docs/reviews/LA-E7-08/ld9-addendum-r5.md` and `/Users/quangnguyen/cogniate-qa-runs/LA/ld1-overlay-fix-r1/ld9-addendum-r5.patch` (`SHA256 = e6b0c719c4bb7a83762df45b46382012070ebbf70acec16735cab986bb289aec`; `git apply --check -v` on `la-gate-test-6` exits `0`).
 - **Summary of Fixes:**
@@ -1043,7 +1043,209 @@ In all 3 runs (`run1/evidence/health-start.json`, `run1/evidence/health-end.json
   2. **`A-LA-E0-04-02` (MAJOR, CLOSED in Round 2 and ratified as `LD-24` — `M1-41.common.j-snapshot` migration-ledger check and classification):** Added `checkMigrationLedgers(oldLedger, newLedger, { expectedLtiLedger, expectedAppLedger })` in `open-world.mjs` and called it from `tests/host/m1-migration.mjs:338-341`, restoring the independent check that `oldLedger[db]` is a non-empty prefix of `newLedger[db]` alongside the exact candidate migration file comparison (`BD-A2-108` / `LD-24` / `WE-F5`), and explicitly classifying `tests/host/m1-migration.mjs` under `AC-LA-E7-08-05` item 5 as an assertion change on `M1-41.common.j-snapshot`.
   3. **`A-LA-E0-04-03` (MAJOR, CLOSED in Round 3 — Wait for `/connections` card loading to settle before reading cards in `M2-01.cards`):** `lmsCardTexts(page)` (`tests/e2e/M2/01-cards.m2.ts`) marks cards without a `Connect`/`Manage` control or with `Loading…` as `loading: true` and polls via `await expect.poll(...)` until `cards.length > 0 && cards.every((c) => !c.loading)`, and `checkCards` (`open-world.mjs`) rejects any unsettled loading card.
   4. **`A-LA-E0-04-04` (MINOR, CLOSED in Round 3 — Cite `LD-24` and `18` app migrations in `cogniate.db`):** Replaced `LA-H21` with `LD-24` across `open-world.mjs`, `open-world.test.{mjs,ts}`, and the review/plan docs, and updated `cogniate.db` migration count on `8fadb828` to `18` in `ld9-addendum-r5.md`.
-- **Re-Gate Rows (`pending: Docker window`):** `M2` `01-cards.m2.ts` (`M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card`) and `M1` `snapshot-upgrade` / `migration` ledger rows (`M1-38.common.h1..h5`, `M1-41.common.j-snapshot`, `M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`).
+- **Re-Gate Rows (verified in Slot 3F §12 below):** `M2` `01-cards.m2.ts` (`M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card`) and `M1` `snapshot-upgrade` / `migration` ledger rows (`M1-38.common.h1..h5`, `M1-41.common.j-snapshot`, `M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`).
+
+---
+
+## 12. Slot 3F on the final SHA (2026-10-24T09:02:00Z)
+
+### 12.1 Slot 3F Context, Gate Sources & Product-Change Coverage
+
+| Item | Value |
+| --- | --- |
+| Tester & Dispatches | Lead QA (Orca task `task_125e556637d5`, dispatches `ctx_dcbbce8125ba` & `ctx_32876ee3e5dd`) |
+| Final Product SHA (`$FINAL_SHA`) | `a8bbac538cfe1e305f410279d7879421d64a5a1f` (`tag: la-final-product-1`; `Merge la-p 0eedb055: LA-E1-11 follow-up (BD-A1-119): data-channel-id on every channel card`) |
+| Product Diff vs Wave-End `8fadb828` | `git diff --stat 8fadb828088ffe1b4db02179ab0fa3ab2388a12a..a8bbac538cfe1e305f410279d7879421d64a5a1f -- apps services packages infra`: **`apps/portal/src/Integrations.tsx` (`1 insertion(+)` adding `data-channel-id={item.channel}` on every channel `<article>` card per `BD-A1-119`) and `apps/portal/src/portal.test.ts` (`30 insertions(+)`)** — `0` changes to `services/**`, `packages/**`, `infra/**`, SQL migrations, or other portal components |
+| Step 1(a) `src-wave-end-7` (`la-gate-test-7`) | `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-7` at `a675ee243f00780a4f9eaf79be2f4c717a1d8e11` (`tag: la-gate-test-7`): fresh `git clone --no-hardlinks` of `src-wave-end-6` at `la-gate-test-6` (`9de014298fbe133ebbd8d40365da84988ccabf5d`) + approved `ld9-addendum-r5.patch` (`8 files changed, 1625 insertions(+), 62 deletions(-)`; `tests/` git tree `ac9f1e650f5cd7222691a9727837bb51c8835e1a`) |
+| Step 1(b) `src-final-1` (`la-final-test-1`) | `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-1` at `85ddf97332063f75bdc5636cb410fc0d6ee25099` (`tag: la-final-test-1`): fresh `git clone --no-hardlinks` of the integration worktree at `a8bbac538cfe1e305f410279d7879421d64a5a1f` with `tests/` restored from `la-gate-test-7`; `git rev-parse la-final-test-1:tests` = `ac9f1e650f5cd7222691a9727837bb51c8835e1a` = `la-gate-test-7:tests`; `git diff --exit-code a8bbac538cfe1e305f410279d7879421d64a5a1f la-final-test-1 -- . ':!tests'` exit `0` (`0` non-test files differ) |
+| Step 1(c) `src-slot7-r2` (`la-slot7-test-2`) | `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-slot7-r2` at `38de1c38815df53f9a39b1fa60427ef60416475d` (`tag: la-slot7-test-2`): fresh `git clone --no-hardlinks` of `src-slot7-1b17261` at `357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` + only the 3 `LD-1` oracle files of `ld9-addendum-r5.patch` (`tests/acceptance/lib/open-world.d.mts`, `tests/acceptance/lib/open-world.mjs`, `tests/e2e/M2/01-cards.m2.ts`; `3 files changed, 171 insertions(+), 25 deletions(-)`; `0` non-test files differ from `1b17261be97c4701b928fa9dc2fa74c6d23028f6`) |
+| Docker Window & Compose Projects | `2026-10-24T05:29:14Z` (`before-timestamp.txt`) to `2026-10-24T06:01:52Z` (`after-timestamp.txt`, `32.6 min` total across 7 sequential runs, one stack at a time): SIM lane `qalead-la-60..64` (`PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`), then Moodle lane `qalead-la-65..66` (`PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`) |
+| Durable Artifacts | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3F/` (`logs/`, `docker-records/`, `artifacts/qalead-la-60..66-*`, `golden-capture-a8bbac538cfe1e305f410279d7879421d64a5a1f/`, `golden-capture-a8bbac538cfe1e305f410279d7879421d64a5a1f-port9443/`) |
+
+### 12.2 Exact Accounting per Run (`qalead-la-60..66` from `summary.json`, `m1-case-results.json`, `m2-case-results.json`, and `run1/tests.json`)
+
+1. **`qalead-la-60` (`M2` browser suite on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-60-a8bbac53-2026-10-24T05-29-27-881Z/`, `05:29:27Z–05:33:09Z`, `3.7 min`):**
+   - **Counts in `summary.json` `results`:** **`71` total (`71 PASS`, `0 FAIL`)**: `64/64` `M2` manifest cases `PASS` + `7/7` host/gate/hygiene rows `PASS` (`PRE`, `CLONE`, `H1`, `M2-STACK`, `M3-07-M2` `["values 74, files 66, hits 0"]`, `M3-06-M2` `["volumes 32 → 32; containers 0 → 0"]`, `TEARDOWN` `["npm run stack:down exit 0", "left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks", "other projects' containers that stopped or restarted: none (information)"]`).
+   - **Manifest Case Ledger (`m2-case-results.json`):** **`64/64 PASS` (`0 FAIL`, `0` missing IDs; browser pass `2.0 min`)**.
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+2. **`qalead-la-61` (`M1 --phase migration --provider all` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-61-a8bbac53-2026-10-24T05-33-10-379Z/`, `05:33:10Z–05:38:08Z`, `4.9 min`):**
+   - **Counts in `summary.json` `results`:** **`11` total (`11 PASS`, `0 FAIL`)**: `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M1-23.common.baseline`, `M1-23.common.upgrade`, `M1-30.common.postwrite`, `M1-30.common.rollback`, `MIGRATION` (`["Private backup retained outside shared evidence"]`), `M3-ISOLATION` (`["containers changed: 0; volumes changed: none"]`), `TEARDOWN` (`["npm run stack:down exit 0", "left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks", "other projects' containers that stopped or restarted: none (information)"]`).
+   - **Manifest Case Ledger (`m1-case-results.json`):** **`12/12 PASS` (`0 FAIL`, `0` missing IDs; secret scan `38` values across `89` files, `0` hits)**.
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+3. **`qalead-la-62` (`M1 --phase snapshot-upgrade --provider all` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-62-a8bbac53-2026-10-24T05-38-09-094Z/`, `05:38:09Z–05:41:44Z`, `3.5 min`):**
+   - **Counts in `summary.json` `results`:** **`11` total (`11 PASS`, `0 FAIL`)**: `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M1-38.common.h1`, `M1-38.common.h2`, `M1-38.common.h3`, `M1-38.common.h4`, `M1-38.common.h5`, `M3-ISOLATION` (`["containers changed: 0; volumes changed: none"]`), `TEARDOWN` (`["npm run stack:down exit 0", "left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks", "other projects' containers that stopped or restarted: none (information)"]`).
+   - **Manifest Case Ledger (`m1-case-results.json`):** **`6/6 PASS` (`0 FAIL`, `0` missing IDs: `M1-38.common.h1..h5` + `M1-41.common.j-snapshot`; secret scan `118` values across `89` files, `0` hits)**.
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+4. **`qalead-la-63` (`G1–G4` golden capture & `compare.mjs` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-63-a8bbac53-2026-10-24T05-41-45-868Z/`, `05:41:45Z–05:44:22Z`, `2.6 min`):**
+   - **Counts in `summary.json` `results`:** **`9` total (`9 PASS`, `0 FAIL`)**: `PRE`, `CLONE`, `H1` (`cogniate-app, lti-service, moodle, postgres, proxy`), `GOLDEN-DEFAULT` (`["profiles 8; lms moodle,canvas,blackboard,lti-generic,brightspace"]`), `H1` (`cogniate-app, lms-sim, lti-gate, lti-service, moodle, postgres, proxy, qa-platform, sink`), `GOLDEN-CAPTURE` (`["exit 0; 47 s; log host/artifacts/qalead-la-63-a8bbac53-2026-10-24T05-41-45-868Z/cmd/09-golden-capture.log"]`), `GOLDEN-SECRET-SCAN` (`["values 129; hits 0"]`), `GOLDEN-OUT` (`["capture 47 s"]`), `TEARDOWN` (`["npm run stack:down exit 0", "left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks", "other projects' containers that stopped or restarted: none (information)"]`).
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+5. **`qalead-la-64` (`M2` browser suite on intake `1b17261b` / `la-slot7-test-2` `38de1c38` for `LD-1` parity, `SLOT3F/artifacts/qalead-la-64-1b17261b-2026-10-24T05-44-23-144Z/`, `05:44:23Z–05:47:54Z`, `3.5 min`):**
+   - **Counts in `summary.json` `results`:** **`71` total (`71 PASS`, `0 FAIL`)**: `64/64` `M2` manifest cases `PASS` + `7/7` host/gate/hygiene rows `PASS` (`PRE`, `CLONE`, `H1`, `M2-STACK`, `M3-07-M2` `["values 74, files 66, hits 0"]`, `M3-06-M2` `["volumes 32 → 32; containers 0 → 0"]`, `TEARDOWN`).
+   - **Manifest Case Ledger (`m2-case-results.json`):** **`64/64 PASS` (`0 FAIL`, `0` missing IDs; browser pass `1.9 min`)**.
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+6. **`qalead-la-65` (`T6` with `T5a` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-65-a8bbac53-2026-10-24T05-48-21-567Z/`, `05:48:21Z–05:56:44Z`, `8.4 min`):**
+   - **Counts in `summary.json` `results`:** **`53` step entries (`53 PASS`, `0 FAIL`), `46` unique IDs (`46 PASS`, `0 FAIL`)**: all `21/21` `T5a` ACs `PASS`, all `14/14` `T6` ACs `PASS` (`AC-T6-01..14`), and all `11/11` host/setup IDs `PASS` (`PRE`, `CLONE`, `SETUP`, `H1`, `FIXTURES`, `SUITE` `3/3`, `SETUP-T5a`, `KNOB` `2/2`, `SETUP-T6` `4/4`, `HOSTCTL`, `TEARDOWN`).
+   - **Non-`PASS` IDs:** **None (`0`, `[]`)**.
+
+7. **`qalead-la-66` (`T7 × 1` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`, `SLOT3F/artifacts/qalead-la-66-a8bbac53-2026-10-24T05-56-45-538Z/`, `05:56:45Z–06:01:41Z`, `4.9 min`):**
+   - **Host Step Counts (`summary.json` `steps`):** **`6` total (`6 OK`, `0 FAIL`)**.
+   - **Playwright Test Counts (`summary.json` `runs[0].tests` / `run1/tests.json`):** **`18` total (`17 PASS`, `0 FAIL`, `1 SKIP` `DEMO AC-T7-15` in `199 s`, `e2e:reset 53 s`)**.
+   - **Non-`PASS` / Non-`OK` IDs:** **None (`0` failures; `1` expected `DEMO AC-T7-15` `SKIP`, matching `1b17261` baseline `qalead-la-20` and `8fadb828` `qalead-la-56`)**.
+
+---
+
+### 12.3 The `01-cards.m2.ts` Case IDs (`qalead-la-60` on `a8bbac53` & `qalead-la-64` `LD-1` Parity on `1b17261`)
+
+| Case ID (`tests/e2e/M2/01-cards.m2.ts`) | Title | `qalead-la-60` on Final SHA `a8bbac53` (`la-final-test-1` `85ddf973`, `BD-A1-119` `article[data-channel-id]` Oracle) | `qalead-la-64` on Intake `G-BASE` `1b17261` (`la-slot7-test-2` `38de1c38`, Unattributed Baseline Branch) | Slot 7 Baseline `qalead-la-17` on `1b17261` (`357d1799`) |
+| --- | --- | --- | --- | --- |
+| **`M2-01.cards`** | `[SIM] AC-M2-01 the LMS Publishing filter shows the Moodle, Canvas and Blackboard cards with their texts and initials {case:M2-01.cards}` | **`PASS` (`315 ms`)** — verifies `article[data-channel-id]` on all 3 baseline cards (`moodle`, `canvas`, `blackboard`) in order, static `Kajabi` card without `data-channel-id`, and exact set equality of non-baseline `data-channel-id` attributes (`lti-generic`, `brightspace`) against `GET /app-api/lms-providers` | **`PASS` (`411 ms`)** — verifies unattributed G-BASE DOM (`hasDomChannelIds === false`) against the exact 3 baseline cards (`Moodle`, `Canvas`, `Blackboard`) + static `Kajabi` card | `PASS` |
+| **`M2-01.isolated-newest`** | `[SIM] AC-M2-01 each card follows only its own LMS newest connection, with equal names and creation times {case:M2-01.isolated-newest}` | **`PASS` (`1.7 s`)** | **`PASS` (`1.2 s`)** | `PASS` |
+| **`M2-01.moodle-card`** | `[SIM] AC-M2-01 the Moodle card text and its connect flow are unchanged {case:M2-01.moodle-card}` | **`PASS` (`275 ms`)** | **`PASS` (`228 ms`)** | `PASS` |
+| **All `M2` Cases (`M2-01`..`M2-13`)** | Full 64-case `M2` browser suite (`m2-case-results.json`) + `M2-STACK`, `M3-07-M2`, `M3-06-M2`, `TEARDOWN` (`summary.json`) | **`64/64` cases `PASS`, `71/71` `summary.json` rows `PASS`** (`2.0 min` browser pass) | **`64/64` cases `PASS`, `71/71` `summary.json` rows `PASS`** (`1.9 min` browser pass) | `64/64` cases `PASS` |
+
+---
+
+### 12.4 The Migration (`qalead-la-61`) and Snapshot-Upgrade (`qalead-la-62`) Ledger Rows (`LD-24`)
+
+#### 12.4.1 `qalead-la-62` (`M1 --phase snapshot-upgrade --provider all`, `m1-case-results.json` & `snapshot-migration-hashes.json`)
+
+| # | Case ID | Environment | Status | Duration (`ms`) | Notes / Ledger Evidence (`SLOT3F/artifacts/qalead-la-62-a8bbac53-2026-10-24T05-38-09-094Z/`) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **`M1-38.common.h1`** | `SIM` | **`PASS`** | `3,395.9 ms` | `Public 011 fixtures seeded; stopped databases and sidecars verified against the private backup before 012` (`sourceSha: 9f96f7b24cd0aed702e4dc40373bdda4307aad31`) |
+| 2 | **`M1-38.common.h2`** | `SIM` | **`PASS`** | `5,325.3 ms` | `[SIM] AC-M1-38 old pending valid codes hit 4a; unknown code and issue keep grant-first behavior` (`evidence/snapshot-upgrade`) |
+| 3 | **`M1-38.common.h3`** | `SIM` | **`PASS`** | `1,690.0 ms` | `[SIM] AC-M1-38 old registered repeat is local and redeemed initial code is rejected before state` (`evidence/snapshot-upgrade`) |
+| 4 | **`M1-38.common.h4`** | `SIM` | **`PASS`** | `860.4 ms` | `[SIM] AC-M1-38 old Canvas adds seeded and freshly approved deployments while its original key survives` (`evidence/snapshot-upgrade`) |
+| 5 | **`M1-38.common.h5`** | `SIM` | **`PASS`** | `7,639.2 ms` | `[SIM] AC-M1-38 old reservation and active orphan require suspend/release before rebinding` (`evidence/snapshot-upgrade`) |
+| 6 | **`M1-41.common.j-snapshot`** | `SIM` | **`PASS`** | — | `old build 9f96f7b24cd0aed702e4dc40373bdda4307aad31: tree, hash, config, wrapper, preflight, status and lock records`; `checkMigrationLedgers` (`LD-24`) verified: (a) `oldLedger['lti-service/lti.db']` (`001_init.sql`..`004_provider_profiles.sql`, `4` entries) is an exact prefix of `newLedger['lti-service/lti.db']` (`001_init.sql`..`021_registration_token_kind.sql`, `21` entries), and (b) `oldLedger['cogniate-app/cogniate.db']` (`001_init.sql`..`011_lms_types.sql`, `11` entries) is an exact prefix of `newLedger['cogniate-app/cogniate.db']` (`001_init.sql`..`018_picker_pick.sql`, `18` entries, including `012_connection_provider_snapshot.sql`). |
+
+#### 12.4.2 `qalead-la-61` (`M1 --phase migration --provider all`, `m1-case-results.json` & `migration-hashes.json`)
+
+| # | Case ID | Environment | Status | Notes / Ledger Evidence (`SLOT3F/artifacts/qalead-la-61-a8bbac53-2026-10-24T05-33-10-379Z/`) |
+| --- | --- | --- | --- | --- |
+| 1 | **`M1-23.common.baseline`** | `MOODLE-LIVE` | **`PASS`** | `Real Moodle SCORM activity, sent score and K0 captured on the old revision` (`oldSha: b0b83a8289e1bf9cf349068aca184f0879e9aaf0`) |
+| 2 | **`M1-23.common.backup`** | `MOODLE-LIVE` | **`PASS`** | `Both stopped databases and present sidecars match the verified backup; old migration names remain` (`lti.db` `151,552` B `sha256=0d070819...`, `cogniate.db` `233,472` B `sha256=f6c95a74...`) |
+| 3 | **`M1-23.common.backup-running`** | `MOODLE-LIVE` | **`PASS`** | `Maintenance backup refuses running services` |
+| 4 | **`M1-23.common.upgrade`** | `MOODLE-LIVE` | **`PASS`** | `Moodle profile/generation/history and K0 survive migration` (to `a8bbac538cfe1e305f410279d7879421d64a5a1f`) |
+| 5 | **`M1-30.common.postwrite`** | `MOODLE-LIVE` | **`PASS`** | `A second learner score reached Moodle after the backup` |
+| 6 | **`M1-30.common.reject-bytes`** | `MOODLE-LIVE` | **`PASS`** | `Whole-backup validation rejects damage without changing targets` |
+| 7 | **`M1-30.common.reject-missing`** | `MOODLE-LIVE` | **`PASS`** | `Whole-backup validation rejects damage without changing targets` |
+| 8 | **`M1-30.common.reject-backup-id`** | `MOODLE-LIVE` | **`PASS`** | `Whole-backup validation rejects damage without changing targets` |
+| 9 | **`M1-30.common.reject-project`** | `MOODLE-LIVE` | **`PASS`** | `Whole-backup validation rejects damage without changing targets` |
+| 10 | **`M1-30.common.restore`** | `MOODLE-LIVE` | **`PASS`** | `Valid restore reproduces every backed-up byte and removes unlisted sidecars` (restored `lti.db` `sha256=0d070819...`, `cogniate.db` `sha256=f6c95a74...` 100% byte-equal to `before`) |
+| 11 | **`M1-30.common.rollback`** | `MOODLE-LIVE` | **`PASS`** | `Old build launches with K0; the portal loses the new write while Moodle retains the accepted score` |
+| 12 | **`M1-41.common.j-migration`** | `SIM` | **`PASS`** | `old build b0b83a8289e1bf9cf349068aca184f0879e9aaf0: 2 old steps with tree, hash, config, wrapper, preflight, status and lock records` |
+
+---
+
+### 12.5 Golden Capture `G1–G4` & Compare Result on Final SHA `a8bbac53` (`qalead-la-63`, `AC-LA-E7-08-03`)
+
+- **Capture (`qalead-la-63`):** `9/9` `summary.json` steps `PASS` in `47 s` capture (`102 s` total), `129` secret values scanned / `0` hits (`SLOT3F/logs/qalead-la-63-golden-capture.log`).
+- **Compare against `G-BASE` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`) with all 13 approved `LD-9` records (`LA-IC-01..21`):**
+  ```text
+  EQUAL: 280 differences (0 not explained), 0 expected changes missing; expected-delta files: LA-IC-01, LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21; 19 ms
+  ```
+- **Byte-Equality with Wave-End `8fadb828` (`qalead-la-43`):** `diff -ru` between `SLOT3C/golden-capture-8fadb828...-port9443/G*.json` and `SLOT3F/golden-capture-a8bbac53...-port9443/G*.json` is **empty (`0` bytes differ across `G1.json`, `G2.json`, `G3.json`, and `G4.json`)**.
+
+---
+
+### 12.6 `T6` (with `T5a`, `qalead-la-65`) and `T7 × 1` (`qalead-la-66`) by ID on Final SHA `a8bbac53`
+
+#### 12.6.1 `qalead-la-65` (`T5a, T6`: `53/53` Step Entries `PASS`, `46/46` Unique IDs `PASS`, `0 FAIL`)
+
+| Suite / Group | ID | Status | Duration (`playwright-results.json`) | Notes / Coverage on `a8bbac53` (`SLOT3F/artifacts/qalead-la-65-a8bbac53-2026-10-24T05-48-21-567Z/`) |
+| --- | --- | --- | --- | --- |
+| `Host / Setup` | `PRE`, `CLONE`, `SETUP`, `H1`, `FIXTURES`, `SUITE` (`3/3`), `SETUP-T5a`, `KNOB` (`2/2`), `SETUP-T6` (`4/4`), `HOSTCTL`, `TEARDOWN` | **`PASS`** (`11/11` unique IDs, `17/17` entries) | `lti-restart: 6,716 ms` | `0` failed tests across all 3 container passes (`T5a` `23` tests, `knob-PLAY_TTL_SECONDS` `1` test, `T6` `18` tests); `0` containers/volumes/networks left |
+| `T5a` (`0-setup`..`6-negative`) | `AC-T5-01`, `AC-T5-02`, `AC-T5-03`, `AC-T5-04`, `AC-T5-05`, `AC-T5-06`, `AC-T5-07`, `AC-T5-08`, `AC-T5-12`, `AC-T5-13`, `AC-T5-15` (`2` entries: main + `knob-PLAY_TTL_SECONDS`), `AC-T5-16`, `AC-T5-17`, `AC-T5-20`, `AC-T5-21`, `AC-T5-22`, `AC-T5-23`, `AC-T5-24`, `AC-T5-34`, `AC-T5-35`, `AC-T5-37` | **`PASS`** (`21/21` unique IDs, `22/22` entries) | `9 ms`–`25,275 ms` | Full SCORM 1.2 & HTML runtime, grade sync, resume, preview, rebind, and token-scope negative checks pass on `a8bbac53` |
+| `T6` (`1-integrations.spec.ts`) | **`AC-T6-01`** | **`PASS`** | `419 ms` | Exercises `apps/portal/src/Integrations.tsx` (`BD-A1-119` `data-channel-id` cards): title, subtitle, 5 filter pills, `≥ 9` cards in 3 columns at `1440 px`, Moodle card text, and `Connect` / `Manage` / `Connect another site` states |
+| `T6` (`1-integrations.spec.ts`) | **`AC-T6-02`** | **`PASS`** | `458 ms` | Portal Integrations card styling (`12 px` radius, `rgb(11,10,15)` background, `rgb(166,103,228)` active pill, DM Sans) |
+| `T6` (`1-integrations.spec.ts`) | **`AC-T6-03`** | **`PASS`** | `787 ms` | Zero external requests while sign-in and Integrations load |
+| `T6` (`1-integrations.spec.ts`) | **`AC-T6-10`** | **`PASS`** | `412 ms` | Signed-out route redirect to `/signin` and `Logout` session clear (`GET /app-api/me` → `401`) |
+| `T6` (`2-connect.spec.ts`) | **`AC-T6-04`** | **`PASS`** | `5,725 ms` | Live Moodle Dynamic Registration (`Waiting for Moodle` → `Registered — activate in Moodle` within `10 s` without reload) |
+| `T6` (`2-connect.spec.ts`) | **`AC-T6-05`** | **`PASS`** | `5,935 ms` | Manual Moodle connect (`16` tool rows in order, inline validation errors, `Registered`) |
+| `T6` (`2-connect.spec.ts`) | **`AC-T6-12`** | **`PASS`** | `733 ms` | `moodle-steps.json` wizard steps in order for both methods (`WE-F7` / `LA-IC-23`) |
+| `T6` (`3-courses.spec.ts`) | **`AC-T6-06`** | **`PASS`** | `28,124 ms` | Slow-network upload progressbar + `PATH_TRAVERSAL` rejection |
+| `T6` (`3-courses.spec.ts`) | **`AC-T6-11`** | **`PASS`** | `247 ms` | SCORM zip download SHA-256 match |
+| `T6` (`3-courses.spec.ts`) | **`AC-T6-07`** | **`PASS`** | `454 ms` | Publish dialog lists only registered/connected connections (`WE-F11` / `BD-A1-117`), publishes, and shows `"Available in Moodle"` |
+| `T6` (`4-results.spec.ts`) | **`AC-T6-08`** | **`PASS`** | `337 ms` | SCORM results & `"Refresh from Moodle"` gradebook column |
+| `T6` (`4-results.spec.ts`) | **`AC-T6-14`** | **`PASS`** | `5,497 ms` | Conflict, failed, and override rows + `Resend` → `Pending` → `Sent` without reload |
+| `T6` (`5-xss-a11y.spec.ts`) | **`AC-T6-13`** | **`PASS`** | `1,537 ms` | Literal `<b>x</b>` rendering and `window.__xss === undefined` |
+| `T6` (`5-xss-a11y.spec.ts`) | **`AC-T6-09`** | **`PASS`** | `4,772 ms` | `axe` accessibility audit (`0` serious/critical violations on Integrations with `data-channel-id`, wizard, Courses, Publish dialog, Results) + keyboard navigation |
+
+#### 12.6.2 `qalead-la-66` (`T7 × 1`: `6/6` Host Steps `OK`, `17 PASS`, `0 FAIL`, `1 SKIP`)
+
+- **Host Steps (`summary.json` `steps`: `6/6 OK`, `0 FAIL`):**
+  1. `preflight (free project, port, subnet)` (`OK`): `["project qalead-la-66, PUBLIC_PORT 9543, STACK_SUBNET 172.21.0.0/16"]`.
+  2. `clone the SHA into a new folder` (`OK`): `["HEAD a8bbac538cfe1e305f410279d7879421d64a5a1f Merge la-p 0eedb055: LA-E1-11 follow-up (BD-A1-119): data-channel-id on every channel card", "clone /Users/quangnguyen/cogniate-qa-runs/qalead-la-66-a8bbac53-2026-10-24T05-56-45-538Z", "tests/e2e copied from the working copy (--replace-e2e):  12 files changed, 67 insertions(+), 4189 deletions(-); untracked: 0"]`.
+  3. `course zips into the clone (tests/fixtures/courses, SHA-256 checked)` (`OK`): `["Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip: OK", "Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-html.zip: OK"]`.
+  4. `npm ci, gen-env, compose project name` (`OK`): `["npm ci 0, gen-env 0, compose name \"qalead-la-66\""]`.
+  5. `run 1: npm run test:e2e exit 0 in 199 s (e2e:reset 53 s); 17 pass, 0 fail, 1 skip` (`OK`): `[]`.
+  6. `teardown: stack qalead-la-66 removed with its volumes and networks` (`OK`): `["stack:down exit 0; left: 0 containers, 0 volumes, 0 networks"]`.
+- **All `18` Playwright Tests in `qalead-la-66` (`run1/tests.json` / `summary.json` `runs[0].tests`):**
+
+| # | Spec File | Test ID & Title | Status | Duration (`s`) | Errors / Key Annotations (`qalead-la-66` on `a8bbac53`) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `0-start.spec.ts` | `T7-START AC-T7-13 at the start: every /healthz shows "profile": "default" and "knobs": [], no test_knob_active event; no LTI activity yet` | **`PASS`** | `0.1 s` | `errors: []`, `["run: 20261024T055748"]` (`run1/evidence/health-start.json`: `profile: "default"`, `knobs: []` on `lti-service`, `cogniate-app`, `cogniate-content`) |
+| 2 | `1-scenario-a.spec.ts` | `A1-A2 AC-T7-02 AC-T7-14 Thanh connects "Dev Moodle" (Automatic); the Moodle admin follows the wizard steps of moodle-steps.json; the tool is active with "New window" and "Show in activity chooser"; the connection is registered` | **`PASS`** | `8.7 s` | `errors: []` (exercises `/connections` `Integrations.tsx` card with `data-channel-id="moodle"` and automatic registration flow) |
+| 3 | `1-scenario-a.spec.ts` | `A3 Thanh uploads the SCORM zip and the HTML zip and publishes both to "Dev Moodle"` | **`PASS`** | `1.7 s` | `errors: []` |
+| 4 | `1-scenario-a.spec.ts` | `A4 AC-T7-03 AC-T7-02 cg_teacher adds both courses in COGNIATE-DEV-101 (Add content → Activity or resource → Cogniate (Thanh's Library) → Select content → completion "Receive a grade"); the picker lists exactly Thanh's two courses; grade items of maximum 100; "Selected in Moodle"; the connection is connected` | **`PASS`** | `13.1 s` | `errors: []` |
+| 5 | `1-scenario-a.spec.ts` | `A5 AC-T7-07 AC-T7-04 cg_student does the SCORM activity and the HTML activity (new window, correct option) → "Completed — score 100 sent to Moodle", grade 100 within 60 s` | **`PASS`** | `37.5 s` | `errors: []` (`grade 100, 3.3 s` for both SCORM and HTML) |
+| 6 | `1-scenario-a.spec.ts` | `A6 AC-T7-07 cg_student2 does the SCORM activity with the wrong option and finishes the pages → grade 0 within 60 s` | **`PASS`** | `17.2 s` | `errors: []` (`grade 0, 3.3 s`) |
+| 7 | `1-scenario-a.spec.ts` | `AC-T7-04 grades in COGNIATE-DEV-101: cg_student 100.00 (SCORM) and 100.00 (HTML); cg_student2 0.00 (SCORM) and no grade (HTML); each within 60 s; grader report screenshot` | **`PASS`** | `1.7 s` | `errors: []` |
+| 8 | `1-scenario-a.spec.ts` | `AC-T7-05 completion "Receive a grade": cg_student has both activities done; cg_student2 has the SCORM activity done and the HTML activity not done (oracle and course page screenshots)` | **`PASS`** | `3.2 s` | `errors: []` |
+| 9 | `1-scenario-a.spec.ts` | `AC-T7-06 portal results: SCORM cg_student "Passed 100, Sent" and cg_student2 "Failed 0, Sent"; HTML cg_student "Passed 100, Sent"; after "Refresh from Moodle" the gradebook shows 100, 0, 100` | **`PASS`** | `1.1 s` | `errors: []` |
+| 10 | `2-scenario-b.spec.ts` | `B1-B2 QA Library B connects "Dev Moodle B" (Manual); the admin configures the tool manually with the shown values ("Cogniate (QA Library B)") and copies the six values back → "Registered"` | **`PASS`** | `10.5 s` | `errors: []` (exercises `/connections` `Integrations.tsx` card with `data-channel-id="moodle"` and manual registration flow) |
+| 11 | `2-scenario-b.spec.ts` | `B3 QA Library B uploads the HTML zip and publishes it to "Dev Moodle B"` | **`PASS`** | `1.0 s` | `errors: []` |
+| 12 | `2-scenario-b.spec.ts` | `B4 AC-T7-08 cg_teacher in COGNIATE-DEV-102: Add content → Activity or resource → "Cogniate (QA Library B)" → Select content → the course, completion "Receive a grade"; the picker lists only the library B course` | **`PASS`** | `8.3 s` | `errors: []` |
+| 13 | `2-scenario-b.spec.ts` | `B5 AC-T7-08 cg_teacher in COGNIATE-DEV-101 opens "Select content" of "Cogniate (Thanh's Library)" again (no save): the library B course is not listed` | **`PASS`** | `7.7 s` | `errors: []` |
+| 14 | `2-scenario-b.spec.ts` | `B6 AC-T7-09 AC-T7-07 cg_student completes the COGNIATE-DEV-102 activity (correct option): 102 gradebook 100.00; library B results show the row; Thanh's results views do not` | **`PASS`** | `24.9 s` | `errors: []` (`grade 100, 3.8 s`) |
+| 15 | `3-scenario-c.spec.ts` | `C1 AC-T7-10 the captured learner launch form (id_token + state) posted again → INVALID_STATE, no redirect (browser and Node)` | **`PASS`** | `0.1 s` | `errors: []` (`HTTP 401, data-error-code INVALID_STATE` in browser and Node) |
+| 16 | `3-scenario-c.spec.ts` | `C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API key (and no state, registration ref, play id or picker id) is in any infra/.logs/*.jsonl` | **`PASS`** | `0.1 s` | `errors: []` |
+| 17 | `9-end.spec.ts` | `T7-END AC-T7-13 at the end: every /healthz shows "profile": "default" and "knobs": []; no test_knob_active event in the run's logs` | **`PASS`** | `0.0 s` | `errors: []` (`run1/evidence/health-end.json`: `profile: "default"`, `knobs: []` on `lti-service`, `cogniate-app`, `cogniate-content`; `0` `test_knob_active` events) |
+| 18 | `demo-check.spec.ts` | `DEMO AC-T7-15 after demo:prepare, cg_student opens both activities in COGNIATE-DEV-101 and reaches the player` | **`SKIP`** | `0.0 s` | `["skip: runs only in the demo pass (QA_E2E_DEMO=1)"]` (same as baseline `qalead-la-20`) |
+
+---
+
+### 12.7 `M3` Global-State Environment Notes (`TEST-STRATEGY.md` §5.4) & Slot 3F Docker Boundary Records
+
+- **External `sto-*` (Savoy) Activity During Slot 3F (`05:29:14Z–06:01:52Z`):** Our read-only `docker events` watcher (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3F/docker-records/docker-events-watch.jsonl`) recorded **`93` `sto-*` container creates** (`100%` of all non-`qalead-la-*` container creates). QA never touched any `sto-*` container or volume.
+- **Per-Run `M3` & `TEARDOWN` Rows:** Every single `M3` row (`qalead-la-60` `M3-06-M2` & `M3-07-M2`, `qalead-la-61` `M3-ISOLATION`, `qalead-la-62` `M3-ISOLATION`, `qalead-la-64` `M3-06-M2` & `M3-07-M2`) and every `TEARDOWN` row across `qalead-la-60..66` was **`PASS` / `OK`** with `0` `qalead-la-*` containers, volumes, or networks remaining.
+- **32 Protected Persistent Volume `inspect` & Boundary Verification (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3F/docker-records/`, `umask 077`):**
+  - `before-timestamp.txt`: `2026-10-24T05:29:14Z` → `after-timestamp.txt`: `2026-10-24T06:01:52Z`.
+  - `before-non-sto-containers.txt`: `0`; `after-non-sto-containers.txt`: `0` (`0` `qalead-la-*` or `cogniate-build-*` containers, volumes, or networks remaining).
+  - `before-networks.txt` vs `after-networks.txt`: `3` (`bridge`, `host`, `none`).
+  - `before-32-volumes-inspect.json` vs `after-32-volumes-inspect.json`: All **`32/32` protected non-`sto-*` persistent volumes** are **100% byte-identical in `docker volume inspect` JSON** (`diff-32-volumes.txt` is empty, `0` bytes).
+  - `host-ps-watcher.log` (sampled every `10 s` throughout Slot 3F) confirmed at most one `qalead-la-<n>` project ran at any time.
+
+---
+
+### 12.8 Final Verdict Lines for `LA-E7-08` (`AC-LA-E7-08-01..06`) and `LA-E7-09` (`AC-LA-E7-09-01..05`)
+
+#### 12.8.1 `LA-E7-08` Final Verdict Lines (`AC-LA-E7-08-01..06`)
+
+| AC | Final Verdict | Covering Runs & Product SHAs | Product Change Covered & Evidence Summary |
+| --- | --- | --- | --- |
+| **`AC-LA-E7-08-01`** | **`PASS`** | • **`M2` on final SHA `a8bbac53` (`la-final-test-1` `85ddf973`):** Slot 3F **`qalead-la-60`** (`64/64` cases, `71/71` `summary.json` rows `PASS`), plus **`qalead-la-64`** (`64/64` cases, `71/71` rows `PASS` on `1b17261` / `la-slot7-test-2` `38de1c38` for `LD-1` parity) and Slot 3C **`qalead-la-42`** (`64/64 PASS` on `8fadb828`).<br>• **`M1 --phase sim --provider all` (`394` rows):** Slot 3D **`qalead-la-44`** (`394/394` manifest rows, `400/400` `summary.json` rows `PASS` on `8fadb828` / `6ce8ffaf`). | Between `8fadb828` and `a8bbac53`, the only product code change is `data-channel-id={item.channel}` in `apps/portal/src/Integrations.tsx` (`BD-A1-119`; `0` backend or LTI service changes). `qalead-la-44` proves all `394/394` `M1 sim` API/protocol/browser rows on the unchanged `lti-service` / `cogniate-app` backend (`8fadb828`), while `qalead-la-60` proves all `64/64` `M2` browser cases (including `M2-01.cards`, `M2-01.isolated-newest`, `M2-01.moodle-card` with the `BD-A1-119` `article[data-channel-id]` oracle) on the final SHA `a8bbac53`. |
+| **`AC-LA-E7-08-02`** | **`PENDING`** | Pending **`LA-E7-06` kit `K1` run** (`LA-H25`) | Awaits the `LA-E7-06` kit `K1` run on a fresh SIM lane with the `N/A` rule, `C1` equality, `coveredBy`, and `K-HYG` (`TEST-STRATEGY.md` §2.6; human decision `LA-H25`). |
+| **`AC-LA-E7-08-03`** | **`PASS`** | Slot 3F **`qalead-la-63`** on final SHA `a8bbac53` (`la-final-test-1` `85ddf973`) + Slot 3C **`qalead-la-43`** on `8fadb828` | `qalead-la-63` captured `G1.json..G4.json` on `a8bbac53` (`9/9` steps `PASS`, `129` secrets scanned / `0` hits; `G1..G4.json` 100% byte-identical to `8fadb828` `qalead-la-43`), and `compare.mjs` against `G-BASE` (`1b17261`) with all 13 approved `LD-9` records (`LA-IC-01..21`) exited `0` in `19 ms` (`EQUAL: 280 differences (0 not explained), 0 expected changes missing`). |
+| **`AC-LA-E7-08-04`** | **`PASS`** | • **Slot 3F `qalead-la-61`** (`M1 --phase migration` on `a8bbac53` / `la-final-test-1`) & **Slot 3F `qalead-la-62`** (`M1 --phase snapshot-upgrade` on `a8bbac53` / `la-final-test-1`).<br>• **Slot 3B `qalead-la-13`** (`U1-SIM` `LA-E5-08` + `LA-E5-22` upgrade continuity). | `qalead-la-61` (`11/11` `summary.json`, `12/12` `m1-case-results.json` `PASS`: `M1-23.common.{baseline,backup,backup-running,upgrade}`, `M1-30.common.{postwrite,reject-bytes,reject-missing,reject-backup-id,reject-project,restore,rollback}`, `M1-41.common.j-migration`) and `qalead-la-62` (`11/11` `summary.json`, `6/6` `m1-case-results.json` `PASS`: `M1-38.common.h1..h5` + `M1-41.common.j-snapshot` with `LD-24` `checkMigrationLedgers`) prove migration and snapshot-upgrade on the final SHA `a8bbac53` (`0` SQL migrations or key-provider changes since `qalead-la-13` `37/37 PASS`). |
+| **`AC-LA-E7-08-05`** | **`PASS`** | **Slot 3F `K0` host `git diff` audit** on `src-wave-end-7` (`la-gate-test-7` `a675ee24`), `src-final-1` (`la-final-test-1` `85ddf973`), and `src-slot7-r2` (`la-slot7-test-2` `38de1c38`) | `la-final-test-1:tests` equals `la-gate-test-7:tests` (`ac9f1e650f5cd7222691a9727837bb51c8835e1a`); `git diff --stat la-gate-test-6 la-gate-test-7` contains only the 8 approved Round 3 `ld9-addendum-r5.md` files (`A` and `B` `APPROVE` in `docs/reviews/LA-E0-04/`); `git diff --exit-code a8bbac53 la-final-test-1 -- . ':!tests'` is empty (`0` non-test files differ); and `QA_SUITE=e2e npx playwright test -c playwright.config.ts --list` is identical to `1b17261` (`18 tests in 6 files`). |
+| **`AC-LA-E7-08-06`** | **`PASS`** | **Slot 3F `K0` host `git diff` audit** on `src-final-1` (`1b17261..a8bbac53`) | `git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-1 diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..a8bbac538cfe1e305f410279d7879421d64a5a1f -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` is empty (`0` files changed, exit `0`). |
+
+#### 12.8.2 `LA-E7-09` Final Verdict Lines (`AC-LA-E7-09-01..05`)
+
+| AC | Final Verdict | Covering Runs & Product SHAs | Product Change Covered & Evidence Summary |
+| --- | --- | --- | --- |
+| **`AC-LA-E7-09-01`** | **`PASS`** | • **Slot 8d `qalead-la-56` (`T7 × 3` on `8fadb828` / `la-gate-test-6` `9de01429`):** `3` consecutive runs × `17 PASS`, `0 FAIL`, `1 SKIP` (`DEMO AC-T7-15`) in `179 s`, `178 s`, `181 s` (`8/8` host steps `OK`).<br>• **Slot 3F `qalead-la-66` (`T7 × 1` on final SHA `a8bbac53` / `la-final-test-1` `85ddf973`):** `17 PASS`, `0 FAIL`, `1 SKIP` (`DEMO AC-T7-15`) in `199 s` (`6/6` host steps `OK`).<br>• **Baseline:** Slot 7 `qalead-la-20` on `1b17261` (`3 × 17 PASS + 1 SKIP`). | `qalead-la-56` (`T7 × 3` on `8fadb828`) covers the entire LA wave-end product code (`lti-service`, `cogniate-app`, `cogniate-content`, and Moodle 5.2 integration). Between `8fadb828` and the final SHA `a8bbac53`, the only product code change is lane P's `data-channel-id={item.channel}` attribute on every channel card in `apps/portal/src/Integrations.tsx` (`BD-A1-119`), which `qalead-la-66` (`T7 × 1` on `a8bbac53`) directly exercises in `A1-A2` and `B1-B2` along with the full `17 PASS + 1 SKIP` end-to-end live Moodle flow. |
+| **`AC-LA-E7-09-02`** | **`PASS`** | • **On `8fadb828`:** Slot 8 `qalead-la-31` (`T2a,T2b,T3a,T3b` `64/64 PASS`), `qalead-la-32` (`T3c` `28/28 PASS`), `qalead-la-33` (`T4b1,T4b2` `40/40 PASS`), `qalead-la-36` (`T4a` `15/15 PASS`); Slot 8b `qalead-la-52` (`T8` `23/23 PASS`); Slot 8c `qalead-la-53` (`T5a,T6` `46/46 PASS`) & `qalead-la-55` (`T5a,T5b` `48/48` unique IDs / `24/24` `T5b` tests `PASS`; `qalead-la-54` is `flake (finding WE-F12)` on `P5`); Slot 8d `qalead-la-56` (`T7 × 3` `3 × 17 PASS + 1 SKIP`).<br>• **On final SHA `a8bbac53` (`la-final-test-1` `85ddf973`):** Slot 3F **`qalead-la-65`** (`T5a,T6` `53/53` step entries, `46/46` unique IDs `PASS`: `21/21` `T5a` ACs + `14/14` `T6` ACs) and **`qalead-la-66`** (`T7 × 1` `17 PASS + 1 SKIP`). | Slots 8, 8b, 8c, and 8d prove 100% of legacy groups `T2a–T8` on `8fadb828` (where all `lti-service`, `cogniate-app` backend, `cogniate-content`, and `.mbz` build-runner changes landed). Slot 3F `qalead-la-65` (`T5a, T6`) and `qalead-la-66` (`T7 × 1`) re-verify `T5a`, `T6` (`AC-T6-01..14`, including `1-integrations.spec.ts` and `5-xss-a11y.spec.ts` `axe` audit on `/connections`), and `T7` on `a8bbac53`, covering the sole `8fadb828..a8bbac53` product change (`data-channel-id` in `apps/portal/src/Integrations.tsx`). |
+| **`AC-LA-E7-09-03`** | **`PASS`** | • **Slot 8d `qalead-la-56` on `8fadb828`:** Runs 1, 2, 3 `T7-START AC-T7-13` & `T7-END AC-T7-13` (`run1..3/evidence/health-start.json` & `health-end.json`).<br>• **Slot 3F `qalead-la-66` on final SHA `a8bbac53`:** `T7-START AC-T7-13` (`0.1 s`, `PASS`) & `T7-END AC-T7-13` (`0.0 s`, `PASS`; `run1/evidence/health-start.json` & `run1/evidence/health-end.json`). | Both on `8fadb828` (`qalead-la-56` Runs 1–3, covering all service/healthz code) and on `a8bbac53` (`qalead-la-66` Run 1, covering the final portal build), `/healthz` of `lti-service`, `cogniate-app`, and `cogniate-content` in the `default` profile returned HTTP `200` with `"profile": "default"` and `"knobs": []` at start and end, and `0` `test_knob_active` events appeared in `infra/.logs/*.jsonl`. |
+| **`AC-LA-E7-09-04`** | **`pending: QA-E2E K2 on a8bbac53`** (`PASS` on `8fadb828` in Slot 8b `qa-e2e-la-s8b-r1` `16/16 PASS` & Slot 8e `qa-e2e-la-sim-r7` `19/19 PASS` / `12/12` `K2` cases `PASS`) | **Slot 8b `qa-e2e-la-s8b-r1`** (`a7bd110e` / product `8fadb828`, `docs/reviews/LA-E7-09/qa.md` Round 4) + **Slot 8e `qa-e2e-la-sim-r7`** (`3b9bed57` / product `8fadb828`, `docs/reviews/LA-E7-07/qa.md` Round 4); **QA-E2E's `K2` rerun on `a8bbac53` follows next** after Slot 3F stack down | All `12/12` `K2` `U1–U4` cases (`U1.card-order`, `U1.card-copy-and-action`, `U2.*`, `U3.*`, `U4.*`) and live Moodle `S8-01..06` passed on `8fadb828`; QA-E2E's `K2` run on `a8bbac53` (covering `BD-A1-119` `data-channel-id` on `/connections`) runs immediately after this Slot 3F stack down. |
+| **`AC-LA-E7-09-05`** | **`pending`** | **Pending milestone-end double run (`B4`)** on the final SHA | Final SHA milestone-end gate: two identical full runs of the milestone end (`SIM` and `Moodle` lanes). |
+
 
 
 
