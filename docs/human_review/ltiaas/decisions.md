@@ -7,9 +7,7 @@
 ### LA-H25: how do we finish the channel kit (LA-E7-06)? Decided: (a)
 
 - **Facts:** LA-E7-06 (the K1 channel certification kit, Must) used the 3 fix rounds of charter-LA §5. Each round-4 review still has 2 open BLOCKERs: some safety checks and some callers do not match the product contracts. The kit host checks pass, including the one-file onboarding of a sixth channel ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 4).
-- **What waits (kit round 8):**
-  - AC-LA-E7-08-02, the kit K1 run for every channel: pending: kit round 8 (LD-27). QA corrected its earlier PASS: the per-task K1-SIM rows do not apply the kit pass rule ([LA-E7-08 qa §8.6](../../reviews/LA-E7-08/qa.md#86-disclosed-correction-of-ac-la-e7-08-02-pending-not-pass-and-final-verdict-for-la-e7-08-ac-la-e7-08-0106)).
-  - LA-E8-02 AC-03, the `acme-lms` kit K1 run of the timed walkthrough: pending: kit round 8 (LD-27). The other four ACs of LA-E8-02 PASS ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md)).
+- **Result:** the kit is done. The round 7 fix of LD-27 passed the live run r8 on `a8bbac53`: 195 of 195 expected cases PASS on all 5 channels, and the round 8 reviews APPROVE with 0 open findings ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 8). AC-LA-E7-08-02 is PASS on `a8bbac53`; pending: re-gate on 4f10c5fd (LD-29). The `acme-lms` kit run of the walkthrough (LA-E8-02 AC-03) passed 39 of 39 ([LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) round 2).
 - **Options:**
   - (a) One extra fix round by a fresh Claude Opus 5.5 xhigh QA session (a model exception for this task). The reviewers' round-4 counterexample probes are its acceptance test. Then round-5 reviews.
   - (b) One extra fix round on Antigravity QA-4.
@@ -19,6 +17,25 @@
   1. About 09:25Z: option (a), one extra fix round by a fresh QA session, then round-5 reviews and the kit K1-SIM run.
   2. About 13:15Z: Reviewer-A's last BLOCKER got a narrow fix (both reviewers APPROVE). The first live K1-SIM run failed on kit wiring defects only. The product owner chose a live fix-and-rerun window for QA-K, then one review of the whole diff and a clean final run.
   3. Plan LD-27 (Lead): the live run r7 gave 195 of 195 ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 7), but the round 7 reviews ask for changes in kit oracles that the window added. So: one kit fix round by QA-K (kit files only, no product change), round 8 reviews of that fix, then a clean final live run. If BLOCKER or MAJOR findings stay open after round 8, the Lead escalates with option (c).
+
+### LA-H27: when do we merge the Blackboard and Canvas final result? Decided: (a)
+
+- **Facts:** LA started on a frozen candidate of the Blackboard and Canvas milestone and planned to merge its final commits later (LA-H10 (a)). That merge was not done. The Blackboard and Canvas final result is main `78971b03`.
+- **Options:** (a) merge now and repeat the full re-gate on the new final SHA; (b) close LA on the frozen base and merge at the LA-to-main step; (c) merge now with one re-gate run.
+- **Lead recommendation:** (a).
+- **Decision:** (a), by the product owner on 2026-10-24 ([plan §6.2](../../team/ltiaas/plan.md#62-human-decisions)). The new final product SHA is `4f10c5fd` (`a8bbac53` plus main `78971b03`).
+- **What waits:** the re-gate on `4f10c5fd` (LD-29 below): pending: re-gate on 4f10c5fd (LD-29).
+
+## Lead decisions since the gate
+
+From [plan §6.1](../../team/ltiaas/plan.md):
+
+| Id | Decision |
+| --- | --- |
+| LD-27 | The kit round 7 review findings are part of the LA-H25 live window: one kit fix round, round 8 reviews of that fix, then a clean final live run. Result: done, PASS on `a8bbac53` (above). |
+| LD-28 | Two unbuilt cut candidates go to the LG backlog: LA-E4-06 (Should, the app-edge limit on the handoff pages) and LA-E7-12 (Could, other K2 browser checks). No task depends on them, and a build now would change the SHA of the first final runs. |
+| LD-29 | The re-gate after the Blackboard and Canvas merge (LA-H27): every suite of the milestone-end double run and the kit K1 runs again on `4f10c5fd`, with the rules of LD-25. Task evidence on `a8bbac53` stays valid as task evidence; only the gate and final-SHA claims move. A re-captured baseline also closes the LA-E0-02 and LA-E0-03 gaps: in progress (LD-29). |
+| LD-30 | Kit finding F-LA-E7-06-WALK-02: with the walkthrough channel `acme-lms`, the kit gave a false FAIL on `brightspace` R3 (37 of 39). One narrow kit fix by QA-K, then round 9 reviews of that fix. The re-gate kit runs use the fixed kit. AC-LA-E8-02-03 stays PASS. |
 
 ## Decide first
 

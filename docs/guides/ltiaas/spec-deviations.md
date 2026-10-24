@@ -1,6 +1,6 @@
 # Spec deviations, LTIAAS API differences and LA-IC status (milestone LA)
 
-Source: integration head `34676f9c`; final product SHA `a8bbac53` (wave-end SHA `8fadb828` plus `data-channel-id` on every channel card, BD-A1-119); 2026-10-24. Status: **final for LA**, except one gate row: AC-LA-E7-08-02, the kit K1 run for every channel, says **pending: kit round 8 (LD-27)** (§4).
+Source: integration head `abec887d`; 2026-10-24. `a8bbac53` is the SHA of the first final runs (wave-end SHA `8fadb828` plus `data-channel-id` on every channel card, BD-A1-119). The new final product SHA is `4f10c5fd`: `a8bbac53` plus the Blackboard and Canvas final result (main `78971b03`; LA-H27). Status: the results on `a8bbac53` are final for that SHA. Every gate row repeats on `4f10c5fd`: **pending: re-gate on 4f10c5fd (LD-29)** (§4).
 
 The base contract holds the rows of §1 and §2: [lti-service-api §8](../../architecture/contracts/lti-service-api.md#8-differences-from-the-public-ltiaas-api) has D22–D36, and [§8.1](../../architecture/contracts/lti-service-api.md#81-deliberate-deviations-from-the-1edtech-specs) has the deliberate 1EdTech deviations (A2 copied them, BD-A2-111). This file adds the QA evidence of each row, the status of each intended change (LA-IC), and the wave-end gate results. It makes no new design decision. The A1 and A2 conformance checks both APPROVE: [conformance-A1](../../architecture/ltiaas/conformance-A1.md) round 2, with a correction note for BD-A1-121, and [conformance-A2](../../architecture/ltiaas/conformance-A2.md) round 1. Their follow-ups are in §8.
 
@@ -47,7 +47,7 @@ The rows of [lti-service-api §8](../../architecture/contracts/lti-service-api.m
 
 ## 3. Intended behaviour changes (`LA-IC-nn`, LA-ADR-04 D8)
 
-Each id is a row of [LA-ADR-04 D8](../../architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn) (today LA-IC-01 to LA-IC-24). "LD-9 list" is the reviewed list of frozen-test changes (plan LD-9; [Reviewer-A](../../reviews/LA-LD9/reviewer-a.md), [Reviewer-B](../../reviews/LA-LD9/reviewer-b.md)); the wave-end addenda r1–r7 and their reviews are in [docs/reviews/LA-E7-08/](../../reviews/LA-E7-08/qa.md). Plan LD-23 (LA-IC-02, -05, -10, -11) and LD-26 (LA-IC-24) approve the empty lists. Plan LD-24 approves the stricter `M1-41` ledger assertion of the migration runner (a runner check, not an LA-IC; WE-F5). The final runs D1 and D2 on `a8bbac53` (§4) give the baseline result per test id for every frozen suite, after the recorded reruns. They are the last evidence for every row that has a frozen test. Status values: **built** (the change is in the product, with the task) and **not built** (it waits for a human decision; no Lead cut is recorded).
+Each id is a row of [LA-ADR-04 D8](../../architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn) (today LA-IC-01 to LA-IC-24). "LD-9 list" is the reviewed list of frozen-test changes (plan LD-9; [Reviewer-A](../../reviews/LA-LD9/reviewer-a.md), [Reviewer-B](../../reviews/LA-LD9/reviewer-b.md)); the wave-end addenda r1–r7 and their reviews are in [docs/reviews/LA-E7-08/](../../reviews/LA-E7-08/qa.md). Plan LD-23 (LA-IC-02, -05, -10, -11) and LD-26 (LA-IC-24) approve the empty lists. Plan LD-24 approves the stricter `M1-41` ledger assertion of the migration runner (a runner check, not an LA-IC; WE-F5). The first final runs D1 and D2 on `a8bbac53` (§4) give the baseline result per test id for every frozen suite, after the recorded reruns. They are the last evidence for every row that has a frozen test. Status values: **built** (the change is in the product, with the task) and **not built** (it waits for a human decision; no Lead cut is recorded).
 
 | Id | Change | Status | LD-9 list | QA evidence |
 | --- | --- | --- | --- | --- |
@@ -80,26 +80,28 @@ Summary: 22 built, 2 not built (LA-IC-07, LA-IC-08). One built row has a recorde
 
 ## 4. Wave-end gate and milestone-end results
 
-Sources: [LA-E7-08 qa](../../reviews/LA-E7-08/qa.md) §8 and §12 (SIM lane and final SHA), §13 (milestone-end run D1), [run-D2](../../reviews/LA-E7-08/run-D2.md) (milestone-end run D2), [LA-E7-09 qa](../../reviews/LA-E7-09/qa.md) and LA-E7-08 qa §7–§11 (Moodle lane), [LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) round 5 (K2), [LA-E0-02 qa](../../reviews/LA-E0-02/qa.md) and [LA-E0-04 qa](../../reviews/LA-E0-04/qa.md) (baseline and the open-world test rewrite). The intake build `1b17261` is the baseline.
+Sources: [LA-E7-08 qa](../../reviews/LA-E7-08/qa.md) §8 and §12 (SIM lane and the SHA of the first final runs), §13 (milestone-end run D1), [run-D2](../../reviews/LA-E7-08/run-D2.md) (milestone-end run D2), [LA-E7-09 qa](../../reviews/LA-E7-09/qa.md) and LA-E7-08 qa §7–§11 (Moodle lane), [LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) round 5 (K2), [LA-E0-02 qa](../../reviews/LA-E0-02/qa.md) and [LA-E0-04 qa](../../reviews/LA-E0-04/qa.md) (baseline and the open-world test rewrite). The intake build `1b17261` is the baseline.
+
+Every row below is a result on `a8bbac53`, the SHA of the first final runs. It stays true for that SHA. LD-29 repeats every suite of the milestone-end double run and the kit K1 on the new final product SHA `4f10c5fd`, so every row also says **pending: re-gate on 4f10c5fd (LD-29)**. The E0 close-out evidence reviews found gaps in LA-E0-02 (the legacy baseline and the rate peaks) and LA-E0-03 (the Moodle golden segment). Their fix rounds run on the re-captured baseline: in progress (LD-29).
 
 | AC | Result | Evidence |
 | --- | --- | --- |
-| AC-LA-E7-08-01 (frozen M1 and M2) | PASS | M1 sim 394 of 394 on `8fadb828` (slot 3D) and on `a8bbac53` (runs D1 and D2); M2 64 of 64 on `a8bbac53` (slot 3F, runs D1 and D2) |
-| AC-LA-E7-08-02 (kit K1 for every channel) | **pending: kit round 8 (LD-27)** | the LA-E7-06 kit K1 run. The live run r7 on `a8bbac53` gave 195 of 195 expected cases PASS on all 5 channels ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 7). The round 7 reviews ask for kit oracle fixes before acceptance ([Reviewer-A](../../reviews/LA-E7-06/reviewer-a.md), [Reviewer-B](../../reviews/LA-E7-06/reviewer-b.md)). LD-27 sets one kit fix round, round 8 reviews of that fix, and a clean final live run. The per-task K1-SIM rows of each channel do not apply the kit pass rule (LA-E7-08 qa §8.6) |
-| AC-LA-E7-08-03 (golden G1–G4) | PASS | `EQUAL: 280 differences (0 not explained)` against the intake build with the 13 approved LA-IC records, on `a8bbac53` (slot 3F, runs D1 and D2) |
-| AC-LA-E7-08-04 (data continuity) | PASS | M1 migration 12 of 12 and snapshot upgrade 6 of 6 on `a8bbac53` (slot 3F); upgrade route U1 37 of 37 (slot 3B) |
-| AC-LA-E7-08-05, -06 (test and storage-script audits) | PASS | host `git diff` audits (slot 3F) |
-| AC-LA-E7-09-01 (T7 on local Moodle) | PASS | `[MOODLE-LIVE]` T7 3 × 17 plus the demo skip on `8fadb828` (slot 8d); T7 × 1 17 of 17 on `a8bbac53` (slot 3F); T7 3 × 17 on `a8bbac53` in runs D1 and D2 |
-| AC-LA-E7-09-02 (legacy groups T2a–T8) | PASS | `[MOODLE-LIVE]` the baseline result per test id on `8fadb828` (slots 8, 8b, 8c); T6 with T5a on `a8bbac53` (slot 3F); every group PASS on `a8bbac53` in runs D1 and D2, after the recorded reruns. T5b P5 is a flake on both builds (WE-F12) |
-| AC-LA-E7-09-03 (`/healthz` after the run) | PASS | `"profile": "default"`, `"knobs": []` (slots 8d and 3F) |
-| AC-LA-E7-09-04 (K2 U1–U4) | PASS | `[K2]` 12 of 12 cases on `a8bbac53` ([LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) round 5) |
-| AC-LA-E7-09-05 (milestone-end double full run) | PASS (rule LD-25) | runs D1 ([LA-E7-08 qa §13](../../reviews/LA-E7-08/qa.md#13-milestone-end-full-run-d1-2026-10-24-091057z131538z)) and D2 ([run-D2](../../reviews/LA-E7-08/run-D2.md)) on product `a8bbac53`, SIM and Moodle lanes. Test sources: `la-final-test-1` (`85ddf973`) and `la-final-test-2` (`68b2e909`: `85ddf973` plus LD-9 addenda r6, the Docker identity, and r7, the T8 option wait). Under LD-25, M1 sim, M2 and T8 run on `la-final-test-2` in both runs, and the other suites count from `la-final-test-1`. Each run: M1 sim 394 of 394, M2 64 of 64, G1–G4 EQUAL, T7 3 × 17, and T2a–T8 PASS. Recorded findings, each rerun in its run and PASS: WE-F13 in D1, two load flakes in D2 (§5). The AC row is in [LA-E7-09 qa](../../reviews/LA-E7-09/qa.md) |
+| AC-LA-E7-08-01 (frozen M1 and M2) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | M1 sim 394 of 394 on `8fadb828` (slot 3D) and on `a8bbac53` (runs D1 and D2); M2 64 of 64 on `a8bbac53` (slot 3F, runs D1 and D2) |
+| AC-LA-E7-08-02 (kit K1 for every channel) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | the LA-E7-06 kit K1 run r8, after the round 7 fix of LD-27: 195 of 195 expected cases PASS on all 5 channels, with K-HYG and the fault matrix ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) Round 8). The round 8 reviews APPROVE, with 0 open findings ([Reviewer-A](../../reviews/LA-E7-06/reviewer-a.md), [Reviewer-B](../../reviews/LA-E7-06/reviewer-b.md)). The re-gate kit runs use the kit tree with the WALK-02 fix (LD-30, §5) |
+| AC-LA-E7-08-03 (golden G1–G4) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | `EQUAL: 280 differences (0 not explained)` against the intake build with the 13 approved LA-IC records, on `a8bbac53` (slot 3F, runs D1 and D2) |
+| AC-LA-E7-08-04 (data continuity) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | M1 migration 12 of 12 and snapshot upgrade 6 of 6 on `a8bbac53` (slot 3F); upgrade route U1 37 of 37 (slot 3B) |
+| AC-LA-E7-08-05, -06 (test and storage-script audits) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | host `git diff` audits (slot 3F) |
+| AC-LA-E7-09-01 (T7 on local Moodle) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | `[MOODLE-LIVE]` T7 3 × 17 plus the demo skip on `8fadb828` (slot 8d); T7 × 1 17 of 17 on `a8bbac53` (slot 3F); T7 3 × 17 on `a8bbac53` in runs D1 and D2 |
+| AC-LA-E7-09-02 (legacy groups T2a–T8) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | `[MOODLE-LIVE]` the baseline result per test id on `8fadb828` (slots 8, 8b, 8c); T6 with T5a on `a8bbac53` (slot 3F); every group PASS on `a8bbac53` in runs D1 and D2, after the recorded reruns. T5b P5 is a flake on both builds (WE-F12) |
+| AC-LA-E7-09-03 (`/healthz` after the run) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | `"profile": "default"`, `"knobs": []` (slots 8d and 3F) |
+| AC-LA-E7-09-04 (K2 U1–U4) | PASS on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | `[K2]` 12 of 12 cases on `a8bbac53` ([LA-E7-07 qa](../../reviews/LA-E7-07/qa.md) round 5) |
+| AC-LA-E7-09-05 (milestone-end double full run) | PASS (rule LD-25) on `a8bbac53`; **pending: re-gate on 4f10c5fd (LD-29)** | runs D1 ([LA-E7-08 qa §13](../../reviews/LA-E7-08/qa.md#13-milestone-end-full-run-d1-2026-10-24-091057z131538z)) and D2 ([run-D2](../../reviews/LA-E7-08/run-D2.md)) on product `a8bbac53`, SIM and Moodle lanes. Test sources: `la-final-test-1` (`85ddf973`) and `la-final-test-2` (`68b2e909`: `85ddf973` plus LD-9 addenda r6, the Docker identity, and r7, the T8 option wait). Under LD-25, M1 sim, M2 and T8 run on `la-final-test-2` in both runs, and the other suites count from `la-final-test-1`. Each run: M1 sim 394 of 394, M2 64 of 64, G1–G4 EQUAL, T7 3 × 17, and T2a–T8 PASS. Recorded findings, each rerun in its run and PASS: WE-F13 in D1, two load flakes in D2 (§5). The AC row is in [LA-E7-09 qa](../../reviews/LA-E7-09/qa.md) |
 
 Environment note: Docker Desktop updated itself on the QA host during run D1 (CLI 29.9.1 → 29.9.2, Compose 5.6.0 → 5.6.1). The two M1 sim attempts that the update stopped are environment events, not PASS. A new G-1 diagnostic passed on the new identity ([ADR-012 §17](../../architecture/adr/ADR-012-sqlite-volume-storage.md#17-measured-feasibility-facts-and-assumptions-for-the-build-step) "G-1 result 2"; BD-A1-120; BD-A2-113), and LD-9 addendum r6 bound the M1 runner to it.
 
 ## 5. Wave-end and milestone-end findings (WE-F1 to WE-F13, and the D2 flakes)
 
-Each finding has a decision. Sources: the LA-E7-08 qa findings tables and §13.3, [run-D2](../../reviews/LA-E7-08/run-D2.md) §2, [build-decisions-A1](../../architecture/ltiaas/build-decisions-A1.md) BD-A1-113 to BD-A1-121, [build-decisions-A2](../../architecture/ltiaas/build-decisions-A2.md) BD-A2-108 to BD-A2-113, plan LD-23 to LD-26, and the [board](../../team/ltiaas/board.md). A failed or flaky run never counts as PASS (TEST-STRATEGY §2.6).
+Each finding has a decision. Sources: the LA-E7-08 qa findings tables and §13.3, [run-D2](../../reviews/LA-E7-08/run-D2.md) §2, [LA-E8-02 qa](../../reviews/LA-E8-02/qa.md) Round 2, [build-decisions-A1](../../architecture/ltiaas/build-decisions-A1.md) BD-A1-113 to BD-A1-121, [build-decisions-A2](../../architecture/ltiaas/build-decisions-A2.md) BD-A2-108 to BD-A2-113, plan LD-23 to LD-30, and the [board](../../team/ltiaas/board.md). A failed or flaky run never counts as PASS (TEST-STRATEGY §2.6).
 
 | Finding | What failed | Decision | Result |
 | --- | --- | --- | --- |
@@ -118,6 +120,7 @@ Each finding has a decision. Sources: the LA-E7-08 qa findings tables and §13.3
 | WE-F13 | run D1: T8 `AC-T8-10` (with token) read the connection options before the dialog loaded them | a test race in the frozen case, not an LA difference; LD-9 addendum r7 waits for the option (A and B APPROVE) | T8 rerun PASS in D1; T8 PASS in D2 |
 | D2 flake 1 | run D2: T7 × 3, run 2, `AC-T7-08` timed out while two Moodle stacks ran on the host | a load flake; after it, at most one Moodle stack runs at a time (LD-25) | T7 × 3 rerun PASS in D2 |
 | D2 flake 2 | run D2: `M2-11.blackboard-keyboard` timed out twice under concurrent load on the host | a load flake | M2 rerun 64 of 64 in D2 |
+| F-LA-E7-06-WALK-02 | the kit run of LA-E8-02 AC-03, with the walkthrough channel `acme-lms` added: the kit expected a wrong answer from `brightspace` R3 (a false FAIL, 37 of 39) | a kit oracle defect, not a product defect; one narrow kit fix by QA-K, then round 9 reviews (LD-30). `acme-lms` itself passed 39 of 39 under its pass rule (AC-LA-E8-02-03 PASS) | kit fix in progress (LD-30) |
 
 ## 6. Not built in LA
 
@@ -128,6 +131,8 @@ Each finding has a decision. Sources: the LA-E7-08 qa findings tables and §13.3
 | Claim policy per tool account at launch (LA-IC-08) | waits for LA-H4 | LA-E3-10 |
 | Verified admin launch | waits for LA-H24 and a security review | LA-E6-03, LA-E6-07 |
 | Record of launch refusals in the connection health view | deferred | LA-E6-06 |
+| The app-edge limit on the handoff pages (Should) | cut to LG (LD-28) | LA-E4-06 |
+| Other K2 browser checks, U5 (Could) | cut to LG (LD-28) | LA-E7-12 |
 | Hosted Canvas token endpoints; Blackboard "membership service off" | need a live Canvas or Blackboard check | [conformance-A2 §1, §2](../../architecture/ltiaas/conformance-A2.md#1-design-items) |
 | `production` mode on the compose stack | a production host setup is milestone LG | BD-A2-105 |
 
@@ -139,7 +144,7 @@ Each finding has a decision. Sources: the LA-E7-08 qa findings tables and §13.3
 
 ## 8. Architect conformance follow-ups
 
-A1 (round 2, on the final SHA `a8bbac53`) and A2 (round 1, on `8fadb828`; the final SHA adds only one portal attribute, BD-A1-119) APPROVE. They need no product change for LA. Their follow-ups are rows of the [deferred list](../../team/ltiaas/deferred.md):
+A1 (round 2, on `a8bbac53`, the SHA of the first final runs) and A2 (round 1, on `8fadb828`; `a8bbac53` adds only one portal attribute, BD-A1-119) APPROVE. They need no product change for LA. Their follow-ups are rows of the [deferred list](../../team/ltiaas/deferred.md):
 
 | Follow-up | Owner | Goes to |
 | --- | --- | --- |
