@@ -1,0 +1,14 @@
+{
+ "T3b": {
+  "trimmedFrom": "qalead-la-31-8fadb828-2026-10-23T21-38-23-889Z/summary.json",
+  "originalSha256": "a068141cca239a4abc25385e45ca474a519fc617328ec9e0abad83eaf7c4a004"
+ },
+ "T7": {
+  "trimmedFrom": "qalead-la-66-a8bbac53-2026-10-24T05-56-45-538Z/summary.json",
+  "originalSha256": "9f78229968b34ad13b48ceaeec9a7326ad3ab8b643d461297faebc70f7869d86"
+ },
+ "T8": {
+  "trimmedFrom": "qalead-la-52-8fadb828-2026-10-24T01-14-52-791Z/summary.json",
+  "originalSha256": "9364b899aaf3e2fa4b85b4bee05167a83336f76e7c003f8ee044720fd54f97da"
+ }
+}

@@ -1,0 +1,177 @@
+{
+ "runId": "qalead-la-52-8fadb828-2026-10-24T01-14-52-791Z",
+ "task": "T8",
+ "sha": "8fadb828088ffe1b4db02179ab0fa3ab2388a12a",
+ "abort": null,
+ "aggregate": {
+  "PRE": "PASS",
+  "CLONE": "PASS",
+  "DOCTOR": "PASS",
+  "SETUP": "PASS",
+  "H1": "PASS",
+  "FIXTURES": "PASS",
+  "SUITE": "PASS",
+  "SETUP-T5a": "PASS",
+  "SETUP-T8": "PASS",
+  "AC-T8-02": "PASS",
+  "AC-T8-04": "PASS",
+  "AC-T8-05": "PASS",
+  "AC-T8-06": "PASS",
+  "AC-T8-10": "PASS",
+  "AC-T8-08": "PASS",
+  "AC-T8-09": "PASS",
+  "HOSTCTL": "PASS",
+  "C-T8-01": "PASS",
+  "KNOB": "PASS",
+  "AC-T8-03": "PASS",
+  "AC-T8-07": "PASS",
+  "C-T8-02": "PASS",
+  "TEARDOWN": "PASS"
+ },
+ "results": [
+  {
+   "id": "PRE",
+   "status": "PASS"
+  },
+  {
+   "id": "CLONE",
+   "status": "PASS"
+  },
+  {
+   "id": "DOCTOR",
+   "status": "PASS"
+  },
+  {
+   "id": "SETUP",
+   "status": "PASS"
+  },
+  {
+   "id": "H1",
+   "status": "PASS"
+  },
+  {
+   "id": "FIXTURES",
+   "status": "PASS"
+  },
+  {
+   "id": "SUITE",
+   "status": "PASS"
+  },
+  {
+   "id": "SETUP-T5a",
+   "status": "PASS"
+  },
+  {
+   "id": "SETUP-T8",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-02",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-04",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-05",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-06",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-10",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-08",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-09",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-10",
+   "status": "PASS"
+  },
+  {
+   "id": "HOSTCTL",
+   "status": "PASS"
+  },
+  {
+   "id": "SUITE",
+   "status": "PASS"
+  },
+  {
+   "id": "C-T8-01",
+   "status": "PASS"
+  },
+  {
+   "id": "C-T8-01",
+   "status": "PASS"
+  },
+  {
+   "id": "HOSTCTL",
+   "status": "PASS"
+  },
+  {
+   "id": "KNOB",
+   "status": "PASS"
+  },
+  {
+   "id": "SUITE",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-03",
+   "status": "PASS"
+  },
+  {
+   "id": "HOSTCTL",
+   "status": "PASS"
+  },
+  {
+   "id": "KNOB",
+   "status": "PASS"
+  },
+  {
+   "id": "KNOB",
+   "status": "PASS"
+  },
+  {
+   "id": "SUITE",
+   "status": "PASS"
+  },
+  {
+   "id": "AC-T8-07",
+   "status": "PASS"
+  },
+  {
+   "id": "HOSTCTL",
+   "status": "PASS"
+  },
+  {
+   "id": "KNOB",
+   "status": "PASS"
+  },
+  {
+   "id": "SUITE",
+   "status": "PASS"
+  },
+  {
+   "id": "C-T8-02",
+   "status": "PASS"
+  },
+  {
+   "id": "HOSTCTL",
+   "status": "PASS"
+  },
+  {
+   "id": "TEARDOWN",
+   "status": "PASS"
+  }
+ ]
+}

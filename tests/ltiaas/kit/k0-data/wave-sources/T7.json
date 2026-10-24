@@ -1,0 +1,133 @@
+{
+ "runId": "qalead-la-66-a8bbac53-2026-10-24T05-56-45-538Z",
+ "sha": "a8bbac538cfe1e305f410279d7879421d64a5a1f",
+ "abort": null,
+ "steps": [
+  {
+   "name": "preflight (free project, port, subnet)",
+   "ok": true
+  },
+  {
+   "name": "clone the SHA into a new folder",
+   "ok": true
+  },
+  {
+   "name": "course zips into the clone (tests/fixtures/courses, SHA-256 checked)",
+   "ok": true
+  },
+  {
+   "name": "npm ci, gen-env, compose project name",
+   "ok": true
+  },
+  {
+   "name": "run 1: npm run test:e2e exit 0 in 199 s (e2e:reset 53 s); 17 pass, 0 fail, 1 skip",
+   "ok": true
+  },
+  {
+   "name": "teardown: stack qalead-la-66 removed with its volumes and networks",
+   "ok": true
+  }
+ ],
+ "runs": [
+  {
+   "run": 1,
+   "exit": 0,
+   "timedOut": false,
+   "pass": 17,
+   "fail": 0,
+   "skip": 1,
+   "tests": [
+    {
+     "file": "0-start.spec.ts",
+     "title": "T7-START AC-T7-13 at the start: every /healthz shows \"profile\": \"default\" and \"knobs\": [], no test_knob_active event; no LTI activity yet",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "A1-A2 AC-T7-02 AC-T7-14 Thanh connects \"Dev Moodle\" (Automatic); the Moodle admin follows the wizard steps of moodle-steps.json; the tool is active with \"New window\" and \"Show in activity chooser\"; the connection is registered",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "A3 Thanh uploads the SCORM zip and the HTML zip and publishes both to \"Dev Moodle\"",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "A4 AC-T7-03 AC-T7-02 cg_teacher adds both courses in COGNIATE-DEV-101 (Add content → Activity or resource → Cogniate (Thanh's Library) → Select content → completion \"Receive a grade\"); the picker lists exactly Thanh's two courses; grade items of maximum 100; \"Selected in Moodle\"; the connection is connected",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "A5 AC-T7-07 AC-T7-04 cg_student does the SCORM activity and the HTML activity (new window, correct option) → \"Completed — score 100 sent to Moodle\", grade 100 within 60 s",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "A6 AC-T7-07 cg_student2 does the SCORM activity with the wrong option and finishes the pages → grade 0 within 60 s",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "AC-T7-04 grades in COGNIATE-DEV-101: cg_student 100.00 (SCORM) and 100.00 (HTML); cg_student2 0.00 (SCORM) and no grade (HTML); each within 60 s; grader report screenshot",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "AC-T7-05 completion \"Receive a grade\": cg_student has both activities done; cg_student2 has the SCORM activity done and the HTML activity not done (oracle and course page screenshots)",
+     "status": "PASS"
+    },
+    {
+     "file": "1-scenario-a.spec.ts",
+     "title": "AC-T7-06 portal results: SCORM cg_student \"Passed 100, Sent\" and cg_student2 \"Failed 0, Sent\"; HTML cg_student \"Passed 100, Sent\"; after \"Refresh from Moodle\" the gradebook shows 100, 0, 100",
+     "status": "PASS"
+    },
+    {
+     "file": "2-scenario-b.spec.ts",
+     "title": "B1-B2 QA Library B connects \"Dev Moodle B\" (Manual); the admin configures the tool manually with the shown values (\"Cogniate (QA Library B)\") and copies the six values back → \"Registered\"",
+     "status": "PASS"
+    },
+    {
+     "file": "2-scenario-b.spec.ts",
+     "title": "B3 QA Library B uploads the HTML zip and publishes it to \"Dev Moodle B\"",
+     "status": "PASS"
+    },
+    {
+     "file": "2-scenario-b.spec.ts",
+     "title": "B4 AC-T7-08 cg_teacher in COGNIATE-DEV-102: Add content → Activity or resource → \"Cogniate (QA Library B)\" → Select content → the course, completion \"Receive a grade\"; the picker lists only the library B course",
+     "status": "PASS"
+    },
+    {
+     "file": "2-scenario-b.spec.ts",
+     "title": "B5 AC-T7-08 cg_teacher in COGNIATE-DEV-101 opens \"Select content\" of \"Cogniate (Thanh's Library)\" again (no save): the library B course is not listed",
+     "status": "PASS"
+    },
+    {
+     "file": "2-scenario-b.spec.ts",
+     "title": "B6 AC-T7-09 AC-T7-07 cg_student completes the COGNIATE-DEV-102 activity (correct option): 102 gradebook 100.00; library B results show the row; Thanh's results views do not",
+     "status": "PASS"
+    },
+    {
+     "file": "3-scenario-c.spec.ts",
+     "title": "C1 AC-T7-10 the captured learner launch form (id_token + state) posted again → INVALID_STATE, no redirect (browser and Node)",
+     "status": "PASS"
+    },
+    {
+     "file": "3-scenario-c.spec.ts",
+     "title": "C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API key (and no state, registration ref, play id or picker id) is in any infra/.logs/*.jsonl",
+     "status": "PASS"
+    },
+    {
+     "file": "9-end.spec.ts",
+     "title": "T7-END AC-T7-13 at the end: every /healthz shows \"profile\": \"default\" and \"knobs\": []; no test_knob_active event in the run's logs",
+     "status": "PASS"
+    },
+    {
+     "file": "demo-check.spec.ts",
+     "title": "DEMO AC-T7-15 after demo:prepare, cg_student opens both activities in COGNIATE-DEV-101 and reaches the player",
+     "status": "SKIP"
+    }
+   ]
+  }
+ ]
+}

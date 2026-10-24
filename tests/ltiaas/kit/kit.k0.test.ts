@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { parseForm } from '../../acceptance/M1/common/client.js';
 import {
   followPickerHandoff,
@@ -31,6 +33,9 @@ import {
   CAPABILITY_KEYS,
   CHANNEL_LEVEL_CAPABILITY_KEYS,
   ChannelFixture,
+  checkPlayerRedirect,
+  clientAssertionAudTrait,
+  distinctDrAudience,
   collectContextlessPlacementObservation,
   computeExpectedCaseList,
   computeExpectedGlobalCaseList,
@@ -62,6 +67,7 @@ import {
   verifyBilateralCapabilities,
   verifyContextlessSharedPlacement,
   WaveEvidenceManifest,
+  verifyStoredClientAssertionAud,
 } from './lib/fixtures.js';
 import {
   deriveCurrentWaveIdFromRun,
@@ -83,6 +89,7 @@ import {
   writeKitRunSummaryArtifacts,
   writeWaveEvidenceToRun,
 } from './lib/runtime.js';
+import { judgeWaveSource, WAVE_SUITES, writeWaveEvidence } from './lib/wave-producer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SUITES_DIR = path.join(__dirname, 'suites');
@@ -618,7 +625,8 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
     try {
       const beforeIds = listChannelFixtureIds();
       for (const id of beforeIds) {
-        const src = path.join(__dirname, 'channels', `${id}.json`);
+        // The configured channels folder (QA_KIT_CHANNELS_DIR or the shipped one): the ids and the files come from the same place
+        const src = path.join(getChannelsDir(), `${id}.json`);
         fs.copyFileSync(src, path.join(tmpDir, `${id}.json`));
       }
       const baseGeneric = loadChannelFixture('lti-generic', tmpDir);
@@ -2318,4 +2326,250 @@ describe('LA-E7-06 K0: Channel Certification Kit Self-Tests', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Round 8 (round 7 review findings): wave producer, R3 stored audience, L6 redirect origin, open-world canary.
+// ---------------------------------------------------------------------------------------------
+
+const WAVE_DATA = path.join(__dirname, 'k0-data', 'wave-sources');
+type Json = Record<string, any>;
+const waveSource = (suite: 'T3b' | 'T7' | 'T8'): Json =>
+  JSON.parse(fs.readFileSync(path.join(WAVE_DATA, `${suite}.json`), 'utf8'));
+
+// Runs the real producer on the given sources, then the real moodle pass rule (coveredBy T3b, T7, T8) on its output.
+function produceWave(
+  sources: Partial<Record<string, Json>>,
+  specExtra: Partial<Record<string, Json>> = {},
+) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-wave-producer-'));
+  try {
+    const specs = Object.entries(sources).map(([suite, source]) => {
+      const file = path.join(dir, `source-${suite}.json`);
+      fs.writeFileSync(file, JSON.stringify(source));
+      return { suite, file, ...(specExtra[suite] ?? {}) };
+    });
+    const runDir = path.join(dir, 'run');
+    fs.mkdirSync(runDir);
+    const produced = writeWaveEvidence({ specs, runDir, waveId: VALID_WAVE_ID, repoRoot: REPO_ROOT });
+    const moodle = loadChannelFixture('moodle');
+    const runId = 'run-wave-producer';
+    const passRule = evaluateChannelPassRule({
+      fixture: moodle,
+      executedRecords: buildPassingRecordsForChannel(moodle, runId),
+      expectedRunId: runId,
+      currentWaveId: VALID_WAVE_ID,
+      waveEvidence: loadWaveEvidenceFromRun({ stateDir: runDir }),
+      runDir,
+    });
+    return { ...produced, passRule };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Sets the T7 rows and keeps the run counts consistent with them.
+function t7WithRows(mutate: (rows: Json[]) => Json[]): Json {
+  const src = waveSource('T7');
+  const run = src.runs[0];
+  run.tests = mutate(run.tests);
+  run.pass = run.tests.filter((t: Json) => t.status === 'PASS').length;
+  run.fail = run.tests.filter((t: Json) => t.status === 'FAIL').length;
+  run.skip = run.tests.filter((t: Json) => t.status === 'SKIP').length;
+  return src;
+}
+
+const ALL_SOURCES = () => ({ T3b: waveSource('T3b'), T7: waveSource('T7'), T8: waveSource('T8') });
+
+describe('LA-E7-06 K0 Round 8: round 7 review findings', () => {
+  it('A-LA-E7-06-01 / B-LA-E7-06-01: the required sets of the wave producer equal the frozen runners and spec files', () => {
+    const t2 = fs.readFileSync(path.join(REPO_ROOT, 'tests/host/run-t2.mjs'), 'utf8');
+    const t3b = /^\s*T3b:\s*\[([^\]]*)\]/m.exec(t2)?.[1] ?? '';
+    expect([...t3b.matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual([...(WAVE_SUITES.T3b.requiredIds ?? [])]);
+    expect(t2).toContain(`task: '${WAVE_SUITES.T3b.task}'`);
+
+    const t8 = fs.readFileSync(path.join(REPO_ROOT, 'tests/host/run-t8.mjs'), 'utf8');
+    const main = [...(/^const MAIN = \[([^\]]*)\]/m.exec(t8)?.[1] ?? '').matchAll(/'(AC-[^']+)'/g)].map((m) => m[1]);
+    const knobs = [...t8.matchAll(/knobPass\('[^']+', '[^']+', '(AC-T8-\d+)'\)/g)].map((m) => m[1]);
+    const audits = [...t8.matchAll(/expectIds: \['(C-T8-\d+)'\]/g)].map((m) => m[1]);
+    expect(t8).toContain("default: 'main,races,hold,fail,runner-race'");
+    expect([...new Set([...main, ...knobs, ...audits])].sort()).toEqual([...(WAVE_SUITES.T8.requiredIds ?? [])].sort());
+    expect(t8).toContain(`task: '${WAVE_SUITES.T8.task}'`);
+
+    const e2eDir = path.join(REPO_ROOT, 'tests/e2e');
+    const topSpecs = fs.readdirSync(e2eDir).filter((f) => f.endsWith('.spec.ts')).sort();
+    expect(topSpecs).toEqual([...(WAVE_SUITES.T7.specFiles ?? [])].sort());
+    expect(fs.readFileSync(path.join(e2eDir, 'README.md'), 'utf8')).toContain('Runs only in the demo pass (`QA_E2E_DEMO=1`)');
+    expect(WAVE_SUITES.T7.allowedSkipFiles).toEqual(['demo-check.spec.ts']);
+  });
+
+  it('A-LA-E7-06-01 / B-LA-E7-06-01: the saved r7 sources pass through the producer and the real pass rule (positive controls)', () => {
+    const sources = JSON.parse(fs.readFileSync(path.join(WAVE_DATA, 'SOURCES.json'), 'utf8'));
+    expect(Object.keys(sources).sort()).toEqual(['T3b', 'T7', 'T8']);
+    const res = produceWave(ALL_SOURCES());
+    expect(res.notes.join('\n')).not.toContain('—');
+    expect(res.ok).toBe(true);
+    expect(res.passRule.errors).toEqual([]);
+    expect(res.passRule.ok).toBe(true);
+    // The documented optional skip may also run (demo pass): demo-check PASS is accepted
+    const demoRan = t7WithRows((rows) => rows.map((t) => ({ ...t, status: 'PASS' })));
+    expect(produceWave({ ...ALL_SOURCES(), T7: demoRan }).passRule.ok).toBe(true);
+    // A spec that repeats the documented kind and task is accepted
+    expect(
+      produceWave(ALL_SOURCES(), { T3b: { kind: 'host-summary', task: 'T2' }, T7: { kind: 'e2e-summary' }, T8: { kind: 'host-summary', task: 'T8' } }).ok,
+    ).toBe(true);
+  });
+
+  it('A-LA-E7-06-01 / B-LA-E7-06-01: empty, partial, all-skipped, wrongly named and inconsistent sources give FAIL, and the pass rule fails', () => {
+    const cases: Array<[string, Partial<Record<string, Json>>, RegExp, Partial<Record<string, Json>>?]> = [
+      // Reviewer-A: all 18 tests SKIP, pass 0, skip 18, exit 0, fail 0
+      ['T7 all skipped (Reviewer-A)', { T7: t7WithRows((rows) => rows.map((t) => ({ ...t, status: 'SKIP' }))) }, /is SKIP/],
+      // Reviewer-A control: exit 1 and one failure
+      ['T7 exit 1, fail 1 (Reviewer-A control)', { T7: (() => { const x = waveSource('T7'); x.runs[0].exit = 1; return x; })() }, /exit 1/],
+      // Reviewer-B: a run line without test rows
+      ['T7 run without rows (Reviewer-B)', { T7: { ...waveSource('T7'), runs: [{ run: 1, exit: 0, pass: 0, fail: 0, skip: 18, timedOut: false }] } }, /no test rows/],
+      // Reviewer-B: only PRE and AC-T8-02, with the spec naming task T8
+      ['T8 partial (Reviewer-B)', { T8: { task: 'T8', aggregate: { PRE: 'PASS', 'AC-T8-02': 'PASS' } } }, /missing required id AC-T8-03/, { T8: { kind: 'host-summary', task: 'T8' } }],
+      ['T8 one required id missing', { T8: (() => { const x = waveSource('T8'); delete x.aggregate['AC-T8-07']; x.results = x.results.filter((r: Json) => r.id !== 'AC-T8-07'); return x; })() }, /missing required id AC-T8-07/],
+      ['T8 explicit FAIL', { T8: (() => { const x = waveSource('T8'); x.aggregate['AC-T8-05'] = 'FAIL'; x.results.find((r: Json) => r.id === 'AC-T8-05').status = 'FAIL'; return x; })() }, /AC-T8-05: FAIL/],
+      ['T3b empty', { T3b: { ...waveSource('T3b'), aggregate: {}, results: [] } }, /no aggregate results/],
+      ['T3b aborted', { T3b: { ...waveSource('T3b'), abort: 'H1: stopped' } }, /abort: H1/],
+      ['T3b slot with the T8 source (wrong suite)', { T3b: waveSource('T8') }, /suite identity: task "T8" is not "T2"/],
+      ['T8 slot with the T3b source (wrong suite)', { T8: waveSource('T3b') }, /suite identity: task "T2" is not "T8"/],
+      ['T7 slot with a host summary (wrong suite)', { T7: waveSource('T8') }, /no runs/],
+      ['T3b aggregate PASS, result FAIL (inconsistent)', { T3b: (() => { const x = waveSource('T3b'); x.results.find((r: Json) => r.id === 'AC-T3-29').status = 'FAIL'; return x; })() }, /inconsistent: AC-T3-29/],
+      ['T7 counts disagree with rows', { T7: (() => { const x = waveSource('T7'); x.runs[0].pass = 18; x.runs[0].skip = 0; return x; })() }, /inconsistent counts/],
+      ['T7 scenario test skipped', { T7: t7WithRows((rows) => rows.map((t) => (t.file === '1-scenario-a.spec.ts' && t.title.startsWith('A3 ') ? { ...t, status: 'SKIP' } : t))) }, /1-scenario-a\.spec\.ts "A3 .* is SKIP/],
+      ['T7 a spec file missing', { T7: t7WithRows((rows) => rows.filter((t) => t.file !== '9-end.spec.ts')) }, /9-end\.spec\.ts: 0 of 1 expected tests/],
+      ['T7 a renamed test', { T7: t7WithRows((rows) => rows.map((t, i) => (i === 2 ? { ...t, title: `${t.title} (renamed)` } : t))) }, /other titles/],
+      ['T7 a row of another suite', { T7: t7WithRows((rows) => [...rows, { file: 'other.spec.ts', title: 'x', status: 'PASS' }]) }, /other\.spec\.ts is not a T7 spec file/],
+      ['T7 a failed step', { T7: (() => { const x = waveSource('T7'); x.steps[5].ok = false; return x; })() }, /step not ok/],
+      ['spec kind that disagrees', { T8: waveSource('T8') }, /spec kind e2e-summary is not host-summary/, { T8: { kind: 'e2e-summary' } }],
+      ['spec task that disagrees', { T3b: waveSource('T3b') }, /spec task T3 is not T2/, { T3b: { task: 'T3' } }],
+    ];
+    for (const [label, replace, note, specExtra] of cases) {
+      const res = produceWave({ ...ALL_SOURCES(), ...replace }, specExtra);
+      expect(res.ok, label).toBe(false);
+      expect(res.notes.join('\n'), label).toMatch(note);
+      expect(res.passRule.ok, label).toBe(false);
+      const suite = Object.keys(replace)[0];
+      expect(res.passRule.errors.join('\n'), label).toContain(suite);
+    }
+    // An unsupported suite and a missing source file
+    expect(judgeWaveSource({ suite: 'T9', file: '/nonexistent' }).notes.join('\n')).toContain('unsupported suite T9');
+    expect(judgeWaveSource({ suite: 'T8', file: path.join(os.tmpdir(), 'kit-no-such-source.json') }).outcome).toBe('FAIL');
+  });
+
+  it('A-LA-E7-06-11 / B-LA-E7-06-02: R3 checks the stored audience by the profile trait, with no fallback', () => {
+    const shipped = loadAllChannelFixtures().filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id));
+    // LA-ADR-02 D2 trait table: {tokenEndpoint} for standard, Canvas, Blackboard; {platformValue} for lti-generic, brightspace
+    expect(Object.fromEntries(shipped.map((f) => [f.id, clientAssertionAudTrait(f)]))).toEqual({
+      moodle: '{tokenEndpoint}',
+      canvas: '{tokenEndpoint}',
+      blackboard: '{tokenEndpoint}',
+      'lti-generic': '{platformValue}',
+      brightspace: '{platformValue}',
+    });
+    for (const id of ['lti-generic', 'brightspace']) {
+      const fixture = loadChannelFixture(id);
+      for (const supplied of [fixture.sim.tokenEndpoint, distinctDrAudience(fixture, 'k0')]) {
+        expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: supplied }).ok).toBe(true);
+        // absent, null and a wrong value fail (the round 7 counterexamples)
+        expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0' }).error).toContain('absent');
+        expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: null }).error).toContain('null');
+        expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: `${supplied}/other` }).ok).toBe(false);
+        expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: '' }).ok).toBe(false);
+      }
+      // The distinct audience is not the token URL (so it breaks I-SELF and stages the registration)
+      expect(distinctDrAudience(fixture, 'k0')).not.toBe(fixture.sim.tokenEndpoint);
+    }
+    expect(distinctDrAudience(loadChannelFixture('brightspace'), 'k0')).toBe(loadChannelFixture('brightspace').sim.tokenAudience);
+    // {tokenEndpoint}: no stored audience is allowed; a stored value must equal the supplied one
+    for (const id of ['moodle', 'canvas']) {
+      const fixture = loadChannelFixture(id);
+      const supplied = fixture.sim.tokenEndpoint;
+      expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0' }).ok).toBe(true);
+      expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: null }).ok).toBe(true);
+      expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: supplied }).ok).toBe(true);
+      expect(verifyStoredClientAssertionAud(fixture, supplied, { id: 'plt_k0', clientAssertionAud: 'https://wrong.example.test/token' }).ok).toBe(false);
+    }
+    // The suite uses the helper, not a nullish fallback
+    const reg = fs.readFileSync(path.join(SUITES_DIR, 'k1-reg.k1sim.test.ts'), 'utf8');
+    expect(reg).not.toMatch(/clientAssertionAud\s*\?\?/);
+    expect(reg).toContain('verifyStoredClientAssertionAud(fixture, tokenUrl, platDetail.json)');
+    expect(reg).toContain('verifyStoredClientAssertionAud(fixture, audience, audPlat.json)');
+  });
+
+  it('A-LA-E7-06-12: L6 requires the app origin, then the path, for both redirect forms', () => {
+    const appOrigin = 'https://app.example.test';
+    for (const [target, good, other] of [
+      ['embedded', '/play/ply_k0/embedded', '/play/ply_k0'],
+      ['player', '/play/ply_k0', '/play/ply_k0/embedded'],
+    ] as const) {
+      expect(checkPlayerRedirect(good, appOrigin, target)).toEqual({ ok: true, href: `${appOrigin}${good}` });
+      expect(checkPlayerRedirect(`${appOrigin}${good}`, appOrigin, target).ok).toBe(true);
+      expect(checkPlayerRedirect(`${appOrigin}:443${good}`, appOrigin, target).ok).toBe(true);
+      // the round 7 counterexamples: a foreign host and a scheme downgrade
+      expect(checkPlayerRedirect(`https://wrong.example.test${good}`, appOrigin, target).error).toContain('not the app origin');
+      expect(checkPlayerRedirect(`http://app.example.test${good}`, appOrigin, target).error).toContain('not the app origin');
+      expect(checkPlayerRedirect(`https://app.example.test:8443${good}`, appOrigin, target).ok).toBe(false);
+      expect(checkPlayerRedirect(`//wrong.example.test${good}`, appOrigin, target).ok).toBe(false);
+      expect(checkPlayerRedirect(`https://user@app.example.test${good}`, appOrigin, target).error).toContain('user info');
+      expect(checkPlayerRedirect(other, appOrigin, target).ok).toBe(false);
+      expect(checkPlayerRedirect(`${good}/x`, appOrigin, target).ok).toBe(false);
+      expect(checkPlayerRedirect(undefined, appOrigin, target).ok).toBe(false);
+    }
+    const launchSuite = fs.readFileSync(path.join(SUITES_DIR, 'k1-launch.k1sim.test.ts'), 'utf8');
+    expect(launchSuite).toContain("checkPlayerRedirect(iframeHandoff.headers.location, APP_ORIGIN, 'embedded')");
+    expect(launchSuite).toContain("checkPlayerRedirect(windowHandoff.headers.location, APP_ORIGIN, 'player')");
+  });
+
+  it.skipIf(process.env.LA_KIT_K0_CANARY_CHILD === '1')(
+    'F-LA-E7-06-WALK-01: one extra fixture with a registration-level guarded family passes every kit K0 self-test with no suite or shared-list edit',
+    () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kit-walk-canary-'));
+      try {
+        const channels = path.join(tmp, 'channels');
+        fs.mkdirSync(channels);
+        for (const id of listChannelFixtureIds()) {
+          fs.copyFileSync(path.join(getChannelsDir(), `${id}.json`), path.join(channels, `${id}.json`));
+        }
+        // Copied from the generic fixture, as Reviewer-B's canary: a new channel that guards its own family at the
+        // registration level (the form the add-channel guide allows).
+        const extra = structuredClone(loadChannelFixture('lti-generic'));
+        extra.id = 'walk-canary-lms';
+        extra.sim.family = 'walk-canary';
+        extra.expect.guardedFamilies = [{ family: 'walk-canary', level: 'registration' }];
+        fs.writeFileSync(path.join(channels, 'walk-canary-lms.json'), JSON.stringify(extra, null, 2));
+
+        const report = path.join(tmp, 'k0-report.json');
+        const vitestBin = path.join(path.dirname(createRequire(__filename).resolve('vitest/package.json')), 'vitest.mjs');
+        const child = spawnSync(
+          process.execPath,
+          [vitestBin, 'run', '--config', path.join(__dirname, 'vitest.config.mts'), '--reporter=json', `--outputFile=${report}`],
+          {
+            cwd: REPO_ROOT,
+            env: { ...process.env, LA_LEVEL: 'k0', QA_KIT_CHANNELS_DIR: channels, LA_KIT_K0_CANARY_CHILD: '1' },
+            encoding: 'utf8',
+            timeout: 120_000,
+          },
+        );
+        const result = JSON.parse(fs.readFileSync(report, 'utf8'));
+        const failed = result.testResults.flatMap((f: Json) =>
+          f.assertionResults.filter((a: Json) => a.status === 'failed').map((a: Json) => a.title),
+        );
+        expect(failed).toEqual([]);
+        expect(child.status).toBe(0);
+        expect(result.numFailedTests).toBe(0);
+        // Every self-test ran in the child except this canary test itself (skipped there, no recursion)
+        expect(result.numPendingTests).toBe(1);
+        expect(result.numPassedTests).toBe(result.numTotalTests - 1);
+        // The child saw the extra fixture (open-world discovery)
+        expect(fs.readdirSync(channels)).toContain('walk-canary-lms.json');
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+    150_000,
+  );
 });

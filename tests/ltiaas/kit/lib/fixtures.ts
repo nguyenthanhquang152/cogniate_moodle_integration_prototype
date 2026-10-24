@@ -393,6 +393,75 @@ export function isAnyHttpsChannel(fixture: ChannelFixture): boolean {
   return takesAdminEndpoints(fixture) && fixture.capabilities['binding.authority'].manual !== 'self';
 }
 
+// The profile trait `clientAssertionAud` (LA-ADR-02 D2 trait table): `{platformValue}` for the `any-https` admin-value
+// profiles (`lti-generic`, `brightspace`): the client assertion audience is the stored platform field
+// `clientAssertionAud`, which Dynamic Registration sets from the configuration's `authorization_server` (LA-ADR-02 D5
+// item 4; lti-service-api-delta §4.5). `{tokenEndpoint}` for `standard`, Canvas and Blackboard: the audience is the
+// token endpoint, and the stored field has no role, so such a platform may store no audience.
+export type ClientAssertionAudTrait = '{tokenEndpoint}' | '{platformValue}';
+export function clientAssertionAudTrait(fixture: ChannelFixture): ClientAssertionAudTrait {
+  return isAnyHttpsChannel(fixture) ? '{platformValue}' : '{tokenEndpoint}';
+}
+
+// R3: the stored audience after a Dynamic Registration whose configuration had `authorization_server: supplied`.
+// `{platformValue}`: the platform answer must carry exactly `supplied` (no fallback: absent, null or another value
+// fails). `{tokenEndpoint}`: absent or null is allowed; a stored value must equal `supplied`.
+export function verifyStoredClientAssertionAud(
+  fixture: ChannelFixture,
+  supplied: string,
+  platform: Record<string, unknown>,
+): { ok: boolean; error?: string } {
+  const trait = clientAssertionAudTrait(fixture);
+  const has = Object.prototype.hasOwnProperty.call(platform ?? {}, 'clientAssertionAud');
+  const value = has ? platform.clientAssertionAud : undefined;
+  if (trait === '{platformValue}') {
+    if (!has) return { ok: false, error: `${fixture.id}: clientAssertionAud is absent; a {platformValue} profile stores the DR authorization_server` };
+    if (value === null) return { ok: false, error: `${fixture.id}: clientAssertionAud is null; a {platformValue} profile stores the DR authorization_server` };
+    if (value !== supplied) return { ok: false, error: `${fixture.id}: clientAssertionAud ${JSON.stringify(value)} !== ${JSON.stringify(supplied)}` };
+    return { ok: true };
+  }
+  if (value === undefined || value === null) return { ok: true };
+  if (value !== supplied) return { ok: false, error: `${fixture.id}: clientAssertionAud ${JSON.stringify(value)} !== ${JSON.stringify(supplied)}` };
+  return { ok: true };
+}
+
+// A distinct, non-default DR audience for a `{platformValue}` profile: the fixture's documented token audience when it
+// differs from the token URL (the D2L provider), else a path on the token host that is not the token URL.
+export function distinctDrAudience(fixture: ChannelFixture, label: string): string {
+  const tokenUrl = fixture.sim.tokenEndpoint;
+  if (typeof fixture.sim.tokenAudience === 'string' && fixture.sim.tokenAudience !== tokenUrl) {
+    return fixture.sim.tokenAudience;
+  }
+  return `${new URL(tokenUrl).origin}/kit-audience/${encodeURIComponent(label)}`;
+}
+
+// L6: the player handoff `Location` (relative or absolute) resolved once against the app origin (PUBLIC_APP_URL,
+// cogniate-app-api.md §1): its origin (scheme, host, port) must be the app origin, no user info, and its path the
+// embedded page (`/play/:playId/embedded`, iframe target) or the player (`/play/:playId`, window target).
+export function checkPlayerRedirect(
+  location: unknown,
+  appOrigin: string,
+  target: 'embedded' | 'player',
+): { ok: boolean; href?: string; error?: string } {
+  if (typeof location !== 'string' || !location) return { ok: false, error: 'no Location' };
+  let url: URL;
+  try {
+    url = new URL(location, appOrigin);
+  } catch {
+    return { ok: false, error: `Location ${JSON.stringify(location)} is not a URL` };
+  }
+  const expectedOrigin = new URL(appOrigin).origin;
+  if (url.origin !== expectedOrigin) {
+    return { ok: false, error: `Location origin ${url.origin} is not the app origin ${expectedOrigin}` };
+  }
+  if (url.username || url.password) return { ok: false, error: 'Location has user info' };
+  const pathRule = target === 'embedded' ? /^\/play\/ply_[^/?]+\/embedded$/ : /^\/play\/ply_[^/?]+$/;
+  if (!pathRule.test(url.pathname)) {
+    return { ok: false, error: `Location path ${url.pathname} is not the ${target === 'embedded' ? 'embedded page' : 'player'}` };
+  }
+  return { ok: true, href: url.href };
+}
+
 export function loadAllChannelFixtures(dir: string = getChannelsDir()): ChannelFixture[] {
   return listChannelFixtureIds(dir).map((id) => loadChannelFixture(id, dir));
 }

@@ -1,11 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  clientAssertionAudTrait,
+  distinctDrAudience,
   drFamilyGuardRefusedAtComplete,
   isAnyHttpsChannel,
   loadAllChannelFixtures,
   loadSelectedChannelFixtures,
   selectFamilyGuardProbes,
   selectProtocolControlFixture,
+  verifyStoredClientAssertionAud,
 } from '../lib/fixtures.js';
 import {
   admin,
@@ -331,13 +334,14 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               }
               expect(connObj.platform.issuer).toBe(fixture.sim.issuer);
 
-              // Verify platform record in lti-service stores tokenAudience = authorization_server and simulator recorded scopes
+              // The stored audience (LA-ADR-02 D5 item 4; lti-service-api-delta §4.5): `authorization_server` becomes the
+              // platform `clientAssertionAud`. The profile trait decides the check (verifyStoredClientAssertionAud): a
+              // {platformValue} profile stores exactly the supplied value; a {tokenEndpoint} profile may store none.
               const platId = connObj.platform.id ?? connObj.platform.platformId;
               const platDetail = await admin('GET', `/api/platforms/${platId}`);
               expectStatus(platDetail, 200);
-              // lti-service-api-delta §4.5: the platform field is `clientAssertionAud`; an active admin-value platform has
-              // it empty or equal to the token URL.
-              expect(platDetail.json.clientAssertionAud ?? tokenUrl).toBe(tokenUrl);
+              const storedAud = verifyStoredClientAssertionAud(fixture, tokenUrl, platDetail.json);
+              expect(storedAud.error ?? '').toBe('');
               const drRecs = (await records(drCursor)).records.filter(
                 (r) => r.kind === 'registration',
               );
@@ -348,6 +352,35 @@ describe('K1-REG — Port 2 Registration & Connection Setup across selected chan
               );
             } finally {
               await endConnection(s, drOk.connection.id);
+            }
+
+            // 1b. A distinct, non-default audience on a {platformValue} profile (LA-ADR-02 D2 trait; D5 items 4 and 10): the
+            // value is stored exactly, and an audience that is not the token URL breaks I-SELF, so the registration is
+            // staged (pending + operatorGrant, inactive platform; cogniate-app-api-delta.md §5).
+            if (clientAssertionAudTrait(fixture) === '{platformValue}') {
+              const audience = distinctDrAudience(fixture, uniqueId(`aud-${fixture.id}`));
+              expect(audience).not.toBe(tokenUrl);
+              const drAud = await runDynamicRegistrationHandshake(s, fixture, { authorizationServer: audience });
+              try {
+                expect(drAud.step).toBe('post');
+                expect(drAud.response.status).toBe(200);
+                expect(htmlText(drAud.response.text)).toContain(
+                  'Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code.',
+                );
+                const audDetail = await app(s, 'GET', `/app-api/connections/${drAud.connection.id}`);
+                expectStatus(audDetail, 200);
+                const audConn = audDetail.json.connection ?? audDetail.json;
+                expect(audConn.status).toBe('pending');
+                expect(audConn.bindingAuthority).toBe('operatorGrant');
+                const audPlatId = audConn.platform.id ?? audConn.platform.platformId;
+                const audPlat = await admin('GET', `/api/platforms/${audPlatId}`);
+                expectStatus(audPlat, 200);
+                expect(audPlat.json.active).toBe(false);
+                const audStored = verifyStoredClientAssertionAud(fixture, audience, audPlat.json);
+                expect(audStored.error ?? '').toBe('');
+              } finally {
+                await endConnection(s, drAud.connection.id);
+              }
             }
 
             // 2. Alternate registration token format (opaque-bearer vs scope-jwt)
