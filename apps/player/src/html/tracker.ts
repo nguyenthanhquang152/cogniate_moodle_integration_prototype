@@ -114,29 +114,78 @@ export function createHtmlTracker(opts: { profile: TrackerProfile; saved: HtmlPr
 }
 
 /**
- * Attach to every new document of the package frame as soon as it is parsed (readyState interactive or complete):
- * poll every 150 ms and also listen for `load`. Never wait only for `load`: a hanging external host (S3 images,
- * Google fonts) blocks it forever (T5-spike, AC-T5-36).
+ * Attach to an observed package document as soon as it is parsed. Watch DOMContentLoaded even while loading;
+ * briefly check more often around navigation to find the next document. Keep the 150 ms poll and `load` fallback:
+ * a hanging external host (S3 images, Google fonts) can block `load` forever (T5-spike, AC-T5-36).
  */
 export function watchFrame(frame: HTMLIFrameElement, attach: (win: Window, doc: Document) => void, pollMs = 150): () => void {
+  const runtimeWin = frame.ownerDocument.defaultView!;
   const done = new WeakSet<Document>();
-  const tryAttach = () => {
+  const watched = new Map<Document, { tryAttach: () => void; stop: () => void }>();
+  let currentDoc: Document | null = null;
+  let stopped = false;
+  let fastTimer: number | null = null;
+  let fastDeadline: number | null = null;
+  const stopFastCheck = () => {
+    if (fastTimer !== null) runtimeWin.clearInterval(fastTimer);
+    if (fastDeadline !== null) runtimeWin.clearTimeout(fastDeadline);
+    fastTimer = null;
+    fastDeadline = null;
+  };
+  const startFastCheck = () => {
+    if (stopped) return;
+    stopFastCheck();
+    // Runtime timers survive navigation of the child window.
+    fastTimer = runtimeWin.setInterval(check, 10);
+    fastDeadline = runtimeWin.setTimeout(stopFastCheck, 5000);
+  };
+  function check() {
+    if (stopped) return;
     let doc: Document | null;
+    let win: Window | null;
     try {
       doc = frame.contentDocument;
+      win = frame.contentWindow;
+      if (!doc || !win || doc.URL === 'about:blank') return;
     } catch {
       return; // not same-origin (should not happen)
     }
-    const win = frame.contentWindow;
-    if (!doc || !win || done.has(doc) || doc.readyState === 'loading' || doc.URL === 'about:blank' || !doc.body) return;
-    done.add(doc);
-    attach(win, doc);
-  };
-  frame.addEventListener('load', tryAttach);
-  const timer = setInterval(tryAttach, pollMs);
-  tryAttach();
+    if (doc !== currentDoc) {
+      currentDoc = doc;
+      stopFastCheck();
+    }
+    let hooks = watched.get(doc);
+    if (!hooks) {
+      const tryAttach = () => {
+        if (stopped || done.has(doc) || doc.readyState === 'loading' || !doc.body) return;
+        done.add(doc);
+        doc.removeEventListener('DOMContentLoaded', tryAttach);
+        attach(win, doc);
+      };
+      // Register pagehide at first sight, including a document that is still loading.
+      win.addEventListener('pagehide', startFastCheck);
+      if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', tryAttach);
+      hooks = {
+        tryAttach,
+        stop: () => {
+          doc.removeEventListener('DOMContentLoaded', tryAttach);
+          win.removeEventListener('pagehide', startFastCheck);
+        },
+      };
+      watched.set(doc, hooks);
+    }
+    hooks.tryAttach();
+  }
+  frame.addEventListener('load', check);
+  const timer = runtimeWin.setInterval(check, pollMs);
+  startFastCheck();
+  check();
   return () => {
-    clearInterval(timer);
-    frame.removeEventListener('load', tryAttach);
+    stopped = true;
+    stopFastCheck();
+    runtimeWin.clearInterval(timer);
+    frame.removeEventListener('load', check);
+    for (const hooks of watched.values()) hooks.stop();
+    watched.clear();
   };
 }

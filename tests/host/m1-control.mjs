@@ -31,6 +31,27 @@ export function m1HostControl(r, runCommand = run) {
     if (['m1-restart', 'm1-profile'].includes(req.action) && compatMarkerPresent(r.CLONE)) {
       return { code: 2, stdout: '', stderr: 'storage-compat marker present: m1-restart and m1-profile are refused (ADR-012 §11)', durationMs: 0 };
     }
+    if (req.action === 'm1-restart' && 'mode' in req) {
+      if (req.mode !== 'kill' || req.service !== 'cogniate-app') {
+        return { code: 2, stdout: '', stderr: 'Unknown M1 host action', durationMs: 0 };
+      }
+      const killStart = new Date().toISOString();
+      const kill = await runCommand('docker', [...compose, 'kill', '-s', 'SIGKILL', 'cogniate-app'],
+        { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 30_000 });
+      const killLine = `kill: exit ${kill.code}, ${killStart}–${new Date().toISOString()}`;
+      if (kill.code !== 0) {
+        return { ...kill, stdout: [killLine, kill.stdout].filter(Boolean).join('\n') };
+      }
+      const restart = await runCommand('npm', ['run', 'stack:restart', '--', 'cogniate-app'], {
+        cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 180_000,
+      });
+      return {
+        code: restart.code,
+        stdout: [killLine, kill.stdout, restart.stdout].filter(Boolean).join('\n'),
+        stderr: [kill.stderr, restart.stderr].filter(Boolean).join('\n'),
+        durationMs: (kill.durationMs ?? 0) + (restart.durationMs ?? 0),
+      };
+    }
     if (req.action === 'm1-restart' && ['cogniate-app', 'lti-service'].includes(req.service)) {
       return runCommand('npm', ['run', 'stack:restart', '--', req.service], {
         cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 180_000,

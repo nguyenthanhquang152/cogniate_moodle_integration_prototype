@@ -1,8 +1,8 @@
 import { waitForLog } from '../../lib/logs';
 import {
   admin, app, assert, bound, cli, connPath, createConnection, denied, expectStatus, gateEvents, gatePhase,
-  gateReset, issueGrant, launch, logEvents, m1Test, redeem, release, remote, service,
-  session, unique, type Json,
+  gateReset, host, httpsRequest, issueGrant, launch, logEvents, m1Test, poll, redeem, release, remote, service,
+  session, unique, urls, type Json,
 } from '../common/client';
 import { openPlay, publication } from '../common/course';
 import {
@@ -10,6 +10,14 @@ import {
   readiness, received, refusedWithoutAttempt, restartApp, snapshotScope, vBeforeMutation, watchAll,
 } from '../common/snapshot';
 import { apply, captureControl, issuedAndPending, oneAttempt, pending, setActive, successful, type Pending } from './snapshot-fixture';
+
+/** AC-M1-37 dead handler: SIGKILL, so the old process cannot let its held LTI call time out and clear its lease. */
+async function killApp() {
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await poll(async () => {
+    try { return await httpsRequest(urls.app + '/healthz'); } catch { return { status: 0 }; }
+  }, (r) => r.status === 200, 20_000, 100);
+}
 
 const caseOf = (ac: number, variant: string, title: string, body: () => Promise<void>) => {
   const id = `M1-${ac}.blackboard.${variant}`;
@@ -53,7 +61,10 @@ caseOf(37, 'v5', 'a dead handler retains its lease across restart without provid
   const first = apply(p).catch(() => null), held = await gatePhase(rule, 'held_before');
   const started = await waitForLog('cogniate-app', (e) => e.event === 'grant_attempt_started' && e.grant_id === p.grant.id, 1000);
   assert.ok(started, 'BLOCKED: first attempt was not captured before restart');
-  await restartApp(); await first;
+  await killApp();
+  const firstAnswer = await first;
+  assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+    'BLOCKED: the old handler timed out before the restart killed it');
   assert.ok(Date.now() - Date.parse(String(started.entry.ts)) < 55_000, 'BLOCKED: restart missed the 60 s lease window');
   await grantState(p.connection.id, p.grant.id, 'redeeming');
   await watchAll('fail_before');

@@ -1,6 +1,8 @@
 # Blackboard admin guide: connect a Blackboard Learn site
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Final runtime checks are pending.
+Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
+
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels).
 
 This guide connects one Blackboard Learn site to one Cogniate library. Three people take part:
 

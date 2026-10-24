@@ -7,13 +7,98 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
+### Current status — 2026-10-23, 17:39 UTC
+
+**M0–M4 are complete for the approved prototype scope.** Runtime gates, final Architect conformance, independent Gemini Docs QA and both Claude reviews are accepted.
+Final guides: substantive revision `911219b0`; independent reports `524d1c64`; exact reviewed closure `206ad2b9`.
+The Lead checked all nine closure files against the approved expected bytes. Two final MINOR findings are registered; no BLOCKER or MAJOR remains.
+
+| Task | Final outcome | Evidence |
+| --- | --- | --- |
+| M0 | Complete for prototype design | Final Architect APPROVE and recorded design reviews. |
+| M1 | Complete | E-R7: two equal fresh 394-case rounds, plus 94 separate carried C4 rows. |
+| M2 | Complete | E-R6: accepted r7, 64 cases, 13 criteria and seven gates PASS at C8/C6. |
+| M3 | Complete for approved verification scope | Twelve legacy groups accepted; E-R8 C10 T7 passes all 15 criteria and three 17-test cycles. |
+| M4 | Complete | All eight final Docs criteria PASS; both blind reviews APPROVE; reviewed guide closure committed. |
+
+See the [final handover](multi-lms-final-handover-2026-10-23.md) for guides, evidence and follow-ups.
+All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. This is not enterprise or production acceptance.
+No push or main merge occurred. Existing sessions are retained; obsolete scheduling rows are cancelled as superseded.
+
+### Prior status — 2026-10-23, 16:55 UTC
+
+All runtime gates are accepted. Final Architect conformance is APPROVE, with no open BLOCKER or MAJOR. The narrow prototype ADR status changes are committed at `31f4d0bb`; final QA reports at `351eee07`; final conformance bindings at `253ff824`.
+The same Codex executor is applying the prepared guides. Gemini Docs QA and two blind Claude reviews will check one frozen document revision in parallel. Lead closure follows those results. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior status — 2026-10-23, 16:43 UTC
+
+T7 is accepted at C10 `97b68af4`. Independent QA passes all 15 criteria, three cycles of 17 tests, the demo and all four confirmation/refusal checks. The required traces and 12 PNGs pass. The strict scan has zero shared hits. Cleanup passes, all 32 complete protected volume records match, and the host was returned at 16:40 UTC. LA confirmed its hold. See [the final E-R8 decision](r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc).
+
+M1, M2, legacy and T7 runtime evidence are accepted. The Architect now applies final conformance and narrow prototype ADR status updates. The same Codex executor then applies the prepared guides. Independent Gemini Docs QA and two blind Claude reviews follow on one frozen document revision. Lead closure remains after those gates. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior host status — 2026-10-23, 16:27 UTC
+
+C10 is running under grant `msg_28bc7b21d064`. The detached receipt records launch at 16:26:20 UTC. The test runner started at 16:26:41 UTC. Cleanup is due by 16:48 UTC; the agreed host return is 16:50 UTC. No runtime PASS is claimed yet.
+
+The four-file T7 repair is committed at `97b68af4`. Independent Gemini static and synthetic checks passed. Both Claude reviews approve the exact repair and launcher. The fresh preflight passed, including all 32 complete protected volume records. The Lead accepted it in `msg_903b04fa87ab`. See [E-R8](r8-t7-shared-host-verification-2026-10-23.md).
+
+The retained Architect prepares the final conformance record against C10. Final application waits for accepted T7 evidence. Then the same Codex executor applies prepared guides. Independent Docs QA and two blind reviews run on the final document revision. M1, M2 and legacy results remain accepted at their recorded revisions. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior host status — 2026-10-23, 15:51 UTC
+
+T7 failed. The three cycles recorded 17/0, 9/8 and 17/0 PASS/FAIL, each with the permitted demo-only skip. The demo passed with preparation in 12.41 seconds; all four confirmation/refusal checks passed. Operational cleanup passed at 15:43:18 UTC. All 32 protected volume records match, and no owned runtime resource remains. The Lead returned the host at 15:44 UTC. LA confirmed no mutation during the full window. See the [E-R8 attempt record](r8-t7-shared-host-verification-2026-10-23.md).
+Claude identified one root failure and seven cascades: the Save button stayed outside the viewport after a full-page screenshot. The exact Moodle script mechanism remains inferred. Gemini QA owns a bounded repair in two T7 test files. The same Codex executor prepares an identity-only launcher update and holds its prepared guides. A proposed 16:15–16:40 UTC slot needs repair review, actual handoff, fresh preflight and a new grant. No Docker work is currently authorized.
+At 16:00 UTC, the separate failure-closeout scan found one test-password redaction miss in the T7 runner's compose log. C10 is held for Claude's narrow design decision. QA will include the approved correction in the same batch before review and runtime. The scanner stays strict, and original artifacts stay private.
+Final conformance and guide claims remain blocked by T7. M1, M2 and legacy evidence remain accepted at their recorded revisions; no repeat is authorized. After repair and accepted T7: final conformance, guide updates, independent Docs QA, two blind reviews and Lead closure. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior host status — 2026-10-23, 15:05 UTC
+
+The corrected tools have independent Gemini PASS and focused Claude APPROVE. [E-R8](r8-t7-shared-host-verification-2026-10-23.md) accepts the bounded T7 route. LA plans an actual handoff around 15:10 UTC with at least 20 minutes. Fresh preflight and a separate runtime grant still precede T7. The same Gemini prepares runtime; the retained Architect and Codex prepare final conformance and guide updates in parallel. No T7 PASS is claimed.
+T7 remains NOT RUN/PENDING. M1, M2 and legacy remain accepted. Final conformance, guides, Docs QA and blind reviews remain after T7.
+
+### Prior host status — 2026-10-23, 12:23 UTC
+
+Claude's route plan is complete. The user choice is pending: a coordinated 25-minute Savoy pause, or new QA tools and focused review for concurrent activity (estimated 2–3 hours). No route or runtime grant is assumed.
+Gemini recorded its prepared state and settled the bounded attempt on that external block. T7 is NOT RUN/PENDING, with zero Docker calls and no test failure. Both sessions are retained. M1, M2 and legacy remain accepted; final conformance, guides, Docs QA and blind reviews follow T7. See [remaining work](remaining-work-2026-10-22.md).
+
+### Prior host status — 2026-10-23, 12:10 UTC
+
+T7 remains NOT RUN/PENDING. Retained Gemini QA is ready, with all 90 tool bindings and fresh paths checked. LTI has made zero Docker calls in this resumed attempt.
+LA supplied its handoff, but Savoy will not pause its own Docker work. The unused LA reservation was returned at 12:07. The retained Claude Architect is assessing a bounded T7 route that preserves verification requirements; no runtime grant is active. See [remaining work](remaining-work-2026-10-22.md).
+M1, M2 and legacy remain accepted. Final conformance, guide evidence updates, independent Docs QA and two blind reviews remain after T7.
+
+### Prior host status — 2026-10-23, 08:04 UTC
+
+T7 remains NOT RUN/PENDING. The planned slot was unused because no actual LA handoff arrived. LTI made zero Docker calls; the retained Gemini session passed all 90 host-only tool bindings and fresh-path checks.
+The Lead requested a newly confirmed 20-minute window in `msg_ed58480e255f`. The QA runtime attempt settled as externally blocked; the report precision follow-up passed and the same terminal is retained. The one-time reminder has fired and is disabled. [Remaining work](remaining-work-2026-10-22.md) records the conditions to resume.
+
+### Prior host schedule — 2026-10-23, 06:26 UTC
+
+LA confirmed the planned exclusive T7 slot **07:45–08:05 UTC** (`msg_7dcc7a1394ef`). T7 remains NOT RUN. The host-only preparation reminder is at 07:40 UTC.
+Require the actual LA handoff and fresh start grant before Docker; the existing block lasts until 07:45. Return the host by 08:05. [Remaining work](remaining-work-2026-10-22.md) records the full conditions and final host-only steps.
+
+### Historical task status — 2026-10-23, 04:38 UTC
+
+| Task | Status | Evidence and next step |
+| --- | --- | --- |
+| M0 | Design complete | Existing design approvals stand. |
+| M1 | Both fresh C9 rounds and equality accepted | Each round passed 394/394, all seven dead-handler preconditions, sink/browser scans and operational closure. [E-R7](r7-m1-verification-2026-10-23.md) records independent judgment and all 32 complete volume records unchanged. The 94 carried C4 rows stay separate. Common QA appendices are committed at `d72dbd6`. |
+| M2 | Fresh r7 invocation accepted | All 64 cases, 13 criteria and seven gates passed; monitor isolationPass, scans and cleanup passed. [E-R6](r6-independent-verification-2026-10-23.md) records the late pre-W3 bridge reconciliation and its required disclosure. Attempt 3 remains NOT ACCEPTED history. |
+| M3 | Legacy accepted; T7 not run, awaiting host availability | T7 missed the 04:33 launch cutoff. Its grant is closed unused; preflight only ran. Host returned at 04:38:30 UTC; no LTI Docker or window request through 07:45 UTC. All twelve legacy groups remain accepted. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. |
+| M4 | Guides have static QA and review approvals; final closure pending | Guide base `958ee5c`; final runtime conformance, evidence updates, independent Docs QA and two final reviews remain. Architect Round 6 is prepared; AC-M4-06 stays PENDING until M2 and T7 pass. |
+
+Claude owns architecture and review; retained Codex owns product changes and Docs; Gemini owns independent QA.
+No product edit, push or main merge is currently authorized. Historical outcomes below keep their original scope.
+
+### Historical snapshot — before the C8 and C9 repairs
+
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | R5 host gate accepted; C4 diagnostic running | C4 bf09cda, tests tree 8283d90. Full host 154/154 and affected 077 52/52 PASS; QA 5681c0f and both reviews APPROVE (A bf09cda, B f7a2d42). A-SH-12/13 are NIT deferrals. Same fixer ctx_898acbaef3a6 remains. No runtime credit yet; C3 stays failed history. |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | Full SIM browser functional PASS; source reviews clear | Original Claude QA reports all 64 cases PASS at `aff4882`, zero skips/retries, including both HTML teacher/learner flows and score completion. Report commit `02b62da` separates functional evidence from the contained external observer incident, its repair and sanitized rescan. Historical failed runs remain unchanged. |
-| M3 | Independent Claude common QA and Canvas QA | C4 diagnostic running; Canvas host-ready | Common ctx_e23ced3dd1fa started the diagnostic at 04:18:22 UTC under grant msg_2bed4f15a8f7 (through 06:20 UTC). Canvas ctx_745cb25fcb7c remains host-only. Two complete 488-row rounds, 12 legacy groups and fresh M2/T7 remain. All 32 live LMS rows stay UNVERIFIED; local Canvas DEFERRED. |
-| M4 | Docs and Architect | Complete draft committed; final approval pending | Nine-file draft 82aff91 has passing author checks. Infrastructure README clarification 5a5453 is WIP pending independent checks. Final runtime evidence, Architect conformance, guide updates, independent Docs QA and two reviews remain required. Manual invalid-lock recovery is not approved. |
+| M1 | Shared engine; independent Gemini QA | C4 engine evidence held; renewed runtime route pending | Historical full2 engine rounds passed 488/488 each and independent Canvas judgments passed 233/233 with equality. Historical failed attempts remain FAILED. The C6/C7 legacy failure voided E-T5R. A renewed bounded route requires a new Lead decision after the R3 test repair and independent reviews; no new runtime is granted. |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | Historical SIM functional PASS; fresh C7 run pending | Prior Claude QA passed all 64 cases at aff4882, zero skips/retries, including HTML teacher/learner flows and score completion. That evidence stays at its original candidate. The final C6 product is equivalent to C7; a fresh exact-C7 run of all 64 cases is still required. |
+| M3 | Same Codex executor; independent Gemini QA; Claude planning and reviews | C6/C7 legacy FAILED; R3 test repair planned | Run 14:21:27–15:06:57: ten groups passed, T6 AC-T6-09 failed, T8 did not run. AC-T5-36 and AC-T6-07 passed. Final W4 separately failed from Savoy overlap; all 32 baseline volumes were unchanged and own cleanup passed. E-T5R is VOID. Claude identified a likely test focus race; QA will apply one bounded batch to T6 and analogous M2 keyboard tests. No product edit or runtime retry is granted. Host QA and source reviews remain historical PASS. All 32 real-LMS rows UNVERIFIED; local Canvas DEFERRED. |
+| M4 | Codex Docs executor; Claude Architect and reviewers; Gemini Docs QA | Corrected guide static QA and both static reviews PASS | Guide candidate 958ee5c has independent Gemini Stage1 QA PASS at 60cb89d. Reviewer-A 4c1f67b closes all A findings; Reviewer-B 64d439a closes all B findings with no new finding. Lead accepts A-M4P-R2-01 as a nonblocking NIT for the final deferral list. Source conformance and tracker clarification are committed at 0f5a9ba. Final runtime conformance, document evidence stamps, final QA and two final blind reviews remain. Independent QA is checking captured-output closure for A-SI-05/B-SI-09. |
 
 Both original implementation tasks are complete; independent product verification is pending.
 Reviewer-A closed A-M1-01 at `76b03c7` and checked the prepared harness at `9964e6f`.

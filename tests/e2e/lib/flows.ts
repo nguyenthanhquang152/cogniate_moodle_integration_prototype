@@ -1,11 +1,22 @@
 // Flows that Scenario A and Scenario B share: the teacher adds a Cogniate activity, and a learner does one activity.
+import fs from 'node:fs';
+import path from 'node:path';
 import type { BrowserContext, Page, TestInfo } from '@playwright/test';
 import { stateCookieHeader } from './capture';
-import { escapeRegExp, type LaunchRecord, loadState, need, note, pollUntil, saveState, SHELL_DONE_0, SHELL_DONE_100, shot, urls } from './e2e';
+import { ART, escapeRegExp, EVIDENCE, type LaunchRecord, loadState, need, note, pollUntil, saveState, SHELL_DONE_0, SHELL_DONE_100, shot, urls } from './e2e';
 import { doCourse, domClicks, launchFromCourse, shellText } from './learner';
 import { addActivityFromChooser, ensureEditMode, openSelectContent, pickCourse, saveAndReturn, setCompletionReceiveGrade } from './moodle';
 import { cmidByName, grade, users } from './oracle';
 import { expect } from './pw';
+
+/** Viewport screenshot into tests/e2e/artifacts/evidence/<name>.png, also attached to the test report (keeps Moodle's sticky footer in the viewport). */
+export async function viewportShot(page: Page, name: string, testInfo?: TestInfo): Promise<string> {
+  fs.mkdirSync(EVIDENCE, { recursive: true });
+  const file = path.join(EVIDENCE, `${name.replace(/[^\w.-]+/g, '_')}.png`);
+  await page.screenshot({ path: file, fullPage: false });
+  if (testInfo) await testInfo.attach(name, { path: file, contentType: 'image/png' });
+  return path.relative(ART, file);
+}
 
 /** Teacher: Add content → Activity or resource → the tool → Select content → the course → completion → save. */
 export async function addCogniateActivity(page: Page, courseId: number, toolName: string, title: string, pickerKey: string, testInfo: TestInfo): Promise<number> {
@@ -18,7 +29,8 @@ export async function addCogniateActivity(page: Page, courseId: number, toolName
   const name = await pickCourse(page, picker, title);
   expect(name, 'Moodle fills the activity name from the picked course').toBe(title);
   await setCompletionReceiveGrade(page);
-  await shot(page, `${pickerKey}-activity-form`, testInfo);
+  await page.locator('#id_activitycompletionheader').scrollIntoViewIfNeeded();
+  await viewportShot(page, `${pickerKey}-activity-form`, testInfo);
   await saveAndReturn(page);
   return need(await cmidByName(courseId, title), `the new activity "${title}"`);
 }
