@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 5
+Verdict: APPROVE
+Round: 6
 
 ## Round 1
 
@@ -369,3 +369,22 @@ The real route calls `channels.capabilities(m.id)` without a profile (`services/
 - Independent replay: `node_modules/.bin/vitest run --reporter=verbose --config reviewer-r5.config.mts` — **12/12 diagnostic assertions PASS**, 1 file, 1.24 s. Eleven checks verify corrected boundaries; the C1 check confirms the remaining defect, so this is not K1 acceptance. Source, config and final output are retained as `reviewer-r5.probe.test.ts`, `reviewer-r5.config.mts` and `reviewer-r5-probes.log` in the private clone. The probes use real product functions, in-memory SQLite and in-process HTTP injection; external transport and Deep Linking signing are test doubles where noted in the source.
 - The commits stay within the permitted kit and QA-report paths. They change no product, simulator or frozen M1 source and add no LMS name to core paths. The new executable case checks cover the old L4/L7, page and picker failures; the C1 host fixture shape remains the demonstrated coverage gap.
 - No Docker, stack, stack-starting runner, K1-SIM execution or commit. No Reviewer-B file or probe was opened. Only this review file was changed by this reviewer in integration. Live evidence remains pending; its absence is not an additional finding in this host-only review.
+
+## Round 6 (A-08 re-check)
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed QA commit `acbc0feb`, integrated at `e17a7a44`, using `git diff 1698489b e17a7a44 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. This review covers only A-LA-E7-06-08 and new defects in the changed lines. No new finding. Earlier closed findings remain closed.
+
+**A-LA-E7-06-08: CLOSED.** The comparator now checks the provider map against the 15 channel-level keys and the connection map against all 17 selected-profile keys (`tests/ltiaas/kit/lib/fixtures.ts:1476`, `:1501`). Missing keys and wrong values still fail. Extra profile traits on the provider map and unknown keys on either map also fail. The two profile traits match LA-ADR-01 D3, and the new K0 test verifies the key list against that design table (`kit.k0.test.ts:1576`). The suite and README now describe the two levels correctly.
+
+The unchanged Round 5 C1 probe now receives `[]` from the actual 15-key provider and 17-key Canvas connection HTTP responses, so its old-defect assertion fails as expected. My revised positive-control probe accepts those same responses. It then removes and changes each of the 15 provider keys and 17 connection keys in turn, adds an unknown key to either map, adds each profile trait to the provider map, and changes a fixture capability: every invalid case is rejected. The probe uses authenticated Fastify injection with the real app and in-memory SQLite; it starts no server or stack.
+
+Verification in private clone `/tmp/la-review-a-11c353feeb1d`, created with `git clone --no-hardlinks` and detached at `e17a7a44`, with dependencies copied into that clone:
+
+- Kit K0: `LA_LEVEL=k0 node_modules/.bin/vitest run --reporter=verbose --config tests/ltiaas/kit/vitest.config.mts` — **25/25 PASS**, 204 ms (`reviewer-r6-kit-k0.log`). An initial concurrent attempt hit a private Vitest cache-removal conflict before running tests; the serial rerun passed.
+- Real API C1 probe: `node_modules/.bin/vitest run --reporter=verbose --config reviewer-r6.config.mts` — **1/1 PASS**, 551 ms (`reviewer-r6-c1.log`; source `reviewer-r6-c1.probe.test.ts`). The unchanged old-defect replay is retained in `reviewer-r5-c1-replay.log`.
+- Regression sensitivity: replacing only the comparator with its Round 5 implementation makes the new `C1 levels` K0 test fail on the valid provider shape (`reviewer-r6-old-comparator-mutant.log`). Restored the file and confirmed no tracked diff in the private clone.
+- Kit typecheck: `node_modules/.bin/tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` — **exit 0** (`reviewer-r6-types.log`).
+
+The commit changes only permitted kit and QA-report files, with no product, simulator or frozen-test changes and no LMS name added to core paths. No Docker, stack, K1-SIM run, integration install or commit. Reviewer-B's file and probes were not opened. Only this review file was edited in integration. Live K1 evidence remains pending; this approval closes the host-review finding and does not claim a live kit pass.
