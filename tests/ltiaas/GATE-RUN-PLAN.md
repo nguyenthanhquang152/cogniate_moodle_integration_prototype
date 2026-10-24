@@ -73,12 +73,12 @@ LA-IC-01,LA-IC-03,LA-IC-04,LA-IC-12,LA-IC-13,LA-IC-14,LA-IC-15,LA-IC-16,LA-IC-17
 
 - **Target SHA:** `80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5` (product code `02f5d420`)
 - **Pre-Staged Source Repo:** `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end` (`--test-sha 8ad1292687431b05bad6b5c070ab722e67714526`)
-- **Compose Projects:** `qalead-la-10`, `qalead-la-11`, `qalead-la-12`, `qalead-la-13`, `qalead-la-13b`, `qalead-la-14`, `qalead-la-15`
+- **Compose Projects:** `qalead-la-10`, `qalead-la-11`, `qalead-la-12`, `qalead-la-13`, `qalead-la-14`, `qalead-la-15`
 - **Port / Subnet:** `PUBLIC_PORT=9643`, `STACK_SUBNET=172.22.0.0/16` (or `9443` / `172.20.0.0/16` per `DOCKER-YES`)
 - **Estimated Duration:** **`52 minutes` total**
   - Step 3B.1 (`qalead-la-10`): Candidate golden capture `G1–G4` + host compare with all 13 `LD-9` records — **`4 min`**
   - Step 3B.2 (`qalead-la-11` & `qalead-la-12`): `M1 --phase migration` (`35` rows) + `M1 --phase snapshot-upgrade` (`7` rows) — **`12 min`**
-  - Step 3B.3 (`qalead-la-13` & `qalead-la-13b`): `U1` SIM upgrade continuity from `1b17261` to `80133d6b` (`LA-E5-08` LTI + `LA-E5-22` app) — **`6 min`**
+  - Step 3B.3 (`qalead-la-13`): combined `U1` SIM upgrade continuity from `1b17261` to `80133d6b` (`LA-E5-08` LTI + `LA-E5-22` app) — **`6 min` estimate**; executed as `qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z` (43 summary entries: 37 PASS, 6 INFO; 17 PASS aggregate IDs).
   - Step 3B.4 (`qalead-la-14`): `M1 --phase sim --provider all` (`394` rows) — **`15 min`**
   - Step 3B.5 (`qalead-la-15`): `M2` browser suite (`64` cases) — **`15 min`**
 
@@ -145,25 +145,13 @@ COMPOSE_PROJECT_NAME=qalead-la-12 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$GATE_DIR/logs/slot3b-2b-m1-snapshot-upgrade.log" 2>&1
 
 # ----------------------------------------------------------------------
-# Step 3B.3 (qalead-la-13 & qalead-la-13b, est. 6 min): U1 SIM Upgrade Continuity 1b17261 -> 80133d6b (AC-LA-E7-08-04)
-# ----------------------------------------------------------------------
-# 3B.3a: LTI service U1 continuity (connections, deployments, resource links, pending DR session, tool keys, service keys)
-COMPOSE_PROJECT_NAME=qalead-la-13 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
-  node "$SRC_WAVE/tests/ltiaas/tasks-ops/LA-E5-08/run.mjs" \
-  --sha "$WAVE_SHA" \
-  --old-sha "$INTAKE_SHA" \
-  --source "$SRC_WAVE" \
-  --workdir "$GATE_DIR/qalead-la-13-u1-lti" \
-  > "$GATE_DIR/logs/slot3b-3a-u1-lti.log" 2>&1
-
-# 3B.3b: App U1 continuity (connections, deployments, resource links, picker sessions, Deep Linking pick, launch, score dispatch)
-COMPOSE_PROJECT_NAME=qalead-la-13b PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
-  node "$SRC_WAVE/tests/ltiaas/tasks-ops/LA-E5-22/run.mjs" \
-  --sha "$WAVE_SHA" \
-  --old-sha "$INTAKE_SHA" \
-  --source "$SRC_WAVE" \
-  --workdir "$GATE_DIR/qalead-la-13b-u1-app" \
-  > "$GATE_DIR/logs/slot3b-3b-u1-app.log" 2>&1
+# Step 3B.3: execution correction (combined U1 SIM; AC-LA-E7-08-04)
+# The earlier separate-service commands were planned, not the executed record.
+# One combined run covered LA-E5-08 and LA-E5-22 on build 80133d6b:
+# qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z
+# Raw summary: /Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/artifacts/qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z/summary.json
+# Counts: 43 entries (37 PASS, 6 INFO); 17 PASS aggregate IDs.
+# See QA section 5.1 item 4 and section 14.6 for the executed evidence.
 
 # ----------------------------------------------------------------------
 # Step 3B.4 (qalead-la-14, est. 15 min): M1 --phase sim --provider all (394 rows, AC-LA-E7-08-01)
@@ -333,7 +321,7 @@ git -C "$SRC_WAVE_3" diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6.."$WAV
 | **`qalead-la-41`** | `M1 --phase snapshot-upgrade --provider all` (`6` manifest rows) | **`3 min`** | Closes `AC-LA-E7-08-04` and **`WE-F5`** (Addendum Hunk 2: `services/lti-service/src/db/migrations` in `tests/host/m1-migration.mjs:332`), proving all **`6/6` manifest rows `PASS`** (`M1-38.common.h1..h5` plus host qualification row **`M1-41.common.j-snapshot`** in `m1-case-results.json`, `0` `ERROR` rows in `summary.json`, and exact 21-file candidate migration ledger equality). |
 | **`qalead-la-42`** | `M2` browser suite (`64` manifest cases) | **`4 min`** | Closes `AC-LA-E7-08-01` (`64/64` `M2` cases `PASS`) on `$WAVE_SHA_3` (`8fadb828088ffe1b4db02179ab0fa3ab2388a12a`) because `cogniate-app` and the portal UI changed after `80133d6b`: specifically `LA-E3-16` hosted Canvas wizard help sentence (`BD-A2-106`, merged in `60230165`, touching the Canvas wizard tested by `M2-02`) and the `BD-A2-109` stop-order changes in `cogniate-app` and `lti-service`. |
 | **`qalead-la-43`** | Candidate golden capture `G1–G4` & host compare (`280` expected entries across `LA-IC-01..21`) | **`4 min`** | Closes `AC-LA-E7-08-03` (`LA-E0-03` golden comparison) on `$WAVE_SHA_3` (`8fadb828088ffe1b4db02179ab0fa3ab2388a12a`) because product code changed after `80133d6b` in three places: (1) `lti-service` `admin` default rate limit `1200/min`, burst `600` (`BD-A2-108`, `ecc19bbc`), (2) hosted Canvas wizard help text (`BD-A2-106`, `60230165`), and (3) `cogniate-app` + `lti-service` stop order (`BD-A2-109`). Confirms `280/280` explained golden entries, `0` unexplained differences, and `0` missing expected changes on `$WAVE_SHA_3`. |
-| **Not Rerun in Slot 3C** | `M1 --phase migration` (`qalead-la-11`) and `U1` SIM (`LA-E5-08` `qalead-la-13`, `LA-E5-22` `qalead-la-13b`) | **`0 min` (carried from Slot 3B on `80133d6b`)** | **Why `M1 migration` and `U1` do not need to run again:**<br>1. **No new SQL migration or schema change after `80133d6b`:** `git diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..8fadb828088ffe1b4db02179ab0fa3ab2388a12a -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` is **empty (`0` files changed)**; the migration ledgers remain `001_init.sql`..`021_registration_token_kind.sql` (`21` files in `lti-service`) and `001_init.sql`..`016_binding_authority.sql` (`16` files in `cogniate-app`).<br>2. **No change to `stack-data`, backup/restore, or `U1` key-sealing/backfill code after `80133d6b`:** None of `BD-A2-108` (`ecc19bbc`), `BD-A2-106` (`60230165`), or `BD-A2-109` touches migration SQL, backfill logic, key-provider sealing (`ltik1` / `cgk1`), or backup/restore scripts.<br>3. **Already proven 100% `PASS` in Slot 3B (`docs/reviews/LA-E7-08/qa.md` §5.1 items 2, 4a, 4b):** `qalead-la-11` passed `12/12` `migration` manifest rows in `m1-case-results.json`, `qalead-la-13` passed `19/19` LTI `U1` assertions, and `qalead-la-13b` passed `18/18` app `U1` assertions. |
+| **Not Rerun in Slot 3C** | `M1 --phase migration` (`qalead-la-11`) and combined `U1` SIM (`LA-E5-08` + `LA-E5-22`, `qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z`) | **`0 min` (carried from Slot 3B on `80133d6b`)** | **Why `M1 migration` and `U1` do not need to run again:**<br>1. **No new SQL migration or schema change after `80133d6b`:** `git diff --stat 80133d6b662dd4fb8e18a9eed62e3160d2b2a1c5..8fadb828088ffe1b4db02179ab0fa3ab2388a12a -- services/lti-service/src/db/migrations services/cogniate-app/src/domain/migrations` is **empty (`0` files changed)**; the migration ledgers remain `001_init.sql`..`021_registration_token_kind.sql` (`21` files in `lti-service`) and `001_init.sql`..`016_binding_authority.sql` (`16` files in `cogniate-app`).<br>2. **No change to `stack-data`, backup/restore, or `U1` key-sealing/backfill code after `80133d6b`:** None of `BD-A2-108` (`ecc19bbc`), `BD-A2-106` (`60230165`), or `BD-A2-109` touches migration SQL, backfill logic, key-provider sealing (`ltik1` / `cgk1`), or backup/restore scripts.<br>3. **Executed Slot 3B evidence (`docs/reviews/LA-E7-08/qa.md` §5.1 items 2 and 4):** `qalead-la-11` passed `12/12` `migration` manifest rows in `m1-case-results.json`, the combined run `qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z` has **43 summary entries (37 PASS, 6 INFO), 17 PASS aggregate IDs** in `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/artifacts/qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z/summary.json`. No separate per-service count is claimed. |
 
 ### (c) Exact Commands for Slot 3C (`qalead-la-40..43`, `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16`, Est. `35 min` Sequential)
 
