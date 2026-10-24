@@ -2,9 +2,9 @@
 
 2026-10-24. Source: [LA plan §6.2](../../team/ltiaas/plan.md#62-human-decisions) and the [LA board](../../team/ltiaas/board.md). The question and the recommendation of each row come from the plan. This page adds what waits on each answer. Back to [start-here.md](start-here.md) or [index.html](index.html).
 
-## Decide first
+## Decided since the gate
 
-### LA-H25: how do we finish the channel kit (LA-E7-06)?
+### LA-H25: how do we finish the channel kit (LA-E7-06)? Decided: (a)
 
 - **Facts:** LA-E7-06 (the K1 channel certification kit, Must) used the 3 fix rounds of charter-LA §5. Each round-4 review still has 2 open BLOCKERs: some safety checks and some callers do not match the product contracts. The kit host checks pass, including the one-file onboarding of a sixth channel ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 4).
 - **What waits:**
@@ -16,6 +16,9 @@
   - (b) One extra fix round on Antigravity QA-4.
   - (c) Move the kit K1 run to LG. The kit stays a host-only K0 check. AC-LA-E7-08-02 closes with the frozen M1, M2 and K2 results and the E2-N proof (D2L Brightspace, F2 `core = 0`). The LA-E8-05 pack then says so.
 - **Lead recommendation:** (a).
+- **Decision:** (a), by the product owner on 2026-10-24 ([plan §6.2](../../team/ltiaas/plan.md#62-human-decisions)): one extra fix round by a fresh QA session, then round-5 reviews and the kit K1-SIM run. The two gate rows stay pending: wave-end gate until QA records new evidence.
+
+## Decide first
 
 ### LA-H26: a live proof of the new-channel path
 
