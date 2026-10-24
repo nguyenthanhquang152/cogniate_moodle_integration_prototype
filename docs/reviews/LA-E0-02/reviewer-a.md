@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 4
+Round: 5
 
 # LA-E0-02 — Reviewer-A
 
@@ -81,3 +81,71 @@ Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `a456ca03`,
 These values match fresh reads of the raw reports. The earlier failed/skipped variants remain visible, and A-LA-E0-02-02 stays closed. **A-LA-E0-02-01 remains pending**, so the task verdict stays **CHANGES_REQUESTED**: R1 has started under the Lead's decision, but its baseline-3 results and AC-06/07 measurements have not been reviewed in this round. Approval of the §10 extraction commands does not replace those measurements.
 
 Evidence: `/tmp/la-review-a-8400cc94ece5/reviewer-r4-knob-audit.json`, which records the exact raw paths, suite times and test results. No new product run, Docker or stack; no other reviewer's report or probe was opened.
+
+## Round 5
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `9614cf03`, integrated at `35b71b98`, using the scoped diff from `56261ed6` and the saved Slot R1 artifacts. **CHANGES_REQUESTED: A-LA-E0-02-01 remains open (BLOCKER); 2 new MAJOR findings below; 0 new BLOCKER, MINOR or NIT.** The result counts and group times are supported. The full-task 9/9 PASS is premature because one legacy rate record omits earlier passes. The two T8 failures may be recorded as baseline failures; they do not themselves prevent acceptance of a truthful baseline record.
+
+### Raw summary reconciliation
+
+Every path below is relative to **`/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/slot-r1/artifacts/`**. All ten summaries name product `78971b0300ab171029e8ce94dbba30db37b23dea`, with no abort. Counts distinguish result entries from unique IDs; any failed occurrence makes that ID fail.
+
+| Exact `summary.json` path | Result entries | Unique IDs / manifest | Group wall time |
+| --- | --- | --- | --- |
+| `qalead-la-120-78971b03-2026-10-24T17-12-27-675Z/summary.json` | 400 PASS | 400 PASS; M1 ledger 394/394 PASS | 23.0 min |
+| `qalead-la-121-78971b03-2026-10-24T17-43-47-815Z/summary.json` | 71 PASS | 71 PASS; M2 ledger 64/64 PASS | 2.8 min |
+| `qalead-la-122-78971b03-2026-10-24T17-46-37-886Z/summary.json` | 8/8 host steps OK | Each of 3 runs: 17 PASS, 0 FAIL, 1 demo SKIP | 8.9 min |
+| `qalead-la-123-78971b03-2026-10-24T17-55-33-990Z/summary.json` | 76 PASS | 64 PASS | 8.4 min |
+| `qalead-la-124-78971b03-2026-10-24T18-03-57-336Z/summary.json` | 28 PASS | 28 PASS | 1.8 min |
+| `qalead-la-125-78971b03-2026-10-24T18-05-47-088Z/summary.json` | 19 PASS | 15 PASS | 1.5 min |
+| `qalead-la-126-78971b03-2026-10-24T18-07-15-391Z/summary.json` | 48 PASS | 40 PASS | 5.1 min |
+| `qalead-la-127-78971b03-2026-10-24T18-12-22-967Z/summary.json` | 59 PASS | 48 PASS | 16.4 min |
+| `qalead-la-128-78971b03-2026-10-24T18-28-47-946Z/summary.json` | 53 PASS | 46 PASS | 6.9 min |
+| `qalead-la-129-78971b03-2026-10-24T18-35-41-097Z/summary.json` | 32 PASS, 4 FAIL | 20 PASS, 3 FAIL: AC-T8-03, AC-T8-07, SUITE | 20.9 min |
+
+The controller's `logs/master.log` supports these rounded wall times and the 8.4-minute pause before M2. T7's own summary gives **175 / 176 / 176 seconds**, with resets **39 / 39 / 40 seconds**. T8's main 10 tests, two C-T8-01 race tests and C-T8-02 pass; the two knob reports fail at **421,171 / 423,075 ms**, with the assertion messages transcribed correctly in E0-02 §8.1. This completes the previously missing AC-04 result/time record; it does not close the rate portion of A-LA-E0-02-01.
+
+### A-LA-E0-02-01 — BLOCKER — Still open: T2a–T3b rates cover only the final pass
+
+**Current location:** `docs/reviews/LA-E0-02/qa.md:35`, `:36` and `:200` (the `t2-t3ab` row of §8.2).
+
+All **11** saved rate files reproduce exactly when the extractor is rerun on their selected inputs. The other six legacy groups' available snapshots add no requests beyond their published final logs. For `qalead-la-123-t2-t3ab.json`, however, the selected top-level `service-logs/` contains only passC after `14-stack-reset.log`. The row acknowledges that reset but still credits complete AC-06/07 coverage.
+
+The earlier snapshots survive in the same run's `container-passA/service-logs/` and `container-knob/service-logs/`. Combining these with `container-passC/service-logs/` and the final logs, removing duplicate saved lines before extraction, gives:
+
+| Measurement | Published final-pass file | All saved passes |
+| --- | --- | --- |
+| App / LTI request totals | 2 / 8 | **13 / 213** |
+| Launch peak, per minute / per 10 s | 2 / 2 | **6 / 5** |
+| LTI protocol peak, per minute | 4 | **34** |
+| Registration total / per minute / per 10 s | 0 / 0 / 0 | **6 / 6 / 6** |
+| Auth-failure total / per minute / per 10 s | 0 / 0 / 0 | **12 / 8 / 8** |
+| Registration starts per 10 min | None | **cogniate: 5; unknown: 1** |
+
+Under the extractor's documented upper-bound method, the omitted registration peak exceeds the **5-per-10-second burst**, and `cogniate`'s **5/minute** exceeds the account's **1/minute** steady rate. Thus the claim that only T4b has an over-default class is also wrong. AC-06/07 are not complete for this group, and the Lead has not been given its required threshold exception.
+
+**Required correction:** Rebuild this rate record from the surviving per-pass snapshots without double-counting overlapping copies; update the AC summary, §8.2 and the over-default discussion, and obtain the Lead's required acceptance-limit decision. No stack rerun is needed to recover these measurements. Keep A-LA-E0-02-01 open until that record is reviewed.
+
+### A-LA-E0-02-03 — MAJOR — The T8 explanation cites an unrelated fix and treats a hypothesis as a cause
+
+**Location:** `docs/reviews/LA-E0-02/qa.md:186` and `docs/reviews/LA-E7-08/qa.md:1360`.
+
+**Problem:** The report attributes the failures to pre-WE-F6 read-only VirtioFS caching and implies that a T8 harness fix is absent from baseline-3. There is no such T8 change in the cited addendum. This explanation cannot justify a different baseline/candidate answer.
+
+**Evidence:** The saved traces show both knob tests receiving **the same build ID**, `bld_9024b26e1ff6c7b89d527288`. The host log contains `build_hold` at **18:41:06.818Z**; the hold test later reports no matching event, and the fail-at test receives the still-running build. The host finally records that build stopped at **18:55:42.154Z**. These facts support the hold/cascade account. They do **not** identify why the first test failed to observe the event: `eventsSince()` returns an empty list on any read exception as well as on no matching event, and the trace does not record the underlying read result or error. The copied host logs do not prove what the container could read during polling.
+
+WE-F6 / LD-9 addendum r2 is the **M1-08 Canvas platform-storage login** assertion change under LA-IC-06, as its own approved Reviewer-A Round 2 confirms. BD-A1-118 records unrelated conformance details. The two T8 knob specs, `tests/host/run-t8.mjs`, and `tests/acceptance/lib/{lti,logs}.ts` are byte-identical in baseline-3 and candidate; the actual R1 workdir matches the baseline source. Both product trees still use the read-only log bind and `chmod 700` on the log directory. D1/D2's hold-spec bytes also match. Therefore there is no missing approved T8 WE-F6 patch to import.
+
+**Suggested fix and comparison consequence:** Retain the exact observed failures and cascade, label the first failure's root cause **unconfirmed**, and remove the incorrect WE-F6/BD-A1-118 attribution unless separate diagnostic evidence proves a cause. Excluding the LA-specific Canvas answer from baseline-3 is correct under LD-29; importing it would give the old product the new product's expected answer. LD-25 requires D3/D4 suite parity, which remains satisfied; it does not turn unequal results into equality. D1 `qalead-la-83` and D2 `qalead-la-105` record AC-T8-03/07 PASS. If D3/D4 also pass, record **baseline FAIL → candidate PASS** for these IDs, with the error/step and a supported explanation or explicit unresolved classification. Do not call them equal or an expected WE-F6 change. Any new harness repair must be separately justified and reviewed, with comparable rerun evidence or an explicit Lead disposition under TEST-STRATEGY §4.2.
+
+### A-LA-E0-02-04 — MAJOR — The new E7-08 baseline summary does not match the saved run identifiers or rates
+
+**Location:** `docs/reviews/LA-E7-08/qa.md:1351`–`:1360`.
+
+**Problem and evidence:** §14 duplicates the correct result totals but supplies different run IDs and unsupported rate values. For example, its M1 ID ends in **`17-12-27-810Z`**, while the actual summary is **`17-12-27-675Z`**; its T7 ID ends in **`T171226Z`**, while the actual run is **`17-46-37-886Z`**. Its M1 protocol peak is **27/min**, versus **184/min** in the saved file; its T4a row claims launch **14/min** and protocol **13/min**, although the saved logs have **zero launches and zero LTI requests**. The cited rate extractor reports per-minute and per-10-second windows, and has no `runtime` class, yet §14 adds `/s` and `lti.runtime` values without another source. The ten exact identifiers are listed above; E0-02 §8.1 uses them correctly.
+
+**Suggested fix:** Regenerate §14 from the same summaries and corrected rate outputs used by E0-02, or link to that authoritative table. Preserve the two T8 failures and the newly identified T2/T3 rate exception. Do not use the current §14 rates or identifiers as gate evidence.
+
+### Verification boundary
+
+Evidence in **`/tmp/la-review-a-445b797fe69e/`**: `summary-audit.json` (all exact paths and counts), `rate-audit.py`, `rate-audit.json` (all 11 recomputations and complete per-pass comparison), `merged-123/` (deduplicated input copies), `t8-raw-evidence.json`, `t8-source-parity.json`, `run-source-parity.json`, and `t8-prior-runs.json` (exact D1/D2 summary paths). All work was host-only: read saved JSON/logs/traces, read Git objects, and execute the pure rate extractor against saved files. No Docker, live stack, install, product mutation or commit; no Reviewer-B report or probe was opened. Only this Reviewer-A report was edited in integration.
