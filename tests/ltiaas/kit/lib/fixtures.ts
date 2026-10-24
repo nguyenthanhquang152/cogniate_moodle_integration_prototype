@@ -1838,13 +1838,16 @@ export function selectFamilyGuardProbes(
 
 // Where a Dynamic Registration with a guarded foreign family is refused (R3 part 5). Contract: the start or the
 // confirm step gives the PROVIDER_PROFILE_MISMATCH page (cogniate-app-api-delta.md §5; AC-LA-E2-05-05). Recorded
-// deviation at the final SHA a8bbac53 (Architect A1 ruling BD-A1-121; fix planned for LG): when the family is guarded
-// at the `registration` level and the DR start rule also lets the owner channel pass the configuration, the start
-// (303) and the confirm page (200) pass, and `complete` refuses (400 INVALID_REQUEST, reason `family=<family>`), so
-// the app page is REGISTRATION_FAILED (502). The start lets the owner pass when the owner takes `any-https` admin
-// endpoints and the target's configuration is not bound to a fixed or issuer-bound profile (the target takes admin
-// endpoints). Else no loaded channel lets the configuration pass, and the start keeps the PROVIDER_PROFILE_MISMATCH
-// page.
+// deviation at the final SHA a8bbac53 (Architect A1 ruling BD-A1-121; LA-ADR-01 D6 "Registration-phase answer";
+// LA-ADR-02 D5 item 5; fix planned for LG): when the family is guarded at the `registration` level and the start page
+// passes the configuration because the owning channel is loaded too, the start (303) and the confirm page (200) pass,
+// and `complete` refuses (400 INVALID_REQUEST, reason `family=<family>`), so the app page is REGISTRATION_FAILED (502).
+// The start applies the loosest rule of any DR profile (LA-ADR-02 D5, last paragraph), so it can pass the
+// configuration only for an owner that has Dynamic Registration: `registration.dynamic` true (LA-ADR-01 D3: a `dynamic`
+// method whose profile has the `dynamicRegistration` trait). The owner must also take `any-https` admin endpoints, and
+// the target's configuration must not be bound to a fixed or issuer-bound profile (the target takes admin endpoints).
+// Else no loaded channel lets the configuration pass (for example an owner with manual setup only), and the start keeps
+// the PROVIDER_PROFILE_MISMATCH page.
 export function drFamilyGuardRefusedAtComplete(
   target: ChannelFixture,
   probe: Pick<FamilyGuardExpectation, 'foreignFamily' | 'foreignFamilyCategory'>,
@@ -1855,7 +1858,12 @@ export function drFamilyGuardRefusedAtComplete(
   const owner = allFixtures.find(
     (f) => f.id !== target.id && f.expect.guardedFamilies.some((g) => g.family.toLowerCase() === family),
   );
-  return Boolean(owner && isAnyHttpsChannel(owner) && takesAdminEndpoints(target));
+  return Boolean(
+    owner &&
+      owner.capabilities['registration.dynamic'] === true &&
+      isAnyHttpsChannel(owner) &&
+      takesAdminEndpoints(target),
+  );
 }
 
 export function validateFamilyGuardLaunchObservation(

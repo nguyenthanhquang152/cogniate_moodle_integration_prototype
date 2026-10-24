@@ -1,5 +1,5 @@
-Verdict: PASS (Round 8: the round 7 review findings A-LA-E7-06-01, -11, -12, B-LA-E7-06-01, -02, -09 and F-LA-E7-06-WALK-01 fixed in the kit; kit K0 32/32; K1-SIM run r8 on product a8bbac53 via integration 1e76eb22: 195 of 195 expected cases PASS on all 5 channels, with K-HYG and the fault matrix; one recorded product deviation, BD-A1-121; see "Round 8")
-Round: 8
+Verdict: PASS (Round 9: F-LA-E7-06-WALK-02 fixed in the kit oracle, kit K0 33/33, kit tree d7e50b5d; the live runs follow in the re-gate, LD-29. Round 8: K1-SIM r8 195/195 on a8bbac53; one recorded product deviation, BD-A1-121)
+Round: 9
 
 # QA Review — `LA-E7-06` (`K1` Simulator Suites per Port, Channel Fixtures, and the Pass Rule)
 
@@ -652,3 +652,50 @@ Before and after (`ps -a`, networks, volumes, with inspect), `events-qa4-la-k1-r
 ### R8.5 Result
 
 All five items are closed in the kit: A-LA-E7-06-01 and B-LA-E7-06-01 (wave producer), A-LA-E7-06-11 and B-LA-E7-06-02 (R3 stored audience), A-LA-E7-06-12 (L6 origin), B-LA-E7-06-09 (text), F-LA-E7-06-WALK-01 (canary K0 test, one more closed-world spot fixed). No stricter oracle showed a product defect: `lti-generic` and `brightspace` store the supplied audience exactly, and the player redirects are on the app origin. Final kit tree `8ad870fa1b33c93268bb0cdfb11dd86289a650c4`; kit run `kit-run-1792852921605-ngk732` 195/195. Changed files in Round 8: `tests/ltiaas/kit/lib/wave-producer.mjs` (new), `tests/ltiaas/kit/lib/wave-producer.d.mts` (new), `tests/ltiaas/kit/k0-data/wave-sources/{T3b,T7,T8,SOURCES}.json` (new), `tests/ltiaas/kit/run-k1sim.mjs`, `tests/ltiaas/kit/lib/fixtures.ts`, `tests/ltiaas/kit/suites/k1-reg.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, and this file. No commit.
+
+## Round 9
+
+QA-K, dispatch `ctx_251eb4d62366` (task `task_c12225d50ba5`; plan §6.1 LD-30), 2026-10-24 from 15:14Z. Host only (0 Docker commands). la-qa merged `quang/ltiaas-milestone` first (merge `138c9496`; it holds the B/C merge `4f10c5fd`). Changed files: `tests/ltiaas/kit/**` and this file only. Oracles from the contracts and the A1 ruling; no product source was read. No case id changed.
+
+### R9.1 Finding
+
+**F-LA-E7-06-WALK-02** (QA-K, `docs/reviews/LA-E8-02/qa.md` Round 2, run `qa4-la-walk-r1`): with the walker's manual-only channel `acme-lms` loaded (`registration.dynamic: false`; family `acme` guarded at the `registration` level), brightspace's R3 part 5 probe became `acme`, and the kit expected the BD-A1-121 complete branch (start `303`, `REGISTRATION_FAILED 502`). The product gave the contract start refusal: `GET /lti/register/:account 400`, LTI log `registration_rejected {PROVIDER_PROFILE_MISMATCH, family=acme}`. Result: a false FAIL (brightspace 37 of 39) when a channel is added. Cause: `lib/fixtures.ts` `drFamilyGuardRefusedAtComplete` did not check that the owner channel has Dynamic Registration.
+
+### R9.2 Fix
+
+`drFamilyGuardRefusedAtComplete` now also requires `owner.capabilities['registration.dynamic'] === true`. Basis:
+
+- BD-A1-121, as recorded in LA-ADR-01 D6 ("Registration-phase answer": `complete` refuses "when the start page passed because the owning channel is loaded too") and LA-ADR-02 D5 item 5 ("When the start page passes the configuration because the owning channel is loaded too … `complete` refuses it").
+- LA-ADR-02 D5, last paragraph: the start page "applies the loosest rule of any DR profile". An owner without Dynamic Registration adds no DR rule, so no loaded channel lets the configuration pass, and the start keeps `PROVIDER_PROFILE_MISMATCH` (cogniate-app-api-delta.md §5 `/tool/register`).
+- LA-ADR-01 D3: `registration.dynamic` is true when the manifest has a `dynamic` method and its profile has the `dynamicRegistration` trait (LA-ADR-02 D2).
+
+The other conditions are unchanged: a `registration`-level family, an `any-https` owner, and a target that takes admin endpoints. The function comment and the README R3 row now say this. R3 itself is unchanged; it still asks this selector for the branch.
+
+### R9.3 K0 rows
+
+New test "F-LA-E7-06-WALK-02: a manual-only owner gives the start refusal; a Dynamic Registration owner gives the BD-A1-121 complete refusal" (`kit.k0.test.ts`, describe "LA-E7-06 K0 Round 9"):
+
+| Row | Fixture set | Expected branch table (R3 part 5 probes of the shipped DR channels) |
+| :--- | :--- | :--- |
+| Manual-only owner | the shipped fixtures plus the walker's `acme-lms` fixture, copied unchanged from la-walk `d6196d52` into `tests/ltiaas/kit/k0-data/extra-fixtures/acme-lms.json` (SHA-256 `a620502d…`; not in `channels/`) | brightspace: `canvas:start`, `acme:start` (the live r1 walk answer); moodle and lti-generic: `canvas:start`, `desire2learn:complete`; canvas: `blackboardlearn:start`, `desire2learn:start` |
+| Dynamic Registration owner | the shipped fixtures plus a copy of the generic fixture with its own registration-level family (`openWorldExtraFixture('zz-k0-dr-owner', 'k0-dr-owner-family')`, `registration.dynamic: true`) | brightspace: `canvas:start`, `k0-dr-owner-family:complete` (the BD-A1-121 branch); the others as above |
+| Shipped set | the 5 shipped fixtures | unchanged: moodle and lti-generic `desire2learn:complete`; canvas `desire2learn:start`; brightspace `canvas:start` only |
+| Direct calls | per target | `acme` with the manual-only owner: start on moodle, lti-generic, brightspace; the DR owner's family: complete on the same three; canvas (fixed profile): start for both owners; the DR owner with `registration.dynamic` set to false: start; a `launch`-level family: never complete |
+
+Regression check (scratch clone only): with the old rule restored, the new row fails, and so does the WALK-01 child K0 run; with the fix, both pass.
+
+### R9.4 Host checks (fresh clone `~/cogniate-qa-runs/LA/LA-E7-06/r9-k0/clone` at la-qa `138c9496`, `npm ci`, la-qa kit tree synced in)
+
+| Check | Result |
+| :--- | :--- |
+| Kit K0 (5 shipped fixtures) | **33 of 33 PASS** (32 before plus the WALK-02 row) |
+| Kit K0 with a temporary `channels/acme-lms.json` (the acme-lms-shaped fixture; removed after) | **33 of 33 PASS**; `channels/` back to the 5 shipped files |
+| Kit typecheck `tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` | exit 0 |
+| Root K0 `npm run test:k0` | **151 of 151 PASS** (3 files) |
+| Lint `npm run lint` | exit 0 |
+
+No Docker run in this round: the lead QA books the live runs in the re-gate (LD-29): the walk clone with all 6 channels, and integration `4f10c5fd` with 5 channels.
+
+### R9.5 Result
+
+F-LA-E7-06-WALK-02 is fixed in the kit oracle. New kit tree (la-qa, `git add -A tests/ltiaas/kit && git write-tree --prefix=tests/ltiaas/kit/` on a temporary index): **`d7e50b5dea56382f849b213f006b73bcf5eb71aa`** (Round 8: `8ad870fa`). Changed files: `tests/ltiaas/kit/lib/fixtures.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/k0-data/extra-fixtures/acme-lms.json` (new), `tests/ltiaas/kit/README.md`, and this file. No commit.

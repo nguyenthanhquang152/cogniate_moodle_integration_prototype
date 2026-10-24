@@ -2573,3 +2573,70 @@ describe('LA-E7-06 K0 Round 8: round 7 review findings', () => {
     150_000,
   );
 });
+
+// ---------------------------------------------------------------------------------------------
+// Round 9: F-LA-E7-06-WALK-02 (LD-30): the R3 part 5 branch depends on the owner channel's Dynamic Registration.
+// ---------------------------------------------------------------------------------------------
+
+describe('LA-E7-06 K0 Round 9: F-LA-E7-06-WALK-02', () => {
+  it('F-LA-E7-06-WALK-02: a manual-only owner gives the start refusal; a Dynamic Registration owner gives the BD-A1-121 complete refusal', () => {
+    const shipped = loadAllChannelFixtures().filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id));
+    // The walker's fixture shape (la-walk d6196d52 tests/ltiaas/kit/channels/acme-lms.json, copied unchanged into
+    // k0-data/extra-fixtures/): manual setup only, family `acme` guarded at the registration level.
+    const manualOwner = loadChannelFixture('acme-lms', path.join(__dirname, 'k0-data', 'extra-fixtures'));
+    expect(manualOwner.capabilities['registration.dynamic']).toBe(false);
+    expect(manualOwner.expect.guardedFamilies).toEqual([{ family: 'acme', level: 'registration' }]);
+    // A Dynamic Registration owner: the generic fixture with its own registration-level family.
+    const drOwner = openWorldExtraFixture('zz-k0-dr-owner', 'k0-dr-owner-family');
+    expect(drOwner.capabilities['registration.dynamic']).toBe(true);
+
+    const branchTable = (set: ChannelFixture[]) =>
+      Object.fromEntries(
+        set
+          .filter((f) => (BASELINE_CHANNEL_IDS as readonly string[]).includes(f.id) && f.capabilities['registration.dynamic'])
+          .map((f) => [
+            f.id,
+            selectFamilyGuardProbes(f, set)
+              .probes.filter((p) => p.foreignFamilyCategory !== 'unguarded')
+              .map((p) => `${p.foreignFamily}:${drFamilyGuardRefusedAtComplete(f, p, set) ? 'complete' : 'start'}`),
+          ]),
+      );
+    const unchanged = {
+      moodle: ['canvas:start', 'desire2learn:complete'],
+      canvas: ['blackboardlearn:start', 'desire2learn:start'],
+      'lti-generic': ['canvas:start', 'desire2learn:complete'],
+    };
+    // Manual-only owner: brightspace's registration-level probe is `acme`; no DR rule lets it pass the start
+    // (the live r1 walk run: start 400 PROVIDER_PROFILE_MISMATCH, family=acme).
+    expect(branchTable([...shipped, manualOwner])).toEqual({ ...unchanged, brightspace: ['canvas:start', 'acme:start'] });
+    // Dynamic Registration owner: the start passes, `complete` refuses (BD-A1-121).
+    expect(branchTable([...shipped, drOwner])).toEqual({
+      ...unchanged,
+      brightspace: ['canvas:start', 'k0-dr-owner-family:complete'],
+    });
+    // The shipped set keeps the BD-A1-121 branch for desire2learn (brightspace has Dynamic Registration).
+    expect(branchTable(shipped)).toEqual({ ...unchanged, brightspace: ['canvas:start'] });
+
+    // The same family on every shipped DR target, for both owner kinds
+    const probe = (family: string) => ({ foreignFamily: family, foreignFamilyCategory: 'registration_guarded' as const });
+    for (const id of ['moodle', 'lti-generic', 'brightspace']) {
+      const target = loadChannelFixture(id);
+      expect(drFamilyGuardRefusedAtComplete(target, probe('acme'), [...shipped, manualOwner]), id).toBe(false);
+      expect(drFamilyGuardRefusedAtComplete(target, probe('k0-dr-owner-family'), [...shipped, drOwner]), id).toBe(true);
+    }
+    // A target bound to a fixed profile keeps the start refusal for both owner kinds
+    const canvas = loadChannelFixture('canvas');
+    expect(drFamilyGuardRefusedAtComplete(canvas, probe('acme'), [...shipped, manualOwner])).toBe(false);
+    expect(drFamilyGuardRefusedAtComplete(canvas, probe('k0-dr-owner-family'), [...shipped, drOwner])).toBe(false);
+    // The same owner without Dynamic Registration flips the branch back to the start refusal
+    const drOwnerWithoutDr = structuredClone(drOwner);
+    drOwnerWithoutDr.capabilities['registration.dynamic'] = false;
+    expect(
+      drFamilyGuardRefusedAtComplete(loadChannelFixture('brightspace'), probe('k0-dr-owner-family'), [...shipped, drOwnerWithoutDr]),
+    ).toBe(false);
+    // A launch-level family is never the complete branch
+    expect(
+      drFamilyGuardRefusedAtComplete(loadChannelFixture('moodle'), { foreignFamily: 'canvas', foreignFamilyCategory: 'launch_guarded' }, shipped),
+    ).toBe(false);
+  });
+});
