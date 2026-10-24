@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # A2 conformance check: LA design against the final product
 
@@ -160,3 +160,34 @@ Recommended follow-ups (for `deferred.md`; LG unless the Lead wants them sooner)
 - **§2:** add row D36, platform `trustedAudiences`.
 - **§2 D31:** correct as written. My delta was the stale side and is now fixed.
 - **Header:** the copy into base §8 is done, so the draft can drop "the Architect copies …" once its pending gate rows close.
+
+## Round 2 (final SHA 4f10c5fd)
+
+**Verdict: APPROVE.** Docs only, no Docker.
+
+- **What changed:** `4f10c5fd` merges the Blackboard and Canvas final result (main `78971b03`; LA-H27 (a)) into LA. Its first parent is `86bdc24c`, so `git diff 4f10c5fd^1 4f10c5fd` is exactly what the merge added.
+- **What I checked:** that diff, in my lens: operability, security, storage and the LTI service contract.
+- **What I did not check:** the player tracker change (`apps/player/src/html/tracker.ts`). It is outside my lens (A1, ADR-004).
+
+| Check | Result | Evidence | Note |
+| --- | --- | --- | --- |
+| 1. ADR-012 after the merge: §17 "G-1 result 2" intact | Pass | `docs/architecture/adr/ADR-012-sqlite-volume-storage.md:821-845` | My BD-A2-113 text is byte-equal to the text before the merge. The B/C hunks are elsewhere: the Status line (`:3`), one history line, and the dated clarification `:871`. |
+| 1. B/C Status line vs §17 | Fixed (doc) | `ADR-012…md:3` | The B/C line (written 2026-10-23) said the lock-orphan guarantee holds "only" for Docker CLI 29.9.1 / Compose 5.6.0. That contradicted G-1 result 2. I added the second measured set (29.9.2 / 5.6.1, BD-A2-113) to its "Limits". No other word changed. |
+| 1. G-1 and identity rules for the re-gate | Pass, with one condition | `ADR-012…md:841-845`; `tests/host/storage-docker.mjs:173-177` | The in-tree `BOUND_IDENTITY` is still 29.9.1 / 5.6.0. The move to 29.9.2 / 5.6.1 is a reviewed test change (BD-A1-120; LD-9 addendum r6/r8) applied in the QA clone. Condition: the re-gate's run boundary must use the addendum value. If it does not, `compareIdentity` blocks the run (fail closed); it can never pass wrongly. |
+| 1. ADR-012 dated clarification (QA kill mode) vs the storage rules | Pass | `ADR-012…md:871-878` | The kill happens before the unchanged guarded `stack:restart`, which takes the lock and runs the preflight. It creates no container and changes no mount. The compat-marker refusal still applies. Same class as the existing harness row "compose stop and start". |
+| 2. `tests/host/m1-control.mjs` kill mode | Pass | `tests/host/m1-control.mjs:31-54`; selftest `tests/host/m1-control.selftest.mjs:284-338` | The marker refusal (`:31`) runs before the new branch (`:34`). Only `mode: 'kill'` for `cogniate-app` is accepted (`:35`); anything else is "Unknown M1 host action". The guarded restart runs only after a `0` exit of the kill (`:39-45`). No storage, identity (G1-IDENTITY) or lock check is removed or weakened. |
+| 2. `docs/architecture/tasks/M1.md` AC-M1-37 clarification | Pass; one doc note | `docs/architecture/tasks/M1.md:327-335` | No case id, assertion, deadline or row count changes (the frozen M1 tests change only the `host('m1-restart', …)` argument). The M1 ledger rule LD-24 is not touched: B/C does not change `tests/host/m1-migration.mjs`. Note: the "why" text (`:332`) gives the B/C product stop ("up to 2 s"). In LA, `cogniate-app` does not use `closeOnSignal` (`services/cogniate-app/src/main.ts:81` `handleSignals: false`). It stops by BD-A2-109: in-flight HTTP is cut at 3 s (`services/cogniate-app/src/kernel/records/shutdown.ts:8`), and the process lives on only while a job runs. SIGKILL is the right QA mode for LA too, even more so, so the rule stands. |
+| 2. App contract §4.7.1 clarification | Doc note for A1 | `docs/architecture/contracts/cogniate-app-api.md:942-949` | The same "at most 2 s (`closeOnSignal`, `packages/shared/src/http.ts:48`)" sentence is true for the B/C product, but not for the LA app (BD-A2-109). A1 owns this contract; the outcome rule (QA uses SIGKILL) does not change. |
+| 2. Effect on LA checks | Recorded (operability §3) | `docs/architecture/ltiaas/operability.md` (stop timing) | The M1-37 rows no longer exercise the LA graceful stop. BD-A2-109 stays proven by `services/lti-service/src/main.test.ts:228`, `:246` and `services/cogniate-app/src/kernel/records/shutdown.test.ts`, and by AC-LA-E5-19-08. |
+| 3. LTI service and its contracts | Pass: untouched | `git diff 4f10c5fd^1 4f10c5fd -- services packages docs/architecture/contracts/lti-service-api.md docs/architecture/ltiaas` is empty | The only product change is the player (`apps/player/src/html/tracker.ts`). `infra/README.md` changes only operator command examples and the `operation_lock_invalid` row (stop and escalate). That matches the ADR-012 Status limits. |
+
+Fixes in my lens (no new design fact, so no BD row):
+
+- ADR-012 Status "Limits": the second measured identity set added.
+- Operability §3 stop timing: the unit-test evidence of BD-A2-109 and the M1-37 kill-mode note.
+
+For other owners:
+
+- A1: the app contract §4.7.1 sentence about a 2 s stop is not true for LA's app.
+- QA: the re-gate's identity boundary must use the addendum value 29.9.2 / 5.6.1.
+
