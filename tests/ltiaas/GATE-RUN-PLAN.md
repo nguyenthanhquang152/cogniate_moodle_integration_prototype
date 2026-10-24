@@ -791,3 +791,76 @@ COMPOSE_PROJECT_NAME=qalead-la-52 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_S
   > "$SLOT8B_DIR/logs/qalead-la-52-t8.log" 2>&1
 ```
 
+---
+
+## 8c. Slot 8c — Live Moodle Rerun of `T6` and `T5b × 2` on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`la-gate-test-6`)
+
+### (a) Candidate Clone `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-6`
+
+- **Base Clone (`src-wave-end-5` at `la-gate-test-5`):** `$WAVE_TEST_SHA_5` = `0700b3962ec063c4c2c3f36cf0ca27a25c97e82e` (product tree identical to `$WAVE_SHA_3` = `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`).
+- **Commit (`LD-9` Addendum R4 — `WE-F10` under `BD-A1-116` & `WE-F11` under `BD-A1-117`):**
+  - `$WAVE_TEST_SHA_6` = `9de014298fbe133ebbd8d40365da84988ccabf5d` (`tag: la-gate-test-6`, `docs/reviews/LA-E7-08/ld9-addendum-r4.md` / `/Users/quangnguyen/cogniate-qa-runs/LA/qa3-ld9-addendum-r4/ld9-addendum-r4.patch`, `2 files changed, 3 insertions(+)`):
+    - `tests/acceptance/T5b/1-html.spec.ts` (`AC-T5-36` wait for `runtimeState(player.token)` `seenPages` to contain `'index'` before `driveCourse`)
+    - `tests/acceptance/T6/3-courses.spec.ts` (`AC-T6-07` wait for `dialog.getByText('Loading…')` count `0` before `dialog.innerText()`)
+- **Diff Proofs:**
+  - `git diff --stat la-gate-test-5 la-gate-test-6`: `2 files changed, 3 insertions(+)` (only `tests/acceptance/T5b/1-html.spec.ts` and `tests/acceptance/T6/3-courses.spec.ts`).
+  - `git diff --exit-code 8fadb828088ffe1b4db02179ab0fa3ab2388a12a la-gate-test-6 -- . ':!tests'`: `0` non-test files differ from `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`.
+
+### (b) Slot 8c Run Set & Exact Commands (`qalead-la-53..55`, `PUBLIC_PORT=9543`, `STACK_SUBNET=172.21.0.0/16`, `45 min` Window)
+
+| Compose Project | Suite | Est. Minutes | Purpose |
+| --- | --- | --- | --- |
+| **`qalead-la-53`** | `T6` (`run-t5.mjs --tasks T5a,T6`) | **`7 min`** | Proves `WE-F11` (`BD-A1-117`) in `AC-T6-07` (`14/14` `T6` ACs and `21/21` `T5a` ACs `PASS`) on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`. |
+| **`qalead-la-54`** | `T5b` #1 (`run-t5.mjs --tasks T5a,T5b`) | **`17 min`** | Proves `WE-F10` (`BD-A1-116`) in `AC-T5-36` (`15/15` `T5b` ACs / `24/24` `T5b` tests `PASS`, pass 1 of 2) on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`. |
+| **`qalead-la-55`** | `T5b` #2 (`run-t5.mjs --tasks T5a,T5b`) | **`17 min`** | Proves `WE-F10` (`BD-A1-116`) in `AC-T5-36` (`15/15` `T5b` ACs / `24/24` `T5b` tests `PASS`, pass 2 of 2) on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a`. |
+
+```bash
+set -euo pipefail
+export GATE_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/GATE"
+export SLOT8C_DIR="/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8C"
+export SRC_WAVE_6="$GATE_DIR/src-wave-end-6"
+export COURSE_FIXTURES_DIR="$GATE_DIR/course-fixtures"
+WAVE_SHA_3="8fadb828088ffe1b4db02179ab0fa3ab2388a12a"
+export WAVE_SHA_3
+WAVE_TEST_SHA_6="9de014298fbe133ebbd8d40365da84988ccabf5d"
+export WAVE_TEST_SHA_6
+export PUBLIC_PORT=9543
+export STACK_SUBNET="172.21.0.0/16"
+
+umask 022
+
+# 1. qalead-la-53: T6 (via run-t5.mjs --tasks T5a,T6)
+COMPOSE_PROJECT_NAME=qalead-la-53 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_6/tests/host/run-t5.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --source "$SRC_WAVE_6" \
+  --workdir "$SLOT8C_DIR/qalead-la-53-t6" \
+  --replace-tests --tests-from "$SRC_WAVE_6/tests" \
+  --tasks T5a,T6 \
+  > "$SLOT8C_DIR/logs/qalead-la-53-t6.log" 2>&1
+
+# 2. qalead-la-54: T5b #1 (via run-t5.mjs --tasks T5a,T5b)
+COMPOSE_PROJECT_NAME=qalead-la-54 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_6/tests/host/run-t5.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --source "$SRC_WAVE_6" \
+  --workdir "$SLOT8C_DIR/qalead-la-54-t5b-1" \
+  --replace-tests --tests-from "$SRC_WAVE_6/tests" \
+  --tasks T5a,T5b \
+  > "$SLOT8C_DIR/logs/qalead-la-54-t5b-1.log" 2>&1
+
+# 3. qalead-la-55: T5b #2 (via run-t5.mjs --tasks T5a,T5b)
+COMPOSE_PROJECT_NAME=qalead-la-55 PUBLIC_PORT=$PUBLIC_PORT STACK_SUBNET=$STACK_SUBNET \
+  COURSE_FIXTURES_DIR="$COURSE_FIXTURES_DIR" \
+  node "$SRC_WAVE_6/tests/host/run-t5.mjs" \
+  --sha "$WAVE_SHA_3" \
+  --source "$SRC_WAVE_6" \
+  --workdir "$SLOT8C_DIR/qalead-la-55-t5b-2" \
+  --replace-tests --tests-from "$SRC_WAVE_6/tests" \
+  --tasks T5a,T5b \
+  > "$SLOT8C_DIR/logs/qalead-la-55-t5b-2.log" 2>&1
+```
+
+
