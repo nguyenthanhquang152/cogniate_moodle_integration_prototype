@@ -1,0 +1,9 @@
+Lead QA (new dispatch): re-gate part A fix round 1 (LD-29), host only, no Docker. Work in la-qa.
+
+The round 1 reviews (docs/reviews/LA-E7-08/ld9-addendum-r8-reviewer-a.md and -b.md; docs/reviews/LA-E0-02/reviewer-a.md and -b.md, Round 2) approve the r8 patch and both gate trees, and request changes:
+1. A-LA-E7-08-LD9-R8-01 (MAJOR): the D3/D4 golden rows pin 57b6a78c, which has golden v1. The second lead-QA session is fixing golden v2 now (provenance: the v2 baseline goes in tests/ltiaas/golden/78971b03…/, and the 1b17261 v1 record is restored; plus a separate commit with the LA-IC-01/12 Moodle expected deltas). When the Lead tells you its two SHAs, rebuild baseline-3 and la-final-test-3 as new explicit commits on top (never an amend), with golden v2 and those LA-IC files, and prove the trees again. Do the other items now.
+2. A-LA-E7-08-LD9-R8-02 (MAJOR): use the new Lead rule LD-31 (plan §6.1). Rewrite §10(b) and the schedule to match it, list each planned overlap, and recompute the critical path.
+3. B-LA-E7-08-LD9-R8-01 (MAJOR): bind each kit run to the reviewed tests and their wave inputs (the exact kit tree d7e50b5d, the test overlay, and the wave-spec and source files), so that the runs can be reproduced from §10 alone.
+4. B-LA-E7-08-LD9-R8-02 (MINOR): correct the carried backup-drill evidence.
+5. A-LA-E0-02-02 (BLOCKER): in docs/reviews/LA-E0-02/qa.md Round 2, regenerate the failure, skip and duration entries from each named playwright-results.json. Keep the actual assertion message and the failing variant. Keep the observation apart from any root-cause explanation, and cite separate evidence for a root cause. B-LA-E0-02-01 and A-LA-E0-02-01 stay pending until the baseline-3 runs.
+Commit in la-qa: "QA: re-gate part A fix round 1 (LD-31 schedule, kit bindings, E0-02 evidence)". Send status with the SHA, then wait for the golden SHAs. Do item 1, then send one worker_done with the new source SHAs and tree proofs, and stop.

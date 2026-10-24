@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 8
+Round: 9
 
 ## Round 1
 
@@ -464,3 +464,21 @@ Verification in new private clone `/tmp/la-review-a-32155ce5fe72`, created with 
 - Read-only r8 artifact check: **195 unique case IDs, 195 PASS, zero failures/skips/duplicates**, run `kit-run-1792852921605-ngk732`; **196/196 Vitest assertions PASS**, including SUMMARY; all host aggregate entries PASS and no abort. Every tracked kit blob in both the r8 controller and run clone equals the reviewed tree. All three frozen-source digests match, and every retained value in the committed trimmed fixtures equals the original source. Metadata is retained in `reviewer-r8-evidence.json`.
 
 The saved r8 run therefore covers this exact kit tree and can stand as the clean final run under LD-27/LA-H25; this review requests no further live run. The QA commit touches only permitted kit and QA-report paths, with no product, simulator or frozen-test change and no LMS name added to core paths. No Docker, stack, integration install or commit was performed. Only this review file was edited in integration; concurrent work was left untouched.
+
+## Round 9
+
+Reviewer-A: Codex GPT-6-Astra xhigh. Lens: “Is it right and is it safe?”
+
+**Verdict: APPROVE — 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.** Reviewed only WALK-02 under LD-30: QA `224831c5`, integration `a3953243`, using `git diff fe728a91 a3953243 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`. Kit tree: `d7e50b5dea56382f849b213f006b73bcf5eb71aa`. No new finding; earlier closures remain valid.
+
+**F-LA-E7-06-WALK-02: CLOSED.** `drFamilyGuardRefusedAtComplete` now requires the family owner's `registration.dynamic === true` (`tests/ltiaas/kit/lib/fixtures.ts:1863`). LA-ADR-01 D3 ties that capability to a dynamic method and a DR-capable profile. LA-ADR-02 D5 applies the loosest rule of the loaded **DR** profiles, so a manual-only owner adds no such rule. The resulting start refusal agrees with LA-ADR-01 D6 and BD-A1-121. The other conditions and both R3 response assertions are unchanged; no product source was needed to establish the expected branch.
+
+The new K0 row covers the real manual-only fixture, a DR-enabled owner, each applicable target, fixed-profile refusal, the same owner with DR disabled, and launch-level exclusion. It also pins the unchanged five-channel branch table. The committed `acme-lms.json` is byte-for-byte equal to the walker's fixture at `d6196d52` and stays outside normal channel discovery.
+
+Verification in private clone `/tmp/la-review-a-adc79e236801`, created with `git clone --no-hardlinks`, detached at `a3953243`, with dependencies copied there:
+
+- Kit K0: **33/33 PASS** with the five shipped fixtures (899 ms), and **33/33 PASS** with the walker's fixture added through `QA_KIT_CHANNELS_DIR` (793 ms). Logs: `reviewer-r9-k0.log`, `reviewer-r9-k0-six.log`.
+- Kit typecheck: **exit 0** (`reviewer-r9-types.log`).
+- Regression sensitivity: removing only the new DR-owner condition makes the new test fail at `kit.k0.test.ts:2611`, with actual `brightspace: acme:complete` instead of expected `acme:start` (**1 failed, 32 filtered/skipped**; `reviewer-r9-old-rule-mutant.log`). Restored the source and confirmed no tracked diff in the private clone. Fixture identity and mutation results are retained in `reviewer-r9-evidence.json`.
+
+Only the branch predicate changes executable behavior. The five shipped channels retain their previous oracles, so r8's 195/195 remains valid task evidence. This approval does not claim the new final-product re-gate has run; LD-29 still governs the planned five- and six-channel live runs. The QA commit stays within permitted kit and QA-report files, with no other oracle weakened, no product/frozen-test change and no LMS name added to core paths. No Docker, stack, integration install or commit was performed. Reviewer-B's file and probes were not opened. Only this review file was edited in integration.

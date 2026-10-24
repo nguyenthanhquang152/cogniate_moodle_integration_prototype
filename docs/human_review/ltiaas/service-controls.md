@@ -1,6 +1,6 @@
 # LA service controls: proof map
 
-2026-10-24. Final product SHA `a8bbac53`. Back to [start-here.md](start-here.md) or [index.html](index.html).
+2026-10-24. `a8bbac53` is the SHA of the first final runs; the new final product SHA is `4f10c5fd` (pending: re-gate on 4f10c5fd (LD-29)). The task results on this page stay valid as task evidence (LD-29). Back to [start-here.md](start-here.md) or [index.html](index.html).
 
 This page maps each service-control claim of the review pack to the QA report that proves it. The AC numbers come from the summary table at the top of each QA report. Each report has the verdict PASS.
 

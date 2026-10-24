@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # LA-E0-02 — Reviewer-B
 
@@ -43,3 +43,25 @@ All paths below are under `/Users/quangnguyen/cogniate-qa-runs/LA/`:
 - `SLOT3D/artifacts/`: `qalead-la-45-1b17261b-2026-10-23T23-46-57-571Z/summary.json`, `qalead-la-46-1b17261b-2026-10-24T00-05-12-265Z/summary.json`, `qalead-la-48-1b17261b-2026-10-24T00-22-21-135Z/summary.json`, `qalead-la-49-1b17261b-2026-10-24T00-30-06-293Z/summary.json`.
 
 Read the rate reader and later gate report/plan as supporting context. Independent host accounting is in `/private/tmp/la-closeout-review-b-_nb5xdcj/{raw-accounting,case-accounting,later-baseline-accounting,additional-accounting}.json`. No Docker or stack was run; no product/frozen-test edits or commits; no Reviewer-A report read.
+
+## Round 2
+
+Reviewed 2026-10-24 at integration `2da33750`, limited to QA Round 2's reconciliation. **CHANGES_REQUESTED: B-LA-E0-02-01 remains OPEN, BLOCKER; no new finding ID.** The report now correctly marks AC-04/06/07 pending baseline-3 and retains all four Slot 3D attempts. Their summary entry and unique-ID counts match the raw reports. The new per-test account still needs correction before AC-09's reconciliation can be accepted.
+
+**File:line:** `docs/reviews/LA-E0-02/qa.md:153` (also `:154`, `:155`, `:156`).
+
+**Problem and evidence:** The P5 description names a different test, and the reported test durations do not match the cited Playwright artifacts:
+
+| Run / test | QA Round 2 | Actual `results[].duration` |
+| --- | --- | --- |
+| 45 / AC-T5-36 | 292,053 ms | **74,264 ms** |
+| 45 / P5 | 11,227 ms | **29,205 ms** |
+| 46 / AC-T5-36; P5 | 229,115; 11,249 ms | **12,519; 29,025 ms** |
+| 48 / AC-T6-07; -13; -09 | 120,031; 30,052; 30,038 ms | **15,136; 15,882; 17,994 ms** |
+| 49 / AC-T8-10, no token | 180,049 ms | **15,121 ms** |
+
+Run 45's P5 is `9a-best-score.spec.ts:15`, checking that deleting only failed sync 80 leaves both attempts and best score unchanged, then refuses Resend of 60. Its error is **“both attempts unchanged”**: the 80-point attempt's `updatedAt` changed from `00:04:29.156Z` to `00:04:33.069Z`. It is not the reported container-restart/resync-to-0.8 case. The T5b/T6/T8 command durations for runs 45/48/49 are **813,903 / 192,199 / 124,214 ms**, not the reported SUITE values. Run 49 also skips **AC-T8-10 (with token)**, which the aggregate ID hides; list that variant alongside skipped AC-T8-08/09.
+
+**Required correction:** Derive §7.1 from each `container-<suite>/playwright-results.json` and `cmd/*test-acceptance-<suite>.log`; preserve the real error, test variant and duration, and keep inferred causes separate from observed failures. Existing artifacts suffice for this correction. Keep baseline-3 legacy results and rates pending until their scheduled runs supply the missing evidence; this review grants no live acceptance credit.
+
+Read-only evidence: the same four `SLOT3D/artifacts/qalead-la-{45,46,48,49}-*` folders named above. Extracted accounting: `/tmp/reviewer-b-ld9-r8-qa4kpgty/baseline-reconciliation.json` and `baseline-test-details.json`. No Docker, stack, product/test edit or commit; blind review maintained.
