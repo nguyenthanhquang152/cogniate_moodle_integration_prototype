@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 2
+Verdict: CHANGES_REQUESTED
+Round: 3
 
 # LA-E8-01 — Reviewer-A
 
@@ -69,3 +69,21 @@ Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed Docs fix `4a712bc5` (mer
 Six local fake-data executions of the exact extracted filter and the restricted-exclusion control passed. Evidence: `/tmp/la-reviewer-a-ctx-7a33b5d7224b-probes/migration-filter.js` and `results.json`. No service, simulator, Docker, stack, package install or commit ran in this round. No Reviewer-B file was opened; only this review file changed in the integration worktree.
 
 The kit discovery/canary claim is expressly pending LA-E7-06 Round 2, and the fixed-six-provider simulator self-test is expressly a QA-owned pending fix. Those changes were not verified here; the checked integration still had the fixed lists. AC-LA-E8-01-02 and the migration procedure's simulator check remain pending QA, as the revised guide says. Only the permitted guide changed, with no product behavior, secret example or new core LMS identifier.
+
+
+## Round 3
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed Docs `4b5fc743` and `270df640`, guide at integration `a400c78e`, against the task, kit implementation/README and cited QA Round 4. **CHANGES_REQUESTED: 1 new BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. A-LA-E8-01-05 is closed; earlier closed findings stay closed.**
+
+### A-LA-E8-01-06 — BLOCKER — The revised K1 command resolves the config from the wrong directory
+
+- **File:** `docs/guides/ltiaas/add-a-channel.md:353`.
+- **Problem:** `node tests/acceptance/run-api.mjs` runs from the repository root, but that runner starts Vitest with the relative config `ltiaas/kit/vitest.config.mts` and inherits the working directory (`tests/acceptance/run-api.mjs:13`, `:22–25`). The real config is under `tests/ltiaas/kit/`. The documented command cannot start the required K1 check, so AC-LA-E8-01-02 cannot produce its stated result.
+- **Evidence:** The e2e container defaults to `/repo` (`infra/compose.yaml:449`); its entrypoint does not change directory. A local fake repository used the exact runner and a fake Vitest executable that only records/checks the config path. The documented command resolved `<repo>/ltiaas/kit/vitest.config.mts` (absent) and failed. The control `npm --prefix tests run acceptance:api` ran from `<repo>/tests` and found the config. This probe started no tests, services or network requests. The kit README repeats the same incorrect command; matching it does not make the guide command executable.
+- **Suggested fix:** From `/repo`, use `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 npm --prefix tests run acceptance:api`, or explicitly enter `/repo/tests` and run `node acceptance/run-api.mjs` with those variables. Ask QA to correct the corresponding kit README examples. Keep the SIM result pending its authorized run.
+
+### Fix checks and limits
+
+- **A-LA-E8-01-05 closed:** checked ids now suppress only unknown-family `CHECK` lines. Eight executions of the exact filter with fake API data pass, including a checked id that later signs the matching family, case variants, inactive rows, unrelated families and a completed move. The prior filter still misses the newly known affected row.
+- Step 9 correctly describes the 17 capability fields, optional `coveredBy` evidence, automatic fixture discovery/default selection and source audit. With a sixth fake fixture in `/tmp`, the committed helpers discover/select all six, audit all six, and generate the new fixture's expected cases. The K0 canary uses dynamic counts; QA Round 4 §4.2 records the cited 16/16 full host result, and those kit files are unchanged between `86a50df8` and `a400c78e`. Removing that pending-canary note is supported. The full K0 suite was not rerun here.
+- The kit K1-SIM labels, scratch-branch AC-02 run and migration SIM verification remain pending. Only the guide's changed text was reviewed; no product behavior or new core LMS name is added. Evidence: `/tmp/la-reviewer-a-ctx-65622814dac7-probes/` (`migration-filter.js`, `migration-results.json`, `kit-discovery.json`, `command-path-results.json`, fake fixtures/runner). Only local fake data was executed; no Docker, stack, package install, commit or Reviewer-B file was used. Only this review file changed in integration.
