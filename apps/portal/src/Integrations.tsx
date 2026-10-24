@@ -141,6 +141,7 @@ export function Integrations() {
             return (
             <Card
               as="article"
+              data-channel-id={item.channel ?? undefined}
               spacing="integration"
               className="integration-card min-h-[198px] shadow-[0_2px_8px_#0000000d] [&_h2]:mt-[15px] [&_h2]:mb-[9px] [&_h2]:text-[14px] [&>p]:max-w-[300px] [&>p]:text-[12px] [&>p]:leading-[1.7] [&>p]:text-muted-foreground"
               key={item.name}

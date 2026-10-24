@@ -412,6 +412,36 @@ describe("portal forms and contract states", () => {
       screen.getByRole("link", { name: /Connect another site/ }),
     ).toBeTruthy();
   });
+  it("marks every channel card with data-channel-id in every state, and no static card (BD-A1-119)", async () => {
+    const staticCards = ["Kajabi", "Figma", "Collins", "Anthropic", "Open AI", "MIT", "Canva", "Loom"];
+    const marked = () => [...document.querySelectorAll("article[data-channel-id]")].map((card) => card.getAttribute("data-channel-id"));
+    const expectMarks = (providers: LmsProvider[]) => {
+      expect(marked()).toEqual(visibleChannels(channelRegistry, providers).map((manifest) => manifest.id));
+      for (const name of staticCards) expect(screen.getByRole("article", { name }).hasAttribute("data-channel-id")).toBe(false);
+      expect(screen.getAllByRole("article")).toHaveLength(staticCards.length + marked().length);
+    };
+    // Loading: the providers and connections do not answer yet.
+    fetchMock.mockImplementation(() => new Promise(() => {}));
+    let view = inRouter(h(Integrations));
+    expectMarks([]);
+    view.unmount();
+    const providers = (ready: boolean): LmsProvider[] => channelRegistry.channels().map((manifest) => ({
+      lms: manifest.id, channel: manifest.id, label: manifest.names.label, methods: manifest.registration.map((entry) => entry.method),
+      capabilities: channelRegistry.legacyCapabilities(manifest.id),
+      profiles: [{ id: manifest.registration[0]!.defaultProfile, label: "Profile", simulation: false, ready, clientId: null }],
+    }));
+    // Not ready (Connect disabled), ready, and ready with a connection (Manage).
+    for (const [ready, connections] of [[false, []], [true, []], [true, [connection]]] as const) {
+      const list = providers(ready);
+      fetchMock.mockImplementation(async (path: string) => path.endsWith("/lms-providers") ? json({ lms: list }) : json({ connections }));
+      view = inRouter(h(Integrations));
+      if (!ready) await screen.findAllByText(/is not set up for this Cogniate service yet/);
+      else if (connections.length) await screen.findByRole("link", { name: /Manage/ });
+      else await screen.findAllByRole("link", { name: "Connect" });
+      expectMarks(list);
+      view.unmount();
+    }
+  });
   it("keeps course titles as literal text and sends a title without markup interpretation", async () => {
     fetchMock.mockResolvedValue(json({ id: "crs_test" }, 201));
     const created = vi.fn();
