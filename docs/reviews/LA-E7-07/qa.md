@@ -1,18 +1,120 @@
 Verdict: PASS
-Round: 5
+Round: 6
 
 # QA Review — `LA-E7-07` (Playwright K2 Browser Suite: Manifest-Driven Wizards + New Channels + Platform Storage)
 
-- **UTC Timestamp (`date -u`)**: `2026-10-24T09:03:34Z`
+- **UTC Timestamp (`date -u`)**: `2026-10-24T16:18:01Z`
 - **Task**: `LA-E7-07` (`U1`–`U4`, Must; plus `LA-E3-16 AC-05` M2 Canvas wizard regression & `AC-LA-E7-09-04` Wave-End K2 gate)
-- **Round**: `5` (Docker Slot 8e execution on `COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r10`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`)
-- **SHA**: `af077681f360317760d9ca44d75688c6fa997b48` (`af077681`, FINAL product code `a8bbac538cfe1e305f410279d7879421d64a5a1f` holding `BD-A1-119` `data-channel-id` on every channel card; Round 4 at `3b9bed57` / code `8fadb828`; Round 3 at `9877250d` / code `02f5d420`; Round 2 at `8786a2cd`; Round 1 at `195930c1`)
-- **Reviewer**: `QA-E2E` (`term_1d9a7fc8-82eb-4029-8721-85301a8647f8`, Orca task `task_6aafe2436e7f`, dispatch `ctx_f79a220e181a`)
-- **Verdict**: `PASS` (**`19/19` runner IDs PASS in `summary.json`**: **`12/12` K2 browser cases PASS**, **`LA-E3-16.AC-05` M2 Canvas wizard `5/5` PASS**, **`M3-07-K2` secret scan `0` hits across `72` values and `30` files**, **`M3-06-K2` `32/32` baseline volumes intact**, and **`TEARDOWN` `0` containers / `0` volumes / `0` networks remaining** on unmodified `af077681` / final product `a8bbac53` with `0` `--replace-tests` overrides)
-- **Evidence Dir**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8E-R5-R10-QA-E2E/runner-repo/tests/host/artifacts/qa-e2e-la-sim-r10-af077681-2026-10-24T09-00-09-508Z`
-- **Clean Clone (`git clone --no-hardlinks`, no `--replace-tests`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8E-R5-R10-QA-E2E/k2-r10-clone`
-- **Boundary Records Dir (`umask 077`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT8E-R5-R10-QA-E2E/boundary/`
-- **Measured Time**: `144.3 s` full stack lifecycle (`88.8 s` K2 12-case Playwright container pass, `84.74 s` sum of 12 case durations; `5.1 s` M2 Canvas wizard 5-case pass; `3.57 s` `npm run stack:down`)
+- **Round**: `6` (Re-gate Slot R2b execution per `GATE-RUN-PLAN.md` §10 / `LD-29` on `COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r11`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`)
+- **SHA**: `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c` (`4f10c5fd`, `tag: la-final-product-3`, Lead merge of B/C final result `main` `78971b03` into LA per `LA-H27` / `LD-29`; Round 5 at `af077681` / code `a8bbac53`; Round 4 at `3b9bed57` / code `8fadb828`; Round 3 at `9877250d` / code `02f5d420`; Round 2 at `8786a2cd`; Round 1 at `195930c1`)
+- **Gate Source (`read-only`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3` (`HEAD` `57b6a78c694e6244ffa0639957249c052345dca9`, `tag: la-final-test-3` on `4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c`)
+- **Runner Repo (`git clone --no-hardlinks` of `src-final-3`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/runner-repo` (`HEAD` `57b6a78c694e6244ffa0639957249c052345dca9`)
+- **`tests/e2e/ltiaas` Tree Hash & Integration `9b10f07c` Parity Proof (`boundary/k2-tree-proof.txt`)**:
+  - `git rev-parse HEAD:tests/e2e/ltiaas` (`57b6a78c`): `328d9ce24c0a8364224750d56d6a419fb5c04993`
+  - `git rev-parse 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c:tests/e2e/ltiaas`: `328d9ce24c0a8364224750d56d6a419fb5c04993`
+  - `git rev-parse 9b10f07c955862da35fb30bf01d7804a9527ca5a:tests/e2e/ltiaas`: `328d9ce24c0a8364224750d56d6a419fb5c04993`
+  - `git diff --stat 9b10f07c955862da35fb30bf01d7804a9527ca5a..57b6a78c694e6244ffa0639957249c052345dca9 -- tests/e2e/ltiaas`: **empty (`0` files changed)**
+  - `git diff --stat 9b10f07c955862da35fb30bf01d7804a9527ca5a..4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c -- tests/e2e/ltiaas`: **empty (`0` files changed)**
+- **Reviewer**: `QA-E2E` (`term_1d9a7fc8-82eb-4029-8721-85301a8647f8`, Orca task `task_334cdb9741b1`, dispatch `ctx_ca4166db2b5e`)
+- **Verdict**: `PASS` (**`19/19` runner IDs PASS in `summary.json`**: **`12/12` K2 browser cases PASS**, **`LA-E3-16.AC-05` M2 Canvas wizard `5/5` PASS**, **`M3-07-K2` secret scan `0` hits across `72` values and `30` files**, **`M3-06-K2` `32/32` baseline volumes intact**, and **`TEARDOWN` `0` containers / `0` volumes / `0` networks remaining** on unmodified `4f10c5fd` with `0` `--replace-tests` overrides)
+- **Evidence Dir**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/runner-repo/tests/host/artifacts/qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z`
+- **Clean Clone (`git clone --no-hardlinks`, no `--replace-tests`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/k2-r11b-clone`
+- **Boundary Records Dir (`umask 077`)**: `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/boundary/`
+- **Measured Time**: `144.5 s` full stack lifecycle (`88.9 s` K2 12-case Playwright container pass, `84.29 s` sum of 12 case durations; `5.5 s` M2 Canvas wizard 5-case pass; `3.62 s` `npm run stack:down`)
+
+---
+
+## Round 6 (`2026-10-24T16:18:01Z`, Re-Gate Slot R2b on Final Product SHA `4f10c5fd`)
+
+### 1. Command Executed (`0` Test Replacements, Committed Test Files Only)
+
+```sh
+umask 022
+COURSE_FIXTURES_DIR=/Users/quangnguyen/cogniate-qa-runs/LA/GATE/course-fixtures \
+COMPOSE_PROJECT_NAME=qa-e2e-la-sim-r11 \
+PUBLIC_PORT=9443 \
+STACK_SUBNET=172.20.0.0/16 \
+node /Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/runner-repo/tests/e2e/ltiaas/run-k2.mjs \
+  --suite k2 \
+  --sha 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c \
+  --source /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-final-3 \
+  --workdir /Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/k2-r11b-clone
+```
+
+*(Environment note on host `umask`: An initial attempt `qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-04-48-487Z` into `k2-r11-clone` ran `node run-k2.mjs` under `umask 077` on Docker `29.9.2` / Compose `5.6.1`. Because `k2-r11-clone/node_modules/@cogniate` was created with mode `0700` on macOS VirtioFS, when the `e2e` container running as `uid=0` walked `/repo/node_modules/@cogniate` during `npm ci --prefix tests`, VirtioFS cached the directory inode under `uid=0` with mode `0700`, causing `cogniate-app` running as `uid=501` to receive `EACCES: permission denied, lstat '/repo/node_modules/@cogniate/shared'` during `m1-cli` `app:grant` in cases 8–12 before `TEARDOWN` cleanly removed all resources. Re-running with `umask 022` as specified in `GATE-RUN-PLAN.md` §8c line 831 while keeping `boundary/` and `infra/.secrets` at `0700`/`0600` resolved the VirtioFS `uid=0`/`uid=501` permission check and passed `19/19` on the first run.)*
+
+### 2. Exact Runner Result Accounting (`summary.json` of `qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z`)
+
+Every ID from `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/runner-repo/tests/host/artifacts/qa-e2e-la-sim-r11-4f10c5fd-2026-10-24T16-14-27-776Z/summary.json` (`19/19 PASS`, zero omitted rows):
+
+| Runner ID | Status | Duration (`k2-case-results.json` / `cmd/*.log`) | Notes from `summary.json` |
+|---|---|---|---|
+| `PRE` | **PASS** | — | `node 24.21.0, docker 29.9.2, compose 5.6.1`; `project qa-e2e-la-sim-r11, PUBLIC_PORT 9443, STACK_SUBNET 172.20.0.0/16`; `other containers on this Docker host: 0 (not touched by QA)` |
+| `CLONE` | **PASS** | `1330 ms` (`cmd/01-git-clone.log` + `cmd/02-git-checkout.log`) | `HEAD 4f10c5fd9ca4dd0a5f636b34d7454e0db7b6849c LA-E0-01: merge the Blackboard and Canvas final result (main 78971b03) into LA (LA-H10 (a), LA-H27)`; `clone /Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/k2-r11b-clone` (committed test files only; no `--replace-tests`) |
+| `H1` | **PASS** | `39015 ms` (`cmd/07-stack-up-acceptance.log`) | `services: cogniate-app, lms-sim, lti-gate, lti-service, moodle, postgres, proxy, qa-platform, sink` |
+| `LA-E3-16.AC-05` | **PASS** | `5459 ms` (`cmd/10-m2-canvas-wizard-pass.log`) | `M2 Canvas wizard regression (M2-03, M2-04, M2-05)` (`5/5` cases PASS, including `BD-A2-106` hosted Canvas help text) |
+| `U1.card-order` | **PASS** | `862 ms` | `Integrations hub renders every registered channel card in manifest card.order order, matching GET /app-api/lms-providers` |
+| `U1.card-copy-and-action` | **PASS** | `1068 ms` | `every channel card renders its manifest card.title, card.description, card.mark, and Connect action routing to /integrations/:channelId/connect` |
+| `U2.step1-create-fields` | **PASS** | `1315 ms` | `Step 1 of every channel renders Connection name, manifest setup.createFields, registration method radios, and enforces Site URL Rule 1` |
+| `U2.step2-artifacts-and-tool-rows` | **PASS** | `2933 ms` | `Step 2 of every channel renders registration URL (dynamic), developer-key-json only when setup.artifacts has it, and exact tool-configuration rows (manual)` |
+| `U2.step3-binding-fields-and-defaults` | **PASS** | `1798 ms` | `Step 3 of every channel renders its manifest setup.bindingFields, pre-fills FieldSpec.default values, and gates Approval code on operatorGrant authority` |
+| `U2.admin-steps-texts` | **PASS** | `1828 ms` | `every channel wizard renders manifest.texts.adminSteps with {LMS} and {tool} filled and zero raw placeholder tokens` |
+| `U3.lti-generic.dynamic-self` | **PASS** | `22538 ms` | `lti-generic Dynamic Registration with same-origin endpoints completes without a grant, publishes a course, picks via Deep Linking, and syncs learner score 100` |
+| `U3.lti-generic.dynamic-staged-foreign-host` | **PASS** | `1787 ms` | `lti-generic Dynamic Registration with a foreign token host stages the platform, switches the wizard to operatorGrant, refuses CLI grant without --confirm-foreign-hosts, and registers with --accept-staged --confirm-foreign-hosts` |
+| `U3.lti-generic.manual-grant` | **PASS** | `24077 ms` | `lti-generic manual wizard refuses a mismatched jwksUrl with GRANT_MISMATCH, registers with matching bound values, and completes publish, Deep Linking, and learner score sync` |
+| `U3.brightspace.manual-flow` | **PASS** | `22992 ms` | `brightspace manual wizard shows the 9 D2L tool rows and 5 D2L defaults, registers with foreign token host + custom tokenAudience + UUID deployment, and completes Deep Linking and score sync with custom assertion aud` |
+| `U4.platform-storage.positive` | **PASS** | `855 ms` | `framed Canvas Cloud launch with __Host-lti_state_* stripped from POST /lti/launch/cogniate recovers state via lti.put_data and lti.get_data on https://sso.canvas.sim.test and opens the player` |
+| `U4.platform-storage.negative` | **PASS** | `2232 ms` | `in the same cookie-stripped framed Canvas Cloud launch, lti.get_data.response from another origin or with another message_id is ignored and the frame shows STATE_COOKIE_MISSING after 1.5 s` |
+| `M3-07-K2` | **PASS** | — | `Zero captured-secret hits in service, simulator and gate logs and in redacted evidence` (`values 72, files 30, hits 0`) |
+| `M3-06-K2` | **PASS** | — | `Baseline volumes and other LA/Cogniate containers unchanged (sto-* listed apart)` (`baseline volumes intact: true (32); non-sto containers: 0 → 0`) |
+| `TEARDOWN` | **PASS** | `3623 ms` (`cmd/11-stack-down.log`) | `npm run stack:down exit 0`; `left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks`; `other projects' containers that stopped or restarted: none (information)` |
+
+### 3. All 12 `LA-E7-07` K2 Case IDs — Side-by-Side Comparison (`Round 3` vs `Round 4` vs `Round 5` vs `Round 6` on Final SHA `4f10c5fd`)
+
+| # | K2 Case ID | Unit / Spec File | Covered ACs | Round 3 (`9877250d` / `02f5d420`) | Round 4 (`3b9bed57` / `8fadb828`) | Round 5 (`af077681` / `a8bbac53`) | Round 6 (`4f10c5fd` / `src-final-3` `57b6a78c`) |
+|---|---|---|---|---|---|---|---|
+| 1 | `U1.card-order` | `U1` / `01-u1-cards.k2.ts` | `AC-LA-E7-07-01`, `AC-LA-E1-11-04`, `AC-LA-E2-05-03` | **PASS** (`1.35 s`) | **PASS** (`950 ms`) | **PASS** (`954 ms`) | **PASS** (`0.86 s` / `862 ms`) |
+| 2 | `U1.card-copy-and-action` | `U1` / `01-u1-cards.k2.ts` | `AC-LA-E7-07-01`, `AC-LA-E1-11-04`, `AC-LA-E2-05-03` | **PASS** (`1.32 s`) | **PASS** (`1099 ms`) | **PASS** (`1147 ms`) | **PASS** (`1.07 s` / `1068 ms`) |
+| 3 | `U2.step1-create-fields` | `U2` / `02-u2-wizards.k2.ts` | `AC-LA-E7-07-02`, `AC-LA-E1-11-05`, `AC-LA-E2-05-03` | **PASS** (`1.59 s`) | **PASS** (`1399 ms`) | **PASS** (`1347 ms`) | **PASS** (`1.32 s` / `1315 ms`) |
+| 4 | `U2.step2-artifacts-and-tool-rows` | `U2` / `02-u2-wizards.k2.ts` | `AC-LA-E7-07-02`, `AC-LA-E1-11-05`, `AC-LA-E2-05-03` | **PASS** (`3.02 s`) | **PASS** (`2896 ms`) | **PASS** (`3071 ms`) | **PASS** (`2.93 s` / `2933 ms`) |
+| 5 | `U2.step3-binding-fields-and-defaults` | `U2` / `02-u2-wizards.k2.ts` | `AC-LA-E7-07-02`, `AC-LA-E1-11-05`, `AC-LA-E2-05-03` | **PASS** (`1.90 s`) | **PASS** (`2073 ms`) | **PASS** (`1862 ms`) | **PASS** (`1.80 s` / `1798 ms`) |
+| 6 | `U2.admin-steps-texts` | `U2` / `02-u2-wizards.k2.ts` | `AC-LA-E7-07-02`, `AC-LA-E1-11-05`, `AC-LA-E2-05-03` | **PASS** (`1.92 s`) | **PASS** (`1870 ms`) | **PASS** (`1744 ms`) | **PASS** (`1.83 s` / `1828 ms`) |
+| 7 | `U3.lti-generic.dynamic-self` | `U3` / `03-u3-new-channels-flow.k2.ts` | `AC-LA-E7-07-03`, `AC-LA-E2-05-03` | **PASS** (`22.91 s`) | **PASS** (`22765 ms`) | **PASS** (`22444 ms`) | **PASS** (`22.54 s` / `22538 ms`) |
+| 8 | `U3.lti-generic.dynamic-staged-foreign-host` | `U3` / `03-u3-new-channels-flow.k2.ts` | `AC-LA-E7-07-03`, `AC-LA-E2-05-03` | **PASS** (`2.38 s`) | **PASS** (`1974 ms`) | **PASS** (`1959 ms`) | **PASS** (`1.79 s` / `1787 ms`) |
+| 9 | `U3.lti-generic.manual-grant` | `U3` / `03-u3-new-channels-flow.k2.ts` | `AC-LA-E7-07-03`, `AC-LA-E2-05-03` | **PASS** (`24.75 s`) | **PASS** (`24314 ms`) | **PASS** (`24132 ms`) | **PASS** (`24.08 s` / `24077 ms`) |
+| 10 | `U3.brightspace.manual-flow` | `U3` / `03-u3-new-channels-flow.k2.ts` | `AC-LA-E7-07-03`, `AC-LA-E2-05-03` | **PASS** (`23.30 s`) | **PASS** (`22994 ms`) | **PASS** (`23009 ms`) | **PASS** (`22.99 s` / `22992 ms`) |
+| 11 | `U4.platform-storage.positive` | `U4` / `04-u4-platform-storage.k2.ts` | `AC-LA-E7-07-04`, `AC-LA-E3-02-08` | **PASS** (`1.21 s`) | **PASS** (`874 ms`) | **PASS** (`852 ms`) | **PASS** (`0.86 s` / `855 ms`) |
+| 12 | `U4.platform-storage.negative` | `U4` / `04-u4-platform-storage.k2.ts` | `AC-LA-E7-07-05`, `AC-LA-E3-02-09` | **PASS** (`2.50 s`) | **PASS** (`2241 ms`) | **PASS** (`2214 ms`) | **PASS** (`2.23 s` / `2232 ms`) |
+
+### 4. Committed Test File SHA-256 Hashes in `k2-r11b-clone` (`4f10c5fd` / `src-final-3` `57b6a78c`)
+
+Recorded in `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/boundary/test-files-sha256.txt` (identical to Rounds 4 and 5):
+
+| Committed File in `k2-r11b-clone` (`4f10c5fd`) | SHA-256 |
+|---|---|
+| `tests/e2e/ltiaas/run-k2.mjs` | `8cce2af42bc4b04fba0a70260b9e96c28d3cd12aeff61814ad6ecdac9f7a19a0` |
+| `tests/e2e/ltiaas/01-u1-cards.k2.ts` | `ba57532431ea3ee288ad5ac1dc7332a39c5fc9fdcd3831c8dc01d89cbfbfc0fb` |
+| `tests/e2e/ltiaas/02-u2-wizards.k2.ts` | `6990e330ef4d9ac205526f02e6b2421b7d9058746e032f484c1475588ff79bab` |
+| `tests/e2e/ltiaas/03-u3-new-channels-flow.k2.ts` | `2ba11501673490edbbaf5f004cb9ad5348f4166e696c0bafcb855075e64003e6` |
+| `tests/e2e/ltiaas/04-u4-platform-storage.k2.ts` | `9fe72b1f9e06e48a79fe42438c27915ed039cf45e5a4401dcbc4cfee41ec1861` |
+| `tests/e2e/ltiaas/lib/k2.ts` | `4204c2de964977bdc2d6a2145c8f63c5d213ea5cb53d4a10795bc811cb10df54` |
+| `tests/e2e/ltiaas/manifest.json` | `bd2c8f367fac57c5ab1fad50173275b20da84f96b67d860a60b5a2179c491851` |
+
+### 5. Re-Gate Slot R2b (Round 6) Boundary, 32 Protected Volumes & Watcher Records (`/Users/quangnguyen/cogniate-qa-runs/LA/SLOT-R2B-R6-QA-E2E/boundary/`)
+
+- **Before-slot timestamp**: `2026-10-24T16:04:29Z` (`before-timestamp.txt`)
+- **After-slot timestamp**: `2026-10-24T16:17:17Z` (`after-timestamp.txt`)
+- **Owned-only cleanup (`qa-e2e-la-sim-r11`)**:
+  - `qa-e2e-la-sim-r11` containers remaining: `0` (`after-owned-containers.txt`)
+  - `qa-e2e-la-sim-r11` volumes remaining: `0` (`after-owned-volumes.txt`)
+  - `qa-e2e-la-sim-r11` networks remaining: `0` (`after-owned-networks.txt`)
+- **32 Protected Baseline Volumes (`docker volume inspect`)**:
+  - `before-32-baseline-volumes-inspect.json` (`14,406` bytes) vs `after-32-baseline-volumes-inspect.json` (`14,406` bytes): **`0` diff lines** (`baseline-32-volumes-inspect.diff` is `0` bytes; all 32 protected baseline volumes byte-for-byte unchanged).
+- **Non-`sto-*` and `sto-*` Containers**:
+  - `before-non-sto-containers.txt` (`0` containers) vs `after-non-sto-containers.txt` (`0` containers): **`0` diff lines** (`non-sto-containers.diff` is `0` bytes).
+  - `before-sto-containers.txt` (`0` containers) and `after-sto-containers.txt` (`0` containers).
+- **Continuous Watchers**:
+  - `docker-events-watch.log` (`docker events --since 2026-10-24T16:04:29Z`) and `host-ps-watcher.log` (5-second `ps` snapshots) ran continuously from before clone/stack start through teardown and were stopped cleanly at `2026-10-24T16:17:17Z`.
 
 ---
 
