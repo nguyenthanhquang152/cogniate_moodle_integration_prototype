@@ -1,19 +1,27 @@
 # LA open human decisions
 
-Draft, 2026-10-24. Source: [LA plan §6.2](../../team/ltiaas/plan.md#62-human-decisions) and the [LA board](../../team/ltiaas/board.md). The question and the recommendation of each row come from the plan. This page adds what waits on each answer. Back to [start-here.md](start-here.md) or [index.html](index.html).
+2026-10-24. Source: [LA plan §6.2](../../team/ltiaas/plan.md#62-human-decisions) and the [LA board](../../team/ltiaas/board.md). The question and the recommendation of each row come from the plan. This page adds what waits on each answer. Back to [start-here.md](start-here.md) or [index.html](index.html).
 
 ## Decide first
 
 ### LA-H25: how do we finish the channel kit (LA-E7-06)?
 
-- **Facts:** LA-E7-06 (the K1 channel certification kit, Must) used the 3 fix rounds of charter-LA §5. Each round-4 review still has 2 open BLOCKERs: some safety checks and some callers do not match the product contracts.
-- **What waits:** the kit simulator rows of the wave-end gate; LA-E8-01 finding B-03 (the add-a-channel guide); LA-E8-02 (the timed add-a-channel walkthrough).
+- **Facts:** LA-E7-06 (the K1 channel certification kit, Must) used the 3 fix rounds of charter-LA §5. Each round-4 review still has 2 open BLOCKERs: some safety checks and some callers do not match the product contracts. The kit host checks pass, including the one-file onboarding of a sixth channel ([LA-E7-06 qa](../../reviews/LA-E7-06/qa.md) round 4).
+- **What waits:**
+  - AC-LA-E7-08-02, the kit K1 run for every channel: pending: wave-end gate. QA corrected its earlier PASS: the per-task K1-SIM rows do not apply the kit pass rule ([LA-E7-08 qa §8.6](../../reviews/LA-E7-08/qa.md#86-disclosed-correction-of-ac-la-e7-08-02-pending-not-pass-and-final-verdict-for-la-e7-08-ac-la-e7-08-0106)).
+  - AC-LA-E7-09-05, the milestone-end double full run: pending: wave-end gate. Its scope includes the kit K1.
+  - LA-E8-02, the timed add-a-channel walkthrough.
 - **Options:**
   - (a) One extra fix round by a fresh Claude Opus 5.5 xhigh QA session (a model exception for this task). The reviewers' round-4 counterexample probes are its acceptance test. Then round-5 reviews.
   - (b) One extra fix round on Antigravity QA-4.
-  - (c) Move the kit K1 run to LG. The kit stays a host-only K0 check. AC-LA-E7-08-02 closes with the frozen M1, M2 and K2 results and the E2-N proof (D2L Brightspace, F2 `core = 0`). The final LA-E8-05 pack says so.
+  - (c) Move the kit K1 run to LG. The kit stays a host-only K0 check. AC-LA-E7-08-02 closes with the frozen M1, M2 and K2 results and the E2-N proof (D2L Brightspace, F2 `core = 0`). The LA-E8-05 pack then says so.
 - **Lead recommendation:** (a).
-- **Note:** the [LA-E7-08 QA file](../../reviews/LA-E7-08/qa.md) lists AC-LA-E7-08-02 as PASS (K1-SIM) for all 5 channels, from the K1 suites of each channel task. The LA-H25 text in the plan still lists AC-LA-E7-08-02 as waiting for the kit. The Lead resolves this difference in the final pack.
+
+### LA-H26: a live proof of the new-channel path
+
+- **Question:** which real open-source LMS gives the first live (not SIM) proof of the new-channel path. The free test sites are Sakai and Open edX. E2 proved `lti-generic` and `brightspace` on the simulator only.
+- **Lead recommendation:** Open edX first, Sakai as fallback; after LA (LG).
+- **What waits:** the first LIVE row for a channel that LA added.
 
 ## Decide before the next build wave
 
@@ -41,11 +49,9 @@ Draft, 2026-10-24. Source: [LA plan §6.2](../../team/ltiaas/plan.md#62-human-de
 - **Lead recommendation:** certify the service with a reference tool.
 - **What waits:** LA-E7-11 (certification reference tool, Should).
 
-### E2 open-source channel
+## Other rows of plan §6.2
 
-- **Status:** the Lead lists this as an open decision. Its question text is not yet in plan §6.2. The Lead adds it there.
-
-## Can wait
+The Lead does not list these rows as open for the LA close. They are needed later.
 
 | Id | Question | Lead recommendation | Needed by |
 | --- | --- | --- | --- |
@@ -54,4 +60,4 @@ Draft, 2026-10-24. Source: [LA plan §6.2](../../team/ltiaas/plan.md#62-human-de
 | LA-H21 | Operator policy: who holds an operator key; key life; two-person rule for account close and forced key activation | Named staff only; 90-day keys; a second operator as a Could | E5 build |
 | LA-H23 | Moodle manual connect authority: keep `self` (residual risk R-LA-1), or require a verified admin launch or a grant | Keep `self` for the pilot | E5/E6 |
 
-LA-H3 is the path to the first real Canvas, Blackboard and D2L Brightspace results. Until then, every result for these LMSs is a SIM result.
+LA-H3 and LA-H26 are the path to the first real LMS results for the channels that LA moved or added. Until then, every result for Canvas, Blackboard, D2L Brightspace and other LTI 1.3 LMSs is a SIM result.
