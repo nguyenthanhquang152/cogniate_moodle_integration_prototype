@@ -73,6 +73,15 @@
         "auth.brightspace.sim.test",
         "school-b.brightspace.sim.test"
       ]
+    },
+    {
+      "id": "acme-lms-sim",
+      "aliases": [
+        "acme-lms.sim.test"
+      ],
+      "allowlist": [
+        "acme-lms.sim.test"
+      ]
     }
   ]
 }
