@@ -153,7 +153,14 @@ export async function followPickerHandoff(
   page: HttpResultLike;
 }> {
   const handoffUrl = new URL(headerOf(launchResponse, 'location'), appOrigin).href;
-  const handoff = await request(handoffUrl, { headers: { accept: 'text/html' } });
+  let handoff = await request(handoffUrl, { headers: { accept: 'text/html' } });
+  // App-edge limit (cogniate-app-api-delta §5a): checked before the handoff row is written, so the same handoff
+  // is sent again after Retry-After from the same address.
+  for (let attempt = 0; handoff.status === 429 && attempt < 3; attempt += 1) {
+    const wait = Number(headerOf(handoff, 'retry-after'));
+    await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(wait) && wait > 0 ? Math.min(wait, 60) : 1) * 1000 + 250));
+    handoff = await request(handoffUrl, { headers: { accept: 'text/html' } });
+  }
   const next = headerOf(handoff, 'location');
   if (handoff.status !== 303 || !next) {
     return {

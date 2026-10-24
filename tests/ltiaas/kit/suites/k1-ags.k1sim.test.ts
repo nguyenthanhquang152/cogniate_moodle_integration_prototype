@@ -12,6 +12,7 @@ import {
   idToken,
   launchOnChannel,
   logEvents,
+  newDeploymentId,
   noServiceCalls,
   openPlayOnChannel,
   publication,
@@ -81,9 +82,8 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               {},
             );
             expectStatus(refreshRes, 200);
-            expect(
-              Array.isArray(refreshRes.json.results ?? refreshRes.json),
-            ).toBe(true);
+            // `POST /app-api/publications/:id/results/refresh` answers `200 { rows }` (cogniate-app-api.md §5)
+            expect(Array.isArray(refreshRes.json.rows)).toBe(true);
           }
 
           const simRecs = await records(cursor);
@@ -158,7 +158,8 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
               nonUrlExtensionKey: 'must-be-dropped',
             },
           );
-          expectStatus(scoreRes, 200);
+          // `POST /api/lineitems/:lineItemId/scores` answers `204` on success (lti-service-api.md §3.6)
+          expectStatus(scoreRes, 204);
 
           const simRecs = await records(cursor);
           const scoreRec = simRecs.records.find(
@@ -338,7 +339,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
           const bTemp = await setupChannelBinding(fixture, {
             library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c-a5-${fixture.id}`),
-            deploymentId: uniqueId(`dep-a5-${fixture.id}`),
+            deploymentId: newDeploymentId(fixture, `dep-a5-${fixture.id}`),
           });
           try {
             const pubTemp = await publication(bTemp, 'scorm12');
@@ -358,9 +359,14 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             const cursor = (await records()).cursor;
             await commitGrade(playTemp, 'scorm12', 9, 10);
 
+            // LA-ADR-03 "Disabled connection": authority operatorGrant -> failed with CONNECTION_DISABLED and no
+            // remote call; authority self -> sent as today, and the LTI service 403 ends it (cogniate-app-api.md §10:
+            // a 403 from the LTI service gives failed at once, lastError = the code, here PLATFORM_NOT_ACTIVE).
             const syncFailed = await waitSync(bTemp, pubTemp, 'failed');
             expect(String(syncFailed.lastError ?? '')).toContain(
-              'CONNECTION_DISABLED',
+              fixture.capabilities['binding.authority'].manual === 'self'
+                ? 'PLATFORM_NOT_ACTIVE'
+                : 'CONNECTION_DISABLED',
             );
             await noServiceCalls(cursor);
           } finally {
@@ -404,7 +410,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             'INVALID_LINE_ITEM_ID',
             'INVALID_URL_PARAMETER',
             'SERVICE_ORIGIN_MISMATCH',
-          ]).toContain(badScore.json?.error?.code);
+          ]).toContain(badScore.json?.details?.message);
 
           // 2. GET /api/lineitems/:lineItemId/scores and GET /api/lineitems?url=... with off-origin URL refused with 400
           const badResults = await service(
@@ -417,7 +423,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             'INVALID_LINE_ITEM_ID',
             'INVALID_URL_PARAMETER',
             'SERVICE_ORIGIN_MISMATCH',
-          ]).toContain(badResults.json?.error?.code);
+          ]).toContain(badResults.json?.details?.message);
 
           const badLineitems = await service(
             serviceKey,
@@ -429,7 +435,7 @@ describe('K1-AGS — Port 4 Assignment & Grade Services across selected channels
             'INVALID_URL_PARAMETER',
             'INVALID_LINE_ITEM_ID',
             'SERVICE_ORIGIN_MISMATCH',
-          ]).toContain(badLineitems.json?.error?.code);
+          ]).toContain(badLineitems.json?.details?.message);
 
           await noServiceCalls(cursor);
         });

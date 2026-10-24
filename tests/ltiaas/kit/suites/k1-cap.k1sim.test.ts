@@ -15,6 +15,7 @@ import {
   expectStatus,
   launchOnChannel,
   NEGATIVE_GUARD_SPECS,
+  newDeploymentId,
   publication,
   PublicationRef,
   runCapabilityGuardProbe,
@@ -130,12 +131,12 @@ describe('K1-CAP — Capability Matrix, Bilateral Equality, Negative Guards & Di
           const b1 = await setupChannelBinding(fixture, {
             library: 'A',
             clientId: isShared ? binding.clientId : uniqueId(`c3-1-${fixture.id}`),
-            deploymentId: uniqueId(`dep-c3-1-${fixture.id}`),
+            deploymentId: newDeploymentId(fixture, `dep-c3-1-${fixture.id}`),
           });
           const b2 = await setupChannelBinding(fixture, {
             library: 'B',
             clientId: isShared ? binding.clientId : uniqueId(`c3-2-${fixture.id}`),
-            deploymentId: uniqueId(`dep-c3-2-${fixture.id}`),
+            deploymentId: newDeploymentId(fixture, `dep-c3-2-${fixture.id}`),
           });
 
           try {

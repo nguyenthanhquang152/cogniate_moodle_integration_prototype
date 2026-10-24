@@ -199,6 +199,15 @@ export function decodeJwt(token: string): { header: Json; payload: Json } {
   return { header, payload };
 }
 
+// A new deployment id in the form of the channel's simulator: a UUID when the fixture's deployments are UUIDs
+// (the D2L simulator refuses other ids, tests/sim/core/runtime.mjs "UUID deployment id required").
+export function newDeploymentId(fixture: ChannelFixture, label: string): string {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return fixture.sim.deployments.length > 0 && fixture.sim.deployments.every((d) => uuid.test(d))
+    ? crypto.randomUUID()
+    : unique(label);
+}
+
 // Registers a simulator scenario via POST /__sim/scenarios (M1/common/client.ts:49, 151)
 export async function scenario(provider: string, patch: Json = {}): Promise<Json> {
   const created = await sim('/scenarios', 'POST', {
@@ -324,7 +333,9 @@ export {
 };
 export type { HostResult, Json, Session };
 
-export const SIM_CONTROL_URL = process.env.LMS_SIM_CONTROL_URL ?? 'http://127.0.0.1:4199';
+// The simulator control API (tests/sim: `/__sim/*` on `lms-sim.test`), reached in the e2e container through the
+// frozen M1 `sim()` helper (M1/common/client.ts). LMS_SIM_CONTROL_URL only changes the label of the request URL.
+export const SIM_CONTROL_URL = process.env.LMS_SIM_CONTROL_URL ?? 'https://lms-sim.test';
 
 export interface KitRunMeta {
   runId: string;
@@ -1159,22 +1170,44 @@ export async function setupChannelBinding(
   return binding;
 }
 
+// One client address (tasks README §2): the kit keeps its protocol rate below the `protocol` class and, on a
+// `429` with `Retry-After` (lti-service-api-delta §1.3, §1.4; app delta §5a), waits and sends the same request again
+// from the same address. This is not a test retry: the case still runs once.
+const LAUNCH_MIN_GAP_MS = 150;
+let lastLaunchAt = 0;
+export async function paceLaunch(): Promise<void> {
+  const wait = lastLaunchAt + LAUNCH_MIN_GAP_MS - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  lastLaunchAt = Date.now();
+}
+export function retryAfterMs(response: { headers?: Record<string, unknown> }): number {
+  const raw = Number(String(response.headers?.['retry-after'] ?? ''));
+  return (Number.isFinite(raw) && raw > 0 ? Math.min(raw, 60) : 1) * 1000 + 250;
+}
+
 // Performs an OIDC third-party login + form_post launch on `/lti/login/cogniate` and `/lti/launch/cogniate`
 // via the frozen M1 launch helper (tests/acceptance/M1/common/client.ts:137-170; lti-service-api.md §2.1-2.2).
 export async function launchOnChannel(
   binding: ChannelBinding,
   patch: Record<string, unknown> = {},
 ) {
-  const res = await launch({
-    provider: binding.fixture.simProvider,
-    clientId: binding.clientId,
-    deploymentId: binding.deploymentId,
-    siteHost: binding.siteHost,
-    pageHost: binding.pageHost,
-    ...patch,
-  });
-  const location = String(res.response.headers.location ?? '');
-  return { ...res, location };
+  for (let attempt = 0; ; attempt += 1) {
+    await paceLaunch();
+    const res = await launch({
+      provider: binding.fixture.simProvider,
+      clientId: binding.clientId,
+      deploymentId: binding.deploymentId,
+      siteHost: binding.siteHost,
+      pageHost: binding.pageHost,
+      ...patch,
+    });
+    if (res.response.status === 429 && attempt < 4) {
+      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res.response as never)));
+      continue;
+    }
+    const location = String(res.response.headers.location ?? '');
+    return { ...res, location };
+  }
 }
 
 // Opens a learner/staff play session via `openPlay` (tests/acceptance/M1/common/course.ts:41-56)
@@ -1184,14 +1217,26 @@ export async function openPlayOnChannel(
   pub: PublicationRef,
   patch: Record<string, unknown> = {},
 ) {
-  const res = await openPlay(binding, pub, {
-    provider: binding.fixture.simProvider,
-    clientId: binding.clientId,
-    deploymentId: binding.deploymentId,
-    siteHost: binding.siteHost,
-    pageHost: binding.pageHost,
-    ...patch,
-  });
+  const openOnce = async () => {
+    await paceLaunch();
+    return openPlay(binding, pub, {
+      provider: binding.fixture.simProvider,
+      clientId: binding.clientId,
+      deploymentId: binding.deploymentId,
+      siteHost: binding.siteHost,
+      pageHost: binding.pageHost,
+      ...patch,
+    });
+  };
+  let res: Awaited<ReturnType<typeof openPlay>>;
+  try {
+    res = await openOnce();
+  } catch (err) {
+    // The frozen openPlay asserts a 303 launch and handoff; a 429 there is the rate limit (see paceLaunch)
+    if (!/\b429\b/.test(String((err as Error)?.message ?? ''))) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    res = await openOnce();
+  }
   const location = String(res.result.response.headers.location ?? '');
   const playHtml = String(res.shell?.body ?? '');
   if (res.runtimeToken) {
@@ -1229,7 +1274,7 @@ export async function openPickerOnChannel(
     (url, opts) => httpsRequest(url, opts) as Promise<HttpResultLike>,
     APP,
   );
-  return { ...opened, ltik: launched.ltik };
+  return { ...opened, ltik: launched.ltik, scenarioId: String(launched.scenario?.id ?? '') };
 }
 
 // Live I/O for the case bodies of lib/cases.ts, bound to the frozen M1 helpers.
@@ -1263,17 +1308,17 @@ export async function runDynamicRegistrationHandshake(
   fixture: ChannelFixture,
   drPatch: Record<string, unknown> = {},
   connectionPatch: Record<string, unknown> = {},
+  // Top-level simulator scenario options (for example `family`: the configuration's product_family_code)
+  scenarioPatch: Record<string, unknown> = {},
 ) {
   // POST /app-api/connections with method: 'dynamic' (cogniate-app-api.md §4; cogniate-app-api-delta.md §3.1)
   const created = await app(s, 'POST', '/app-api/connections', {
     name: `K1 DR ${fixture.id}`,
     lms: fixture.id,
     method: 'dynamic',
-    siteUrl: fixture.sim.siteUrl,
+    // The DR site is the simulator host that serves the configuration (the derived site URL of the DR platform)
+    siteUrl: `https://${fixture.sim.siteHost}`,
     ...(fixture.simProfile ? { profile: fixture.simProfile } : {}),
-    ...(fixture.capabilities['site.serviceOrigin']
-      ? { serviceUrl: fixture.sim.serviceUrl }
-      : {}),
     ...connectionPatch,
   });
   expectStatus(created, 201);
@@ -1285,7 +1330,13 @@ export async function runDynamicRegistrationHandshake(
   expect(connection.registrationUrl).toContain('/lti/register/cogniate');
   expect(connection.registrationUrl).toContain('ref=');
 
+  // A DR scenario names the registering client, its deployment and a DR host of the simulator
+  // (tests/sim/core/runtime.mjs: client and deployment required; `siteHost` must be a known site).
   const sc = await scenario(fixture.simProvider, {
+    clientId: uniqueId(`dr-client-${fixture.id}`),
+    deploymentId: newDeploymentId(fixture, 'dr-dep'),
+    siteHost: fixture.sim.siteHost,
+    ...scenarioPatch,
     dr: drPatch,
   });
   if (sc.registration?.registrationToken) {
@@ -1293,21 +1344,33 @@ export async function runDynamicRegistrationHandshake(
   }
 
   const ltiRegUrl = new URL(connection.registrationUrl, LTI_ORIGIN);
-  ltiRegUrl.searchParams.set('openid_configuration', sc.registration.openidConfiguration);
+  // The configuration URL without the simulator's `scenario` query: the simulator then answers for its active
+  // (latest) scenario (tests/sim/core/provider.mjs), and the URL equals issuer + configuration path, which a
+  // profile with a fixed configuration path requires (LA-ADR-02 D2 `configurationPath`).
+  const configUrl = new URL(String(sc.registration.openidConfiguration));
+  configUrl.searchParams.delete('scenario');
+  ltiRegUrl.searchParams.set('openid_configuration', configUrl.href);
   if (sc.registration.registrationToken) {
     ltiRegUrl.searchParams.set('registration_token', sc.registration.registrationToken);
   }
 
   // Step 1: GET /lti/register/cogniate?ref=...&openid_configuration=...&registration_token=...
   // -> 303 redirect to https://app.cogniate.test/tool/register?registrationId=...&ref=... (or 400 error page)
-  const step1 = await ltiRequest('GET', `${ltiRegUrl.pathname}${ltiRegUrl.search}`, {
+  let step1 = await ltiRequest('GET', `${ltiRegUrl.pathname}${ltiRegUrl.search}`, {
     headers: { accept: 'text/html' },
   });
+  for (let attempt = 0; step1.status === 429 && attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(step1 as never)));
+    step1 = await ltiRequest('GET', `${ltiRegUrl.pathname}${ltiRegUrl.search}`, {
+      headers: { accept: 'text/html' },
+    });
+  }
   if (step1.status !== 303 || !step1.headers?.location) {
     return {
       connection,
       sc,
       step: 'get' as const,
+      start: step1,
       response: step1,
     };
   }
@@ -1322,6 +1385,7 @@ export async function runDynamicRegistrationHandshake(
       connection,
       sc,
       step: 'get' as const,
+      start: step1,
       response: getPage,
     };
   }
@@ -1339,6 +1403,7 @@ export async function runDynamicRegistrationHandshake(
     connection,
     sc,
     step: 'post' as const,
+    start: step1,
     getPage,
     response: postPage,
   };
@@ -1627,15 +1692,9 @@ export async function scanAllLogsAndArtifactsForSecrets(
   const fetchFn =
     options.fetchImpl ??
     (async (url: string) => {
-      const res = await fetch(url);
-      const rawText = await res.text();
-      let json: unknown = null;
-      try {
-        json = rawText ? JSON.parse(rawText) : null;
-      } catch {
-        json = null;
-      }
-      return { status: res.status, json, rawText };
+      const at = url.indexOf('/__sim');
+      const res = await sim(at >= 0 ? url.slice(at + '/__sim'.length) : url);
+      return { status: res.status, json: res.json as unknown, rawText: res.body };
     });
 
   const readLogFn = options.readServiceLogImpl ?? readServiceLogs;

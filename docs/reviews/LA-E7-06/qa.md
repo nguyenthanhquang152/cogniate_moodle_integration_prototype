@@ -1,5 +1,5 @@
-Verdict: PASS (host checks; K1-SIM rows pending: Docker window)
-Round: 5
+Verdict: PASS (Round 7 K1-SIM run r7 on product a8bbac53: 195 of 195 expected cases PASS on all 5 channels, with K-HYG and the fault matrix; one recorded product deviation, Architect A1 ruling BD-A1-121, see "Round 7: live fix-and-rerun window")
+Round: 7
 
 # QA Review — `LA-E7-06` (`K1` Simulator Suites per Port, Channel Fixtures, and the Pass Rule)
 
@@ -312,3 +312,293 @@ Changed files in this step: `tests/ltiaas/kit/lib/cases.ts`, `tests/ltiaas/kit/s
 | `A-LA-E7-06-08` "C1 requires profile-only keys in the channel-level provider map" | `fixtures.ts`: `PROFILE_LEVEL_CAPABILITY_KEYS` = the LA-ADR-01 D3 rows whose source is an LTI profile trait (`platform.sharing`, `site.serviceOrigin`); `CHANNEL_LEVEL_CAPABILITY_KEYS` = every other catalog key (no hard-coded count). `verifyBilateralCapabilities` compares the `GET /app-api/lms-providers` map with the channel-level keys only (a profile-level key there is an error) and the connection DTO with every key; both directions, exact values, unknown keys fail. C1 suite title and comment, README C1 row updated; the product API is unchanged. | K0 `(C1 levels, Round 5)`: the key lists equal the D3 table (parsed from `LA-ADR-01-channel-kernel.md`); for all 5 fixtures a 15-key provider map with a 17-key connection passes; a provider map with a profile trait, a provider map without `deployments.multiple`, and a connection without a profile trait each fail with that one error; a fixture mismatch and an unknown key still fail. Earlier C1 tests now use the channel-level provider shape. Reviewer-A probe `/tmp/la-review-a-5bbade125d93/reviewer-r5.probe.test.ts` (copied read-only into the private clone, then removed): 11/12 checks pass; the one failure is the C1 check that asserts the old defect (line 85), which now receives `[]` for the real 15-key provider and 17-key Canvas connection maps (`r5/reviewer-a-r5-probe-replay.log`). | PASS |
 
 Host checks (private clone `b6bfbef2` + this kit): kit K0 **25/25 PASS** (225 ms, `r5/kit-k0-c1levels.log`); `npm run test:k0` **149/149 PASS**, 3 files (809 ms, `r5/test-k0-c1levels.log`); kit typecheck exit 0 (`r5/kit-tsc-c1levels.log`); F1 0 hits. Changed files: `tests/ltiaas/kit/lib/fixtures.ts`, `tests/ltiaas/kit/suites/k1-cap.k1sim.test.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, this file. `0` Docker commands; K1-SIM rows stay `pending: Docker window`.
+
+---
+
+## Round 6: K1-SIM
+
+2026-10-24T12:36:02Z (date -u). QA-K, dispatch `ctx_28ede48747e2` (DOCKER-YES).
+
+**Verdict: FAIL.** The kit ran once, `retries: 0`, on a fresh SIM lane for all 5 registered channels: **112 of 195 expected cases PASS, 83 FAIL, 0 skipped, 0 duplicates**. The kit's pass rule (`k1-kit-summary.json`, `ok: false`) fails for every channel. Every failure traces to a defect in the kit's live wiring or oracles (R6.4). This run shows no product behaviour that breaks a contract. The failures are deterministic (one run, no rerun), so none is a flake.
+
+### R6.1 Run facts
+
+| Item | Value |
+| :--- | :--- |
+| SHA | new `git clone --no-hardlinks` of integration `89a10e07` (product `a8bbac53`: `git diff a8bbac53 89a10e07 -- services packages apps infra` is empty; the kit at `e17a7a44`, approved by Reviewer-A round 6 and Reviewer-B round 5), clone `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/run-clone` |
+| Stack | one stack, project `qa4-la-k1-r1`, `PUBLIC_PORT 9443`, `STACK_SUBNET 172.20.0.0/16`; docker 29.9.2 / compose 5.6.1; no `-r2`; no G1-IDENTITY stop |
+| Runner | `tests/ltiaas/kit/run-k1sim.mjs` (new; on the shared `tests/host/core.mjs`): preflight (fresh lane, free port and subnet), clone, `npm ci`, `gen-env`, `stack:up`, `seed`, H1 project guard, M1 host-control bridge (`m1-cli`: 54 grant/CLI calls, all exit 0; `m1-restart`: 10 `stack:restart -- lti-service` calls, form (l), all exit 0), owned-only teardown. The in-container step uses the same steps as `infra/scripts/qa-suite.sh acceptance`, with two changes: it also forwards `LA_RUN_DIR` and `LA_WAVE_ID` (qa-suite.sh forwards `QA_*` only), and it runs only the README form (no UI suite) |
+| Command (in `/repo` of the e2e container) | `LA_RUN_DIR=/repo/tests/.tmp/kit-run-qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z QA_KIT_CHANNELS=all QA_TASK=K1 npm --prefix tests run acceptance:api -- --reporter=verbose --reporter=json --outputFile.json=/repo/tests/acceptance/artifacts/vitest-results.json`, with `LA_WAVE_ID=la-final-wave-a8bbac53` |
+| Measured time | whole runner 12:26:57Z–12:30:33Z (3 min 36 s, stack images cached); in-container step 162.7 s; Vitest 143.14 s (7 files, 196 tests: the 195 ledger cases plus `GLOBAL:K-HYG:SUMMARY`; 84 failed, 0 skipped) |
+| Kit run files (the accounting below) | `kit-run-meta.json`, `kit-executed-cases.jsonl` (195 records, run id `kit-run-1792844876888-uio2k0`), `k1-kit-summary.{json,md}`, `wave-evidence.json`, `wave/{T3b,T7,T8}/result.json`: copied (without private files) to `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/kit-run/`; Vitest report `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/container-k1/vitest-results.json`; service logs `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/service-logs/`; host summary `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/summary.json` |
+
+**Wave evidence (AC-LA-E7-06-05; the kit reads `$LA_RUN_DIR/wave-evidence.json` and the three `wave/<suite>/result.json` files).** The runner wrote them from these result files. Each result names its source file and SHA-256, and gives PASS only for a clean pass:
+
+| Suite | Source file the result is built from | Product SHA | Check |
+| :--- | :--- | :--- | :--- |
+| T3b | `~/cogniate-qa-runs/LA/SLOT8/artifacts/qalead-la-31-8fadb828-2026-10-23T21-38-23-889Z/summary.json` (T2 host runner, T2/T3a/T3b) | `8fadb828` | 64/64 ids PASS, no abort, `AC-T3-*` ids present: PASS |
+| T7 | `~/cogniate-qa-runs/LA/SLOT3F/artifacts/qalead-la-66-a8bbac53-2026-10-24T05-56-45-538Z/summary.json` | `a8bbac53` | run 1 exit 0, 17 pass, 0 fail, 1 skip: PASS |
+| T8 | `~/cogniate-qa-runs/LA/SLOT8B/artifacts/qalead-la-52-8fadb828-2026-10-24T01-14-52-791Z/summary.json` | `8fadb828` | 23/23 ids PASS, no abort: PASS |
+
+`8fadb828`..`a8bbac53` changes only `apps/portal/src/Integrations.tsx` and its test (BD-A1-119 `data-channel-id`), not T3b or T8 behaviour. The slot 8 T7 (`qalead-la-30`) and T8 (`qalead-la-35`) runs that failed are superseded by 8B/8D/3F and were not used. The kit's wave check raised no error for Moodle (`coveredBy`: `registration.dynamic` → T3b, T7; `siteApi.token`, `publish.createCourse`, `export.packages` → T8).
+
+### R6.2 Per channel (suite: PASS of RUN, N/A with capability, failed case ids)
+
+Artifact path for every channel: `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/kit-run/kit-executed-cases.jsonl` and `k1-kit-summary.json`.
+
+**moodle** (expected RUN 37; PASS 20; FAIL 17; missing 0; extra 0; illegal N/A 0; missing C2 0)
+
+| Suite | PASS / RUN | N/A (capability) | Failed ids |
+| :--- | :---: | :--- | :--- |
+| K1-LAUNCH | 7 / 10 | — | L2, L6, L7 |
+| K1-DL | 4 / 8 | D5-UNGRADED (`content.ungraded`, notBuilt) | D1, D4, D5, D6 |
+| K1-AGS | 2 / 6 | — | A1, A2, A5, A6 |
+| K1-NRPS | 0 / 1 | — | N1 |
+| K1-REG | 2 / 6 | R1-DEPLOYMENTS (`deployments.multiple`), R-CHECK (`setup.connectionCheck`) | R1, R3, R4, R6 |
+| K1-CAP | 5 / 5 | — | — |
+| K-HYG | 0 / 1 | — | H2 |
+
+**canvas** (expected RUN 38; PASS 22; FAIL 16; missing 0; extra 0; illegal N/A 0; missing C2 0)
+
+| Suite | PASS / RUN | N/A (capability) | Failed ids |
+| :--- | :---: | :--- | :--- |
+| K1-LAUNCH | 7 / 10 | — | L2, L6, L7 |
+| K1-DL | 4 / 8 | D5-UNGRADED (`content.ungraded`, notBuilt) | D1, D4, D5, D6 |
+| K1-AGS | 3 / 6 | — | A1, A2, A6 |
+| K1-NRPS | 0 / 1 | — | N1 |
+| K1-REG | 4 / 8 | — | R3, R4, R6, R-CHECK |
+| K1-CAP | 4 / 4 | — | — |
+| K-HYG | 0 / 1 | — | H2 |
+
+**blackboard** (expected RUN 39; PASS 26; FAIL 13; missing 0; extra 0; illegal N/A 0; missing C2 0)
+
+| Suite | PASS / RUN | N/A (capability) | Failed ids |
+| :--- | :---: | :--- | :--- |
+| K1-LAUNCH | 7 / 10 | — | L2, L6, L7 |
+| K1-DL | 4 / 8 | D5-UNGRADED (`content.ungraded`, notBuilt) | D1, D4, D5, D6 |
+| K1-AGS | 3 / 6 | — | A1, A2, A6 |
+| K1-NRPS | 1 / 1 | — | — |
+| K1-REG | 3 / 5 | R1-DEPLOYMENTS (`deployments.multiple`), R3 (`registration.dynamic`), R-CHECK (`setup.connectionCheck`) | R4, R6 |
+| K1-CAP | 8 / 8 | — | — |
+| K-HYG | 0 / 1 | — | H2 |
+
+**lti-generic** (expected RUN 39; PASS 23; FAIL 16; missing 0; extra 0; illegal N/A 0; missing C2 0)
+
+| Suite | PASS / RUN | N/A (capability) | Failed ids |
+| :--- | :---: | :--- | :--- |
+| K1-LAUNCH | 7 / 10 | — | L2, L6, L7 |
+| K1-DL | 4 / 8 | D5-UNGRADED (`content.ungraded`, notBuilt) | D1, D4, D5, D6 |
+| K1-AGS | 3 / 6 | — | A1, A2, A6 |
+| K1-NRPS | 0 / 1 | — | N1 |
+| K1-REG | 4 / 8 | — | R3, R4, R6, R-CHECK |
+| K1-CAP | 5 / 5 | — | — |
+| K-HYG | 0 / 1 | — | H2 |
+
+**brightspace** (expected RUN 39; PASS 20; FAIL 19; missing 0; extra 0; illegal N/A 0; missing C2 0)
+
+| Suite | PASS / RUN | N/A (capability) | Failed ids |
+| :--- | :---: | :--- | :--- |
+| K1-LAUNCH | 5 / 10 | — | L2, L3, L6, L7, L9 |
+| K1-DL | 4 / 8 | D5-UNGRADED (`content.ungraded`, notBuilt) | D1, D4, D5, D6 |
+| K1-AGS | 2 / 6 | — | A1, A2, A5, A6 |
+| K1-NRPS | 0 / 1 | — | N1 |
+| K1-REG | 4 / 7 | R-CHECK (`setup.connectionCheck`) | R3, R4, R6 |
+| K1-CAP | 5 / 6 | — | C3 |
+| K-HYG | 0 / 1 | — | H2 |
+
+**Once per run:** `GLOBAL:K1-LAUNCH:L-FAULTS` **PASS** (all 12 simulator faults on `lti-generic`, exact code each, after a valid control launch; AC-LA-E7-06-08); `GLOBAL:K1-NRPS:N2` FAIL; `GLOBAL:K-HYG:H1` FAIL (`missingInputs: ["sim:secrets", "sim:records"]`, so no leak count is valid); `GLOBAL:K-HYG:SUMMARY` FAIL (`evaluateKitRunPassRule` `ok: false`).
+
+**Exact accounting** (`k1-kit-summary.json`): expected RUN 195 (192 channel + 3 global), passed 112, failed 83, skipped 0, retried/duplicate 0, missing 0, extra 0, illegal N/A 0, missing C2 0. Positive capabilities with no passing kit case (follow-on of the failures above): moodle `records.readBack`, `records.reporters`, `registration.dynamic`, `registration.scopes`; canvas the same plus `launch.topLevelContinue`, `launch.windowHint`, `setup.connectionCheck`; blackboard `launch.windowHint`, `records.readBack`, `records.reporters`, `registration.scopes`; lti-generic the moodle four plus `launch.windowHint`, `setup.connectionCheck`; brightspace the moodle four plus `launch.windowHint`.
+
+### R6.3 Acceptance criteria (this run)
+
+| AC | Result | Evidence |
+| :--- | :--- | :--- |
+| AC-LA-E7-06-01 | **FAIL** | 112/195 expected cases PASS (R6.2); every channel FAIL |
+| AC-LA-E7-06-03 | **PASS** for the N/A rule | every N/A case's capability has its C2 guard PASS in this run (all K1-CAP `C2:*` cases PASS on all channels); `content.ungraded` (notBuilt) has no C2 case; illegal N/A 0; missing C2 0 |
+| AC-LA-E7-06-04 | **PASS** | `C1` PASS on all 5 channels (registry entry at channel level, connection DTO at its profile; legacy flags; tool configuration keys) |
+| AC-LA-E7-06-05 | **PASS** for the `coveredBy` evidence | T3b, T7, T8 verified from the named files for wave `la-final-wave-a8bbac53`; no wave error in the pass rule. Moodle `registration.dynamic` is still uncovered because the kit's own R3 failed (R6.4) |
+| AC-LA-E7-06-06 | **FAIL** | `H1`: the scan did not read `/__sim/secrets` and `/__sim/records` (R6.4 #13) |
+| AC-LA-E7-06-08 | **PASS** | `GLOBAL:K1-LAUNCH:L-FAULTS` PASS |
+| AC-LA-E7-08-02 | **FAIL** | K1 does not pass for any registered channel under the pass rule (TEST-STRATEGY §2.6) |
+
+### R6.4 Failure causes (all on the kit side; product contract text or simulator option rules as evidence)
+
+| # | Cases | Cause | Evidence |
+| :--- | :--- | :--- | :--- |
+| 1 | L2 (5 channels) | The scenario option `rotatedKey` does not exist; the simulator rejects the scenario (`POST /__sim/scenarios` 400) | `tests/sim/core/runtime.mjs` known options (`secondKey`, `jwksKeys`) and "Unknown scenario option" |
+| 2 | R3 (moodle, canvas, lti-generic, brightspace), R6 (moodle, lti-generic, brightspace), N1 (the same four DR channels) | DR scenarios are created with `dr` only; the simulator needs `clientId`, `deploymentId` and a known `siteHost` (400) | `runtime.mjs` "Scenario client and deployment required", "Unknown simulator service host"; kit `runDynamicRegistrationHandshake`, R6 `offAuthSc` |
+| 3 | R-CHECK (canvas, lti-generic) | Option `tokenError` does not exist and `siteHost` is missing (400) | `runtime.mjs` options (`tokenAnswers`) |
+| 4 | L3, L9, C3, A5 (brightspace) | Kit-made deployment ids are not UUIDs; the D2L simulator needs UUIDs (400) | `runtime.mjs` "UUID deployment id required" (option `allowNonUuidDeployment` exists) |
+| 5 | D6 (5) | Second launch uses option `deepLinkingSettings`; the simulator option is `dlSettings` (400) | `runtime.mjs` known options |
+| 6 | D1 (moodle, canvas, blackboard, brightspace) | The oracle expects the return URL to contain `deep-link/return`; each simulator site has its own return path | `tests/sim/*/index.mjs` `dlReturn` (`/mod/lti/contentitem_return.php`, …) |
+| 7 | D1 (lti-generic) | The kit passes the data value as option `dlData`, which is the data **mode** (`claim`/`query`); no data claim is sent, so the return finds no scenario (simulator 400 at `/lti/deep-link/return`) | `tests/sim/core/provider.mjs` `claimsFor`, `deepLinkReturn` ("DL return scenario and data") |
+| 8 | D4 (5) | The cancel answer is `200` with a JWT (as AP-05-12), but the kit posts it to a simulator scenario without `dlAllowCancel`; the simulator refuses an empty `content_items` (400). The app's `csrf_rejected` line is the intended foreign-Origin refusal | `provider.mjs` "DL item count" / `allowCancel`; `cogniate-app.jsonl` |
+| 9 | D5 (5) | Items use `url: {APP}/tool/launch/<pub>`; an `ltiResourceLink.url`, if given, must start with `{PUBLIC_LTI_URL}/lti/launch/{account}` (400 `INVALID_CONTENT_ITEM`; the "with lineItem" half also passed for this reason, not for `accept_lineitem`) | lti-service-api.md §3.2 rules |
+| 10 | A2 (5) | The oracle expects `200` from `POST /api/lineitems/:id/scores`; the contract answer is `204` | lti-service-api.md §3.6 "`204` on success" |
+| 11 | A6 (5), R4 (5), R6 (canvas, blackboard) | The oracle reads the error code from `json.error.code`; the error body is `{ status, error, details: { message, description } }` | lti-service-api.md §1.3 error body |
+| 12 | A1 (5) | The refresh oracle reads `json.results`; the answer is `200 { rows }` | cogniate-app-api.md §5 `POST …/results/refresh` |
+| 13 | H1 (global), then every H2 | The scanner fetches `${SIM_CONTROL_URL}/__sim/secrets` and `/__sim/records` with the host-only default `http://127.0.0.1:4199`; inside the e2e container the simulator is `https://lms-sim.test/__sim` (M1 `sim()`), so both inputs are missing | kit `runtime.ts` `SIM_CONTROL_URL`; M1 `client.ts` `sim()` |
+| 14 | N2 (global) | The kit sets an NRPS URL that the generic simulator does not serve (`…/nrps/memberships/ctx-1`); the platform answers 404, so the service gives `404 PLATFORM_REJECTED_REQUEST` | `tests/sim/generic/index.mjs` `nrps: /lti/courses/course-1/memberships` |
+| 15 | L6 (5) | The oracle matches the handoff `Location` against a path regex; the app answers an absolute URL (`https://app.cogniate.test:9443/play/…`) | kit L6; the M1 `openPlay` resolves `Location` against `APP` |
+| 16 | L7 (5) | The no-AGS launch still has the NRPS claim, so a service key is correct; the oracle expects none | lti-service-api.md §3.1 "`services.serviceKey` … when AGS or NRPS is available"; delta C8 |
+| 17 | A5 (moodle) | Moodle's binding authority is `self`: the row is sent and the LTI service `403` ends it (`PLATFORM_NOT_ACTIVE`); `CONNECTION_DISABLED` applies only to `operatorGrant` | LA-ADR-03 D-table "Disabled connection"; LA-ADR-01 D7 |
+| 18 | R1 (moodle) | The oracle applies site rules 1–4 (`422 INVALID_SITE_URL`) to Moodle; the delta keeps Moodle create unchanged (rules for admin-value channels other than Moodle) | cogniate-app-api-delta.md §3.1 |
+
+These defects are in the K1 suite bodies, which the host K0 checks do not run against a stack. The changed case bodies of rounds 4–5 (L4, L10, D3 including BD-A1-120, A3, L7 placement, the picker) and C1/C2/C3/L-FAULTS pass live. A kit fix round needs the Lead's decision (this round fixed nothing); after it, a new K1-SIM lane (`-r2` or a new prefix) is needed.
+
+### R6.5 Docker records (umask 077: `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/docker-records/`)
+
+- Before (12:26Z): 0 containers; 32 volumes (`before-volumes.txt`, `before-volumes-inspect.json`); networks bridge, host, none; no `qalead-la-*`, `qa-e2e-*`, `la-g1-diag-*` or `sto-*` resource; port 9443 and subnet 172.20.0.0/16 free.
+- Watchers from launch: `events-qa4-la-k1-r1.jsonl` (1,389 events, own label), `events-all.jsonl`, `ps-watch.log` (15 s).
+- Teardown (shared core, ownership ledger `~/cogniate-qa-runs/LA/LA-E7-06/k1-r1/clone/tests/host/artifacts/qa4-la-k1-r1-89a10e07-2026-10-24T12-26-57-373Z/lane-ownership.json`): `stack:down` exit 0; 0 containers, 0 volumes, 0 networks left with the label or lane names.
+- After (`after-*`): the same 32 volumes with identical inspect; the same networks. Another run's `sto-it-*` containers came and went during the window (now `sto-it-mq-379bbf0b2239`, `sto-it-pg-c52e89230991`) with 2 new anonymous volumes (`750b656e…`, `a9ea5d85…`, created 12:30:28Z and 12:30:36Z, mounted only by those containers, 0 references in my project's event log). QA-K did not touch them. "QA-K stack down" was sent at once (`msg_d6a1dcce4a5c`).
+- Files changed in this round: `tests/ltiaas/kit/run-k1sim.mjs` (new runner), this file. No commit.
+
+## Round 7: live fix-and-rerun window
+
+QA-K, dispatch `ctx_46e709bf0491` (task `task_93e9c13d6a63`, DOCKER-YES). The window started at 2026-10-24T13:19:55Z (3 hours). The product stays at `a8bbac53`. Each run is a new `git clone --no-hardlinks` of integration `0f5aabbd` (product `a8bbac53`) with the la-qa kit tree copied in (`LA_K1_KIT_FROM`; the runner records the kit tree hash as result `KIT`). Command in the `e2e` container: the README §3 form, `QA_KIT_CHANNELS=all QA_TASK=K1 npm --prefix tests run acceptance:api`, `retries: 0`, `LA_WAVE_ID=la-final-wave-a8bbac53`, the wave sources of R6.1. One stack at a time, `PUBLIC_PORT 9443`, `STACK_SUBNET 172.20.0.0/16`, a new project for each run. Changed files: `tests/ltiaas/kit/**` and this file only. Every oracle comes from the contracts or from the simulator API and its documented options (`tests/sim/core/runtime.mjs` `SCENARIO_OPTIONS`, `DR_OPTIONS`); no product source was read. No case id was added, removed or renamed.
+
+### R7.1 Runs
+
+| Run | Project | Time (UTC) | Kit tree | Expected | PASS | FAIL | Remaining causes |
+| :--- | :--- | :--- | :--- | ---: | ---: | ---: | :--- |
+| r1 (Round 6) | `qa4-la-k1-r1` | 12:26:57–12:30:33 | `e17a7a44` kit | 195 | 112 | 83 | the 18 causes of R6.4 |
+| r2 | `qa4-la-k1-r2` | 13:26:05–13:29:46 | `9e8ce18ca88f749b867110740d2e8580e8cfe167` | 195 | 168 | 27 | R7.3 items 19–22 |
+| r3 | `qa4-la-k1-r3` | 13:34:15–13:38:45 | `ae9ece98ece8bcb59eca39ed270d20dd79a94c91` | 195 | 182 | 13 | R7.3 items 23–24 |
+| r4 | `qa4-la-k1-r4` | 13:40:25–13:41:27 | `9409dcb14562f46aeed0242e545cba43bbe0757b` | — | — | — | aborted at host check `H1` before the kit (R7.4); not a kit or product cause |
+| r5 | `qa4-la-k1-r5` | 13:43:47–13:49:24 | `cfd70a01cadede9c6fc3c7cdbde9fd64b03bf92d` | 195 | 187 | 8 | R7.3 item 25 (R3 on the 4 DR channels, and the 4 `H2` rows that follow from it); `blackboard` passes its pass rule |
+| r6 | `qa4-la-k1-r6` | 13:49:52–13:56:55 | `f250c92f6873e820d6cf4a4f09756ecd0c5eec3d` | 195 | 191 | 4 | **product** (R7.6): R3 family guard on `moodle` and `lti-generic` (and their 2 `H2` rows); `canvas`, `blackboard`, `brightspace` pass their pass rule; L-FAULTS, N2, H1 PASS |
+| **r7** | `qa4-la-k1-r7` | 14:04:28–14:11:10 | `80ce699d87138df8f3d6f8590bb896bf7342e344` | 195 | **195** | **0** | none: `k1-kit-summary.json` `ok: true` for all 5 channels; `GLOBAL:K1-LAUNCH:L-FAULTS`, `GLOBAL:K1-NRPS:N2`, `GLOBAL:K-HYG:H1` PASS (R7.10) |
+
+Each run: `PRE`, `CLONE`, `KIT`, `H1`, `SETUP`, `WAVE`, `HOSTCTL`, `TEARDOWN` PASS (r4: `H1` FAIL, see R7.4). The in-container time grows with the `Retry-After` waits (r2 166 s, r3 213 s, r5 286 s, r6 350 s, r7 349 s).
+
+### R7.2 Fixes for the 18 causes of R6.4
+
+| # | Fix (kit only) | Oracle source |
+| :--- | :--- | :--- |
+| 1 | L2 keeps only its design meaning (TEST-STRATEGY §2.4: "profile-dependent faults `unknown-key` and `wrong-issuer`"); the rotated-key extra used an option that does not exist and is removed | `runtime.mjs` `SCENARIO_OPTIONS` |
+| 2 | Every DR scenario has `clientId`, `deploymentId` and the fixture `siteHost` (`runDynamicRegistrationHandshake`, R6 off-origin scenario) | `runtime.mjs` "Scenario client and deployment required" |
+| 3 | R-CHECK: the failure half runs on its own binding whose scenario answers `invalid_client` on every token request (`tokenAnswers: [{ status: 400, error: 'invalid_client', persistent: true }]`) | `runtime.mjs` option `tokenAnswers` |
+| 4 | `newDeploymentId(fixture, label)`: a UUID when all `fixture.sim.deployments` are UUIDs (L3, L9, C3, A5, DR) | `runtime.mjs` "UUID deployment id required" |
+| 5 | D6 uses the option `dlSettings` | `runtime.mjs` options |
+| 6 | D1: the return page is on the fixture `pageHost` origin, and the simulator `deep-link` record matches the scenario, host and path (no fixed path text) | `tests/sim/core/provider.mjs` `deepLinkReturn` record |
+| 7 | D1: the data value is `data-<scenarioId>`; `dlData` is not set by the kit (it is the data mode of the provider) | `provider.mjs` `claimsFor` |
+| 8 | D4 opens the picker with `dlAllowCancel: true` | `provider.mjs` `allowCancel` |
+| 9 | D3 and D5 item URLs are `{PUBLIC_LTI_URL}/lti/launch/{account}?resource=<publicationId>` (`toolLaunchUrl`) | lti-service-api.md §3.2 |
+| 10 | A2 expects `204` | lti-service-api.md §3.6 |
+| 11 | A6, R4, R6 read the code from `details.message` | lti-service-api.md §1.3 |
+| 12 | A1 expects `200 { rows }` | cogniate-app-api.md §5 |
+| 13 | The `K-HYG` scanner reads the control API with the M1 `sim()` helper (`LMS_SIM_CONTROL_URL`, default `https://lms-sim.test`) | M1 `client.ts` `sim()` |
+| 14 | N2 keeps the simulator's own NRPS claim and reads `context_memberships_url` from the raw id token; members come from the option `members`; the `429` comes from `nrpsAnswers` | `tests/sim/generic/index.mjs` `nrps`; `runtime.mjs` options |
+| 15 | L6 resolves `Location` against the app origin and compares the path | M1 `openPlay` |
+| 16 | L7 no-AGS launches omit the `context`, AGS and NRPS claims | lti-service-api.md §3.1 (`serviceKey` when AGS or NRPS is available) |
+| 17 | A5 expects `PLATFORM_NOT_ACTIVE` on manual `self` channels and `CONNECTION_DISABLED` on `operatorGrant` channels | LA-ADR-03 D-table "Disabled connection" |
+| 18 | R1 runs the site rules only when `binding.authority.manual !== 'self'` | cogniate-app-api-delta.md §3.1 |
+
+### R7.3 Causes found in the window runs (all kit side) and their fixes
+
+| # | Run | Cases | Cause | Fix | Oracle source |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 19 | r2 | R3, R6, N1 (DR channels) | The DR connection had a `siteUrl` that is not the simulator site, so `GET /tool/register` gave `SITE_MISMATCH`; the kit also kept its `scenario` query on the `openid_configuration` URL, which the simulator refuses (`configuration_path_mismatch`) | DR connection `siteUrl` = `https://<sim.siteHost>`; the `scenario` query is removed from `openid_configuration` | cogniate-app-api.md §6 `GET /tool/register`; `tests/sim/core/dr.mjs` |
+| 20 | r2 | D4–D8 (lti-generic, brightspace), D5 (lti-generic: handoff `302` instead of the picker page) | The stack has one client address (tasks README §2), so the protocol and app-edge rate limits answered `429` | `launchOnChannel`, the play and picker handoffs and the DR start wait for `Retry-After` and try again (`retryAfterMs`); play handoffs keep a 150 ms gap | lti-service-api-delta (protocol class, `Retry-After`); cogniate-app-api-delta (app-edge limit) |
+| 21 | r2 | R4 (moodle, canvas, blackboard) | The reserved-issuer rule applies to profiles that take admin endpoints; fixed and issuer-bound profiles refuse earlier with another rule (`INVALID_REQUEST`) | R4 uses the channel's own profile only when it is `any-https` or manual `self` (endpoints on the reserved issuer origin), else the protocol-control fixture (TEST-STRATEGY §2.4: "reserved issuer on the generic path") | lti-service-api-delta (rule order: reserved issuer before profile hosts) |
+| 22 | r2 | R6 (canvas, blackboard) | I-SELF is a rule of `any-https` profiles (TEST-STRATEGY §2.4 R6; LA-ADR-02 D2a); a fixed profile refuses the same body with `INVALID_REQUEST` | R6 runs on the channel when it is `any-https`, else on the protocol-control fixture, so the case keeps its meaning on every channel | LA-ADR-02 D2a |
+| 23 | r3 | R3 (all 4 DR channels) | (a) `authorization_server` was not the token URL, so the platform `clientAssertionAud` broke I-SELF and the DR was staged; (b) the oracle read `tokenAudience`; the field is `clientAssertionAud` | `authorization_server` = the fixture token URL; the connection is `pending` + `operatorGrant` when the DR authority is `operatorGrant` or the token host is off the issuer origin, else `registered`; `clientAssertionAud` is empty or the token URL | LA-ADR-02 D5 items 4 and 10; cogniate-app-api-delta.md §5; lti-service-api-delta §4.5 |
+| 24 | r3 | R6 (canvas, blackboard, lti-generic, brightspace) | The direct `GET /lti/register/cogniate` met the registration-class limit (`429`) | Wait for `Retry-After` and try again | lti-service-api-delta (registration class) |
+| 25 | r5 | R3 (moodle, canvas, lti-generic, brightspace) | The oracle wanted the code `PLATFORM_CONFIGURATION_INVALID` for a configuration without `LtiDeepLinkingRequest` or without a channel scope. The contract names no code: "a refusal page and no registration request". The stack refuses at `GET /lti/register/cogniate` (`400`, LTI log `registration_rejected` `INVALID_OPENID_CONFIGURATION`, `deep_linking_not_supported`) | An error page (status `>= 400`, `data-error-code`, security.md §2.2), no `Done.` text, and no new simulator `registration` record | LA-ADR-02 D5 item 5; AC-LA-E2-02-05; TEST-STRATEGY §2.4 R3 |
+
+### R7.4 Run r4: host check `H1` aborted the run (not the kit, not the product)
+
+r4 stopped at `H1` ("services: none") before the kit ran. The stack was up and healthy (`06-stack-up.log`: all 5 services `Healthy`; seed done). `tests/host/lib.mjs` `allContainers()` runs `docker ps -aq` and then one `docker inspect` over all ids; `dockerInspect` returns `[]` when that call fails. During r4, another session's `sto-it-*` containers were created and removed about once per second (`events-all.jsonl`, 13:41:20–13:41:27Z), so one listed id was gone before the inspect, and `H1` saw no container. The runner then did its owned-only teardown (`kill 9` and `destroy` of the 5 `qa4-la-k1-r4` containers at 13:41:26Z, then the lane volumes and network). Lane after: 0 containers, 0 volumes, 0 networks; protected lines 17 before and 17 after. `tests/host/**` is not a QA-K file, so QA-K did not change it. Suggestion for its owner: in `allContainers()`, inspect each id alone and skip ids that are gone (or try the inspect again). r5 ran with the same runner and passed `H1`.
+
+### R7.5 K0 after each change
+
+`LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` and `tsc --noEmit -p tests/ltiaas/kit/tsconfig.json` in the host clone `~/cogniate-qa-runs/LA/LA-E7-06/r5/clone` with the la-qa kit tree synced in: **26 of 26 PASS**, typecheck clean, after each change. The new K0 check "Round 7 (K1-SIM live fixes)" verifies: the five option names that the kit used before this window (`rotatedKey`, `tokenError`, `deepLinkingSettings`, `issuerPath`, `productFamilyCode`) are not simulator options and are no longer used by the suites or `lib/runtime.ts`; `newDeploymentId` gives a UUID exactly for fixtures whose deployments are UUIDs; the profile kinds (`takesAdminEndpoints` / `isAnyHttpsChannel`) for the 5 channels; and the `retryAfterMs` bounds.
+
+### R7.6 Product finding (r6): the DR family guard at the `registration` level gives `REGISTRATION_FAILED`, not `PROVIDER_PROFILE_MISMATCH`
+
+After the kit fixes, the only failing case is R3 part 5 on `moodle` and `lti-generic` (the `H2` rows of these channels follow from it). The kit sends a DR whose platform configuration has `product_family_code: desire2learn` (simulator DR option `family`). `brightspace` guards `desire2learn` at the `registration` level.
+
+| Connection | Family | What the stack did (r6 logs) | Contract |
+| :--- | :--- | :--- | :--- |
+| `moodle` (`standard`) | `desire2learn` | `GET /lti/register/cogniate` `303`; `GET /tool/register` `200` (confirm page); `POST /tool/register` → `complete` `400 INVALID_REQUEST` (LTI `registration_rejected {code: INVALID_REQUEST, detail: family=desire2learn}`, trace `b6ce30cf304df65ba9393e123b53cd9f`, 13:51:20.357Z) → app page `REGISTRATION_FAILED` `502` (`registration_confirm_rejected {lti_code: INVALID_REQUEST, lti_reason: family=desire2learn}`) | the `PROVIDER_PROFILE_MISMATCH` page |
+| `lti-generic` (`generic`) | `desire2learn` | the same (trace `15273df77645ece23063078c04d4b6d9`, 13:53:08.242Z): `REGISTRATION_FAILED` `502` | the `PROVIDER_PROFILE_MISMATCH` page (AC-LA-E2-05-05 names this exact case) |
+| `canvas` | `desire2learn` | `GET /lti/register/cogniate` `400` `PROVIDER_PROFILE_MISMATCH` (`detail family=desire2learn`, trace `522a0d77cc642920eeaf8d51d0311453`) | met |
+| `moodle`, `lti-generic` | `canvas` (`launch` level) | `PROVIDER_PROFILE_MISMATCH` (13:51:14.046Z, 13:53:02.910Z) | met |
+
+Contract text: AC-LA-E2-05-05 "a new Dynamic Registration with family `desire2learn` on an `lti-generic` connection gives the `PROVIDER_PROFILE_MISMATCH` page"; AC-LA-E2-02-05 (1); cogniate-app-api-delta.md §5 `/tool/register` "if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH`"; LA-ADR-02 D5 item 5; LA-ADR-01 D6 ("A `registration`-level guard is checked at Dynamic Registration"). The "no registration request" part holds: `complete` refused before any request to the simulator. Per the dispatch rule, QA-K stopped the fix-and-rerun loop here and told the Lead with this evidence (`msg_296a33c3b37d`). The Lead sent the case to A1; A1 ruled it a recorded deviation (BD-A1-121, R7.9).
+
+Evidence files (umask 077): `~/cogniate-qa-runs/LA/LA-E7-06/k1-r6/controller/tests/host/artifacts/qa4-la-k1-r6-0f5aabbd-2026-10-24T13-49-52-211Z/` (`service-logs/lti-service.jsonl`, `service-logs/cogniate-app.jsonl`, `service-logs/lms-sim.jsonl`, `container-k1/vitest-results.json`, `summary.json`), kit run files `~/cogniate-qa-runs/LA/LA-E7-06/k1-r6/run-clone/tests/.tmp/kit-run-qa4-la-k1-r6-0f5aabbd-2026-10-24T13-49-52-211Z/` (`kit-executed-cases.jsonl`, `k1-kit-summary.json`).
+
+### R7.7 Docker records (umask 077: `~/cogniate-qa-runs/LA/LA-E7-06/k1-r<N>/docker-records/`)
+
+For each run: `before-*` and `after-*` (`ps -a`, networks, volumes, with inspect), `events-qa4-la-k1-r<N>.jsonl` (own label), `events-all.jsonl`, `ps-watch.log` (15 s), `compare.txt`. Teardown is the shared owned-only teardown (ownership ledger `lane-ownership.json` in each artifact folder).
+
+| Run | Lane left after (containers / volumes / networks) | Own-label events | Volumes before → after | Protected lines (`qalead-la-*`, `qa-e2e-*`, `la-g1-diag-*`, `sto-*`) before → after |
+| :--- | :--- | ---: | :--- | :--- |
+| r2 | 0 / 0 / 0 | 1,425 | 34 → 38 | 2 → 16 |
+| r3 | 0 / 0 / 0 | 1,665 | 40 → 41 | 18 → 18 |
+| r4 | 0 / 0 / 0 | 258 | 38 → 40 | 17 → 17 |
+| r5 | 0 / 0 / 0 | 2,013 | 32 → 32 | 0 → 0 |
+| r6 | 0 / 0 / 0 | 2,394 | 32 → 32 | 0 → 0 |
+| r7 | 0 / 0 / 0 | 2,316 | 32 → 32 | 0 → 0 |
+
+The volume and protected-line changes are other sessions' resources (`qalead-la-104_*` and `qalead-la-105-*` of run D2, `cogniate-build-*`, anonymous `sto-it-*` volumes); no inspect of a volume that existed before changed, and no QA-K event touched them. QA-K's watchers stopped after each run (the one `docker events` process still running writes `~/cogniate-qa-runs/LA/RUN-D2/...`; it is not a QA-K process).
+
+### R7.8 ITEM (Lead, 13:54Z): K0 closed-world assumption found by the LA-E8-02 walker
+
+The walker's new channel `acme-lms` (branch `nguyenthanhquang152/la-walk`, commit `337b807d`; fixture guards family `acme` at the `registration` level) made two K0 L4 self-tests fail (2 of 25). Both assumed that `brightspace` owns the only `registration`-level family. The kit helpers (`selectFamilyGuardProbes`, `deriveExpectedFamilyGuardOutcome`, `buildFamilyGuardMap`) already read the guard data of every discovered fixture; the closed-world parts were in `kit.k0.test.ts` only.
+
+| Row | Change (`tests/ltiaas/kit/kit.k0.test.ts` only; the la-walk branch is not changed) | Result |
+| :--- | :--- | :--- |
+| OW-1 | The pinned probe tables (Round 4 counterexamples) and the brightspace "no registration-level family" note are computed over the baseline fixture set, which is what the frozen design table describes | the pins keep their meaning when a channel is added |
+| OW-2 | New open-world properties, for the discovered fixtures and for the discovered fixtures plus a synthetic channel outside the baseline (`openWorldExtraFixture`, a copy of the generic fixture that guards its own family at the `registration` level): each target has 3 probes when another channel guards a family at the `registration` level, else 2; no probe uses a family of the target; the category and the expected outcome follow the owner's declared level (`launch` → refuse; `registration` → refuse only on a manual-self legacy channel, else `warn_passthrough`); the unguarded probe has no owner | negative probes kept (launch-level refusal, registration-level pass with the LTI log, unguarded pass) |
+| OW-3 | The check-14 fake (`makeCheck14Fake`) keeps the frozen design table for the baseline families and takes the declared guard of a channel outside the baseline for any other family (`fakeFamilyGuardOf`); the L4 case body runs for every discovered target, with and without the synthetic channel | the 5 mutants still fail (`refuseRegistration`, `appLogOnly`, `noLog`, `passLaunchGuard`, `guardMoodle`) |
+
+Proof (umask 077, `~/cogniate-qa-runs/LA/LA-E7-06/openworld/`): a new `git clone --no-hardlinks` at the walker's `d6196d52` (its kit = `0f5aabbd` kit + `channels/acme-lms.json`), `npm ci`. With the walker's kit: **2 failed, 23 passed (25)** (the two L4 tests; the same as the walker's result). With the la-qa kit tree copied over (the `acme-lms` fixture kept): **26 of 26 PASS**, `tsc` clean (`k0-latest.log`). Without the `acme-lms` fixture (`~/cogniate-qa-runs/LA/LA-E7-06/r5/clone`): **26 of 26 PASS**.
+
+### R7.9 Architect ruling BD-A1-121 applied to R3 part 5 (Lead ITEM after R7.6)
+
+A1 ruled (b): the R7.6 answer is a recorded deviation at the final SHA `a8bbac53`, with no product change; the fix is planned for LG. The kit asserts the exact answer that A1 gave:
+
+| Branch (`lib/fixtures.ts` `drFamilyGuardRefusedAtComplete`, from the fixture data) | Shipped targets | R3 part 5 assertions |
+| :--- | :--- | :--- |
+| `complete` refusal: the probe family is guarded at the `registration` level, its owner is `any-https`, and the target takes admin endpoints (its configuration is not bound to a fixed or issuer-bound profile, so the DR start also lets the owner pass) | `moodle` and `lti-generic` with `desire2learn` | start `303` to `/tool/register`; confirm page `200`; `POST /tool/register` page `REGISTRATION_FAILED` with status `502`; LTI log `registration_rejected {code: INVALID_REQUEST, detail: family=desire2learn}`; app log `registration_confirm_rejected {code: REGISTRATION_FAILED, lti_code: INVALID_REQUEST}`; no simulator `registration` record; connection `pending`, `lastError.code` `REGISTRATION_FAILED`, no `platform` |
+| start refusal (unchanged) | every `launch`-level probe; `canvas` with `desire2learn` | status `>= 400` and the `PROVIDER_PROFILE_MISMATCH` page |
+
+`lib/runtime.ts` `runDynamicRegistrationHandshake` now also returns the start answer (`start`). K0 pins the branch table for the shipped DR channels (`moodle: canvas start, desire2learn complete`; `canvas: blackboardlearn start, desire2learn start`; `lti-generic: canvas start, desire2learn complete`; `brightspace: canvas start`). K0 26 of 26 PASS with and without the walker's `acme-lms` fixture; `tsc` clean.
+
+### R7.10 Run r7: the kit is green on product `a8bbac53`
+
+**Result: PASS.** Run r7 passes every applicable case on all 5 channels, with `K-HYG` and the fault matrix, `retries: 0`, one run.
+
+| Item | Value |
+| :--- | :--- |
+| Clone | new `git clone --no-hardlinks` of integration `0f5aabbd` (product `a8bbac53`), `~/cogniate-qa-runs/LA/LA-E7-06/k1-r7/run-clone`; kit tree in the clone `80ce699d87138df8f3d6f8590bb896bf7342e344` |
+| Stack | project `qa4-la-k1-r7`, `PUBLIC_PORT 9443`, `STACK_SUBNET 172.20.0.0/16`; one stack; host results `PRE`, `CLONE`, `KIT`, `H1`, `SETUP`, `WAVE`, `HOSTCTL` (m1-cli 61 of 61 exit 0; m1-restart 10 of 10 exit 0), `SUITE`, `PASSRULE`, `TEARDOWN`: all PASS; runner exit 0 |
+| Command | README §3 form in the `e2e` container: `QA_KIT_CHANNELS=all QA_TASK=K1 npm --prefix tests run acceptance:api`, `LA_WAVE_ID=la-final-wave-a8bbac53`, wave sources of R6.1 |
+| Vitest | 196 tests (195 ledger cases plus `GLOBAL:K-HYG:SUMMARY`): 196 passed, 0 failed, 0 skipped; in-container step 349 s |
+| Ledger | `kit-executed-cases.jsonl`: 195 records, one run id (`kit-run-1792850728285-crxoxu`), 195 PASS, 0 duplicates |
+| Pass rule | `k1-kit-summary.json` `ok: true`, `globalErrors: []`; moodle 37 of 37, canvas 38 of 38, blackboard 39 of 39, lti-generic 39 of 39, brightspace 39 of 39; `GLOBAL:K1-LAUNCH:L-FAULTS`, `GLOBAL:K1-NRPS:N2`, `GLOBAL:K-HYG:H1` PASS; wave evidence (T3b, T7, T8) accepted |
+| BD-A1-121 branch seen live | LTI log `registration_rejected {INVALID_REQUEST, family=desire2learn}` and app log `registration_confirm_rejected {REGISTRATION_FAILED, lti_code INVALID_REQUEST}` at 14:05:35Z (moodle) and 14:07:23Z (lti-generic); `PROVIDER_PROFILE_MISMATCH` at the start for the `launch`-level families and for canvas with `desire2learn` |
+| Files | `~/cogniate-qa-runs/LA/LA-E7-06/k1-r7/controller/tests/host/artifacts/qa4-la-k1-r7-0f5aabbd-2026-10-24T14-04-28-713Z/` (`summary.json`, `kit-run/` with `k1-kit-summary.{json,md}`, `kit-executed-cases.jsonl`, `wave-evidence.json`, `wave/`; `container-k1/vitest-results.json`; `service-logs/`) |
+| Docker | lane after 0 / 0 / 0; volumes 32 → 32, no inspect changed; protected lines 0 → 0 (R7.7) |
+
+Final kit tree (la-qa, `git add -A tests/ltiaas/kit && git write-tree --prefix=tests/ltiaas/kit/` on a temporary index): `85dae022af868fb214ff7cc5c3c9f83cd954871d`. It differs from the r7 tree only in `tests/ltiaas/kit/README.md` (the BD-A1-121 and open-world text, written while r7 ran); no executed file changed after r7 started.
+
+Acceptance criteria with this run (the `K1-SIM` rows of §1 and R6.3):
+
+| AC | Result on r7 | Evidence |
+| :--- | :--- | :--- |
+| AC-LA-E7-06-01 | **PASS** | 195 of 195 expected cases PASS; the pass rule holds for every channel |
+| AC-LA-E7-06-03 | **PASS** | every N/A case has its `C2:<capability>` guard PASS; `content.ungraded` stays `notBuilt` |
+| AC-LA-E7-06-04 | **PASS** | `C1` PASS on all 5 channels |
+| AC-LA-E7-06-05 | **PASS** | T3b, T7, T8 wave evidence accepted; Moodle `registration.dynamic` is covered (R3 PASS and `coveredBy`) |
+| AC-LA-E7-06-06 | **PASS** | `GLOBAL:K-HYG:H1` PASS (no missing input, no hit) |
+| AC-LA-E7-06-08 | **PASS** | `GLOBAL:K1-LAUNCH:L-FAULTS` PASS |
+| AC-LA-E7-08-02 | **PASS** for the K1 part | K1 passes for every registered channel under the pass rule (TEST-STRATEGY §2.6) |
+
+AC-LA-E7-06-02 and AC-LA-E7-04-07 (`K0`): PASS (kit K0 26 of 26); AC-LA-E7-06-07 (`DOC`): unchanged. Open: the recorded deviation BD-A1-121 (product, fix planned for LG); the host-runner race of R7.4 (`tests/host/lib.mjs`, not a QA-K file).
+
+Changed files in Round 7: `tests/ltiaas/kit/lib/runtime.ts`, `tests/ltiaas/kit/lib/fixtures.ts`, `tests/ltiaas/kit/lib/cases.ts`, `tests/ltiaas/kit/suites/k1-reg.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-launch.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-dl.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-ags.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-cap.k1sim.test.ts`, `tests/ltiaas/kit/suites/k1-nrps.k1sim.test.ts`, `tests/ltiaas/kit/kit.k0.test.ts`, `tests/ltiaas/kit/README.md`, `tests/ltiaas/kit/run-k1sim.mjs` (new in Round 6), and this file. No commit.
