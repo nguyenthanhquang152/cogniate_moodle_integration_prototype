@@ -13,6 +13,8 @@ Round 2 checks the four records that round 1 asked for, and the one product chan
 | 4. Runner change `tests/host/m1-migration.mjs:331-338` | Closed | LD-9 addendum r1 (A and B APPROVE); Lead decision LD-24 (the ledger assertion: old ledger a non-empty prefix, `012` present, new ledger equals the candidate's files); Reviewer-B LA-E0-04 Round 3 row "LD-24 / migration count": APPROVE | Stricter than the baseline check |
 | BD-A1-119 card identity in the product | Built as designed | `a8bbac53:apps/portal/src/Integrations.tsx` (`data-channel-id={item.channel ?? undefined}` on the card `article`); `apps/portal/src/portal.test.ts` (loading, not ready, ready, and connected states: values equal the visible channel ids in order; no static card has one) | No visible change, no LA-IC (LA-ADR-01 D9 rule) |
 
+Correction after round 2 (BD-A1-121): the kit's live run found that the new `desire2learn` guard changes two Moodle baseline answers, and no D8 row recorded them. My rounds 1 and 2 missed this. LA-ADR-04 D8 now has LA-IC-24 (empty LD-9 list: no frozen test uses `desire2learn`; the Lead confirms it with the gate evidence). The guarded-family refusal at `complete` (`REGISTRATION_FAILED` instead of `PROVIDER_PROFILE_MISMATCH`) is a recorded deviation at the final SHA, fixed in LG. The verdict stays APPROVE: no product change is required, and the records now match the product.
+
 Note (not blocking): the status line of `docs/reviews/LA-E0-04/qa.md:10` still says "review ready"; the reviews it waits for are now APPROVE. The slot 3F re-run on `a8bbac53` (M2, migration phases, G1–G4, T6, T7) is the Lead's gate evidence; this verdict covers design conformance and the records.
 
 ---
