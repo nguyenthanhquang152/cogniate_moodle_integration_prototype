@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 ## Round 1
 
@@ -93,3 +93,25 @@ Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed QA `44907ced`, integra
 Fresh private `git clone --no-hardlinks` copies: `/tmp/la-review-a-6fc243f34f57-final` and `/tmp/la-review-a-6fc243f34f57-baseline`. The four pure host self-test files pass **37/37 on each source**. Candidate golden K0 passes **12/12**. An extra baseline golden K0 attempt gives **10 PASS / 2 FAIL** because its legacy tree lacks the candidate-only `tests/sim/hosts.json` and `tests/ltiaas/k0/contract.test.ts` references; the plan claims 12/12 only for the candidate, and does not schedule that baseline K0 check. This is not credited as a baseline pass.
 
 Evidence in the final private clone: `source-audit-r2.json`, `reviewer-golden-command-probe.json`, `reviewer-wave-probe.json`, `reviewer-plan-probe.mjs`, `reviewer-host.log` and `reviewer-golden.log`; baseline test logs are in its private clone. E0-02 raw-result reconciliation is recorded separately in Reviewer-A Round 3. No Docker, stack, stack-starting host runner, dependency installation or commit; no Reviewer-B file or probe was opened. Only the two assigned review files were changed in integration. Live R1/D3/D4 results remain pending.
+
+## Round 3
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `a456ca03`, integrated at `61e3ca97`, using the scoped diff from `1c89e1ca`. **APPROVE: 0 open BLOCKER, 0 open MAJOR, 1 new MINOR.** The §10 command corrections close all three Round 2 findings. This approves the plan for D3/D4 execution; it does not claim live acceptance results.
+
+### Closure and independent command probes
+
+- **A-LA-E7-08-LD9-R8-03 — CLOSED.** Extracted the revised copy/normalization/comparison commands from the reviewed commit and executed that segment on private copies of QA's version 2 candidate capture. All four files remain valid JSON; comparison exits **0**, with **297 explained differences, 0 unexplained, 0 missing expected changes**. Already-normalized `:9643` input also passes. Empty G1 fails the normalizer, and one unexplained field makes the comparator exit **1**. Repeating the old expression on separate copies still makes all four files empty, so the new probe distinguishes the fix.
+- **A-LA-E7-08-LD9-R8-04 — CLOSED.** The documented array now names complete `summary.json` files under the correct host/e2e artifact roots. Extracted and ran the D3 generation and pure preflight commands, then applied the documented D4 substitutions; both produce three PASS wave entries. The old `{waveId,sources}` object exits **1**, and a failed T8 aggregate exits **1**. These controls use copies of historical summaries in explicit mock D3/D4 paths; they verify command behavior, not new D3/D4 evidence. Actual runs must supply their own `131/130/137` and `154/153/160` outputs, as the plan states.
+- **A-LA-E7-08-LD9-R8-05 — CLOSED.** The carried drill row now names the real full SHA `5603861886909667a03d2aaf7843a9b17a4020ed` and the existing `LA-E5-24/r2/artifacts/qa-e2e-la-drill-r2-56038618-2026-10-23T20-36-36-947Z/` directory, matching the cited drill report and its 10/10 result.
+
+Reviewed all **18** QA positive/negative log files for groups `00..08` in `/Users/quangnguyen/cogniate-qa-runs/LA/REGATE/dry-run-r2/logs/`. They cover source references, runner CLI checks, saved-result validation, rate extraction, golden comparison, K2, both K1 waves and the walk overlay. Checked the runner artifact destinations against §10 and confirmed that T7's saved per-run service logs are separate before concatenation. The walk copy has exactly six channel files and kit tree **`3c82b60928d8b5f7c5e94cb834314a2a97c91cdb`**. The source pins remain `1ae6716b` / `794f649c`, with zero non-test diff from their product pins; all three sources have the same storage helper bytes and the required **29.9.2 / 5.6.1** bound identity. The approved LD-31 schedule is unchanged. These are host preparation checks, not live suite passes.
+
+### A-LA-E7-08-LD9-R8-06 — MINOR — Two dry-run matrix rows do not match their cited output
+
+**Location:** `tests/ltiaas/GATE-RUN-PLAN.md:1228` and `:1232`.
+
+**Problem and evidence:** Group 1 says launch/admin peaks **28/399**, but its saved `work/qalead-la-120-rate-peaks.json` gives **25/395**, and `01-m1-and-rate-peaks.pos.log` prints admin **395**. Its negative log rejects **`--phase bad-phase`**, not the matrix's `--sha deadbeef`. Group 5 lists golden sizes **106,073 / 53,070 / 59,628 / 28,601 bytes**, while its positive log and the independent reproduction give **104,405 / 48,309 / 65,331 / 27,278 bytes**. The successful comparator result and the rejected negative inputs are supported; these transcription errors do not prevent execution.
+
+**Suggested fix:** Regenerate those matrix values and the negative-input description from the named logs and JSON. This is safe to defer and does not block D3/D4.
+
+Evidence: `/tmp/la-review-a-8400cc94ece5/reviewer-round3-probes.py`, `reviewer-r3-results.json`, `reviewer-source-checks.json`, and the extracted shell commands and positive/negative logs under `reviewer-r3/`. The private repository was made with `git clone --no-hardlinks`; no tracked source was changed. No Docker, stack-starting host runner, install or commit was run; no Reviewer-B file or probe was opened. Only the two assigned Reviewer-A reports were edited in integration.
