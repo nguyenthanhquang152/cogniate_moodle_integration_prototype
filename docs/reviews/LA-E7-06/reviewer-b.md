@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 5
+Verdict: CHANGES_REQUESTED
+Round: 7
 
 ## Round 1
 
@@ -326,3 +326,64 @@ Private clone: `/tmp/reviewer-b-la-e706-r5-txabcpd_/clone` (`git clone --no-hard
 Logs and probe sources are under `/tmp/reviewer-b-la-e706-r5-txabcpd_/`: `kit-k0.log`, `kit-k0-restored.log`, `kit-canary.log`, `root-k0.log`, `kit-typecheck.log`, `reviewer-probes.log`, `mutations.py`, `mutations.json` and `mutant-*.log`; probe source/config are in the clone root. The clone's tracked kit files match the pin after verification. A direct ESLint call on the kit reports that all files are ignored, as documented by TEST-STRATEGY §2.7; it is not counted as a kit lint PASS.
 
 No Docker, stack runner, live HTTP or K1-SIM run was used. AC-LA-E7-06-01, -03, -04, -05, -06 and -08 still require the booked live run and its per-channel evidence. Blind review maintained; only this review file was edited in the integration worktree, with no commit.
+
+## Round 7
+
+Verdict: **CHANGES_REQUESTED**. Reviewer-B: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed the whole live-window diff `e17a7a44..825cc0c4`, scoped to `tests/ltiaas/kit/**` and `qa.md`, against LA-E7-06, TEST-STRATEGY §§2.3–2.6, the cited contracts, BD-A1-121 and plan §6.1. **2 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT open.** Findings -01 and -02 reopen for the new paths below; their earlier fixes and the other closed findings are not rejected.
+
+### B-LA-E7-06-01 — BLOCKER — the new wave producer certifies incomplete frozen suites
+
+**File:line:** `tests/ltiaas/kit/run-k1sim.mjs:85`, `:96`, `:110`.
+
+**Problem:** `judgeWaveSource` checks only the results present in a source file. It does not establish that the named suite actually ran completely before `writeWaveEvidence` stamps a PASS artifact with that suite's name and the current wave. This reopens the aggregation gap of -01 and breaks the `coveredBy` rule (AC-05, TEST-STRATEGY §2.6).
+
+**Evidence:** Host probes execute the actual producer functions, without loading or starting the runner, then feed their files into the real final evaluator with the unchanged r7 ledger. Both of these sources produce `ok: true`, `totalPassed: 195`:
+
+- T7: `runs: [{ run: 1, exit: 0, pass: 0, fail: 0, skip: 18, timedOut: false }]` — no passing test.
+- T8: `task: 'T8', aggregate: { PRE: 'PASS', 'AC-T8-02': 'PASS' }` — only one T8 case, even with `task: 'T8'` and `requireIdPrefix: 'AC-T8-'` in the input specification.
+
+The real r7 source files pass the positive control, and an explicit FAIL is rejected. This finding concerns the new producer's false acceptance; it does not claim the actual r7 sources were incomplete.
+
+**Suggested fix:** Validate each supported frozen-suite report against its required case/run set and suite identity before issuing PASS. Allow only the documented optional skip, not arbitrary skipped or absent tests. Reject a partial, empty or wrongly named source. Add the two controls above and document the required wave-spec fields and complete host invocation in the README, so an operator can use this producer without reconstructing its input format from code.
+
+### B-LA-E7-06-02 — BLOCKER — R3 no longer proves that DR stores the supplied audience
+
+**File:line:** `tests/ltiaas/kit/suites/k1-reg.k1sim.test.ts:301`, `:340`.
+
+**Problem:** The changed assertion substitutes the expected value when `clientAssertionAud` is missing or null. Thus a product that drops the configuration's `authorization_server` passes R3. LA-ADR-02 D5 item 4 and `contracts/lti-service-api-delta.md:292` require that supplied value to become the stored platform audience; TEST-STRATEGY §2.4 names this R3 check. The separate rule allowing an empty audience on an active admin create does not remove the DR storage requirement.
+
+**Evidence:** I extracted and transpiled the actual R3 happy-path body and ran it against contract-shaped I/O for the Brightspace fixture. A correct audience passes and a wrong non-null audience fails, but both `{}` and `{ clientAssertionAud: null }` from `GET /api/platforms/:id` also pass. The R6 foreign-audience case checks staging and then deletes the platform; it does not check this stored value either.
+
+**Suggested fix:** Compare the returned stored field directly with the supplied DR audience, without a fallback. Include a distinct, non-default audience on an applicable staged profile, retain the expected staging checks, and prove that a dropped audience fails. This requests a kit oracle fix, not a product change.
+
+### B-LA-E7-06-09 — MINOR — the play retry description differs from its implementation
+
+**File:line:** `tests/ltiaas/kit/README.md:131`; `docs/reviews/LA-E7-06/qa.md:504`; `tests/ltiaas/kit/lib/runtime.ts:1234`.
+
+**Problem and evidence:** The README and cause 20 say the play handoff waits for `Retry-After` through `retryAfterMs`. `openPlayOnChannel` instead catches an exception containing `429`, waits a fixed 2 seconds, and repeats the whole play flow once. An operator diagnosing a limit with a longer retry interval would be given the wrong behavior.
+
+**Suggested fix:** Document this bounded fallback separately, or make it use the response header as described. Safe to defer; this is not a claim that the r7 run flaked.
+
+### Verified live evidence and scope
+
+- The integration kit tree is `85dae022af868fb214ff7cc5c3c9f83cd954871d`. Comparing all 20 tracked kit files with the read-only r7 run clone finds only `README.md` different; the run records tree `80ce699d87138df8f3d6f8590bb896bf7342e344`.
+- The r7 host summary has no abort and every host phase PASS. Vitest reports 196/196 PASS, including SUMMARY. The ledger has 195 PASS records in one run, and the final evaluator reports 195 expected/passed, zero failed/skipped/duplicates: 37 Moodle, 38 Canvas, 39 each Blackboard, generic and Brightspace, plus three global cases. The config has `retry: 0`; the fault matrix and K-HYG cases passed. The in-container time is 349,161 ms.
+- Each copied wave source hash matches its original. The actual T3b source has 64 aggregate IDs, all PASS; T8 has 23, all PASS; T7 has 17 passes, zero failures and the documented single skip. The source selection and product-pin explanation are in qa.md R6.1.
+- The report separates the 25 kit causes, the r4 host abort and the BD-A1-121 product deviation. R3 part 5 now asserts the ruled 502 page, both log events, pending connection and absence of a platform/remote registration. The correction stays visible as an LG follow-up.
+- Other changed suite paths align the simulator options, deployment IDs, response DTOs, DL return records and status codes with their cited contracts. Removing the nonexistent rotated-key extra preserves the defined L2 cases. No product, frozen-helper or simulator file is changed; suites remain channel-neutral.
+
+### Host verification and limits
+
+Private clone: `/tmp/reviewer-b-la-e706-r7-jlof1hi0/clone`, detached at `825cc0c4` using `git clone --no-hardlinks`.
+
+| Check | Result |
+| --- | --- |
+| Shipped kit K0 | **26/26 PASS** (`kit-k0.log`) |
+| Kit TypeScript check | **PASS** (`kit-typecheck.log`) |
+| K0 with one new fixture copied from the generic fixture, with its own registration-level family guard; no suite/shared-list edit | **26/26 PASS** (`kit-canary.log`); fixture removed afterward |
+| Actual wave-producer and R3-body probes | **8 executed:** four positive/refusal controls pass; four wrong-input counterexamples are accepted as described above (`wave-probes.log`) |
+| Final run/source comparison | Only README differs (`tree-comparison.json`) |
+
+Reproduce the independent probes in the private clone with `LA_LEVEL=k0 npx --no-install vitest run --config reviewer-wave-probes.config.mts --reporter=verbose`. Sources: `reviewer-wave-probes.test.ts`; generated wave inputs and full evaluator reports: `../wave-probes/`. The clone's tracked files match the pin after the canary check.
+
+The observed r7 live result is corroborated, but the two validation gaps block source approval. After the kit fixes, the affected verification and a clean live run of the final kit remain required. No Docker, stack, host runner or live HTTP was started for this review. The QA run folders stayed read-only; only this review file was edited in the integration worktree. No other reviewer's file was read, and no commit was made.
