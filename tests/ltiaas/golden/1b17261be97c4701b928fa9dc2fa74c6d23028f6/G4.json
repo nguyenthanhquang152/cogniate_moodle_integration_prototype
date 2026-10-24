@@ -405,5 +405,196 @@
         "text": "Cogniate: PLAY_NOT_FOUND This course session is not available Error code: PLAY_NOT_FOUND This course session does not exist or it expired. Open the activity again in Moodle. Trace id: <trace>"
       }
     }
+  },
+  "moodle": {
+    "learnerLabels": [
+      "Learner learner-1 @ moodle.sim.test"
+    ],
+    "pages": {
+      "HANDOFF_USED": {
+        "action": "This launch link was already used. Open the activity again in Moodle.",
+        "errorCode": "HANDOFF_USED",
+        "location": null,
+        "status": 409,
+        "text": "Cogniate: HANDOFF_USED Cogniate could not open this course Error code: HANDOFF_USED This launch link was already used. Open the activity again in Moodle. Trace id: <trace>"
+      },
+      "INVALID_STATE": {
+        "action": "This launch was already used or is too old. Start again from Moodle.",
+        "errorCode": "INVALID_STATE",
+        "location": null,
+        "status": 401,
+        "text": "Cogniate LTI: INVALID_STATE The launch did not work Error code: INVALID_STATE This launch was already used or is too old. Start again from Moodle. Trace id: <trace>"
+      },
+      "PICKER_USED": {
+        "action": "This course list was already used. In Moodle, use Select content again.",
+        "errorCode": "PICKER_USED",
+        "location": null,
+        "status": 410,
+        "text": "Cogniate: PICKER_USED Cogniate could not add the course Error code: PICKER_USED This course list was already used. In Moodle, use Select content again. Trace id: <trace>"
+      },
+      "PLATFORM_NOT_ACTIVE-or-refusal": {
+        "action": "The connection to this Moodle site is switched off. Ask your Cogniate admin to switch it on.",
+        "errorCode": "PLATFORM_NOT_ACTIVE",
+        "location": null,
+        "status": 403,
+        "text": "Cogniate LTI: PLATFORM_NOT_ACTIVE The launch did not work Error code: PLATFORM_NOT_ACTIVE The connection to this Moodle site is switched off. Ask your Cogniate admin to switch it on. Trace id: <trace>"
+      },
+      "PROVIDER_PROFILE_MISMATCH": {
+        "action": "This Canvas site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as Canvas in the Cogniate portal.",
+        "errorCode": "PROVIDER_PROFILE_MISMATCH",
+        "location": null,
+        "status": 400,
+        "text": "Cogniate LTI: PROVIDER_PROFILE_MISMATCH The launch did not work Error code: PROVIDER_PROFILE_MISMATCH This Canvas site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as Canvas in the Cogniate portal. Trace id: <trace>"
+      },
+      "PUBLICATION_NOT_AVAILABLE": {
+        "action": "This course is not available for this Moodle site. In Moodle, use Select content again and choose one available course.",
+        "errorCode": "PUBLICATION_NOT_AVAILABLE",
+        "location": null,
+        "status": 400,
+        "text": "Cogniate: PUBLICATION_NOT_AVAILABLE Cogniate could not add the course Error code: PUBLICATION_NOT_AVAILABLE This course is not available for this Moodle site. In Moodle, use Select content again and choose one available course. Trace id: <trace>"
+      },
+      "PUBLICATION_NOT_IN_CONNECTION": {
+        "action": "Ask your teacher to select the course again in the activity settings.",
+        "errorCode": "PUBLICATION_NOT_IN_CONNECTION",
+        "location": null,
+        "status": 404,
+        "text": "Cogniate: PUBLICATION_NOT_IN_CONNECTION This course is not available Error code: PUBLICATION_NOT_IN_CONNECTION Ask your teacher to select the course again in the activity settings. Trace id: <trace>"
+      },
+      "ROLE_NOT_ALLOWED": {
+        "action": "Only a teacher can select a Cogniate course. Ask a teacher of this Moodle course.",
+        "errorCode": "ROLE_NOT_ALLOWED",
+        "location": null,
+        "status": 403,
+        "text": "Cogniate: ROLE_NOT_ALLOWED Cogniate could not open the course list Error code: ROLE_NOT_ALLOWED Only a teacher can select a Cogniate course. Ask a teacher of this Moodle course. Trace id: <trace>"
+      },
+      "SERVICE_ORIGIN_MISMATCH": {
+        "action": null,
+        "errorCode": null,
+        "location": "(redirect)",
+        "status": 303,
+        "text": ""
+      },
+      "STATE_COOKIE_MISSING": {
+        "action": "Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window.",
+        "errorCode": "STATE_COOKIE_MISSING",
+        "location": null,
+        "status": 401,
+        "text": "Cogniate LTI: STATE_COOKIE_MISSING The launch did not work Error code: STATE_COOKIE_MISSING Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window. Trace id: <trace>"
+      },
+      "UNKNOWN_DEPLOYMENT": {
+        "action": "This tool deployment is not known to Cogniate. Ask your Moodle admin to connect the tool again.",
+        "errorCode": "UNKNOWN_DEPLOYMENT",
+        "location": null,
+        "status": 400,
+        "text": "Cogniate LTI: UNKNOWN_DEPLOYMENT The launch did not work Error code: UNKNOWN_DEPLOYMENT This tool deployment is not known to Cogniate. Ask your Moodle admin to connect the tool again. Trace id: <trace>"
+      },
+      "deep-link-with-resource-link": {
+        "action": "This launch cannot select content. In Moodle, use Select content in the activity settings.",
+        "errorCode": "NOT_DEEP_LINKING",
+        "location": null,
+        "status": 403,
+        "text": "Cogniate: NOT_DEEP_LINKING Cogniate could not open the course list Error code: NOT_DEEP_LINKING This launch cannot select content. In Moodle, use Select content in the activity settings. Trace id: <trace>"
+      },
+      "picker": {
+        "action": null,
+        "errorCode": null,
+        "location": null,
+        "status": 200,
+        "text": "Select a Cogniate course Select a Cogniate course Moodle course: QA course Choose one course M1 course-<id:15> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:16> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:17> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:18> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:19> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:20> SCORM 1.2 Version 1 · Package: M1 QA Add to Moodle"
+      }
+    },
+    "players": {
+      "shell": {
+        "action": null,
+        "errorCode": null,
+        "location": null,
+        "status": 200,
+        "text": "M1 course-<id:20> M1 course-<id:20> QA resource · QA course · Package: M1 QA Status: Not started Back to Moodle"
+      },
+      "status-before": {
+        "body": {
+          "outcome": "not_started",
+          "preview": false,
+          "scoreGiven": null,
+          "scoreMaximum": null,
+          "scoreSync": {
+            "scoreGiven": null,
+            "scoreMaximum": null,
+            "status": null
+          }
+        },
+        "status": 200
+      },
+      "status-conflict": {
+        "body": {
+          "outcome": "failed",
+          "preview": false,
+          "scoreGiven": 8,
+          "scoreMaximum": 10,
+          "scoreSync": {
+            "scoreGiven": 8,
+            "scoreMaximum": 10,
+            "status": "conflict"
+          }
+        },
+        "status": 200
+      },
+      "status-failed": {
+        "body": {
+          "outcome": "failed",
+          "preview": false,
+          "scoreGiven": 6,
+          "scoreMaximum": 10,
+          "scoreSync": {
+            "scoreGiven": 6,
+            "scoreMaximum": 10,
+            "status": "failed"
+          }
+        },
+        "status": 200
+      },
+      "status-pending": {
+        "body": {
+          "outcome": "failed",
+          "preview": false,
+          "scoreGiven": 4,
+          "scoreMaximum": 10,
+          "scoreSync": {
+            "scoreGiven": 4,
+            "scoreMaximum": 10,
+            "status": "pending"
+          }
+        },
+        "status": 200
+      },
+      "status-sent": {
+        "body": {
+          "outcome": "failed",
+          "preview": false,
+          "scoreGiven": 7,
+          "scoreMaximum": 10,
+          "scoreSync": {
+            "scoreGiven": 7,
+            "scoreMaximum": 10,
+            "status": "sent"
+          }
+        },
+        "status": 200
+      },
+      "status-superseded-attempt": {
+        "body": {
+          "outcome": "passed",
+          "preview": false,
+          "scoreGiven": 90,
+          "scoreMaximum": 100,
+          "scoreSync": {
+            "scoreGiven": 90,
+            "scoreMaximum": 100,
+            "status": "sent"
+          }
+        },
+        "status": 200
+      }
+    }
   }
 }

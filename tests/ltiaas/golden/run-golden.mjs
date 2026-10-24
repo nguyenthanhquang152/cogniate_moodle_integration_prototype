@@ -55,6 +55,28 @@ await r.main(async () => {
   r.loadStackFiles(); await r.checkProject(); assert.ok(r.state.h1Verified, 'QA project guard after the profile change');
   const lti = await r.healthz(r.state.urls.lti), appHealth = await r.healthz(r.state.urls.app);
   assert.equal(lti?.profile, 'acceptance'); assert.equal(appHealth?.profile, 'acceptance');
+  fs.writeFileSync(path.join(tmp, 'golden-acceptance-lti-health.json'), JSON.stringify(lti), { mode: 0o600 });
+  // On pre-LA-E7-03 baselines (e.g. baseline-3 78971b03 / 1b17261b), infra/scripts/lib.sh and infra/compose.yaml do not
+  // yet read tests/sim/hosts.json, so moodle.sim.test is added to SIM_LTI_HOSTS and lms-sim aliases after the unmodified
+  // acceptance /healthz is recorded.
+  const libShPath = path.join(r.CLONE, 'infra/scripts/lib.sh');
+  const composePath = path.join(r.CLONE, 'infra/compose.yaml');
+  const libShText = fs.readFileSync(libShPath, 'utf8');
+  if (!libShText.includes('hosts.json') && !libShText.includes('moodle.sim.test')) {
+    fs.writeFileSync(
+      libShPath,
+      libShText.replace('api.canvas-self.sim.test)', 'api.canvas-self.sim.test moodle.sim.test)'),
+    );
+    const composeText = fs.readFileSync(composePath, 'utf8');
+    if (!composeText.includes('moodle.sim.test')) {
+      fs.writeFileSync(
+        composePath,
+        composeText.replace('- school-b.canvas.sim.test', '- school-b.canvas.sim.test\n          - moodle.sim.test'),
+      );
+    }
+    assert.equal((await r.npm('stack-up-acceptance-moodle-sim', ['run', 'stack:up'], { env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 900_000 })).code, 0);
+    r.loadStackFiles(); await r.checkProject(); assert.ok(r.state.h1Verified, 'QA project guard after moodle.sim.test overlay');
+  }
   const services = (await run('docker', [...compose, 'ps', '--services', '--status', 'running'], { cwd: r.CLONE, env: r.STACK_ENV })).stdout;
   for (const name of ['lms-sim', 'lti-gate']) assert.ok(services.split('\n').includes(name), `${name} runs`);
   const inside = 'set -euo pipefail; source infra/scripts/lib.sh; require_running proxy; prepare_e2e; qa_env_args; '
@@ -65,7 +87,8 @@ await r.main(async () => {
   let pass;
   try {
     pass = await r.exec('golden-capture', 'bash', ['-c', inside], { env: { ...r.STACK_ENV, QA_GOLDEN_LABEL: label,
-      QA_GOLDEN_DEFAULT: '/repo/tests/.tmp/golden-default.json' }, timeoutMs: 3_600_000 });
+      QA_GOLDEN_DEFAULT: '/repo/tests/.tmp/golden-default.json',
+      QA_GOLDEN_ACCEPTANCE_LTI_HEALTH: '/repo/tests/.tmp/golden-acceptance-lti-health.json' }, timeoutMs: 3_600_000 });
   } finally { await stop(); }
   const captureMs = Date.now() - captureStart;
   const from = path.join(r.CLONE, 'tests/acceptance/artifacts/golden', label);
@@ -90,7 +113,7 @@ await r.main(async () => {
   for (const [g, text] of files) fs.writeFileSync(path.join(r.opt.out, `${g}.json`), text);
   const stats = JSON.parse(fs.readFileSync(path.join(from, 'capture-stats.json'), 'utf8'));
   const head = (await run('git', ['rev-parse', 'HEAD'], { cwd: r.CLONE })).stdout.trim();
-  fs.writeFileSync(path.join(r.opt.out, 'meta.json'), JSON.stringify({ goldenVersion: 1, productSha: head, label, project: r.PROJECT,
+  fs.writeFileSync(path.join(r.opt.out, 'meta.json'), JSON.stringify({ goldenVersion: 2, productSha: head, label, project: r.PROJECT,
     capturedAt: new Date().toISOString(), captureSeconds: Math.round(captureMs / 1000), totalSeconds: Math.round((Date.now() - t0) / 1000),
     normalization: stats.stats, secretValuesChecked: new Set(secrets.filter((s) => typeof s === 'string' && s.length >= 8)).size, secretHits: 0 }, null, 2) + '\n');
   r.record('GOLDEN-OUT', `Normalized G1-G4 written to ${r.opt.out}`, 'PASS', [`capture ${Math.round(captureMs / 1000)} s`]);

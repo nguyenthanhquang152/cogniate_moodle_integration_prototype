@@ -781,6 +781,76 @@
       "status": "registered",
       "webServices": null
     },
+    "moodle-connected": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:14>",
+      "lastError": null,
+      "lastLaunchAt": "<t>",
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle",
+      "platform": {
+        "clientId": "golden-moodle-1",
+        "deploymentIds": [
+          "1"
+        ],
+        "id": "<id:15>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "connected",
+      "webServices": null
+    },
+    "moodle-disabled": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:16>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle disabled",
+      "platform": {
+        "clientId": "golden-moodle-2",
+        "deploymentIds": [
+          "2"
+        ],
+        "id": "<id:17>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "disabled",
+      "webServices": null
+    },
     "moodle-dynamic-pending": {
       "capabilities": {
         "addDeployment": false,
@@ -829,6 +899,41 @@
       "serviceUrl": "https://moodle.test:9443",
       "siteUrl": "https://moodle.test:9443",
       "status": "pending",
+      "webServices": null
+    },
+    "moodle-registered": {
+      "capabilities": {
+        "addDeployment": false,
+        "canvasConfiguration": false,
+        "courseShell": true,
+        "dynamicRegistration": true,
+        "operatorApproval": false,
+        "webServices": true
+      },
+      "createdAt": "<t>",
+      "id": "<id:14>",
+      "lastError": null,
+      "lastLaunchAt": null,
+      "lms": "moodle",
+      "method": "manual",
+      "name": "Golden Moodle",
+      "platform": {
+        "clientId": "golden-moodle-1",
+        "deploymentIds": [
+          "1"
+        ],
+        "id": "<id:15>",
+        "issuer": "https://moodle.sim.test",
+        "productFamilyCode": null,
+        "serviceUrl": "https://moodle.sim.test",
+        "siteUrl": "https://moodle.sim.test"
+      },
+      "profile": "standard",
+      "registrationUrl": null,
+      "registrationUrlExpiresAt": null,
+      "serviceUrl": "https://moodle.sim.test",
+      "siteUrl": "https://moodle.sim.test",
+      "status": "registered",
       "webServices": null
     }
   },
