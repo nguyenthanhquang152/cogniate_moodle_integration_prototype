@@ -16,7 +16,7 @@ import {
   clipboardText,
   hasInlineError,
   markNoReload,
-  MOODLE_STEPS_FILE,
+  readMoodleSteps,
   normText,
   PORTAL_ROUTES,
   portalSignIn,
@@ -158,8 +158,8 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
   test('AC-T6-12 moodle-steps.json equals the content of tasks/T6.md; the wizard shows the steps in order for both methods (data-step-id = id, text with {libraryName} replaced); choose-register-new is optional; edit-tool-settings follows activate-tool', async () => {
     test.setTimeout(120_000);
     const problems: string[] = [];
-    const fileJson = JSON.parse(fs.readFileSync(MOODLE_STEPS_FILE, 'utf8')) as Record<string, unknown>;
-    expect(fileJson, 'apps/portal/src/connect/moodle-steps.json = the content in tasks/T6.md').toEqual(specMoodleSteps());
+    const fileJson = readMoodleSteps();
+    expect(fileJson, 'packages/channels/moodle/portal/moodle-steps.json + manifest.ts texts.adminSteps = the content in tasks/T6.md').toEqual(specMoodleSteps());
 
     const b = await signIn(QA_B);
     const me = await appApi<{ library: { name: string } }>('GET', '/app-api/me', { cookie: b.cookie });

@@ -4,8 +4,10 @@
 // `:lineItemId` is a URL-encoded URL: buildApp sets maxParamLength 2048.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import { parseScore } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
+import { checkServiceKeyWriteScope } from '../auth.ts';
 import { decodeLineItemId, invalid } from '../validation.ts';
 import { agsContext, signedDeepLink } from '../service-context.ts';
 
@@ -29,30 +31,34 @@ const defined = <T extends Obj>(o: T): T => Object.fromEntries(Object.entries(o)
 type ItemParams = { Params: { lineItemId: string } };
 export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const traceOf = (req: FastifyRequest): string => req.traceId ?? '';
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
   app.post('/api/deeplinking', async (req) => {
-    const caller = ctx.auth(req, ['ltik']);
-    return signedDeepLink(ctx, caller, req.body);
+    const caller = (await ctx.auth(req, ['ltik']));
+    return signedDeepLink(ctx, resolver, caller, req.body);
   });
 
   app.get('/api/lineitems', async (req) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.listLineItems(agsContext(ctx, caller, traceOf(req)), parseQuery(LineItemsQuery, req.query));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    return ctx.ags.listLineItems((await agsContext(ctx, caller, traceOf(req))), parseQuery(LineItemsQuery, req.query));
   });
 
   app.get<ItemParams>('/api/lineitems/:lineItemId', async (req) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getLineItem(agsContext(ctx, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    return ctx.ags.getLineItem((await agsContext(ctx, caller, traceOf(req))), decodeLineItemId(req.params.lineItemId));
   });
 
   app.post<ItemParams>('/api/lineitems/:lineItemId/scores', async (req, reply) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
     const score = parseScore(req.body, ctx.now());
-    await ctx.ags.postScore(agsContext(ctx, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), score);
+    const ags = (await agsContext(ctx, caller, traceOf(req)));
+    const lineItemId = decodeLineItemId(req.params.lineItemId);
+    await checkServiceKeyWriteScope(ctx, caller, ags, lineItemId);
+    await ctx.ags.postScore(ags, lineItemId, score);
     return reply.code(204).send();
   });
 
   app.get<ItemParams>('/api/lineitems/:lineItemId/scores', async (req) => {
-    const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getScores(agsContext(ctx, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), parseQuery(ScoresQuery, req.query));
+    const caller = (await ctx.auth(req, ['ltik', 'service']));
+    return ctx.ags.getScores((await agsContext(ctx, caller, traceOf(req))), decodeLineItemId(req.params.lineItemId), parseQuery(ScoresQuery, req.query));
   });
 }

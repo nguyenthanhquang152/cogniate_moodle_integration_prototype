@@ -1,9 +1,11 @@
+import { TEST_CHANNELS } from '../testkit.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LtiToolKey } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import { createConnection } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
-import type { LmsType } from '../providers/types.ts';
+import type { ChannelId } from '../kernel/ports.ts';
+import { testSetupOf } from '../testkit.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, testApp } from '../testkit.ts';
 
@@ -12,12 +14,12 @@ let cookie: string;
 beforeEach(async () => { t = await testApp(); cookie = await t.login(THANH); });
 afterEach(async () => { vi.restoreAllMocks(); await t?.app.close(); });
 
-function connection(lms: LmsType = 'canvas', libraryName = THANH.library, profile = 'canvas-cloud-production') {
+function connection(lms: ChannelId = 'canvas', libraryName = THANH.library, profile = 'canvas-cloud-production') {
   const library = ensureLibrary(t.db, libraryName, t.clock.now);
   return createConnection(t.db, library.id, {
     name: 'School', siteUrl: 'https://school.example.test', serviceUrl: 'https://school.instructure.com',
-    method: 'manual', lms, profile,
-  }, null, t.clock.now);
+    method: 'manual', channel: lms, profile: lms === 'canvas' ? profile : lms === 'moodle' ? 'standard' : 'blackboard',
+  }, null, t.clock.now, TEST_CHANNELS, testSetupOf(lms)!.sharingOf);
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/canvas-configuration`;
 const get = (path: string) => t.app.inject({ method: 'GET', url: path, headers: { cookie, 'x-trace-id': 'canvas-export-trace-123' } });
@@ -29,12 +31,12 @@ function expectedExport() {
     description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
     oidc_initiation_url: `${TEST_URLS.lti}/lti/login/cogniate`,
     target_link_uri: launch,
+    // LA-E3-07 (LA-IC-04): the four AGS scopes, no NRPS scope.
     scopes: [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     extensions: [{
       domain: 'lti.cogniate.test', tool_id: 'cogniate', platform: 'canvas.instructure.com', privacy_level: 'anonymous',
@@ -125,5 +127,39 @@ describe('Canvas configuration export (app contract §4.6)', () => {
       expect(answer.headers).not.toHaveProperty('x-cogniate-key-id');
       expect(answer.body).not.toContain('upstream details');
     }
+  });
+
+  it('LA-E6-05: an inline export records the kid of the first key; a URL export records NULL; the JSON does not change; a foreign export writes nothing', async () => {
+    const c = connection();
+    const other = connection('canvas', QA_B.library);
+    const kid = (id: string) => t.db.prepare('SELECT artifact_key_kid FROM connection WHERE id = ?').get(id)!.artifact_key_kid;
+    const first: LtiToolKey = { kty: 'RSA', kid: 'key-active', alg: 'RS256', use: 'sig', n: 'modulus', e: 'AQAB' };
+    vi.spyOn(t.lti.client, 'getToolKeys').mockResolvedValue([first, { ...first, kid: 'key-next' }]);
+    t.db.prepare("UPDATE connection SET artifact_key_kid = 'kid-other-library' WHERE id = ?").run(other.id);
+    expect([kid(c.id), kid(other.id)]).toEqual([null, 'kid-other-library']);
+    // AC-LA-E6-05-01
+    const inline = await get(`${pathOf(c.id)}?jwk=inline`);
+    expect(inline.statusCode).toBe(200);
+    expect(kid(c.id)).toBe('key-active');
+    // The answer has no new member and no header beyond the frozen ones.
+    const { public_jwk: publicJwk, ...rest } = inline.json<Record<string, unknown>>();
+    expect(publicJwk).toEqual(first);
+    const base = expectedExport() as Record<string, unknown>;
+    delete base.public_jwk_url;
+    expect(rest).toEqual(base);
+    expect(inline.body).not.toContain('artifactKeyKid');
+    // AC-LA-E6-05-02
+    const url = await get(`${pathOf(c.id)}?jwk=url`);
+    expect([url.statusCode, url.json()]).toEqual([200, expectedExport()]);
+    expect(kid(c.id)).toBeNull();
+    // AC-LA-E6-05-04 (unit part): another library's connection gives 404 and writes nothing.
+    const foreign = await get(`${pathOf(other.id)}?jwk=inline`);
+    expect(foreign.statusCode).toBe(404);
+    expect(kid(other.id)).toBe('kid-other-library');
+    // A refused export (no key) writes nothing either.
+    await get(`${pathOf(c.id)}?jwk=inline`);
+    vi.spyOn(t.lti.client, 'getToolKeys').mockResolvedValueOnce([]);
+    expect((await get(`${pathOf(c.id)}?jwk=inline`)).statusCode).toBe(502);
+    expect(kid(c.id)).toBe('key-active');
   });
 });

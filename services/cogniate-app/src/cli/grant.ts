@@ -1,8 +1,12 @@
 // npm run app:grant -w services/cogniate-app -- issue --library <lib_id> --connection <con_id> --site <origin> [--service-url <origin>]
 //     --client-id <id> --deployment-id <id> [--purpose initial|add_deployment] [--ttl-seconds 86400] --note "<evidence reference>"
-// npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>
+//     [--operator <name>] [--evidence-channel institution-email|support-call|lms-admin-ticket|other] [--evidence-ref <ticket or message id>]
+//     admin values (LA-ADR-02 D6): --issuer <url> --auth-url <url> --token-url <url> --jwks-url <url> [--token-audience <url>]
+//     | --accept-staged (a staged registration); [--confirm-foreign-hosts] when a value is not on the issuer host
+// npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id> [--operator <name>]
 // npm run app:grant -w services/cogniate-app -- list --connection <con_id>
-// Operator only (app contract §4.8). Runs in the app service shell; not reachable over HTTP.
+// Operator only (app contract §4.8). Runs in the app service shell; not reachable over HTTP. The operator and evidence
+// flags (LA-ADR-07 D4, D5) are required with STACK_PROFILE=production in this process; else optional (M1 commands).
 import { parseArgs } from 'node:util';
 import { finish, operatorRuntime } from './operator-runtime.ts';
 
@@ -13,10 +17,14 @@ const { values } = parseArgs({
     library: { type: 'string' }, connection: { type: 'string' }, site: { type: 'string' }, 'service-url': { type: 'string' },
     'client-id': { type: 'string' }, 'deployment-id': { type: 'string' }, purpose: { type: 'string' }, 'ttl-seconds': { type: 'string' },
     note: { type: 'string' }, grant: { type: 'string' },
+    operator: { type: 'string' }, 'evidence-channel': { type: 'string' }, 'evidence-ref': { type: 'string' },
+    issuer: { type: 'string' }, 'auth-url': { type: 'string' }, 'token-url': { type: 'string' }, 'jwks-url': { type: 'string' }, 'token-audience': { type: 'string' },
+    'accept-staged': { type: 'boolean' }, 'confirm-foreign-hosts': { type: 'boolean' },
   },
 });
-const usage = 'Usage: app:grant issue --library L --connection K --site S [--service-url V] --client-id C --deployment-id D [--purpose initial|add_deployment] [--ttl-seconds N] --note N | revoke --grant G | list --connection K';
-const { db, operator, traceId } = operatorRuntime();
+const usage = 'Usage: app:grant issue --library L --connection K --site S [--service-url V] --client-id C --deployment-id D [--purpose initial|add_deployment] [--ttl-seconds N] --note N [--operator O] [--evidence-channel E] [--evidence-ref R] [--issuer I --auth-url A --token-url T --jwks-url J [--token-audience U] | --accept-staged] [--confirm-foreign-hosts] | revoke --grant G [--operator O] | list --connection K';
+const flags = { operator: values.operator, evidenceChannel: values['evidence-channel'], evidenceRef: values['evidence-ref'] };
+const { db, operator, traceId } = await operatorRuntime();
 const close = () => db.close();
 
 if (command === 'issue') {
@@ -28,10 +36,12 @@ if (command === 'issue') {
   finish(await operator.issue({
     library: values.library!, connection: values.connection!, site: values.site!, ...(values['service-url'] ? { serviceUrl: values['service-url'] } : {}),
     clientId: values['client-id']!, deploymentId: values['deployment-id']!, purpose: purpose as 'initial' | 'add_deployment',
-    ...(values['ttl-seconds'] ? { ttlSeconds: Number(values['ttl-seconds']) } : {}), note: values.note!, traceId,
+    ...(values['ttl-seconds'] ? { ttlSeconds: Number(values['ttl-seconds']) } : {}), note: values.note!, traceId, ...flags,
+    boundValues: { issuer: values.issuer, authenticationEndpoint: values['auth-url'], accessTokenEndpoint: values['token-url'], jwksUrl: values['jwks-url'], tokenAudience: values['token-audience'] },
+    acceptStaged: values['accept-staged'] === true, confirmForeignHosts: values['confirm-foreign-hosts'] === true,
   }), close);
 } else if (command === 'revoke' && values.grant) {
-  finish(await operator.revoke(values.grant, traceId), close);
+  finish(await operator.revoke(values.grant, traceId, { operator: values.operator }), close);
 } else if (command === 'list' && values.connection) {
   finish(operator.list(values.connection), close);
 } else {

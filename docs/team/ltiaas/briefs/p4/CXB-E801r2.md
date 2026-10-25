@@ -1,0 +1,13 @@
+# Review dispatch: Reviewer-B (Codex, same session), one item (Docs)
+
+Item 1: LA-E8-01 round 2 (Docs fix round 1; la-docs 4a712bc5, integration merge 5bb7d8f0): docs/guides/ltiaas/add-a-channel.md. Docs reports: (1) migration list: only active standard platforms, family compared in lower case (LA-ADR-01 D6 guard), AFFECTED and CHECK lines, hand-checked ids as arguments, a reachable end ("no line"), each move checks the new connection and the old platform "active": false; (2) a one-provider simulator template (brightspace shape) with a host-only discovery check that shows exactly one new id; (3) step 10.1: commit and a clean tree before F2; (4) K2 out of the author path (QA-E2E owns browser cases); (5) kit step: fixture discovery with a K0 canary, labelled "pending QA (LA-E7-06 round 2)" (QA-4's kit fix round runs now). New Docs note: tests/sim/core/loading.test.mjs asserts exactly 6 providers (QA-E2E fixes it now).
+Check that each of your round 1 findings is closed, and look for new defects in the changed text. Read only; you may run the guide's shell snippets against local fake data only. No Docker. Add "## Round 2" to docs/reviews/LA-E8-01/reviewer-b.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===

@@ -1,18 +1,21 @@
+import { storeFor } from '../store/index.ts';
 /**
  * The launch checks of security §2.2, one small function each (T2a design note). Run order (launch.ts):
  * 1 + 3 (one atomic statement), then 2, then 4 to 12. Each failure is a LaunchCheckError {check, code, detail}; the
  * caller logs launch_check_failed {check, code, detail} and shows the error page. `detail` is a fixed, safe reason
  * (contract §5, B-T2a-03): never a token, a claim value or a key.
  */
-import type { PublicUrls } from '@cogniate/shared';
+import type { ProtocolUrls } from './target.ts';
 import { readCookie, safeEqual } from '@cogniate/shared';
+import { familyGuardVerdict } from '@cogniate/channel-kernel';
+import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
+import { channelRegistry } from '../profiles/index.ts';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
-import type { Db } from '../db/index.ts';
+import type { StoreSource as Db } from '../store/index.ts';
 import type { DeploymentRecord, Platform } from '../store/platforms.ts';
 import { findDeployment } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';
-import { consumeState } from '../store/states.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import type { PlatformKeys } from './jwks.ts';
 import { PlatformKeyError } from './jwks.ts';
@@ -69,9 +72,9 @@ export function stateCookieName(stateHash: string): string {
 export { readCookie };
 
 /** Checks 1 and 3: the state exists for this account, is unused and not expired; it is marked used at once. */
-export function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): StateRecord {
+export async function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): Promise<StateRecord> {
   if (typeof state !== 'string' || state === '' || stateHash === null) return fail('1', 'INVALID_STATE', 'state_missing');
-  const rec = consumeState(db, accountId, stateHash, now);
+  const rec = (await storeFor(db).states.consumeState(accountId, stateHash, now));
   return rec ?? fail('1', 'INVALID_STATE', 'state_unknown_used_or_expired');
 }
 
@@ -122,12 +125,15 @@ export function check5IssuerAudience(claims: Claims, platform: Platform): void {
   if (!list || !list.includes(platform.clientId)) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_mismatch');
   if (list!.length > 1 && claims.azp === undefined) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_missing');
   if (claims.azp !== undefined && claims.azp !== platform.clientId) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_mismatch');
+  if (list!.some((audience) => audience !== platform.clientId && !platform.trustedAudiences.includes(audience))) {
+    fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_untrusted');
+  }
 }
 
 /** Check 6: the signature is valid with a key of the platform JWKS (refresh, fallback and refetch rules in jwks.ts). */
 export async function check6Signature(keys: PlatformKeys, idToken: string, platform: Platform, traceId: string): Promise<void> {
   try {
-    await keys.verify(idToken, platform.jwksUrl, traceId);
+    await keys.verify(idToken, platform.jwksUrl, traceId, platform.id);
   } catch (err) {
     fail('6', 'INVALID_SIGNATURE', err instanceof PlatformKeyError ? err.detail : 'bad_signature');
   }
@@ -188,10 +194,10 @@ export function check11Claims(claims: Claims, messageType: (typeof MESSAGE_TYPES
 }
 
 /** Check 12: target_link_uri = the value in the state record, and it is our launch URL for this account. */
-export function check12Target(claims: Claims, state: StateRecord, urls: PublicUrls, accountId: string): void {
+export function check12Target(claims: Claims, state: StateRecord, urls: Pick<ProtocolUrls, 'launch'>): void {
   const target = claims[CLAIM.targetLinkUri];
   if (target !== state.targetLinkUri) fail('12', 'INVALID_TARGET_LINK_URI', 'target_differs_from_login');
-  if (!isOwnLaunchTarget(target, urls, accountId)) fail('12', 'INVALID_TARGET_LINK_URI', 'target_not_own');
+  if (!isOwnLaunchTarget(target, urls)) fail('12', 'INVALID_TARGET_LINK_URI', 'target_not_own');
 }
 
 // ---------------------------------------------------------------- M1: checks 13 and 14 (security §2.2, LTI contract §9.7)
@@ -239,13 +245,15 @@ export function check13Origins(claims: Claims, origins: { site: string; service:
 }
 
 /**
- * Check 14 (every profile): a signed `tool_platform.product_family_code` of `canvas` or `blackboardlearn` (any case)
- * needs a profile of that LMS. Any other value and a missing claim pass (Moodle unchanged). Returns the refused family
- * in the error detail (`family=canvas` or `family=blackboardlearn`).
+ * Check 14 with the kernel verdict in phase `launch` (BD-A1-43, BD-A1-54): launch guards require the owning channel;
+ * registration guards refuse a mismatch only on the legacy manual-self path. Return any other mismatch for the caller
+ * to log; unknown families pass.
  */
-export function check14ProductFamily(claims: Claims, profileLms: 'canvas' | 'blackboard' | null): void {
+export function check14ProductFamily(claims: Claims, profile: ProviderProfile, opts: ProfileOptions): string | null {
   const tp = claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   const code = tp && typeof tp === 'object' && typeof tp.product_family_code === 'string' ? tp.product_family_code.toLowerCase() : null;
-  if (code === 'canvas' && profileLms !== 'canvas') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=canvas');
-  if (code === 'blackboardlearn' && profileLms !== 'blackboard') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=blackboardlearn');
+  if (code === null) return null;
+  const verdict = familyGuardVerdict(channelRegistry(opts), code, profile.channel, 'launch');
+  if (verdict.kind === 'refuse') fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
+  return verdict.kind === 'log' ? code : null;
 }

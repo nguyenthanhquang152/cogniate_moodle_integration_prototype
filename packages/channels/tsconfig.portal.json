@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2024", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"],
+    "paths": { "@cogniate/portal-sdk": ["../../apps/portal/src/sdk/index.ts"] }
+  },
+  "include": ["*/manifest.ts", "*/portal/**/*"]
+}

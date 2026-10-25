@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agsScore, agsScoreBody, bestAttempt, checkScormCmi, resendDecision, syncResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
+  agsScore, agsScoreBody, bestAttempt, checkScormCmi, resendDecision, dispatchResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
   sessionMax, syncDecision, totalTime,
 } from './index.ts';
 import type { SyncRow } from './index.ts';
@@ -143,15 +143,15 @@ describe('shell status text', () => {
   const base = { outcome: 'passed' as const, scoreGiven: 100, scoreMaximum: 100, preview: false, scoreSync: { status: 'sent', scoreGiven: 100, scoreMaximum: 100 } };
   const none = { status: null, scoreGiven: null, scoreMaximum: null };
   it('the texts of T5a', () => {
-    expect(playStatusText(base)).toBe('Completed — score 100 sent to Moodle');
-    expect(playStatusText({ ...base, outcome: 'in_progress', scoreGiven: null, scoreSync: none })).toBe('In progress');
-    expect(playStatusText({ ...base, preview: true })).toBe('Preview — no grade is sent');
-    expect(playStatusText({ ...base, outcome: 'failed', scoreGiven: 0, scoreSync: { ...base.scoreSync, scoreGiven: 0 } })).toBe('Completed — score 0 sent to Moodle');
-    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'pending' } })).toBe('Completed — sending score 100 to Moodle');
-    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'failed' } })).toBe('Completed — score 100 not sent to Moodle');
-    expect(playStatusText({ ...base, outcome: 'not_started', scoreSync: none })).toBe('Not started');
-    expect(playStatusText({ ...base, scoreSync: none })).toBe('Completed — score 100');
-    expect(playStatusText({ ...base, scoreGiven: null, scoreSync: none })).toBe('Completed');
+    expect(playStatusText(base, 'Moodle')).toBe('Completed — score 100 sent to Moodle');
+    expect(playStatusText({ ...base, outcome: 'in_progress', scoreGiven: null, scoreSync: none }, 'Moodle')).toBe('In progress');
+    expect(playStatusText({ ...base, preview: true }, 'Moodle')).toBe('Preview — no grade is sent');
+    expect(playStatusText({ ...base, outcome: 'failed', scoreGiven: 0, scoreSync: { ...base.scoreSync, scoreGiven: 0 } }, 'Moodle')).toBe('Completed — score 0 sent to Moodle');
+    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'pending' } }, 'Moodle')).toBe('Completed — sending score 100 to Moodle');
+    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'failed' } }, 'Moodle')).toBe('Completed — score 100 not sent to Moodle');
+    expect(playStatusText({ ...base, outcome: 'not_started', scoreSync: none }, 'Moodle')).toBe('Not started');
+    expect(playStatusText({ ...base, scoreSync: none }, 'Moodle')).toBe('Completed — score 100');
+    expect(playStatusText({ ...base, scoreGiven: null, scoreSync: none }, 'Moodle')).toBe('Completed');
   });
 
   it.each([
@@ -160,13 +160,13 @@ describe('shell status text', () => {
     ['failed', 'Completed — score 60. Your best score, 80, was not sent to Moodle'],
     ['conflict', 'Completed — Moodle has a grade with a newer time'],
   ])('P11: %s names the best score separately from the current attempt', (status, text) => {
-    expect(playStatusText({ ...base, scoreGiven: 60, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } })).toBe(text);
+    expect(playStatusText({ ...base, scoreGiven: 60, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe(text);
   });
 
   it('P11: compares normalized scores and retains the existing score format', () => {
-    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 50, scoreSync: { status: 'sent', scoreGiven: 80, scoreMaximum: 100 } })).toBe('Completed — score 40/50 sent to Moodle');
-    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 100, scoreSync: { status: 'sent', scoreGiven: 40, scoreMaximum: 50 } })).toBe('Completed — score 40. Moodle keeps your best score: 40/50');
-    expect(playStatusText({ ...base, scoreGiven: 0, scoreSync: { status: 'sent', scoreGiven: 80.25, scoreMaximum: 100 } })).toBe('Completed — score 0. Moodle keeps your best score: 80.25');
+    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 50, scoreSync: { status: 'sent', scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe('Completed — score 40/50 sent to Moodle');
+    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 100, scoreSync: { status: 'sent', scoreGiven: 40, scoreMaximum: 50 } }, 'Moodle')).toBe('Completed — score 40. Moodle keeps your best score: 40/50');
+    expect(playStatusText({ ...base, scoreGiven: 0, scoreSync: { status: 'sent', scoreGiven: 80.25, scoreMaximum: 100 } }, 'Moodle')).toBe('Completed — score 0. Moodle keeps your best score: 80.25');
   });
 
   it.each([
@@ -174,24 +174,20 @@ describe('shell status text', () => {
     ['pending', 'Completed. Sending your best score, 80, to Moodle'],
     ['failed', 'Completed. Your best score, 80, was not sent to Moodle'],
   ])('B-FIX-03: %s with no attempt score has no empty score label', (status, text) => {
-    expect(playStatusText({ ...base, scoreGiven: null, scoreMaximum: null, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } })).toBe(text);
+    expect(playStatusText({ ...base, scoreGiven: null, scoreMaximum: null, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe(text);
   });
 });
 
-describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () => {
+describe('grade policy in one place (B-T5a-01): dispatchResult and bestAttempt', () => {
   const t0 = 1_000_000;
-  it('send answers -> row status (ADR-010 rules 8, 9; app contract §10)', () => {
-    expect(syncResult({ http: 204 }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
-    expect(syncResult({ http: 409 }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
-    for (const http of [400, 403, 404]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
-    // M1 (AC-M1-33): a platform 422 is permanent too; 409 stays conflict and a 5xx still retries.
-    expect(syncResult({ http: 422 }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
-    expect(syncResult({ http: 503 }, 1, t0, t0).status).toBe('pending');
-    for (const http of [0, 401, 500, 502, 504]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
-    expect(syncResult({ http: 502 }, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null }); // 24 h are over
-    expect(syncResult({ local: 'no_gradebook_column' }, 1, t0, t0).status).toBe('failed');
-    expect(syncResult({ local: 'internal_error' }, 1, t0, t0).status).toBe('failed'); // never a send every 2 s
-    expect(syncResult({ http: 502 }, 30, t0 + 23.9 * 3_600_000, t0 + 23.9 * 3_600_000).status).toBe('pending'); // a resend starts a new window
+  it('delivery outcomes -> row status (ADR-010 rules 8, 9; app contract §10)', () => {
+    expect(dispatchResult({ kind: 'accepted' }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
+    expect(dispatchResult({ kind: 'conflict', text: '' }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
+    for (const kind of ['rejected', 'local_failure'] as const) expect(dispatchResult({ kind, text: '' }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
+    const retryable = { kind: 'retryable', text: '', uncertain: true } as const;
+    expect(dispatchResult(retryable, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
+    expect(dispatchResult(retryable, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null });
+    expect(dispatchResult(retryable, 30, t0 + 23.9 * 3_600_000, t0 + 23.9 * 3_600_000).status).toBe('pending');
   });
   it('bestAttempt: the final one with the highest score; else the newest in progress; else the newest', () => {
     const a = (outcome: 'passed' | 'failed' | 'in_progress' | 'not_started', scoreGiven: number | null, createdAt: number) => ({ outcome, scoreGiven, scoreMaximum: scoreGiven === null ? null : 100, createdAt });

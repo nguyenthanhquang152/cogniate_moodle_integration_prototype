@@ -1,0 +1,373 @@
+// The service entry point binds the key ring to the master-key Buffer of every store caller before the first store
+// call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01). Both listeners use port 0 here.
+import { spawnSync } from 'node:child_process';
+import { request } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { connect } from 'node:net';
+import { chmodSync, existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { ConfigRefusedError, KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LtiService } from './main.ts';
+import { createShutdownHandler, HTTP_DRAIN_MS, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
+import { AGS_SCOPES } from './platform/ags.ts';
+import { ensureAccount } from './store/accounts.ts';
+import { createPlatform } from './store/platforms.ts';
+import { issueServiceKey } from './store/service-keys.ts';
+import { ensureToolKey } from './store/tool-keys.ts';
+import { capturingLogger } from './testkit.ts';
+import { openDb } from './db/index.ts';
+import * as signingJobs from './jobs/signing-key-cleanup.ts';
+
+// Fixture keys (test values, not secrets).
+const LEGACY = Buffer.alloc(32, 7).toString('hex');
+const K2 = Buffer.alloc(32, 2).toString('hex');
+
+const temps: string[] = [];
+let service: LtiService | null = null;
+afterEach(async () => {
+  await service?.close();
+  service = null;
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  for (const t of temps.splice(0)) rmSync(t, { recursive: true, force: true });
+});
+
+describe('startLtiService (main.ts)', () => {
+  it('checks startup config through a symlink instead of exiting without starting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-link-'));
+    temps.push(dir);
+    const entry = join(dir, 'main.ts');
+    symlinkSync(new URL('./main.ts', import.meta.url), entry);
+    const result = spawnSync(process.execPath, [entry], {
+      cwd: dir, encoding: 'utf8', timeout: 10_000,
+      env: { ...process.env, LTI_MASTER_KEY: '', LTI_KEYRING_FILE: join(dir, 'no-keyring.json'), DATA_DIR: dir,
+        PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test' },
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('No key-ring file, and LTI_MASTER_KEY (or LTI_MASTER_KEY_FILE) is not 64 hex characters.');
+  });
+
+  it('BD-A2-77: production starts with only a 0600 key-ring file (no master key); a 0644 ring is refused with one line', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-ring-'));
+    temps.push(dir);
+    const ringFile = join(dir, 'keyring.json');
+    writeFileSync(ringFile, JSON.stringify({ active: 'k2', keys: { legacy: LEGACY, k2: K2 } }), { mode: 0o600 });
+    const env = {
+      DATA_DIR: dir, LTI_KEYRING_FILE: ringFile, STACK_PROFILE: 'production', TRUSTED_PROXY_CIDRS: '10.0.0.0/8', PORT: '0', OPERATOR_PORT: '0',
+      OPERATOR_HOST: '127.0.0.1', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+      PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', LTI_MASTER_KEY: '', LTI_MASTER_KEY_FILE: '',
+    };
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    const { logger, lines } = capturingLogger();
+    service = await startLtiService({ logger });
+    expect(lines.map((l) => l.event)).toContain('service_started');
+    expect(service.masterKey).toEqual(Buffer.from(LEGACY, 'hex'));
+    expect(keyProviderFor(service.masterKey).versions()[0]).toEqual({ id: 'k2', state: 'active' });
+    await service.close();
+    service = null;
+
+    chmodSync(ringFile, 0o644);
+    const refused = capturingLogger();
+    await expect(startLtiService({ logger: refused.logger })).rejects.toBeInstanceOf(ConfigRefusedError);
+    expect(refused.lines).toEqual([expect.objectContaining({ event: 'config_refused', reason: 'secret_file_mode', setting: 'LTI_KEYRING_FILE',
+      message: 'A secret file has group or world access. Set the mode of the file named by the setting to 0600, then start the service again.' })]);
+    expect(JSON.stringify(refused.lines)).not.toContain(ringFile);
+  });
+
+  it('LA-E5-21: a production refusal logs one config_refused line and opens no database; the entry point exits 1 with no stack trace', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-refused-'));
+    temps.push(dir);
+    const env = {
+      DATA_DIR: dir, LTI_MASTER_KEY: LEGACY, STACK_PROFILE: 'production', LTIK_TTL_SECONDS: '20', PORT: '0', OPERATOR_PORT: '0',
+      PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+      PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
+    };
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    const { logger, lines } = capturingLogger();
+    await expect(startLtiService({ logger })).rejects.toBeInstanceOf(ConfigRefusedError);
+    const message = 'Production does not allow test knobs. Remove every test knob setting, then start the service again.';
+    expect(lines).toEqual([expect.objectContaining({ level: 'error', event: 'config_refused', reason: 'test_knob_active', message })]);
+    expect(existsSync(join(dir, 'lti.db'))).toBe(false);
+    vi.unstubAllEnvs();
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('./main.ts', import.meta.url))], {
+      cwd: dir, encoding: 'utf8', timeout: 10_000, env: { ...process.env, ...env, LOG_DIR: '', NODE_NO_WARNINGS: '1' },
+    });
+    expect([result.status, result.stderr]).toEqual([1, '']);
+    const out = result.stdout.trim().split('\n');
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0]!)).toMatchObject({ level: 'error', service: 'lti-service', event: 'config_refused', reason: 'test_knob_active', message });
+    expect(result.stdout).not.toContain(LEGACY);
+  });
+
+  it('with the ring {active: "k2"}, the service master key seals k2 blobs; an unbound copy of the key fails closed', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-'));
+    temps.push(dir);
+    const ringFile = join(dir, 'keyring.json');
+    writeFileSync(ringFile, JSON.stringify({ active: 'k2', keys: { legacy: LEGACY, k2: K2 } }), { mode: 0o600 });
+    for (const [name, value] of Object.entries({
+      DATA_DIR: dir, LTI_KEYRING_FILE: ringFile, LTI_MASTER_KEY: LEGACY, PORT: '0', OPERATOR_PORT: '0', OPERATOR_HOST: '127.0.0.1',
+      PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+      PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
+    })) vi.stubEnv(name, value);
+    const { logger, lines } = capturingLogger();
+    service = await startLtiService({ logger });
+    expect(lines.map((l) => l.event)).toContain('service_started');
+
+    // The routes and the token client get service.masterKey: it gives the loaded ring.
+    expect(keyProviderFor(service.masterKey).versions()[0]).toEqual({ id: 'k2', state: 'active' });
+    ensureAccount(service.db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.cogniate.test' });
+    const kid = await ensureToolKey(service.db, service.masterKey, 'cogniate');
+    const row = service.db.prepare('SELECT private_jwk_encrypted AS blob FROM tool_key WHERE kid = ?').get(kid) as { blob: Uint8Array };
+    expect(blobKeyVersion(row.blob)).toBe('k2');
+    expect(lines.map((l) => l.event)).not.toContain('key_provider_legacy_fallback');
+
+    // Fail closed: the same bytes in another Buffer are not bound, so they never seal as "legacy".
+    let error: unknown;
+    try {
+      keyProviderFor(Buffer.from(service.masterKey));
+    } catch (err) {
+      error = err;
+    }
+    expect(error).toBeInstanceOf(KeyProviderError);
+    expect((error as KeyProviderError).code).toBe('key_provider_not_bound');
+  });
+});
+
+function jobServiceConfig(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'lti-job-service-'));
+  temps.push(dir);
+  for (const [name, value] of Object.entries({
+    DATA_DIR: dir, LTI_KEYRING_FILE: join(dir, 'absent-keyring.json'), LTI_MASTER_KEY: LEGACY, PORT: '0', OPERATOR_PORT: '0', OPERATOR_HOST: '127.0.0.1',
+    PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+    PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', JOB_INSTANCE_ID: 'lti-1', AUDIT_RETENTION_DAYS: '400',
+  })) vi.stubEnv(name, value);
+  return dir;
+}
+async function settleJobs(): Promise<void> {
+  for (let i = 0; i < 5; i++) await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+it('AC-LA-E5-19-07: the service runs retention exactly at start, 10 and 20 minutes, with one job log per run', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  const t0 = Date.UTC(2026, 9, 22);
+  vi.setSystemTime(t0);
+  const { logger, lines } = capturingLogger();
+  service = await startLtiService({ logger });
+  await settleJobs();
+  expect(service.jobs.state()).toBe('active');
+  await vi.advanceTimersByTimeAsync(25 * 60_000);
+  const runs = lines.filter((l) => l.event === 'job_run' && l.job === 'retention');
+  expect(runs).toHaveLength(3);
+  expect(runs.every((l) => l.result === 'ok')).toBe(true);
+  expect(new Set(runs.map((l) => l.trace_id)).size).toBe(3);
+  expect(service.db.prepare("SELECT last_run_at FROM job_lease WHERE name = 'retention'").get()?.last_run_at).toBe(t0 + 20 * 60_000);
+  expect(lines.filter((l) => l.event === 'job_run' && l.job === 'signing-key-cleanup')).toHaveLength(1);
+  expect(lines.filter((l) => l.event === 'job_run' && l.job === 'audit-retention')).toHaveLength(1);
+  expect(service.db.prepare('SELECT instance_id, role FROM job_instance').all()).toEqual([{ instance_id: 'lti-1', role: 'web' }]);
+});
+
+it('drains a job beyond 3 seconds before closing the database, then the same instance restarts without waiting', async () => {
+  const dir = jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(signingJobs, 'signingKeyCleanupJob').mockReturnValue({
+    name: 'signing-key-cleanup', everyMs: null, runAtStart: true, leaseMs: 10_000,
+    async run() { await gate; return { result: 'ok' }; },
+  });
+  const { logger, lines } = capturingLogger();
+  service = await startLtiService({ logger });
+  await settleJobs();
+  const boot = service.jobs.bootId;
+  let closed = false;
+  const closing = service.close().then(() => { closed = true; });
+  try {
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(closed).toBe(false);
+    expect(service.db.prepare('SELECT boot_id FROM job_instance').get()?.boot_id).toBe(boot);
+  } finally { release(); await closing; }
+  const inspect = openDb(join(dir, 'lti.db'));
+  try { expect(inspect.prepare('SELECT * FROM job_instance').all()).toEqual([]); }
+  finally { inspect.close(); }
+  service = await startLtiService({ logger });
+  await settleJobs();
+  expect(service.jobs.state()).toBe('active');
+  expect(service.jobs.bootId).not.toBe(boot);
+  expect(lines.filter((l) => ['job_instance_wait', 'job_instance_conflict'].includes(String(l.event)))).toEqual([]);
+});
+
+/** Poll without timers: fake timers must not move while a real socket does its I/O. */
+async function until(condition: () => boolean): Promise<void> {
+  for (let i = 0; i < 2000 && !condition(); i++) await new Promise<void>((resolve) => setImmediate(resolve));
+  if (!condition()) throw new Error('condition not met');
+}
+/** A real HTTP request to /readyz that the handler holds: the key provider's ready() never settles. */
+async function holdRequest(started: LtiService) {
+  const ready = vi.spyOn(keyProviderFor(started.masterKey), 'ready').mockReturnValue(new Promise<void>(() => {}));
+  const state = { answered: false, socketClosed: false };
+  const req = request({ host: '127.0.0.1', port: (started.app.server.address() as AddressInfo).port, path: '/readyz', agent: false },
+    (res) => { state.answered = true; res.resume(); });
+  req.on('error', () => { /* The service destroys the connection. */ });
+  req.on('socket', (socket) => socket.on('close', () => { state.socketClosed = true; }));
+  req.end();
+  await until(() => ready.mock.calls.length > 0);
+  return state;
+}
+const refused = (port: number) => new Promise<string>((resolve) => {
+  const socket = connect({ host: '127.0.0.1', port });
+  socket.on('connect', () => { socket.destroy(); resolve('connected'); });
+  socket.on('error', (err: NodeJS.ErrnoException) => resolve(err.code ?? 'error'));
+});
+
+it('BD-A2-109: idle runner and one held request: close() cuts it at 3 s with no answer, then closes the database', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  const held = await holdRequest(started);
+  let closed = false;
+  const closing = started.close().then(() => { closed = true; });
+  await vi.advanceTimersByTimeAsync(HTTP_DRAIN_MS - 1);
+  expect([HTTP_DRAIN_MS, closed, held.socketClosed, started.db.isOpen]).toEqual([3000, false, false, true]);
+  await vi.advanceTimersByTimeAsync(1);
+  await closing;
+  await until(() => held.socketClosed);
+  expect([held.answered, started.db.isOpen]).toEqual([false, false]);
+  service = null;
+});
+
+it('BD-A2-109: a run in flight and one held request: new connections are refused at once, the request is cut at 3 s, the database closes after the run', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(signingJobs, 'signingKeyCleanupJob').mockReturnValue({
+    name: 'signing-key-cleanup', everyMs: null, runAtStart: true, leaseMs: 10_000,
+    async run() { await gate; return { result: 'ok' }; },
+  });
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  const ports = [started.app, started.operatorApp].map((app) => (app.server.address() as AddressInfo).port);
+  const held = await holdRequest(started);
+  let closed = false;
+  const closing = started.close().then(() => { closed = true; });
+  try {
+    await until(() => !started.app.server.listening && !started.operatorApp.server.listening);
+    for (const port of ports) expect(await refused(port)).toBe('ECONNREFUSED');
+    await vi.advanceTimersByTimeAsync(HTTP_DRAIN_MS);
+    await until(() => held.socketClosed);
+    expect(held.answered).toBe(false);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect([closed, started.db.isOpen]).toEqual([false, true]);
+  } finally { release(); await closing; }
+  expect(started.db.isOpen).toBe(false);
+  service = null;
+});
+
+it.each(['app', 'operatorApp'] as const)('A-LA-E5-19-04: a failed %s close makes close() reject and the exit code 1; the database still closes after the listeners and the runner', async (listener) => {
+  jobServiceConfig();
+  service = await startLtiService({ logger: capturingLogger().logger });
+  await settleJobs();
+  const started = service;
+  service = null;
+  const order: string[] = [];
+  for (const name of ['app', 'operatorApp'] as const) {
+    const real = started[name].close.bind(started[name]);
+    // Fastify's close has a callback overload; the service calls the promise form.
+    vi.spyOn(started[name], 'close').mockImplementation((async () => {
+      await real();
+      order.push(name);
+      if (name === listener) throw new Error(`${name} close failed`);
+    }) as never);
+  }
+  const realStop = started.jobs.stop.bind(started.jobs);
+  vi.spyOn(started.jobs, 'stop').mockImplementation(async () => { await realStop(); order.push('runner'); });
+  const realDbClose = started.db.close.bind(started.db);
+  vi.spyOn(started.db, 'close').mockImplementation(() => { order.push('database'); realDbClose(); });
+  const exit = vi.fn();
+  createShutdownHandler({ close: started.close, logger: started.logger }, exit)('SIGTERM');
+  await vi.waitFor(() => expect(exit).toHaveBeenCalled());
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+  await expect(started.close()).rejects.toThrow(`${listener} close failed`);
+  expect(order.at(-1)).toBe('database');
+  expect([...order].sort()).toEqual(['app', 'database', 'operatorApp', 'runner']);
+  expect(started.db.isOpen).toBe(false);
+});
+
+it('BD-A2-52, BD-A2-54: wires the platform observers and the JWKS cache age to the operator /metrics', async () => {
+  jobServiceConfig();
+  service = await startLtiService({ logger: capturingLogger().logger });
+  const { apiKey } = ensureAccount(service.db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.cogniate.test' });
+  await ensureToolKey(service.db, service.masterKey, 'cogniate');
+  // A loopback token endpoint: the outbound guard refuses the token request with no network call.
+  const platform = createPlatform(service.db, 'cogniate', {
+    issuer: 'https://127.0.0.1', clientId: 'unit', name: 'Unit', authEndpoint: 'https://127.0.0.1/auth',
+    tokenEndpoint: 'https://127.0.0.1/token', jwksUrl: 'https://127.0.0.1/keys', deploymentIds: ['1'], active: true,
+  });
+  const { serviceKey } = issueServiceKey(service.db, service.masterKey, {
+    toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: '3',
+    agsClaim: { lineitems: 'https://127.0.0.1/lineitems', scope: Object.values(AGS_SCOPES) }, nrpsClaim: null,
+  }, Date.now());
+  const call = await service.app.inject({ method: 'POST', url: '/api/lineitems',
+    headers: { authorization: `SERVICE-AUTH-V1 ${apiKey}:${serviceKey}` }, payload: { label: 'Unit', scoreMaximum: 10 } });
+  expect(call.statusCode).toBe(502);
+  const text = (await service.operatorApp.inject('/metrics')).body;
+  expect(text).toContain(`lti_platform_token_failures_total{platform_id="${platform.id}"} 1\n`);
+  expect(text).toContain('# TYPE lti_jwks_fetch_failures counter\n');
+  // The age source is attached; the platform has no cache entry yet, so it has no series.
+  expect(text).toContain('# TYPE lti_jwks_cache_age_seconds gauge\n');
+  expect(text).not.toMatch(/^lti_jwks_cache_age_seconds\{/m);
+});
+
+it('BD-A2-31: forces exit 1 only at 70 seconds, after the full runner grace', async () => {
+  vi.useFakeTimers();
+  const { logger, lines } = capturingLogger();
+  const close = vi.fn(() => new Promise<void>(() => {}));
+  const exit = vi.fn();
+  const stop = createShutdownHandler({ close, logger }, exit);
+  expect(SERVICE_EXIT_AFTER_MS).toBe(70_000);
+  stop('SIGTERM');
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(exit).not.toHaveBeenCalled();
+  stop('SIGINT'); // another signal does not reset the deadline or close twice
+  expect(close).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(9_999);
+  expect(lines.filter((line) => line.event === 'service_exit_forced')).toEqual([]);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(lines.filter((line) => line.event === 'service_exit_forced')).toEqual([
+    expect.objectContaining({ level: 'error', after_ms: 70_000 }),
+  ]);
+});
+
+it('cancels the fallback and exits 0 when close finishes after the runner grace', async () => {
+  vi.useFakeTimers();
+  const { logger, lines } = capturingLogger();
+  let release!: () => void;
+  const closing = new Promise<void>((resolve) => { release = resolve; });
+  const exit = vi.fn();
+  createShutdownHandler({ close: () => closing, logger }, exit)('SIGTERM');
+  await vi.advanceTimersByTimeAsync(65_000);
+  expect(exit).not.toHaveBeenCalled();
+  release(); await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(0);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(exit).toHaveBeenCalledTimes(1);
+  expect(lines.some((line) => line.event === 'service_exit_forced')).toBe(false);
+});
+
+it('exits 1 and cancels the fallback when close rejects', async () => {
+  vi.useFakeTimers();
+  const exit = vi.fn();
+  createShutdownHandler({ close: async () => { throw new Error('close failed'); }, logger: capturingLogger().logger }, exit)('SIGTERM');
+  await vi.advanceTimersByTimeAsync(70_000);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+});

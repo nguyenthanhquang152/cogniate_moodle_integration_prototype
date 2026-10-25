@@ -341,9 +341,9 @@ Start: `STACK_PROFILE=acceptance npm run stack:up`. Stop: `npm run stack:up` (no
 
 | Item | Value |
 | --- | --- |
-| `lms-sim` | QA's signed platform simulator (`tests/sim/server.mjs`, read-only mount). Network aliases `lms-sim.test`, `developer.blackboard.sim.test`, `learn-a.blackboard.sim.test`, `learn-b.blackboard.sim.test`, `sso.canvas.sim.test`, `school-a.canvas.sim.test`, `school-b.canvas.sim.test`, `canvas.school-a.sim.test`, `canvas-self.sim.test`, `api.canvas-self.sim.test`; the QA leaf has these names. Log `infra/.logs/lms-sim.jsonl`. |
+| `lms-sim` | QA's signed platform simulator (`tests/sim/server.mjs`, read-only mount). Network aliases and QA leaf names come from `tests/sim/hosts.json`, plus the fixed control alias `lms-sim.test`. The infra writes the acceptance alias override to `.tmp/compose.sim-hosts.yaml`. Until LA-E7-02 supplies the manifest, the infra uses the fixed simulator host list. Log `infra/.logs/lms-sim.jsonl`. |
 | `lti-gate` | The app-to-LTI transport gate (`infra/lti-gate/gate.mjs`, plain Node), alias `lti-gate.test`. The app sends its `/api/*` calls there (`LTI_API_URL=https://lti-gate.test`); browser traffic does not pass it. Control API `/__gate/rules`, `/__gate/release`, `/__gate/events`, `/__gate/reset` (M3 §3.3). Log `infra/.logs/lti-gate.jsonl`. |
-| LTI service | `LTI_PROVIDER_SIMULATION=on`: the simulation profiles `blackboard-sim` and `canvas-sim-cloud` exist (`/healthz` `simulation_profiles`). The allowlist adds the eight simulator hosts that the LTI service calls. `npm run stack:restart -- lti-service --env STACK_PROFILE=default` or `--env LTI_PROVIDER_SIMULATION=off` checks the other gate combinations (AC-M1-35); these two are not test knobs. |
+| LTI service | `LTI_PROVIDER_SIMULATION=on`: the simulation profiles `blackboard-sim` and `canvas-sim-cloud` exist (`/healthz` `simulation_profiles`). The allowlist adds the `allowlist` hosts from the simulator manifest. `npm run stack:restart -- lti-service --env STACK_PROFILE=default` or `--env LTI_PROVIDER_SIMULATION=off` checks the other gate combinations (AC-M1-35); these two are not test knobs. |
 | Cogniate app | The allowlist adds `lti-gate.test`. |
 | Default profile | None of the above: no simulator, no gate, `simulation_profiles: []`, the app calls the LTI service directly. |
 

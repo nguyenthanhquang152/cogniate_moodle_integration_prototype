@@ -1,0 +1,42 @@
+{
+  "id": "LA-IC-16",
+  "approval": "docs/reviews/LA-E7-02/qa.md, docs/reviews/LA-E7-03/reviewer-a.md, docs/reviews/LA-E7-03/reviewer-b.md, docs/reviews/LA-LD9/reviewer-a.md, docs/reviews/LA-LD9/reviewer-b.md",
+  "ld9": {
+    "epic": "E7 (LA-E7-02, on LA-E7-03)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-36)",
+      "docs/architecture/ltiaas/README.md#4b-simulator-host-manifest-f74"
+    ],
+    "goldenFields": [
+      "G1.acceptance.ltiHealth.outbound_allowlist"
+    ],
+    "rule": "In acceptance.*Health.outbound_allowlist: (a) entries ending in .sim.test in acceptance.ltiHealth.outbound_allowlist equal, as a set (no duplicates), the union of the allowlist hosts of tests/sim/hosts.json at the compared SHA; (b) every other (non-.sim.test) entry equals G-BASE (1b17261be97c4701b928fa9dc2fa74c6d23028f6) in exact order and value; (c) default.ltiHealth.outbound_allowlist, default.appHealth.outbound_allowlist, and acceptance.appHealth.outbound_allowlist stay strictly equal to G-BASE.",
+    "testChanges": [
+      "tests/ltiaas/golden/lib/compare.mjs",
+      "tests/ltiaas/golden/lib/compare.d.mts",
+      "tests/ltiaas/golden/compare.mjs",
+      "tests/ltiaas/golden/golden.k0.test.mjs",
+      "tests/ltiaas/tasks-lti/LA-E1-05/profiles.k1sim.test.ts"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:183-193 (captures G1.default.{ltiHealth,appHealth} and G1.acceptance.{ltiHealth,appHealth} from /healthz)",
+      "tests/acceptance/T1/tls-health.test.ts:119-128 (checks /healthz status, service, and knobs on the default profile; does not assert outbound_allowlist)",
+      "tests/acceptance/T2b/zz-logs.spec.ts:39-40 (checks /healthz profile === 'acceptance')",
+      "tests/acceptance/M1/common/00-profiles.test.ts:23-29 (checks /healthz simulation_profiles and knobs on the acceptance profile)",
+      "tests/acceptance/M1/common/90-simulation-gates.test.ts:16-18 (checks /healthz profile, simulation_profiles, and knobs)",
+      "tests/e2e/0-start.spec.ts:11-22 (checks /healthz profile and knobs on the default profile)",
+      "tests/e2e/9-end.spec.ts:6-17 (checks /healthz profile and knobs on the default profile)",
+      "tests/e2e/host/run-m2.mjs:125-135 (checks /healthz profile, simulation_profiles, and knobs)"
+    ],
+    "scanResult": "1 golden field changed (G1.acceptance.ltiHealth.outbound_allowlist, compared as a set of .sim.test hosts from tests/sim/hosts.json plus exact non-.sim.test baseline order via rule sim-hosts-allowlist when LA-IC-16 is passed in expected) and 0 frozen-test changes: no frozen T1-T8, M1, or M2 test asserts outbound_allowlist order or contents on /healthz."
+  },
+  "changes": [
+    {
+      "file": "G1",
+      "path": "acceptance.ltiHealth.outbound_allowlist",
+      "rule": "sim-hosts-allowlist"
+    }
+  ]
+}

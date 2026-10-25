@@ -1,0 +1,116 @@
+Verdict: PASS (K0 + UNIT + K2 `AC-04`/`AC-05` PASS; `AC-06` `R1 + T6` covered by Wave-End Gates Slot 3B `LA-E7-08` & Slot 6/8 `LA-E7-09`)
+Round: 4
+
+# LA-E1-11 S8 Portal shell, portal SDK and the channel portal modules: QA verification
+
+Tester: QA-3 (Round 1: task `task_ee6c6506d56e` / `ctx_4ec2a34e6c0e`; Round 2: task `task_04af42599b39` / `ctx_9a0c491be3a8`; Round 3: task `task_a50b56d70b54` / `ctx_48bb0d05458e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E1-11.md` (with `BD-A1-24`, `BD-A1-25`, `BD-A1-26`, `BD-A1-32`, `BD-A1-44`, `BD-A1-49`, `BD-A1-50`, `BD-A1-51`). Suite: `tests/ltiaas/tasks-core/LA-E1-11/` (QA-3 test-first).
+
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`5ec8a69` in Round 1; `d2166d7` in Round 2; `5b5b3a2` in Round 3).
+
+## Round 3
+
+| Item | Value |
+| --- | --- |
+| SHA | `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943` (integration `5b5b3a2`; holds `LA-E1-11` fix round 2 merge `5b5b3a2` / `463f350` over `676b7d9`: `A-06` wizard assertions after failed profile list; `A-04` normalized extension URL guard) |
+| Lane and slot | lane P; no Docker (HOST-ONLY; K1-SIM and K2 rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-11/r3/clone`: `git clone --no-hardlinks --no-checkout`, detached at `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-11/r3/` (umask 077): `npm-ci.log`, `unit-rows-portal.log`, `k0/e1-11-check-clean.log`, `status-after.txt` |
+
+### Round 3 acceptance criteria (rows touched by fix round 2)
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-11-01 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > keeps moodle available when profile discovery fails, then honors explicit not-ready data`, `keeps canvas available when profile discovery fails, then honors explicit not-ready data`, `keeps blackboard available when profile discovery fails, then honors explicit not-ready data`, `keeps shell-canary available when profile discovery fails, then honors explicit not-ready data`, `keeps an existing self connection usable when profile discovery fails` (+ 34 other `shell.test.tsx` and `presentation.test.tsx` tests) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/channels/presentation.test.tsx` | Asserts the rendered wizard content after `GET /app-api/lms-providers` fails (`A-06`, `BD-A1-51`) as well as subsequent transition to `texts.notReady` when explicit `ready: false` arrives. `unit-rows-portal.log` |
+| AC-LA-E1-11-02 | PASS (UNIT) | `apps/portal/src/api.test.ts > rejects extension path /../courses`, `//other.test`, `/\courses`, `/%2e%2e/%2e%2e/courses`, `/%2E./courses`, `/%2fcourses`, `/%5ccourses`, `/%zz`, `/.\t./courses`, `/.\n./courses`, `/.\r./.\r./courses before sending it`, `keeps a valid escaped extension path inside the connection namespace` (12 tests) + `apps/portal/src/channels/shell.test.tsx` + `apps/portal/src/multi-lms.test.ts` | `npx --no-install vitest run --reporter=verbose apps/portal/src/api.test.ts apps/portal/src/channels/shell.test.tsx apps/portal/src/multi-lms.test.ts` | Normalized extension URL boundary (`A-04`): `api.ts` checks the WHATWG `URL`-normalized pathname (including ASCII tab/newline/CR stripping before `..` resolution, e.g. `/.\t./courses`, `/.\n./courses`, `/.\r./.\r./courses`) so no extension call can escape `/app-api/connections/:id/`. `unit-rows-portal.log` |
+| AC-LA-E1-11-03, -07, -08, -09 | unchanged from Round 2 | see Round 2 table | — | Fix round 2 (`676b7d9..5b5b3a2`) touched only `apps/portal/src/api.ts`, `apps/portal/src/api.test.ts`, and `apps/portal/src/channels/shell.test.tsx` (3 files, `+9/-3` lines). R0 `npm run check` at `5b5b3a2` is green (`164` unit files / `2,625` passed, `252` infra passed, `121` K0 passed, F1 `74` hits in `20` files, F5 `6` rules / `0` hits). Measured time of `unit-rows-portal.log` (4 files, 67 tests): `2.54s`. |
+| AC-LA-E1-11-04 | PASS (K2) | `tests/ltiaas/k2/u1-cards.spec.ts > U1.card-order`, `U1.card-copy-and-action` (`2/2` PASS in `2.66 s`) | QA-E2E **Slot 6c** (`qa-e2e-la-sim-r6` on `9877250d4d60bd07af4b7b92c46d40db0dfcaef0`, code `02f5d420`): `docker compose -p qa-e2e-la-sim-r6 ... run --rm e2e npx playwright test --config=playwright.k2.config.ts u1-cards.spec.ts` | Verified in `docs/reviews/LA-E7-07/qa.md` Round 3: five channel cards render in `CHANNELS` order (`Moodle`, `Canvas`, `Blackboard`, `Other LTI 1.3 platform`, `D2L Brightspace`) with card copy, badges and actions matching `manifest.portal.card` and baseline strings for Moodle, Canvas and Blackboard. |
+| AC-LA-E1-11-05 | PASS (K2) | `tests/ltiaas/k2/u2-wizards.spec.ts > U2.step1-create-fields`, `U2.step2-artifacts-and-tool-rows`, `U2.step3-binding-fields-and-defaults`, `U2.admin-steps-texts` (`4/4` PASS in `8.42 s`) + `tests/e2e/m2-canvas-wizard.spec.ts` (`5/5` PASS in `4.20 s`) | QA-E2E **Slot 6c** (`qa-e2e-la-sim-r6` on `9877250d4d60bd07af4b7b92c46d40db0dfcaef0`, code `02f5d420`): `docker compose -p qa-e2e-la-sim-r6 ... run --rm e2e npx playwright test --config=playwright.k2.config.ts u2-wizards.spec.ts` | Verified in `docs/reviews/LA-E7-07/qa.md` Round 3: Moodle, Canvas and Blackboard setup wizards render step 1 create fields, step 2 artifacts/tool rows, step 3 binding fields/defaults, and admin step texts from `manifest.setup` matching the baseline. |
+| AC-LA-E1-11-06 | Covered by Wave-End Gates **Slot 3B** (`LA-E7-08`) & **Slot 6/8** (`LA-E7-09`) (K1-SIM) | Lead QA Slot 3B Steps 3B.4 (`qalead-la-14` `M1 --phase sim`) & 3B.5 (`qalead-la-15` `M2` 64 cases) + QA-E2E Slot 6 `R2-sim` (`T6` `PASS` on `moodle-sim`) & Lead QA Slot 8 (`qalead-la-34` `T6`) | `node tests/host/run-m1.mjs --sha 80133d6b... --project qalead-la-14 --phase sim --provider all` & `node tests/host/run-m2.mjs --sha 80133d6b... --project qalead-la-15` | `R1` (`M1 --phase sim --provider all` + `M2` 64 cases on `80133d6b` / product code `02f5d420`) covered by Wave-End Gate **Slot 3B** (`docs/reviews/LA-E7-08/qa.md`); `T6` passed on `moodle-sim` in QA-E2E **Slot 6** (`qa-e2e-la-sim-r1`) and runs on live Moodle in **Slot 8** (`qalead-la-34`, `docs/reviews/LA-E7-09/qa.md`). |
+
+---
+
+## Round 2
+
+| Item | Value |
+| --- | --- |
+| SHA | `d2166d71fbd53432ea05f1a9b71a6e1e0ec690aa` (integration `d2166d7`; holds `LA-E1-11` fix round 1 commit `54da76f` over `e29f574`, initial merge `0d9aeda` over `004b5ee`) |
+| Lane and slot | lane P; no Docker (HOST-ONLY; K1-SIM and K2 rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-11/r2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `d2166d71fbd53432ea05f1a9b71a6e1e0ec690aa`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-11/r2/` (umask 077): `npm-ci.log`, `k0-vitest.log`, `unit-rows-by-id.log`, `unit-rows-portal.log`, `k0/e1-11-check-clean.log`, `k0/e1-11-ac07-portal-build.log`, `k0/e1-11-ac08-eslint-portal.json`, `k0/e1-11-ac08-probe5.json`, `k0/e1-11-ac09-f1-deltas.json`, `status-after.txt` |
+
+### Round 2 acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-11-01 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > renders one card for every discovered channel and the data-only channel`, `keeps the graduation-cap logo on the baseline card and connect page`, `renders all four default steps from shell-canary manifest data`, `routes moodle/canvas/blackboard through its real module with the baseline verification screen`, `keeps moodle/canvas/blackboard/shell-canary available when profile discovery fails, then honors explicit not-ready data`, `renders the real moodle/canvas/blackboard wizard while profile discovery is still pending`, `keeps the moodle/canvas/blackboard Open link next to Go to Courses` + `packages/channel-kernel/src/registry.test.ts > accepts only the closed card icon name and keeps mark required` + `apps/portal/src/channels/presentation.test.tsx` (no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/channels/presentation.test.tsx packages/channel-kernel/src/registry.test.ts` | Every registered manifest (via its real portal module) and a data-only test manifest (`shell-canary`) renders one card and the four wizard steps; `card.icon` preserves the graduation-cap icon (`BD-A1-49`); `LA-IC-18` and the `Open` link next to `Go to Courses` are preserved (`BD-A1-50`); `ga`/`preview` channels remain usable when profile discovery fails or is pending (`BD-A1-51`). `unit-rows-portal.log` |
+| AC-LA-E1-11-02 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > rejects an unknown channel at /integrations/unknown/connect`, `rejects an unknown channel at /integrations/unknown/con_shell`, `rejects another channel's connection even when its legacy lms field matches` + `apps/portal/src/multi-lms.test.ts > shows not found without exposing connection settings at /integrations/blackboard/canvas`, `/integrations/unknown/canvas`, `/integrations/canvas/foreign` + `apps/portal/src/api.test.ts` (9 decoded extension-path guard tests; no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/multi-lms.test.ts apps/portal/src/api.test.ts` | Generic routes `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId` render known channels, show "not found" without exposing connection settings on unknown/cross-channel routes, and `api.ts` rejects decoded traversal/origin escapes (`/%2e%2e`, `/%2f`, `/%5c`, `/%zz`, `//other.test`). `unit-rows-portal.log` |
+| AC-LA-E1-11-03 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > the real moodle/canvas/blackboard module obeys stored authority even when its method is unchanged`, `selects the verification step from a test manifest's self/operatorGrant authority`, `uses stored authority after dynamic registration stages a self test connection`, `keeps the reserved admin-launch authority separate from an operator grant` (8 tests; no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx` | Real Moodle, Canvas and Blackboard modules and generic shell wizard obey stored `bindingAuthority` (`BD-A1-24`, `BD-A1-44`): `self` shows the first-launch step, `operatorGrant` shows the approval-code step, and `adminLaunch` stays separate. `unit-rows-portal.log` |
+| AC-LA-E1-11-04 | pending: Docker window (K2) | QA-E2E K2 U1 | QA-E2E Docker slot | Pending Docker window (K2 U1 by QA-E2E). |
+| AC-LA-E1-11-05 | pending: Docker window (K2) | QA-E2E K2 U2 | QA-E2E Docker slot | Pending Docker window (K2 U2 by QA-E2E). |
+| AC-LA-E1-11-06 | pending: Docker window (K1-SIM) | Lead QA R1 (`M1 --phase sim` + `M2`) + T6 subset | Lead QA SIM slot | Pending Docker window. |
+| AC-LA-E1-11-07 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-07` | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_BASE_SHA=004b5ee LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E1-11/r2/k0 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E1-11/vitest.config.mts --reporter=verbose` | `npm run build -w apps/portal` exits `0`; built CSS in `apps/portal/dist/assets/*.css` contains utility classes from `packages/channels/moodle/portal/**` and emits the unique probe class `z-[4711]` placed only in `packages/channels/moodle/portal/zz-qa-tailwind-probe.tsx`. `k0/e1-11-ac07-portal-build.log` |
+| AC-LA-E1-11-08 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-08` | as AC-07 | Direct ESLint run on `packages/channels/{moodle,canvas,blackboard}/portal/**` exits `0` with `0` errors across all channel portal files (`k0/e1-11-ac08-eslint-portal.json`), and LA-E1-03 probe (5) (`packages/channels/canvas/portal/index.tsx` importing `apps/portal/src/Integrations`) exits `1` with a severity-2 error (`k0/e1-11-ac08-probe5.json`). |
+| AC-LA-E1-11-09 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-09` | as AC-07 | Legacy portal LMS files (`apps/portal/src/connect/{canvas,blackboard}`, `MoodleSteps.tsx`, `MoodleBackup.tsx`, `MoodleCourse.tsx`, `WebServices.tsx`) do not exist on disk or in git; `apps/portal/src/Integrations.tsx` has `0` F1 hits (`13 → 0`); and portal F1 hits dropped further in Round 2 from `18 → 15` (`api.ts` `4 → 0`, `types.ts` `5 → 2`). `k0/e1-11-ac09-f1-deltas.json` |
+
+### R0 `npm run check` counts at `d2166d7` (`k0/e1-11-check-clean.log`)
+
+| Suite | Round 1 (`5ec8a69`) | Round 2 (`d2166d7`) |
+| --- | --- | --- |
+| Vitest (`test:unit`) | 130 files; 2,166 passed, 5 skipped | 147 files; 2,403 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 211 pass, 0 fail | 230 pass, 0 fail |
+| K0 (`test:k0`) | 3 files; 121 passed | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | `F1 PASS: 32 files with hits, 184 hits` | `F1 PASS: 20 files with hits, 74 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 3 rules, 0 hits` | `F5 PASS: 5 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, sql-portability), 0 hits` |
+
+### Round 2 other checks
+
+- **File scope (`e29f574..54da76f`):** Fix round 1 touches `apps/portal/**`, `packages/channels/{moodle,canvas,blackboard}/portal/**`, `packages/channel-kernel/src/{manifest,registry.test}.ts` and `packages/channels/moodle/manifest.ts` (authorized by `BD-A1-49` RQ-2 for `card.icon`), `vitest.config.ts`, and `infra/scripts/fitness/f1-baseline.json`.
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E1-11/r2/clone` is empty after the run (`status-after.txt`, 0 bytes).
+- **Measured time (Round 2):** `portal-shell.k0.test.ts` `134.08s` (`AC-07` `1.47s`, `AC-08` `1.13s`, `AC-09` `47.56s`, `npm run check` in `beforeAll` `83.9s`); portal + registry unit suites (8 files, 141 tests) `1.58s`.
+
+---
+
+## Round 1
+
+| Item | Value |
+| --- | --- |
+| SHA | `5ec8a699a554a4043fe91c6f6903380a0c2f53d4` (integration `5ec8a69`; holds `LA-E1-11` merge `0d9aeda` over base `004b5ee`) |
+| Lane and slot | lane P; no Docker (HOST-ONLY; K1-SIM and K2 rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-11/r1/clone`: `git clone --no-hardlinks --no-checkout`, detached at `5ec8a699a554a4043fe91c6f6903380a0c2f53d4`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-11/r1/` (umask 077): `npm-ci.log`, `k0-vitest.log`, `unit-rows-by-id.log`, `unit-rows-portal.log`, `k0/e1-11-check-clean.log`, `k0/e1-11-ac07-portal-build.log`, `k0/e1-11-ac08-eslint-portal.json`, `k0/e1-11-ac08-probe5.json`, `k0/e1-11-ac09-f1-deltas.json`, `status-after.txt` |
+
+## Acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-11-01 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > renders one card for every discovered channel and the data-only channel` + `renders all four default steps from moodle/canvas/blackboard/shell-canary manifest data` + `uses the generic connect route without a portal module and submits manifest fields` + `hides an unlisted simulation channel's card and rejects its direct route` + `apps/portal/src/channels/presentation.test.tsx` (9 tests; no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/channels/presentation.test.tsx` | Every registered manifest and a test manifest with no portal module (`shell-canary`) renders one card and the four default wizard steps; `simulation-only` channels follow `BD-A1-26`; `ConnectionError` slot and shell fallback follow `BD-A1-32`. `unit-rows-portal.log` |
+| AC-LA-E1-11-02 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > rejects an unknown channel at /integrations/unknown/connect`, `rejects an unknown channel at /integrations/unknown/con_shell`, `rejects another channel's connection even when its legacy lms field matches` + `apps/portal/src/multi-lms.test.ts > shows not found without exposing connection settings at /integrations/blackboard/canvas`, `/integrations/unknown/canvas`, `/integrations/canvas/foreign` (6 tests; no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/multi-lms.test.ts` | Generic routes `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId` render known channels and show the "not found" view without exposing connection settings for unknown channels or cross-channel connections. `unit-rows-portal.log` |
+| AC-LA-E1-11-03 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > selects the verification step from moodle/canvas/blackboard authority`, `uses stored authority after dynamic registration stages a self connection`, `keeps the reserved admin-launch authority separate from an operator grant` (5 tests; no AC id in test name, Reviewer-B maps) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx` | Verification step follows stored `bindingAuthority` (`BD-A1-24`): `self` (Moodle) shows the first-launch step; `operatorGrant` (Canvas, Blackboard) shows the approval-code step; `adminLaunch` stays separate. `unit-rows-portal.log` |
+| AC-LA-E1-11-04 | pending: Docker window (K2) | QA-E2E K2 U1 | QA-E2E Docker slot | Pending Docker window (K2 U1 by QA-E2E). |
+| AC-LA-E1-11-05 | pending: Docker window (K2) | QA-E2E K2 U2 | QA-E2E Docker slot | Pending Docker window (K2 U2 by QA-E2E). |
+| AC-LA-E1-11-06 | pending: Docker window (K1-SIM) | Lead QA R1 (`M1 --phase sim` + `M2`) + T6 subset | Lead QA SIM slot | Pending Docker window. |
+| AC-LA-E1-11-07 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-07` | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_BASE_SHA=004b5ee LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E1-11/r1/k0 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E1-11/vitest.config.mts --reporter=verbose` | `npm run build -w apps/portal` exits `0`; built CSS in `apps/portal/dist/assets/*.css` contains utility classes used in `packages/channels/moodle/portal/**` and emits the unique probe class `z-[4711]` placed only in `packages/channels/moodle/portal/zz-qa-tailwind-probe.tsx` via `@source "../../../packages/channels/*/portal";`. `k0/e1-11-ac07-portal-build.log` |
+| AC-LA-E1-11-08 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-08` | as AC-07 | Direct ESLint run on `packages/channels/{moodle,canvas,blackboard}/portal/**` exits `0` with `0` errors across all channel portal files (`k0/e1-11-ac08-eslint-portal.json`), and the LA-E1-03 probe (5) (`packages/channels/canvas/portal/index.tsx` importing `apps/portal/src/Integrations`) exits `1` with a severity-2 error (`k0/e1-11-ac08-probe5.json`). |
+| AC-LA-E1-11-09 | PASS (K0) | `portal-shell.k0.test.ts > AC-LA-E1-11-09` | as AC-07 | `apps/portal/src/connect/canvas/`, `apps/portal/src/connect/blackboard/`, `MoodleSteps.tsx`, `MoodleBackup.tsx`, `MoodleCourse.tsx` and `WebServices.tsx` no longer exist in core (on disk or tracked in git); `apps/portal/src/Integrations.tsx` has `0` F1 hits (`13 → 0`, Moodle-only ready rule gone); and portal F1 hits dropped from `315 → 18` (`App.tsx` `13 → 0`, `IntegrationLogo.tsx` `2 → 0`, `Integrations.tsx` `13 → 0`, `Connect.tsx` `5 → 0`, `ConnectionSetup.tsx` `11 → 0`, `ConnectionStatus.tsx` `8 → 0`, `DisconnectDialog.tsx` `6 → 0`, `ProviderSetup.tsx` `4 → 0`, `CoursePackage.tsx` `4 → 0`, `Publications.tsx` `7 → 0`, `PublishDialog.tsx` `8 → 1`, `lms.ts` `11 → 0`, `types.ts` `11 → 5`, `ui.tsx` `6 → 0`). `k0/e1-11-ac09-f1-deltas.json` |
+
+### R0 `npm run check` counts at `5ec8a69` (`k0/e1-11-check-clean.log`)
+
+| Suite | Count at `5ec8a69` |
+| --- | --- |
+| Vitest (`test:unit`) | 130 files; 2,166 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 211 pass, 0 fail |
+| K0 (`test:k0`) | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | `F1 PASS: 32 files with hits, 184 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 3 rules (audit-event-delete, connection-lms, sql-portability), 0 hits` |
+
+## Other checks
+
+- **File scope (`004b5ee..0d9aeda`):** `LA-E1-11` touches `apps/portal/**`, `packages/channels/{moodle,canvas,blackboard}/portal/**`, `packages/channels/tsconfig.portal.json`, `vitest.config.ts` (RQ-2 K-file config lines), and `infra/scripts/fitness/{f1-baseline.json,fitness.test.mjs}`. No `packages/channels/*/{manifest,app,lti-profiles}.ts` or service files were edited in `0d9aeda`.
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E1-11/r1/clone` is empty after the run (`status-after.txt`, 0 bytes).
+
+## Regression and time
+
+R0 (`npm run check` and `npm run build -w apps/portal` on the clean clone): PASS. R1 + T6 subset (`AC-06`) and K2 U1–U2 (`AC-04`, `AC-05`): `pending: Docker window`. Measured time of `portal-shell.k0.test.ts`: `180.6s` (`AC-07` `2.4s`, `AC-08` `1.8s`, `AC-09` `35.0s`, `npm run check` in `beforeAll` `141.4s`).

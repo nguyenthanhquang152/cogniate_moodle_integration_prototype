@@ -1,0 +1,78 @@
+import { toolName, parseStrictBody } from '@cogniate/channel-kernel/setup';
+import { configurationRoute } from './app/configuration.ts';
+import type { ConnectionSetup, BindingTarget, PlatformBodyResult, StagedCreate } from '../../../services/cogniate-app/src/kernel/ports.ts';
+import { checkSiteUrl, fixedHostsOf } from '@cogniate/shared/channel';
+// Canvas setup data and pure adapter functions (app contract §4.4–§4.5).
+// The common engine owns grants, staging, refs, approval and cleanup.
+
+const profiles: ConnectionSetup['profiles'] = {
+  'canvas-cloud-production': { sharing: 'exclusive', serviceUrl: true, label: 'Instructure-hosted Canvas (production)' },
+  'canvas-cloud-beta': { sharing: 'exclusive', serviceUrl: true, label: 'Instructure-hosted Canvas (beta)' },
+  'canvas-cloud-test': { sharing: 'exclusive', serviceUrl: true, label: 'Instructure-hosted Canvas (test)' },
+  'canvas-self-hosted': { sharing: 'exclusive', serviceUrl: true, label: 'Self-hosted Canvas', refusedHostSuffixes: ['instructure.com', 'canvaslms.com'] },
+  'canvas-sim-cloud': { sharing: 'exclusive', serviceUrl: true, label: 'Canvas cloud (simulation)' },
+};
+
+export function parseCanvasBody(body: unknown): PlatformBodyResult {
+  const parsed = parseStrictBody(body, { required: ['clientId', 'deploymentId', 'grantCode'] });
+  if (!parsed.ok) return parsed;
+  return { ok: true, values: {
+    clientId: parsed.values.clientId!, deploymentId: parsed.values.deploymentId!, grantCode: parsed.values.grantCode!,
+  } };
+}
+
+const setup: ConnectionSetup = {
+  channel: 'canvas',
+  extensionRoutes: [configurationRoute], profiles,
+  sharingOf: (id) => profiles[id]?.sharing ?? null,
+  checkCreate: checkCreate,
+  toolConfiguration: ({ toolUrls, libraryName }) => [
+    { key: 'key_name', label: 'Key Name', value: toolName(libraryName) },
+    { key: 'redirect_uris', label: 'Redirect URIs', value: toolUrls.launch },
+    { key: 'method', label: 'Method', value: 'Paste JSON' },
+    { key: 'lti_json', label: 'LTI 1.3 Configuration', value: 'Paste the JSON from "Copy JSON" or "Download JSON". Do not edit it.' },
+  ],
+  parseBindingBody: (body, ctx) => {
+    if (ctx.purpose === 'initial') return parseCanvasBody(body);
+    const parsed = parseStrictBody(body, { required: ['deploymentId', 'grantCode'] });
+    if (!parsed.ok) return parsed;
+    return { ok: true, values: { clientId: ctx.clientId ?? '', deploymentId: parsed.values.deploymentId!, grantCode: parsed.values.grantCode! } };
+  },
+  initialTarget: ({ connection, values, profile }): BindingTarget => {
+    if (!profiles[profile.id] || !profile.issuer) throw new Error('Canvas target needs a Canvas profile issuer');
+    return {
+      kind: 'exclusive_platform', profile: connection.profile,
+      issuer: profile.issuer === '{siteUrl}' ? connection.siteUrl : profile.issuer,
+      clientId: values.clientId, deploymentId: values.deploymentId,
+      siteUrl: connection.siteUrl, serviceUrl: connection.serviceUrl,
+      platformId: connection.ltiPlatformId,
+    };
+  },
+  createRequest: (target, { libraryName }): StagedCreate => {
+    if (target.kind === 'exclusive_platform') return {
+      kind: 'platform', body: {
+        profile: target.profile, url: target.issuer, clientId: target.clientId, name: toolName(libraryName),
+        siteUrl: target.siteUrl, serviceUrl: target.serviceUrl, deploymentIds: [target.deploymentId],
+      },
+    };
+    if (target.kind === 'platform_deployment') return {
+      kind: 'deployment', platformId: target.platformId, body: { deploymentId: target.deploymentId },
+    };
+    throw new Error('Canvas cannot create a shared deployment');
+  },
+};
+
+function checkCreate({ siteUrl, serviceUrl, profile }: Parameters<ConnectionSetup['checkCreate']>[0]): ReturnType<ConnectionSetup['checkCreate']> {
+  const data = profiles[profile.id];
+  if (!data) return { ok: false, field: 'profile' };
+  if (serviceUrl !== undefined && !data.serviceUrl) return { ok: false, field: 'serviceUrl' };
+  const rules = { ownHosts: [], profileFixedHosts: fixedHostsOf([profile.issuer ?? null, profile.authenticationEndpoint ?? null, profile.accesstokenEndpoint ?? null, profile.jwksUrl ?? null]),
+    ...(data.refusedHostSuffixes ? { selfHosted: { refusedSuffixes: [...data.refusedHostSuffixes], allFixedHosts: [] } } : {}) };
+  const site = checkSiteUrl(siteUrl, rules);
+  if (!site.ok) return { ok: false, field: 'siteUrl', rule: site.rule };
+  const service = serviceUrl === undefined ? site : checkSiteUrl(serviceUrl, rules);
+  if (!service.ok) return { ok: false, field: 'serviceUrl', rule: service.rule };
+  return { ok: true, siteUrl: site.origin, serviceUrl: service.origin };
+}
+
+export default setup;

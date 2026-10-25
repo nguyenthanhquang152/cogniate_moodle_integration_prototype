@@ -1,4 +1,4 @@
-import type { CanvasConfigurationSnapshot, CourseVersion, ErrorDetails } from "./types.ts";
+import type { ConfigurationSnapshot, CourseVersion, ErrorDetails } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -65,14 +65,25 @@ export async function api<T>(
 }
 export const idPath = (id: string): string => encodeURIComponent(id);
 
+/** Call the authenticated extension namespace with the same error and session rules. */
+export function extension<T>(connectionId: string, path: string, options: Parameters<typeof api>[1] = {}): Promise<T> {
+  const decoded = decodeURIComponent(path);
+  if (!decoded.startsWith("/") || decoded.startsWith("//") || decoded.includes("..") || decoded.includes("\\")) throw new Error("Use an extension-relative path.");
+  const prefix = `/connections/${idPath(connectionId)}/x`;
+  // The URL parser removes tabs and line breaks before resolving dot segments.
+  const resolved = new URL(`/app-api${prefix}${path}`, window.location.origin);
+  if (!resolved.pathname.startsWith(`/app-api${prefix}/`)) throw new Error("Use an extension-relative path.");
+  return api<T>(`${prefix}${path}`, options);
+}
+
 /** Keep the exact export bytes and its snapshot header together. */
-export async function canvasConfiguration(
-  connectionId: string,
+export async function configurationSnapshot(
+  path: string,
   inline: boolean,
   signal?: AbortSignal,
-): Promise<CanvasConfigurationSnapshot> {
+): Promise<ConfigurationSnapshot> {
   const response = await fetch(
-    `/app-api/connections/${idPath(connectionId)}/canvas-configuration${inline ? "?jwk=inline" : ""}`,
+    `/app-api${path}${inline ? "?jwk=inline" : ""}`,
     { credentials: "same-origin", cache: "no-store", signal },
   );
   if (!response.ok) {

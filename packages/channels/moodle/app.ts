@@ -1,0 +1,93 @@
+import { toolName } from '@cogniate/channel-kernel/setup';
+import { mbzExporter } from './app/exporter.ts';
+import { webServicesRoute } from './app/web-services.ts';
+import { courseShellHook } from './app/course-shell.ts';
+import type { ConnectionSetup, ToolRow, ToolUrls } from '../../../services/cogniate-app/src/kernel/ports.ts';
+// Moodle (`standard` profile): unchanged behaviour (app contract §4, §4.1). Dynamic registration and the six-value
+// manual connect stay in app/connections.ts and tool-pages/register.ts; this adapter gives the rows and the data.
+
+/** App contract §4.1: exactly these 16 rows, in this order (stable keys; labels are the Moodle 5.2.4 form labels). */
+export function moodleToolRows(t: ToolUrls, libraryName: string): ToolRow[] {
+  return [
+    { key: 'tool_name', label: 'Tool name', value: toolName(libraryName) },
+    { key: 'tool_url', label: 'Tool URL', value: t.launch },
+    { key: 'lti_version', label: 'LTI version', value: 'LTI 1.3' },
+    { key: 'public_key_type', label: 'Public key type', value: 'Keyset URL' },
+    { key: 'public_keyset_url', label: 'Public keyset', value: t.keys },
+    { key: 'initiate_login_url', label: 'Initiate login URL', value: t.login },
+    { key: 'redirection_uris', label: 'Redirection URI(s)', value: t.launch },
+    { key: 'deep_linking', label: 'Supports Deep Linking (Content-Item Message)', value: 'Yes' },
+    { key: 'content_selection_url', label: 'Content Selection URL', value: t.launch },
+    { key: 'tool_configuration_usage', label: 'Tool configuration usage', value: 'Show in activity chooser and as a preconfigured tool' },
+    { key: 'launch_container', label: 'Default launch container', value: 'New window' },
+    { key: 'ags', label: 'IMS LTI Assignment and Grade Services', value: 'Use this service for grade sync and column management' },
+    // A2 LA-ADR-05 D4 (LA-IC-04): the tool asks for no NRPS scope. The Moodle 5.2.4 option label; QA confirms the text.
+    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: 'Do not use this service' },
+    { key: 'share_name', label: "Share launcher's name with tool", value: 'Never' },
+    { key: 'share_email', label: "Share launcher's email with tool", value: 'Never' },
+    // Q-T7-01 (contract §4.1 row 16): the exact Moodle 5.2.4 option text of the tool form.
+    { key: 'accept_grades', label: 'Accept grades from the tool', value: 'As specified in Deep Linking definition or Delegate to teacher' },
+  ];
+}
+
+const profiles: ConnectionSetup['profiles'] = {
+  standard: { sharing: 'exclusive', serviceUrl: false, label: 'Moodle site' },
+};
+const setup: ConnectionSetup = {
+  channel: 'moodle',
+  extensionRoutes: [webServicesRoute],
+  publishHooks: [courseShellHook],
+  packageExporters: [mbzExporter], profiles,
+  sharingOf: (id) => profiles[id]?.sharing ?? null,
+  checkCreate: ({ siteUrl, serviceUrl }) => {
+    if (!isHttpsUrl(siteUrl) || new URL(siteUrl).origin !== siteUrl) return { ok: false, field: 'siteUrl' };
+    if (serviceUrl !== undefined) return { ok: false, field: 'serviceUrl' };
+    return { ok: true, siteUrl, serviceUrl: siteUrl };
+  },
+  toolConfiguration: (ctx) => moodleToolRows(ctx.toolUrls, ctx.libraryName),
+  parseBindingBody: (body, ctx) => {
+    if (body !== null && body !== undefined && (typeof body !== 'object' || Array.isArray(body))) return { ok: false, fields: ['body'] };
+    const obj = body !== null && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
+    const bad = Object.keys(obj).filter((key) => !(PLATFORM_FIELDS as readonly string[]).includes(key));
+    const values: Record<string, string> = {};
+    for (const key of PLATFORM_FIELDS) {
+      const raw = obj[key];
+      if (typeof raw !== 'string' || !raw.trim() || raw.trim().length > 2048) bad.push(key);
+      else values[key] = raw.trim();
+    }
+    if (bad.length) return { ok: false, fields: [...new Set(bad)] };
+    const v = values as Record<(typeof PLATFORM_FIELDS)[number], string>;
+    const fields = badPlatformFields(ctx.siteUrl, v);
+    if (fields.length) return { ok: false, fields, reason: 'origin' };
+    return { ok: true, values: { clientId: v.clientId, deploymentId: v.deploymentId, grantCode: '',
+      adminValues: { issuer: v.issuer, authenticationEndpoint: v.authenticationEndpoint, accessTokenEndpoint: v.accessTokenEndpoint, jwksUrl: v.jwksUrl } } };
+  },
+  selfCreate: (v, { libraryName }) => ({ kind: 'platform', body: {
+    url: v.issuer, clientId: v.clientId, name: toolName(libraryName), authenticationEndpoint: v.authenticationEndpoint,
+    accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId],
+  } }),
+};
+const isHttpsUrl = (v: string): boolean => {
+  try {
+    const u = new URL(v);
+    return u.protocol === 'https:' && u.username === '' && u.password === '' && u.hash === '';
+  } catch {
+    return false;
+  }
+};
+const PLATFORM_FIELDS = ['issuer', 'clientId', 'deploymentId', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl'] as const;
+/**
+ * App contract §4 PUT .../platform rules: https; issuer origin = siteUrl; auth, token and JWKS URLs on the issuer
+ * origin. Returns the names of the fields that break a rule (empty = fine).
+ */
+export function badPlatformFields(siteUrl: string, v: Record<(typeof PLATFORM_FIELDS)[number], string>): string[] {
+  const bad = new Set<string>();
+  if (!isHttpsUrl(v.issuer) || new URL(v.issuer).origin !== siteUrl) bad.add('issuer');
+  const origin = isHttpsUrl(v.issuer) ? new URL(v.issuer).origin : siteUrl;
+  for (const f of ['authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl'] as const) {
+    if (!isHttpsUrl(v[f]) || new URL(v[f]).origin !== origin) bad.add(f);
+  }
+  return [...bad];
+}
+
+export default setup;

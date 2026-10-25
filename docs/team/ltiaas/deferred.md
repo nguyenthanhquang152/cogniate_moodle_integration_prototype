@@ -1,0 +1,110 @@
+# Milestone LA: deferred findings
+
+Only the Lead edits this file. A finding here is MINOR or NIT, or a deferral that the reviewer accepted (charter-LA §5). Each row names where the work goes.
+
+## G-DESIGN (closed 2026-10-22)
+
+| Id | Severity | Finding | Decision | Goes to |
+| --- | --- | --- | --- | --- |
+| B-LAD-15 | MINOR | Library staging of manual typed values | Deferred; Reviewer-B accepted (round 2) | E6 with D-3 |
+| B-LAD-17(b) | NIT | Rename of the `binding.authority` capability | Deferred; Reviewer-B accepted (round 2) | No rename in LA |
+| A-LAD-12 | MINOR | Hot-file sequencing between lanes | Deferred to P3; Reviewer-A accepted (round 2) | P3 ownership matrix (README §6a) |
+| A-LAD-17 | MINOR | App CLIs and the operator API | Lead decision OC-9 (E5 Must 3 = LTI service CLIs only) | Closed |
+| RA build note | — | `stop()` deletes its heartbeat row only after in-flight runs end | Accepted as an AC | P3 task LA-E4-01 |
+| RB note 2 | — | The add-channel guide finds affected Moodle `standard` connections (`platform.productFamilyCode`) | Accepted | E8 guide task |
+| RB note 3 | — | A runner that hits `job_instance_conflict` could keep waiting instead of turning off | Design note or Could AC | E4 job-runner task |
+
+## G-BREAKDOWN (closed 2026-10-22)
+
+Open MINOR and NIT items after round 2. The ones marked "before build" are one-line spec edits that the owner makes at the start of P4.
+
+| Id | Severity | Finding | Owner | When |
+| --- | --- | --- | --- | --- |
+| A-LAB-19 | MINOR | The LA-E4-02 AC-04 rewrite dropped the P2 step of the D5 migration test | A1 | Before build |
+| A-LAB-20 | MINOR | Pending AC of LA-E6-02 while LA-E6-06 is deferred | Lead | Closed by LD-16 (deferred-by-default counts as cut) |
+| A-LAB-21 | MINOR | No AC proves that the retention job calls the storage_check cleanup | A2 | Before build |
+| A-LAB-22 | NIT | Form (g) does not delete the backup folder, which holds secrets | A1 | Before build |
+| B-LAB-17 | MINOR | No rule for a partner's pending ACs when its companion is cut | Lead | Closed by LD-16 |
+| B-LAB-18 | MINOR | The capacity model leaves out review turnaround (about +7 days) | Lead | Closed: plan LD-17 says about 58 days |
+| B-LAB-19 | NIT | LD-13 run sentence replaced by LD-17 | Lead | Closed in plan |
+| Q-LAB-19 | MINOR | LA-E5-04 AC-08 has no valid key for its fresh account in B1 | A2 | Before build |
+| Q-LAB-20 | MINOR | LD-13 and charter-LA QA rows did not match LD-17 | Lead | Closed in plan and charter |
+| Q-LAB-21 | MINOR | tasks README :35/:37 name only QA's own projects | A1 | Before build |
+| Q-LAB-22 | NIT | Three evidence labels | A2 | Before build |
+| B-LAB-06 (part) | MINOR | Two cross-account cases stay in LA-E5-13, with a reason | A2 | Accepted by Reviewer-B |
+
+## P4 build
+
+| Id | Severity | Finding | Owner | When |
+| --- | --- | --- | --- | --- |
+| B-LA-E1-01 NITs | NIT | Module-level log set (move to the app instance); AC-02 uses the fake client | K | With LA-E1-02 if it fits |
+| A-E1-01-01 | NIT | Two type-only lines in connections.ts outside "the builder only" | — | Accepted |
+| B-LA-E5-08-02 | NIT | HKDF info prefix comment | S2 | Next S2 task |
+| A-LA-E5-01-01 = B-LA-E5-01-01 | NIT / MINOR | LA-ADR-06 D3 says `stack:up` runs `lti:operator init --if-none`; spec and code run it in `lti-bootstrap.sh` (seed) | A2 (text) | Next A2 edit |
+| A-LA-E5-01-02 = B-LA-E5-01-02 | NIT / MINOR | `stack:reset` leaves the dead `infra/.secrets/lti-operator-key` | S1 (RQ to the owner of `stack-reset.sh`) | Next S1 task |
+| B-LA-E5-01-03 | NIT | An invalid host user name (`id -un`) stops seed with no `OPERATOR_NAME` hint | S1 | Next S1 task |
+| B-LA-E1-02-01 | MINOR | AC-05/AC-06 tests start a copy of the main.ts listener, so dropping the main.ts call fails no test | K | LA-E1-03 dispatch |
+| B-LA-E1-02-02 = A-LA-E1-02-01 | MINOR / NIT | textName of an unknown channel returns "Moodle", not the neutral "your LMS" | K | LA-E1-03 dispatch |
+| B-LA-E1-02 NITs (5) | NIT | hand-kept manifest/capability shape copies, shared type placement, explicit-false rule, missing positive check-6 case, misleading check-5 reason; README §4 F1 test-file exclusion (A1) | K / A1 | Later K task; A1 next edit |
+| A2 C5 | MINOR | LA-ADR-06 D4 rule T5: keep the first error on rollback | S1 | **Closed**: built in fd523ce; A2 BD-A2-07 updated D4 T5 |
+| A-LA-E5-02-03/-04 | NIT | Reviewer-A NITs on LA-E5-02 (03 = A2 D4 T5) | S1 | With the C1 follow-up |
+| A2 FYI (LA-E5-10) | MINOR candidate | removeToolKey uses an X'' literal (LA-ADR-06 D13 rule 2 portability lint forbids it; bind an empty Uint8Array); prepareToolKey uses generateKeyPairSync (blocks the event loop per new key; async generateKeyPair) | S2 | LA-E5-10 fix round (with its review findings) |
+| A-LA-E4-01-04 | NIT | Cooling entries for rows moved elsewhere are never pruned and grow the due batch | R | LA-E4-02 |
+| A-LA-E5-10-02 | NIT | prepareToolKey uses generateKeyPairSync (blocks both listeners); use async generateKeyPair | S2 | LA-E5-10 fix round |
+| A-LA-E5-10-03 | NIT | bootstrap --rotate-signing-key fails while a next key exists | S2 | LA-E5-10 fix round |
+| B-LA-E1-03-06/-07 | NIT | Fence messages do not say what is allowed; portal project comment | K | LA-E1-03 fix round (if cheap) |
+| A-LA-E1-03-06 | NIT | `new Function` strings can still load modules in channel files: add no-eval, no-implied-eval, no-new-func to the channel fence | K | Next K edit of eslint.config.js |
+| A-LA-E5-03-01 | MINOR | While the `proxy` name does not resolve (start race, proxy recreated), proxied clients share the proxy's address buckets for up to 60 s with no log line: retry every 5 s and log | S1 | LA-E5-03 fix round (with Reviewer-B items) |
+| A-LA-E5-03-02 | NIT | settings.rate_limits audit event names the changed fields but not the new values | S1 | LA-E5-03 fix round |
+| A-LA-E5-14-01 | MINOR | No test checks the platform_rate_limited log line for AGS and NRPS responses (memberships not covered) | L | LA-E3-11 / LA-E3-12 (AGS extras), or the next L dispatch that touches platform/ |
+| A-LA-E5-14-02 | NIT | A 400-digit integer Retry-After gives 60, not 3600 | L | Same |
+| B-LA-E5-10 R2 NIT | NIT | createNextToolKey can now create an active key (BD-A2-24): rename | S2 | Next S2 edit of tool-keys.ts |
+| B-LA-E1-05-04..06 | NIT | Reviewer-B round-2 open NITs | L | Next L edit of profiles |
+| B-LA-E5-04 R2 NIT | NIT | audit.change doc comment does not state the BD-A2-29 rules (section-5 action only; refused keeps base action) | S1 | LA-E5-03 fix round |
+| B-LA-E7-10 R2 NIT | NIT | A step-5 finding line does not point to the allow-entry procedure | R | Next R edit of ci-local |
+| B-LA-E1-10-01 | MINOR | DR help texts use {LMS} but still hold Moodle menu paths (registration.ts:37-41, :197; codes.ts:43); a channel cannot fix them from the manifest | A1 (design) then L | Before LA-E2-02 (frozen Moodle texts + generic text, or a manifest restart-path text, as BD-A1-30) |
+| B-LA-E1-10 NITs | NIT | default arguments read the product registry; ISSUER_RESERVED special case in two places; two comments | L | Next L edit |
+| B-LA-E1-06-04..07 + R2 NIT | NIT | open lens-B NITs (fixed texts, error order, main.ts registry, type re-export comment) and the unused _channels parameter of publicationResults (results.ts:85) | K | Next K edit of those files |
+| B-LA-E3-02-01 | MINOR | login and check page scripts are two hand-kept copies of the same postMessage handshake (storage-pages.ts:16-44, :78-116) | L | Next L edit of storage-pages.ts |
+| B-LA-E3-02 NITs | NIT | end-to-end flow map; account gate in launch.ts with an account! assertion | L | Same |
+| B-LA-E5-03 R2 NIT | NIT | trusted_proxy_unresolved repeats every 5 s in a long DNS outage; BD-A2-29 audit comment lacks the refused-event rule | S1 | Next S1 edit |
+| B-LA-E5-05-01 | MINOR | a 401 (revoked/expired operator key) prints "Run npm run seed again", but seed recopies the rejected key: name the host file and the real fix (put the current key there, or init --replace) | S1 | LA-E5-05 fix round |
+| A-LA-E5-05 NITs | NIT | a lost answer to --rotate-api-key says "Cannot reach the operator API" though the rotation may have committed; every seed writes account.update for an unchanged name | S1 | LA-E5-05 fix round |
+| A-LA-E5-09 NITs | NIT | the 202 traceId does not join the job-end event; skipped_lease still answers 202; a malformed key_provider setting makes every open throw a parse error | S2 | LA-E5-09 fix round (with Reviewer-B items) |
+| BD-A1-60 follow-up (LA-E4-04) | Should | map the stored submission times into the AGS score body (submission { startedAt, submittedAt }); changes every score POST body, so it needs its own LA-IC, a G2/G3 golden update and an LD-9 list (A1 writes the LA-IC and the spec if scheduled) | R | backlog candidate; the Lead schedules it only if capacity remains |
+| A-LA-E3-05-01 | NIT | an empty multi-select submit shows the PUBLICATION_NOT_AVAILABLE text, which does not tell the teacher to select an item (a new code or text needs A2, LA-ADR-05 D3b) | L2 | next L2 picker edit |
+| B-LA-E2-04-04 / A-LA-E2-04 r2 MINOR | MINOR | a gone staged platform gives 409 PLATFORM_IN_USE with the old "developer key already connected" sentence, not the BD-A1-97 cause text | K | K's next dispatch |
+| BD-A1-101 FYI (A1) | MINOR | the channel name 'your LMS' (lti-generic textName) reads badly in about 30 core texts that put {LMS} before a noun or at a sentence start (kernel defaults, app launch/picker/register pages, LTI codes and registration pages, the lti-generic admin step); options: lti-generic names.text 'LMS', lti-generic channel texts, or core rewording (each may touch LD-9 bytes) | A1 call, then K/L/P | before the E8 docs |
+| BD-A1-107 FYI (A1 -> A2) | MINOR | Canvas DR: the security §2.5 "same site" proof now comes after complete, so a registration link used on the wrong Canvas site creates a tool there before the app refuses (nothing is stored); hardening: GET /api/registrations/:id gives the configuration URL origin (L + A2 contract delta) | A2, L | after LA |
+| LA-E5-22 note (K) | MINOR | a production-profile stack (STACK_PROFILE=production) now refuses an APP_MASTER_KEY env value (app_master_key_in_env, BD-A2-91), like LTI_MASTER_KEY (D12); compose passes both as env values, so a production-profile compose run needs the *_FILE forms; QA stacks use the default and acceptance profiles | S1 (stack), Docs (runbook) | E8 docs / LG |
+| LA-E5-22 note (K) | MINOR | readBack (AGS results read-back) still fails its request on a missing key version; BD-A2-97 made only the score dispatch retryable | K | next K edit of the AGS driver |
+| A2 BD-A2-100 (LA-E6-02) | Could | connection health disconnect and suspend events: no task owns their K call sites (writer calls in K files), so LA-E6-02 builds without them | K + A1 task row | LG / after E6 |
+| Docs LA-E8-01 finding 1 | MAJOR candidate | Kit closed list: kit.k0.test.ts asserts the fixture folder equals ALL_KIT_CHANNEL_IDS (5 ids, lib/fixtures.ts), and QA_KIT_CHANNELS=all means those 5; a sixth fixture (the add-a-channel path, LA-E8-02 walkthrough) fails the kit host check unless lib/fixtures.ts changes, which AC-LA-E8-01-01 does not allow | QA-4 (LA-E7-06) | Closed: the kit is open-world (LA-E7-06 rounds 5–9; B-LA-E7-06-06; WALK-01 and WALK-02 closed); the walk clone with a sixth fixture passed 234/234 (LA-E8-02 qa Round 3) |
+| Docs LA-E8-01 finding 2 | MINOR | LA-E7-02 qa.md still lists its five ACs "pending: Docker window" (host-only PASS); the D2L provider served K1 flows in LA-E2-05 (SIM E2-05-04, -10) | QA-E2E | next QA-E2E SIM slot (with the LA-E5-24 drill), or cite existing SIM rows |
+| Docs LA-E8-01 finding 3 | MINOR | "the LTI service stores the family at an accepted launch" (LA-E8-01 design note, B-LAB-15) has no QA row; the guide marks it pending | QA | a K1-SIM row in the LA-E8-01 QA check |
+| A2 R-LA-9 (BD-A2-108) | residual | the first-party `cogniate` key is shared by all libraries, so its hard `admin` bucket (1,200/min, burst 600) is a platform-wide cap; the operator can raise it (PATCH /operator/v1/accounts/cogniate {limits}); a per-library limit at the app edge is LG | A2 / LG | LG |
+| LA-E7-02 r5 (A note, B MINOR x2) | MINOR | qa.md AC-LA-E7-02-01 says PASS while citing M1 sim 376/394 (the 18 WE rows are open under LA-E7-08); B: dot-directory scan parity in verifyOpenWorldSimManifest; a wrong generic SIM artifact pointer and endpoint path in the R5 row map | QA-E2E | **Closed**: QA-E2E prose round (integration, 2026-10-24 ~02:05Z) |
+| LA-E5-24 r2 (B MINOR, A NIT x2 + note) | MINOR | qa.md overstates host line coverage (B-LA-E5-24-04); the redaction self-test does not pin each of its three layers (A-05); the raw dead r2 playId stays in qa.md:29 and the self-test fixture (A-06); QA rewrote 4 held r2 evidence files at 21:00:48Z to redact the playId and qa.md does not name them (disclose by append: file, time, old and new hash) | QA-E2E | **Closed**: QA-E2E prose round (integration, 2026-10-24 ~02:05Z) |
+| LA-E7-09 r2 (A NIT x3, B MINOR x2) | MINOR | qa.md T6 and T5a/T8 commands use --grep @T6 (selects 0; counts come from QA_TASK) and a stale line; run-k2 harness skips typecheck silently and prints a wrong file count; the runner rescans r.ART right after redacting it (only infra/.logs can hit); saved-log links and acceptance reproduction commands in qa.md | QA-E2E | **Closed**: QA-E2E prose round (integration, 2026-10-24 ~02:05Z) |
+| WE-F10 (A1 BD-A1-116) | finding (flake) | frozen T5b AC-T5-36 is a test race on both SHAs (baseline 1b17261 1 FAIL + 1 PASS; wave-end 2 FAIL): the learner's first commit can miss the "index" page under the hanging context, so the HTML mapping never gives passed; the tracker is byte-identical; not an LA difference. Test fix: wait for the commit with seenPages containing "index" before driveCourse (LD-9 list, both reviewers) | lead QA | Closed: fixed by LD-9 addendum r4 (A and B APPROVE); the final runs D1 and D2 pass T5b |
+| WE-F12 (Lead) | finding (flake) | frozen T5b P5 (9a-best-score.spec.ts:15, the LA-IC-09 fixture case) fails sometimes with the same error "both attempts unchanged" on both SHAs: baseline 1b17261 run qalead-la-45 FAIL, -46 PASS; wave-end qalead-la-34, -47, -55 PASS, -54 FAIL. Not an LA difference; a flake never counts as PASS for its run (TEST-STRATEGY §2.6) | lead QA (+ A1 for a root cause) | test hardening after LA (LG) |
+| A2 conformance follow-up 1 | MINOR | lti_signing_key_age_seconds counts from created_at (services/lti-service/src/store/observability.ts:21); use activated_at (active) and published_at (next); SigningKeyOld could fire early; no LA consumer | S1 | LG (alert rules) |
+| A2 conformance follow-up 2 | MINOR | the app audit_event table has no retention job (AUDIT_RETENTION_DAYS is read only by the LTI service); no row can reach 400 days before LG | R / A1 | LG |
+| A2 conformance follow-up 3 | NIT | infra/scripts/fitness/rules/sql-portability.mjs:35-41: two dead X'' baseline entries for LTI files | S1 / QA | next fitness edit |
+| A2 conformance follow-up 4 | MINOR | Blackboard portal admin step and tool row 8 still say "membership service on" (LA-ADR-05 D4 wanted off); row 8 is a frozen app contract row: needs an LA-IC and a BLACKBOARD-LIVE check | K + A2 | LG (BD-A2-111) |
+| A2 conformance follow-up 5 | NIT | per-account limits accept non-account classes (stored, ignored); bad numeric start settings exit 1 with a stack trace, not config_refused; a standard admin create does not compare its endpoint hosts with the fixed hosts (safe) | S1 / L | LG hardening |
+| A2 breakdown gap (BD-A2-111) | scope | the Should tenant reads GET /api/audit and GET /api/account were never in a task scope and are not built in LA | A2 + Lead | LG backlog; named in the LA-E8-05 review pack |
+| A1 conformance follow-ups (BD-A1-118) | NIT | N10 channel-order pins in lti-generic.test.ts:27 and redemption.test.ts:536; a guarded family at complete shows REGISTRATION_FAILED, not PROVIDER_PROFILE_MISMATCH (safe); a stale "your LMS" comment | K | LG |
+| LD-1 K0 location (Lead) | MINOR | the LD-1 overlay test files (tests/acceptance/lib/open-world.*, tests/e2e/M2/01-cards.m2.ts, tests/host/m1-migration.mjs and the round 3 K0 ld1 tests that read them) live only in la-qa and the gate sources; integration keeps the frozen baseline files and the round 2 K0 ld1 copies (integration 0b... after 6804d20e). Make the ld1 K0 tests skip with a clear reason on a tree without the overlay, then merge the overlay into integration after the milestone gate | lead QA | Closed: the LD-1 overlay and the LD-9 addenda r1–r8 were merged into integration as the reviewed release test tree (52a9d8b4, tests tree 023ecdab; docs/reviews/LA-E7-08/release-test-tree.md; LA-RELEASE A and B APPROVE; LA-H28) |
+| Host-runner inspect race (QA-K r4, LA-E7-06 qa.md R6) | MINOR | `tests/host/lib.mjs` `allContainers()` runs `docker ps -aq`, then one `docker inspect` over all ids; when one id is gone before the inspect (another session's `sto-it-*` churn, about once per second), `dockerInspect` returns `[]`, check `H1` reads "services: none" and the runner tears its stack down. The teardown was owned-only and safe; r5 passed `H1` with the same runner. Fix: inspect each id alone and skip the ids that are gone, or try the inspect again | QA (tests/host owner) | LG; frozen host runner, so change only with an LD-9 entry |
+| F-LA-E8-01-U6 rest (Docs, dc7a1213) | MINOR | `tests/sim/README.md` "Add a simulator LMS" still says "Copy tests/sim/generic/index.mjs to start", but that module also returns moodle-sim; the guide now tells the reader not to do this. Fix: "start from a one-provider module (for example tests/sim/brightspace/index.mjs)" | QA (tests/sim owner) | next tests/sim edit; LG at the latest |
+| F-LA-E8-01-U5 rest (Docs, dc7a1213) | NIT | `tests/sim/core/loading.test.mjs:471` test title says "matches all 6 providers", but the test is open-world (the walker's seventh provider passed) | QA | next tests/sim edit |
+| LA-E4-06 (cut, LD-28) | scope (Should) | App-edge limit on the handoff pages (F5.1 app part): not built in LA; the service limits of LA-E5-03/-06/-14 hold the F5.1 Must | R + A2 | LG backlog (needs the LA-E0-02 peak rates) |
+| LA-E7-12 (cut, LD-28) | scope (Could) | Other K2 browser checks (U5) | QA-E2E | LG backlog |
+| Kit runner channel selection (QA-K, LA-E8-02 AC-03) | MINOR | `tests/ltiaas/kit/run-k1sim.mjs:206` hard-codes QA_KIT_CHANNELS='all' for the in-container step, and `:178` needs LA_WAVE_ID and LA_K1_WAVE_SPEC for every run, also when no selected channel has a `coveredBy` capability. A one-channel K1 run (the add-a-channel guide's step) therefore runs all channels and needs the frozen wave sources. Fix: take QA_KIT_CHANNELS from the environment; skip WAVE when no selected channel needs it | QA (kit owner) | LG; or the next kit round |
+| A-LA-E8-02-01 / B-LA-E8-02 NIT | MINOR | docs/reviews/LA-E8-02/qa.md cites two wrong intermediate commit hashes (the reviews name the lines and the right hashes); the evidence and verdict are not affected | QA | Closed: fixed by QA-K in LA-E8-02 qa Round 3 (integration 9b10f07c) |
+| A-LA-E0-03 r2 MINOR / B-LA-E0-03 r2 NIT | MINOR | docs/reviews/LA-E0-03/qa.md Round 6 gives some wrong transcript and simulator-record counts, and a loose Moodle token-scope description (the reviews name the right values); the captures, compare and verdict are not affected | QA (second lead QA) | Closed: fixed in la-qa e6324130 (integration 3491b0a7) |
+| A2 conformance round 2 note (3f2d8730) | NIT | The base app contract §4.7.1 and docs/architecture/tasks/M1.md (B/C text) say that the app stops in "at most 2 s (closeOnSignal)"; LA's app stops by BD-A2-109, so that sentence does not describe LA. SIGKILL stays the right QA mode | A1 | next base-contract edit (LG) |
+| WE-F14 (re-gate D4 qalead-la-158) | finding (flake) | frozen T5b AC-T5-30 (tests/acceptance/T5b/3-outage.spec.ts:92) reads the sync status in the same instant that the Moodle grade 100 becomes visible: it saw `pending` (tries 3, lastError 502) 8 ms after the grade check, and the service log marks the same sync `sent` 14 ms later. A test race, not a wrong product result; the solo rerun qalead-la-163 passed, and D1, D2 and D3 passed. Test fix: poll for `sent` with a short bound after the grade check (an LD-9 list entry) | QA | LG (frozen test; LD-9 entry needed) |
+| B-LA-REL-04 (release review) | MINOR | tests/ltiaas/GATE-RUN-PLAN.md §10 dry-run matrix: the two r8 round-3 MINORs (A matrix transcription, B evidence-table correction; ld9-addendum-r8-reviewer-a/-b.md Round 3) are not fixed. The file is in the reviewed release tests tree, so it is not edited before the main merge | QA | LG (first GATE-RUN-PLAN edit) |
+| LA-RELEASE NITs (A-LA-REL-03..05, B-LA-REL-05..08) | NIT | E404/E604 evidence keys do not name their product SHA (a8bbac53); stale `qa-` prefix text and 12 copies of the QA project guard (5 regex forms) in 9 frozen runners; two frozen helpers evaluate manifest.ts with a regex and `vm`; r8 cites an addendum file that never existed; verdict-line form in release-test-tree.md; release-test-tree.md has no round note for its post-review correction 091c35c7 (B round 2 NIT) | QA | LG (frozen-runner cleanup, an LD-9 entry) |

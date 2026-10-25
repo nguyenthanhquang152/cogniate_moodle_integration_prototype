@@ -4,6 +4,7 @@
 // contract name first (for example input name = contract key) and then a label pattern (spec note to the Architect).
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import type { BrowserContext, Locator, Page } from '@playwright/test';
 import { APP, portalUser } from './app';
 import { REPO_ROOT } from './paths';
@@ -107,7 +108,8 @@ export function recordRequests(page: Page): string[] {
 
 // ---------------------------------------------------------------- the Moodle steps (apps/portal/src/connect/moodle-steps.json)
 
-export const MOODLE_STEPS_FILE = path.join(REPO_ROOT, 'apps', 'portal', 'src', 'connect', 'moodle-steps.json');
+export const MOODLE_STEPS_FILE = path.join(REPO_ROOT, 'packages', 'channels', 'moodle', 'portal', 'moodle-steps.json');
+export const MOODLE_MANIFEST_FILE = path.join(REPO_ROOT, 'packages', 'channels', 'moodle', 'manifest.ts');
 
 export interface MoodleStep {
   id: string;
@@ -116,13 +118,36 @@ export interface MoodleStep {
   labels?: unknown;
 }
 
+export function readMoodleSteps(): Record<string, unknown> {
+  const raw = JSON.parse(fs.readFileSync(MOODLE_STEPS_FILE, 'utf8')) as Record<string, unknown>;
+  const manifestSrc = fs
+    .readFileSync(MOODLE_MANIFEST_FILE, 'utf8')
+    .replace(/^import\s+type\s+[^\n]+\n/gm, '')
+    .replace(/\bsatisfies\s+\w+/g, '')
+    .replace(/export\s+default\s+manifest\s*;?/, 'manifest;');
+  const manifest = vm.runInNewContext(manifestSrc) as { names?: { text?: string }; texts?: { adminSteps?: unknown[] } };
+  const lms = String(manifest?.names?.text ?? 'Moodle');
+  const adminSteps = Array.isArray(manifest?.texts?.adminSteps) ? manifest.texts.adminSteps : [];
+  const dynamic = (Array.isArray(raw.dynamic) ? raw.dynamic : []).map((s, i) => {
+    const o = s as Record<string, unknown>;
+    return {
+      id: o.id,
+      text: String(o.text ?? adminSteps[i] ?? '').replaceAll('{LMS}', lms).replaceAll('{tool}', 'Cogniate ({libraryName})'),
+      menuPath: o.menuPath,
+      labels: o.labels,
+      optional: o.optional,
+    };
+  });
+  return { ...raw, dynamic };
+}
+
 /**
  * The steps of one method from moodle-steps.json. T6.md fixes the content (step id, text, Moodle menu path, exact
  * labels) but not the shape, so QA accepts {dynamic|automatic: [...], manual: [...]}, {methods: {...}}, or a list of
  * steps with a `method` field, or a list of {method, steps}.
  */
 export function moodleSteps(method: 'dynamic' | 'manual'): MoodleStep[] {
-  const raw = JSON.parse(fs.readFileSync(MOODLE_STEPS_FILE, 'utf8')) as unknown;
+  const raw = readMoodleSteps() as unknown;
   const names = method === 'dynamic' ? ['dynamic', 'automatic'] : ['manual'];
   const asSteps = (v: unknown): MoodleStep[] | null =>
     Array.isArray(v) && v.every((s) => s && typeof s === 'object' && typeof (s as MoodleStep).text === 'string') ? (v as MoodleStep[]) : null;

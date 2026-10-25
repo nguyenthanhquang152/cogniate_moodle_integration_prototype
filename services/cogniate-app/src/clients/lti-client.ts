@@ -43,16 +43,33 @@ const Platform = z.object({
   serviceUrl: z.string().nullish().transform((v) => v ?? null),
   bindingRef: z.string().nullish().transform((v) => v ?? null),
   deployments: z.array(Deployment).optional().transform((v) => v ?? []),
+  // E2 (contract delta §4.6): the admin endpoints and the assertion audience, compared with grant bound values.
+  authenticationEndpoint: z.string().nullish().transform((v) => v ?? null),
+  accesstokenEndpoint: z.string().nullish().transform((v) => v ?? null),
+  authConfig: z.object({ method: z.string(), key: z.string() }).nullish().transform((v) => v ?? null),
+  clientAssertionAud: z.string().nullish().transform((v) => v ?? null),
 });
 export type LtiPlatform = z.infer<typeof Platform>;
 const PlatformList = z.object({ platforms: z.array(Platform) });
+/** The connection check answer (contract delta §2.6, LA-ADR-08 D4). It never holds a token. */
+const PlatformCheck = z.object({
+  checkedAt: z.string(),
+  jwks: z.object({ ok: z.boolean(), keys: z.number().optional(), detail: z.string().optional() }),
+  token: z.object({ ok: z.boolean(), scope: z.string().optional(), detail: z.string().optional() }),
+  platform: z.object({ active: z.boolean(), deploymentActive: z.boolean() }),
+  limits: z.enum(['shared-application']).nullable(),
+});
+export type LtiPlatformCheck = z.infer<typeof PlatformCheck>;
 
-const Completed = z.object({ platformId: z.string().min(1), html: z.string() });
+// E2 (contract delta §4.5): `active` is false for a staged registration; absent in an older answer.
+const Completed = z.object({ platformId: z.string().min(1), html: z.string(), active: z.boolean().optional() });
 
 /** One profile of `GET /api/providers` (LTI contract §9.3). */
 const ProviderProfile = z.object({
   id: z.string().min(1),
-  lms: z.enum(['canvas', 'blackboard']).nullable(),
+  // An open set (LA S1, app API delta §2): any value parses. The app ignores a profile that no adapter owns
+  // (providers/index.ts ownedProfiles), so one unknown value does not break the answer.
+  lms: z.string().nullable(),
   label: z.string(),
   sharing: z.enum(['exclusive', 'shared']),
   issuer: z.string().nullable(),
@@ -62,6 +79,8 @@ const ProviderProfile = z.object({
   siteUrlOn: z.enum(['platform', 'deployment']).nullable(),
   serviceUrl: z.boolean(),
   simulation: z.boolean(),
+  // E2 trait (LA-IC-01; contract delta §4.7): where the endpoints come from. Absent in an older answer.
+  endpoints: z.enum(['admin', 'fixed']).optional(),
   sharedPlatform: z.object({ id: z.string().min(1), clientId: z.string(), active: z.boolean() }).nullable(),
 });
 export type LtiProviderProfile = z.infer<typeof ProviderProfile>;
@@ -134,6 +153,34 @@ export interface NewProviderPlatform {
   bindingRef: string;
 }
 
+/**
+ * POST /api/platforms body of an admin-value profile with `endpointOrigins: any-https` (contract delta §4.6.1): the
+ * typed endpoints with the profile id; no site URL (the site origin is the issuer origin).
+ */
+export interface NewAdminProfilePlatform {
+  profile: string;
+  url: string;
+  clientId: string;
+  name: string;
+  authenticationEndpoint: string;
+  accesstokenEndpoint: string;
+  authConfig: { method: 'JWK_SET'; key: string };
+  clientAssertionAud?: string;
+  deploymentIds: string[];
+  active: boolean;
+  bindingRef: string;
+}
+
+/** POST /api/registrations/:id/complete body (contract §3.8; E2 delta §4.5: profile, scopes, bindingRef). */
+export interface CompleteRegistrationBody {
+  platformName: string;
+  privacyLevel: string;
+  autoActivate: boolean;
+  profile?: string;
+  scopes?: readonly string[];
+  bindingRef?: string;
+}
+
 /** A conditional change (LTI contract §9.15): a new ref and the expected current ref (null = no ref stored). */
 export interface RefChange {
   bindingRef: string;
@@ -147,14 +194,22 @@ export class LtiServiceError extends Error {
   readonly description: string;
   /** details.reason of the answer, for example "tool_may_exist" (registration result unknown, A-T3b-01). */
   readonly reason: string | null;
-  constructor(status: number, code: string, description: string, reason: string | null = null) {
+  /** Normalized wait in seconds for a 429; null for other responses. */
+  readonly retryAfter: number | null;
+  constructor(status: number, code: string, description: string, reason: string | null = null, retryAfter: number | null = null) {
     super(`${status} ${code}`);
     this.name = 'LtiServiceError';
     this.status = status;
     this.code = code;
     this.description = description;
     this.reason = reason;
+    this.retryAfter = retryAfter;
   }
+}
+
+/** The service contract uses whole seconds, clamped to 1–3,600, with 60 as the fallback. */
+export function normalizeRetryAfter(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(3600, Math.ceil(value))) : 60;
 }
 
 /** Safe log fields of a failed LTI call (codes only, never the description; B-T4b1-01). */
@@ -211,9 +266,9 @@ export function createLtiClient(deps: LtiClientDeps) {
       json = undefined;
     }
     if (res.status < 200 || res.status >= 300) {
-      const d = (json as { details?: { message?: unknown; description?: unknown; reason?: unknown } } | undefined)?.details;
+      const d = (json as { details?: { message?: unknown; description?: unknown; reason?: unknown; retryAfter?: unknown } } | undefined)?.details;
       throw new LtiServiceError(res.status, typeof d?.message === 'string' ? d.message : `HTTP_${res.status}`, typeof d?.description === 'string' ? d.description : '',
-        typeof d?.reason === 'string' ? d.reason : null);
+        typeof d?.reason === 'string' ? d.reason : null, res.status === 429 ? normalizeRetryAfter(d?.retryAfter) : null);
     }
     const parsed = schema.safeParse(json);
     if (!parsed.success) throw new LtiServiceError(res.status, 'INVALID_LTI_ANSWER', 'The LTI service answer does not match the contract.');
@@ -223,15 +278,18 @@ export function createLtiClient(deps: LtiClientDeps) {
   const id = encodeURIComponent;
   return {
     getRegistration: (regId: string, traceId: string) => call(Registration, 'GET', `/api/registrations/${id(regId)}`, traceId),
-    completeRegistration: (regId: string, body: { platformName: string; privacyLevel: string; autoActivate: boolean }, traceId: string) =>
+    completeRegistration: (regId: string, body: CompleteRegistrationBody, traceId: string) =>
       // Give the LTI service's 5 s Moodle call time to return its uncertain-registration result (P1).
       call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body, undefined, undefined, { timeoutMs: 15_000 }),
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     getPlatform: (platformId: string, traceId: string, options?: LtiReadOptions) =>
       call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId, undefined, undefined, undefined, readOptions(options)),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string } & Partial<RefChange>, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    /** Connection check (contract delta §2.6): the platform JWKS and one token request; no token in the answer. */
+    checkPlatform: (platformId: string, body: { deploymentId?: string }, traceId: string) => call(PlatformCheck, 'POST', `/api/platforms/${id(platformId)}/check`, traceId, body),
     // M1 (LTI contract §9.4 to §9.6, §9.15): provider platforms, deployments and conditional changes.
     createProviderPlatform: (body: NewProviderPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
+    createAdminProfilePlatform: (body: NewAdminProfilePlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     findPlatforms: (q: { url: string; clientId: string; profile?: string }, traceId: string, options?: LtiReadOptions) =>
       call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => e[1] !== undefined))}`, traceId,
         undefined, undefined, undefined, readOptions(options)).then((r) => r.platforms),
@@ -250,8 +308,8 @@ export function createLtiClient(deps: LtiClientDeps) {
     /** The launch behind a ltik (T4b2 handoff). */
     getIdToken: (ltik: string, traceId: string) => call(IdToken, 'GET', '/api/idtoken', traceId, undefined, ltik),
     /** The signed Deep Linking response for one content item (flows §6b). */
-    deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string) =>
-      call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, { contentItems }, ltik),
+    deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string, options?: { message?: string }) =>
+      call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, options ? { contentItems, options } : { contentItems }, ltik),
     /** One AGS score (app contract §10), SERVICE-AUTH-V1: works after the ltik expired. 204 on success. */
     postScore: (serviceKey: string, lineItemId: string, body: object, traceId: string) =>
       call(NoContent, 'POST', `/api/lineitems/${id(lineItemId)}/scores`, traceId, body, undefined, serviceKey),

@@ -30,7 +30,7 @@ m1Test('M1-24.common.event-shapes', 'new app and deployment events have exactly 
       platform_created: ['info', ['platform_id', 'profile']],
       deployment_added: ['info', ['platform_id', 'deployment_id']],
       deployment_updated: ['info', ['platform_id', 'deployment_id', 'active', 'binding_generation']],
-      launch_claims_minimized: ['info', ['platform_id', 'claims']],
+      launch_claims_minimized: ['info', ['platform_id', 'claims', 'tool_account_id']],
     }],
   ] as [string, Record<string, [string, string[]]>][]) {
     const log = readLog(service); assert.deepEqual(log.badLines, []);

@@ -1,9 +1,17 @@
+import { LEGACY_LEARNER_HOST, type ChannelRegistry } from '@cogniate/channel-kernel';
 // Publication results (app contract §5 ResultRow, T5a; H5) and the outcome stats. One row per learner per activity
 // (resource link); preview attempts are rows with preview: true. An attempt shows under the publication of its own
 // course (data-model §2: after a rebind, an old attempt stays with its own course's publication).
 import type { Outcome, SyncStatus } from '@cogniate/tracking';
 import { bestAttempt } from '@cogniate/tracking';
+import { latestDispatchStatus } from '../kernel/records/dispatch-store.ts';
 import type { Db } from './db.ts';
+
+/**
+ * LA-ADR-03 D4: the results API (`scoreSyncs`, `lastScoreSync`), Resend and the play status line show the dispatch
+ * rows of this one reporter. Their JSON, the `sync_` ids and the route names are M1 contract values (AGS).
+ */
+export const RESULTS_REPORTER = 'lti-ags';
 
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
 
@@ -21,11 +29,12 @@ interface AttemptRow {
   contextTitle: string;
   title: string;
   issuer: string | null;
+  channel: string;
 }
 
 function attemptsOfPublication(db: Db, connectionId: string, courseId: string): AttemptRow[] {
   return db.prepare(`SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,
-      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url
+      a.created_at, a.updated_at, rl.context_id, rl.context_title, rl.title, con.site_url, con.channel
     FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id
     JOIN connection con ON con.id = rl.connection_id
     WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid`).all(connectionId, courseId).map((r) => {
@@ -35,28 +44,47 @@ function attemptsOfPublication(db: Db, connectionId: string, courseId: string): 
       id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), versionId: String(r.course_version_id),
       preview: Number(r.preview) === 1, outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
       scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
-      contextTitle: String(r.context_title), title: String(r.title), issuer,
+      contextTitle: r.context_id === '' ? '—' : String(r.context_title), title: String(r.title), issuer, channel: String(r.channel),
     };
   });
 }
 
 interface SyncRowView { id: string; attemptId: string; status: SyncStatus; tries: number; scoreGiven: number; scoreMaximum: number; createdAt: number; sentAt: number | null; lastError: string | null }
 
+const syncView = (r: Record<string, unknown>): SyncRowView => ({
+  id: String(r.id), attemptId: String(r.attempt_id), status: r.status as SyncStatus, tries: Number(r.tries), scoreGiven: Number(r.score_given),
+  scoreMaximum: Number(r.score_maximum), createdAt: Number(r.created_at), sentAt: r.sent_at === null ? null : Number(r.sent_at),
+  lastError: r.last_error === null ? null : String(r.last_error),
+});
+
+/** App contract §5 ScoreSync: the JSON of one score sync row. */
+const scoreSyncJson = (s: SyncRowView) => ({
+  id: s.id, status: s.status, tries: s.tries, scoreGiven: s.scoreGiven, scoreMaximum: s.scoreMaximum, createdAt: iso(s.createdAt), sentAt: iso(s.sentAt), lastError: s.lastError,
+});
+
 function syncsOf(db: Db, attemptIds: string[]): SyncRowView[] {
   if (attemptIds.length === 0) return [];
-  return db.prepare(`SELECT * FROM score_sync WHERE attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY created_at, rowid`).all(...attemptIds).map((r) => ({
-    id: String(r.id), attemptId: String(r.attempt_id), status: r.status as SyncStatus, tries: Number(r.tries), scoreGiven: Number(r.score_given),
-    scoreMaximum: Number(r.score_maximum), createdAt: Number(r.created_at), sentAt: r.sent_at === null ? null : Number(r.sent_at),
-    lastError: r.last_error === null ? null : String(r.last_error),
-  }));
+  return db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id WHERE s.reporter = ? AND r.attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY s.created_at, s.seq`)
+    .all(RESULTS_REPORTER, ...attemptIds).map(syncView);
+}
+
+/** One score sync row as the results API shows it (the Resend answer). The caller checked that the row exists. */
+export function scoreSyncRow(db: Db, syncId: string) {
+  return scoreSyncJson(syncView(db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id
+    WHERE s.id = ? AND s.reporter = ?`).get(syncId, RESULTS_REPORTER)!));
+}
+
+/** The newest score sync of a learner and activity (the play status line), or null. */
+export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): { status: SyncStatus; scoreGiven: number; scoreMaximum: number } | null {
+  return latestDispatchStatus(db, RESULTS_REPORTER, resourceLinkId, userSub);
 }
 
 const learnerLabel = (sub: string, issuer: string | null): string => {
-  let host = 'Moodle';
+  let host: string = LEGACY_LEARNER_HOST;
   try {
     if (issuer) host = new URL(issuer).host;
   } catch {
-    host = 'Moodle';
+    host = LEGACY_LEARNER_HOST;
   }
   return `Learner ${sub} @ ${host}`;
 };
@@ -75,12 +103,12 @@ function gradebookOf(db: Db, resourceLinkId: string, userSub: string): { resultS
 export function gradebookDiffers(gradebook: { resultScore: number | null; resultMaximum: number | null } | null, best: { scoreGiven: number | null; scoreMaximum: number | null },
   lastSyncStatus: SyncStatus | undefined): boolean {
   if (!gradebook || gradebook.resultScore === null || lastSyncStatus !== 'sent' || best.scoreGiven === null || !best.scoreMaximum) return false;
-  const moodle = gradebook.resultScore / (gradebook.resultMaximum || 100);
-  return Math.abs(moodle - best.scoreGiven / best.scoreMaximum) > 1e-9;
+  const gradebookRatio = gradebook.resultScore / (gradebook.resultMaximum || 100);
+  return Math.abs(gradebookRatio - best.scoreGiven / best.scoreMaximum) > 1e-9;
 }
 
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */
-export function publicationResults(db: Db, p: { connectionId: string; courseId: string }) {
+export function publicationResults(db: Db, p: { connectionId: string; courseId: string }, _channels: ChannelRegistry) {
   const attempts = attemptsOfPublication(db, p.connectionId, p.courseId);
   const syncs = syncsOf(db, attempts.map((a) => a.id));
   const groups = new Map<string, AttemptRow[]>();
@@ -100,9 +128,7 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
       preview: first.preview,
       best: { attemptId: best.id, outcome: best.outcome, scoreGiven: best.scoreGiven, scoreMaximum: best.scoreMaximum },
       attempts: list.map((a) => ({ attemptId: a.id, versionId: a.versionId, outcome: a.outcome, scoreGiven: a.scoreGiven, scoreMaximum: a.scoreMaximum, updatedAt: iso(a.updatedAt) })),
-      scoreSyncs: rowSyncs.map((s) => ({
-        id: s.id, status: s.status, tries: s.tries, scoreGiven: s.scoreGiven, scoreMaximum: s.scoreMaximum, createdAt: iso(s.createdAt), sentAt: iso(s.sentAt), lastError: s.lastError,
-      })),
+      scoreSyncs: rowSyncs.map(scoreSyncJson),
       gradebook,
       gradebookDiffers: gradebookDiffers(gradebook, best, rowSyncs.at(-1)?.status),
     };
@@ -110,8 +136,8 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
 }
 
 /** Outcome stats of a publication (app contract §5): learners (not previews) by their best outcome, and the last sent sync. */
-export function outcomeStats(db: Db, p: { connectionId: string; courseId: string }): { inProgress: number; completed: number; passed: number; failed: number; lastScoreSync: string | null } {
-  const rows = publicationResults(db, p).filter((r) => !r.preview);
+export function outcomeStats(db: Db, p: { connectionId: string; courseId: string }, channels: ChannelRegistry): { inProgress: number; completed: number; passed: number; failed: number; lastScoreSync: string | null } {
+  const rows = publicationResults(db, p, channels).filter((r) => !r.preview);
   const count = (o: Outcome) => rows.filter((r) => r.best.outcome === o).length;
   const sent = rows.flatMap((r) => r.scoreSyncs).map((s) => s.sentAt).filter((s): s is string => s !== null).sort();
   return { inProgress: count('in_progress'), completed: count('completed'), passed: count('passed'), failed: count('failed'), lastScoreSync: sent.at(-1) ?? null };

@@ -7,6 +7,8 @@ import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import type { CryptoKey } from 'jose';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 import { createLogger } from '@cogniate/shared';
+import type { ChannelManifest, ProfileSource } from '@cogniate/channel-kernel';
+import { loadChannelFolders } from '@cogniate/channel-kernel';
 import type { Db } from './db/index.ts';
 import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
@@ -20,8 +22,37 @@ import { ensureAccount } from './store/accounts.ts';
 import { ensureToolKey } from './store/tool-keys.ts';
 import type { Platform } from './store/platforms.ts';
 import { createPlatform } from './store/platforms.ts';
+import { CHANNEL_ROOT, buildProfileRegistry } from './profiles/index.ts';
+import type { ProfileOptions } from './profiles/index.ts';
 
-export const URLS: PublicUrls = {
+/** New channel and two endpoint plans for unit tests. Baseline channel data stays unchanged. */
+export async function testProfileRegistry(textName = 'your LMS', platformStorage: ProfileSource['platformStorage'] = null) {
+  const loaded = structuredClone(await loadChannelFolders([CHANNEL_ROOT], 'lti'));
+  const standard = loaded.find((entry) => (entry.manifest as ChannelManifest).registration.some((method) => method.profiles.includes('standard')))!;
+  const manifest = standard.manifest as ChannelManifest;
+  const admin = {
+    ...(standard.ltiProfiles![0] as ProfileSource), id: 'zz-admin', label: 'Unit admin', privacyFloor: 'allowlist', listOrder: 100, platformStorage,
+  } satisfies ProfileSource;
+  // New channel profiles: no frozen wire value, and the registry defaults for the E2 traits of the Moodle copy.
+  for (const field of ['wireLms', 'issuerKind', 'endpointOrigins', 'clientAssertionAud', 'assertionDeploymentId', 'dynamicRegistration'] as const) delete admin[field];
+  const fixed: ProfileSource = {
+    ...admin, id: 'zz-fixed', label: 'Unit fixed', endpoints: 'fixed', listOrder: 110, siteUrlOn: 'platform',
+    issuer: 'https://fixed.example.edu', authenticationEndpoint: 'https://fixed.example.edu/auth',
+    accesstokenEndpoint: '{siteUrl}/token', jwksUrl: 'https://fixed.example.edu/jwks',
+  };
+  return buildProfileRegistry([...loaded, {
+    folder: '/unit/zz',
+    manifest: {
+      ...manifest, id: 'zz', names: { text: textName, label: 'Unit channel' },
+      registration: [{ method: 'manual', authority: 'operatorGrant', profiles: [admin.id, fixed.id], defaultProfile: admin.id }],
+      lti: { guardedFamilies: [], toolConfiguration: 'none' },
+    },
+    ltiProfiles: [admin, fixed],
+  }]);
+}
+
+// The platform URL is a test fixture only; it is not a public service URL.
+export const URLS: PublicUrls & { moodle: string } = {
   moodle: 'https://moodle.test', lti: 'https://lti.cogniate.test', app: 'https://app.cogniate.test', content: 'https://content.cogniate-content.test',
 };
 export const MASTER_KEY = Buffer.alloc(32, 7);
@@ -100,7 +131,7 @@ export interface Harness {
 }
 
 /** Accounts cogniate + qa-second, one platform of cogniate, and the app. */
-export async function harness(opts: { ltikTtlSeconds?: number; simulationProfiles?: boolean; outbound?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined } = {}): Promise<Harness> {
+export async function harness(opts: { ltikTtlSeconds?: number; simulationProfiles?: boolean; profiles?: ProfileOptions; outbound?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined } = {}): Promise<Harness> {
   const db = openDb(':memory:');
   const a = ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
@@ -115,11 +146,12 @@ export async function harness(opts: { ltikTtlSeconds?: number; simulationProfile
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.now() };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
-  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now), logger });
+  const simulationProfiles = opts.profiles?.simulation ?? opts.simulationProfiles ?? false;
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens }), outbound, profile: opts.simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
-    simulationProfiles: opts.simulationProfiles ?? false,
+    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound, profile: simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
+    simulationProfiles, ...(opts.profiles?.registry ? { profileRegistry: opts.profiles.registry } : {}),
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }

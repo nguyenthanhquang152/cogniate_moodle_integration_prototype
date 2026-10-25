@@ -1,7 +1,7 @@
 // Canvas login, Deep Linking and launch checks: AC-M1-08, -12, -13, -14, -25, -34, -36, -39 (family), -40 (a).
 import { sinkHitsSince } from '../../lib/lti';
 import {
-  AGS, DL, LTI, NRPS, admin, assert, deploymentPath, expectStatus, formPost, host, idToken,
+  AGS, DL, LTI, NRPS, admin, assert, deploymentPath, expectStatus, formPost, host, httpsRequest, idToken,
   logEvents, m1Test, noServiceCalls, parseForm, preparedLaunch, records, rememberSecret, service, unique, urls, type Json,
 } from '../common/client';
 import { pick, publication } from '../common/course';
@@ -16,10 +16,22 @@ const SCOPE = ['https://purl.imsglobal.org/spec/lti-ags/scope/lineitem', 'https:
 m1Test('M1-08.canvas.login-redirect', 'Canvas login goes to the fixed SSO authorize URL with unchanged hints', async () => {
   const p = await canvasPlatform();
   const started = await canvasLaunch(p, {}, { login: { lti_storage_target: 'post_message_forwarding' } });
-  assert.equal(started.login.status, 302);
-  const location = new URL(started.location);
+  assert.equal(started.login.status, 200);
+  assert.equal(started.login.headers.location, undefined);
+  assert.equal(started.login.headers['cache-control'], 'no-store');
+  assert.equal(started.login.headers['referrer-policy'], 'no-referrer');
+  assert.match(String(started.login.headers['content-security-policy'] ?? ''),
+    /^default-src 'none'; script-src 'nonce-[^']+'; frame-ancestors https:; form-action 'none'; base-uri 'none'$/);
+  const block = started.login.body.match(/<script id="lti-storage-data" type="application\/json">([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(block, 'lti-storage-data JSON block');
+  const data = JSON.parse(block) as { authUrl: string; target: string; origin: string; key: string; state: string };
+  assert.equal(data.target, 'post_message_forwarding');
+  assert.equal(data.origin, new URL(CLOUD.auth).origin);
+  assert.match(data.key, /^cog_state_[0-9a-f]$/);
+  const location = new URL(data.authUrl);
   assert.equal(`${location.origin}${location.pathname}`, CLOUD.auth);
   const q = location.searchParams;
+  assert.equal(data.state, q.get('state'));
   assert.equal(q.get('client_id'), p.clientId);
   assert.equal(q.get('redirect_uri'), `${urls.lti}/lti/launch/cogniate`);
   assert.equal(q.get('login_hint'), (started.scenario as Json).id, 'login_hint unchanged');
@@ -29,7 +41,12 @@ m1Test('M1-08.canvas.login-redirect', 'Canvas login goes to the fixed SSO author
   }
   assert.ok((q.get('state') ?? '').length >= 32); assert.ok((q.get('nonce') ?? '').length >= 32);
   assert.ok(started.cookie.startsWith('__Host-lti_state_'), 'State cookie set');
-  assert.equal(started.response.status, 303, 'The full Canvas launch with Canvas login extras succeeds');
+  const authorize = await httpsRequest(data.authUrl); expectStatus(authorize, 200);
+  const { action, fields } = parseForm(authorize.body);
+  rememberSecret(fields.id_token); rememberSecret(fields.state);
+  const response = await formPost(action, fields, started.cookie);
+  rememberSecret(response.headers.location ? new URL(String(response.headers.location)).searchParams.get('ltik') ?? '' : '');
+  assert.equal(response.status, 303, 'The full Canvas launch with Canvas login extras succeeds');
   const oidc = (await records()).records.filter((r) => r.kind === 'canvas-oidc').at(-1)!;
   assert.deepEqual(oidc.missing, []);
 });

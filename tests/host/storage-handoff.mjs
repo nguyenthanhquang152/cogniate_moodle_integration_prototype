@@ -10,7 +10,7 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** The base project `b` of a storage child project `<b>-st`; null for any other project. */
 export function baseOfStorageProject(project) {
-  return /^qa-[a-z0-9-]+-st$/.test(project ?? '') ? project.slice(0, -'-st'.length) : null;
+  return /^(?:qa[234]?|qalead)-[a-z0-9-]+-st$/.test(project ?? '') ? project.slice(0, -'-st'.length) : null;
 }
 /**
  * Checks the handoff `file` of this window. Facts of the caller: `windowStart` (QA_M1_WINDOW_START), `runRoot` (the

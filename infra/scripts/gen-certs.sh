@@ -70,7 +70,8 @@ CNF
     -keyout "$DIR/ca.key.new" -out "$DIR/root.crt.new" -config "$tmp/ca.cnf" -extensions v3_ca 2>/dev/null
   mv "$DIR/ca.key.new" "$DIR/ca.key"
   mv "$DIR/root.crt.new" "$DIR/root.crt"
-  rm -f "$DIR/stack.crt" "$DIR/stack.key" "$DIR/qa.crt" "$DIR/qa.key"   # a new CA needs new leaves
+  rm -f "$DIR/stack.crt" "$DIR/stack.key"   # a new CA needs new leaves
+  if [[ -z "$SIM_HOSTS_ERROR" ]]; then rm -f "$DIR/qa.crt" "$DIR/qa.key"; fi
   echo "Made a new dev CA ($ca_reason): infra/.certs/root.crt (.test names only, $CA_DAYS days)."
   if [[ "$ca_reason" != missing ]]; then
     echo "CAUTION: the CA changed. Run npm run stack:up (recreates the containers that read it), then npm run seed"
@@ -122,9 +123,15 @@ CNF
 
 san="$(printf 'DNS:%s,' "${NAMES[@]}")"; san="${san%,}"
 leaf_ok stack "$san" || make_leaf stack "$san" "${NAMES[0]}"
-qa_san="$(printf 'DNS:%s,' "${QA_NAMES[@]}")"; qa_san="${qa_san%,}"
-leaf_ok qa "$qa_san" || make_leaf qa "$qa_san" "${QA_NAMES[0]}"
-chmod 600 "$DIR/ca.key" "$DIR/stack.key" "$DIR/qa.key"
-chmod 644 "$DIR/root.crt" "$DIR/stack.crt" "$DIR/qa.crt"
-openssl verify -CAfile "$DIR/root.crt" "$DIR/stack.crt" "$DIR/qa.crt" >/dev/null
+# BD-A1-08: keep the QA leaf and key as they are while the manifest is bad, even after a CA renewal.
+if [[ -z "$SIM_HOSTS_ERROR" ]]; then
+  qa_san="$(printf 'DNS:%s,' "${QA_NAMES[@]}")"; qa_san="${qa_san%,}"
+  leaf_ok qa "$qa_san" || make_leaf qa "$qa_san" "${QA_NAMES[0]}"
+  chmod 600 "$DIR/qa.key"
+  chmod 644 "$DIR/qa.crt"
+  openssl verify -CAfile "$DIR/root.crt" "$DIR/qa.crt" >/dev/null
+fi
+chmod 600 "$DIR/ca.key" "$DIR/stack.key"
+chmod 644 "$DIR/root.crt" "$DIR/stack.crt"
+openssl verify -CAfile "$DIR/root.crt" "$DIR/stack.crt" >/dev/null
 echo "Certificates OK: infra/.certs/ (CA until $(openssl x509 -in "$DIR/root.crt" -noout -enddate | cut -d= -f2), leaf until $(openssl x509 -in "$DIR/stack.crt" -noout -enddate | cut -d= -f2))"

@@ -8,10 +8,10 @@ import { platformOf } from '../service-context.ts';
 
 export function registerIdTokenRoutes(app: FastifyInstance, ctx: RouteContext): void {
   app.get<{ Querystring: { raw?: string } }>('/api/idtoken', async (req) => {
-    const caller = ctx.auth(req, ['ltik']);
-    const platform = platformOf(ctx, caller);
+    const caller = (await ctx.auth(req, ['ltik']));
+    const platform = (await platformOf(ctx, caller));
     const launch = caller.launch!;
     if (req.query.raw === 'true') return launch.claims;
-    return toIdToken(launch, platform, serviceKeyForLaunch(ctx.db, ctx.masterKey, launch, ctx.now()));
+    return toIdToken(launch, platform, (await serviceKeyForLaunch(ctx.db, ctx.masterKey, launch, ctx.now())));
   });
 }

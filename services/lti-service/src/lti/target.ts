@@ -1,12 +1,20 @@
-import type { PublicUrls } from '@cogniate/shared';
+import type { ToolAccount } from '../store/accounts.ts';
 
-/** {PUBLIC_LTI_URL}/lti/launch/{toolAccountId}: the redirect URI and the only allowed launch target. */
-export function launchUri(urls: PublicUrls, accountId: string): string {
-  return `${urls.lti}/lti/launch/${encodeURIComponent(accountId)}`;
+/** The protocol URLs of one tool account. Only accounts/resolver.ts builds them (LA-ADR-06 D2, BD-A2-49). */
+export interface ProtocolUrls {
+  /** OIDC login initiation (contract §2.1). */
+  login: string;
+  /** The redirect URI and the only allowed launch target (contract §2.2). */
+  launch: string;
+  /** The tool JWKS (contract §2.3). */
+  keys: string;
+  /** The Dynamic Registration start (contract §2.4). */
+  register: string;
 }
 
-export function loginUri(urls: PublicUrls, accountId: string): string {
-  return `${urls.lti}/lti/login/${encodeURIComponent(accountId)}`;
+/** The part of the account resolver that protocol code uses. A route group builds one resolver at registration. */
+export interface ProtocolUrlResolver {
+  protocolUrls(account: ToolAccount): ProtocolUrls;
 }
 
 /**
@@ -14,7 +22,7 @@ export function loginUri(urls: PublicUrls, accountId: string): string {
  * Implemented as "same origin and the exact path", so ".../launch/cogniate-evil" or ".../launch/cogniate/x" fail.
  * A query is allowed (for example ?resource=seed); a fragment or user info is not.
  */
-export function isOwnLaunchTarget(value: unknown, urls: PublicUrls, accountId: string): boolean {
+export function isOwnLaunchTarget(value: unknown, urls: Pick<ProtocolUrls, 'launch'>): boolean {
   if (typeof value !== 'string') return false;
   let u: URL;
   try {
@@ -22,6 +30,6 @@ export function isOwnLaunchTarget(value: unknown, urls: PublicUrls, accountId: s
   } catch {
     return false;
   }
-  const base = new URL(launchUri(urls, accountId));
+  const base = new URL(urls.launch);
   return u.origin === base.origin && u.pathname === base.pathname && u.hash === '' && u.username === '' && u.password === '';
 }

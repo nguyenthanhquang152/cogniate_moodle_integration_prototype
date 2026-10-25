@@ -1,0 +1,12 @@
+# Review dispatch: Reviewer-B (Codex, same session), LA-E0-01 round 2
+
+Item 1: LA-E0-01 round 2 (integration c5a700d8; QA: la-qa 4adc345f by QA-3, and 26ddcebd by the Codex QA conductor for the D3/D4 golden part). Diff: `git diff 0778c48a c5a700d8 -- docs/reviews/LA-E0-01/qa.md`. Your round 1 BLOCKER was the missing B/C follow-up merge. The Lead merged main 78971b03 into LA at 4f10c5fd (LA-H27 (a)); read the merge commit message.
+Check AC-LA-E0-01-04: npm run check on the merge commit (QA's own run), and the golden compare of the merged SHA against the re-captured baseline 78971b03, where each field that differs names its LA-IC or its B/C commit (D3/D4 golden runs; golden v2). Check AC-LA-E0-01-05: no new file under the provider or profile paths after the merge (run the git command yourself). Host only, in a private `git clone --no-hardlinks`. Add "## Round 2" to docs/reviews/LA-E0-01/reviewer-b.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.

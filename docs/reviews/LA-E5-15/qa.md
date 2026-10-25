@@ -1,0 +1,87 @@
+Verdict: PASS
+Round: 3
+
+# LA-E5-15 Service key revocation, re-issue epoch, write scope: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 2 on `qa2-la-sim-r2`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r2`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-15-01, 02, 03, 05, 06, 07 & BD-A2-53 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts` (7 `K1-SIM` tests: `AC-LA-E5-15-01`, `02`, `03`, `05`, `06`, `07`, and `BD-A2-53`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r2 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch2.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2 --replace-tests` | All 7 `K1-SIM` tests pass (`container-LA-E5-15`, `7/7` passed in `1364 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r2-4209dcb-2026-10-23T05-00-39-765Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-2-r2.log`). |
+| AC-LA-E5-15-04 | PASS (UNIT) | `services/lti-service/src/store/service-keys.test.ts > AC-LA-E5-15-04` | `npx --no-install vitest run services/lti-service/src/store/service-keys.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 2 below. |
+
+---
+
+## Round 2 (host-only at `5b5b3a2`)
+
+Tester: QA-2 (Round 1: task `task_756d65316a50` / `ctx_eb2462bb36b5`; Round 2: task `task_00bf4a549499` / `ctx_4528c07049d5`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E5-15.md` (with `BD-A2-12`, `BD-A2-47`, `BD-A2-53`, `Q-LAB-04`). Suite: `tests/ltiaas/tasks-ops/LA-E5-15/` (QA-2 test-first, committed in `d40826d`, updated for `BD-A2-53` in Round 2).
+
+Independence: QA-2 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files to write `tests/ltiaas/tasks-ops/LA-E5-15/` or during Round 1 (`d40826d`) and Round 2 (`5b5b3a2`). QA-2 verified all host-only UNIT, K0 and suite checks in isolated `--no-hardlinks` clones.
+
+## Round 2
+
+| Item | Value |
+| --- | --- |
+| SHA | `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943` (integration `5b5b3a2`; holds `LA-E5-15` fix round 1 merge `676b7d9` and `f4530b9` over Round 1 `e67819c`) |
+| Lane and slot | lane S2 (with RQ-2 lines in S1 and L files); no Docker (`HOST-ONLY`; `K1-SIM` rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/qa2-r6-5b5b3a2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943`, push URL `DISABLED`, `npm ci` at root and `tests/` |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/qa2-r6-5b5b3a2/logs/` (umask 077): `npm-ci.log`, `check.log`, `e5-15-r2-unit.log`, `qa-suites-r2.log`, `task-merges-stat.txt`, `rev.txt`, `remotes.txt`, `status-after.txt` |
+
+### Round 2 acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-15-01 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-01` | `npx --prefix tests tsc --noEmit -p tests/ltiaas/tasks-ops/LA-E5-15/tsconfig.json && npx --prefix tests vitest list --config tests/ltiaas/tasks-ops/LA-E5-15/vitest.config.mts` | Waits for a SIM Docker window (`POST /api/service-keys/revoke {platformId}` → `200 {revoked: n}` with `n >= 1`, and revoked service key gives the same `401` as an unknown service key). Unit checks pass in `services/lti-service/src/store/service-keys.test.ts` and `services/lti-service/src/http/routes/service-key-admin.test.ts` (`e5-15-r2-unit.log`, `qa-suites-r2.log`). |
+| AC-LA-E5-15-02 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-02` | as AC-01 | Waits for a SIM Docker window (revoke with `resourceLinkId` revokes only that resource link while another resource link on the same platform still gets `2xx`). Passes at unit level in `store/service-keys.test.ts` (`e5-15-r2-unit.log`). |
+| AC-LA-E5-15-03 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-03` | as AC-01 | Waits for a SIM Docker window (next learner launch after revoke issues a different `services.serviceKey` that passes score POST while the old key stays `401`). Passes at unit level in `store/service-keys.test.ts` (`e5-15-r2-unit.log`). |
+| AC-LA-E5-15-04 | PASS (UNIT) | `services/lti-service/src/store/service-keys.test.ts > service keys with the key provider (LA-E5-08) > AC-LA-E5-15-04: epoch 0 keeps the golden inputs; epoch 1 adds a length-framed epoch part` + `service keys (contract §3.3) > a revoked key stays invalid while the next launch advances the epoch exactly once` + `rolls back a failed re-issue without losing its revocation or advancing the epoch` | `npx --no-install vitest run --reporter=verbose services/lti-service/src/store/service-keys.test.ts services/lti-service/src/http/auth-scope.test.ts services/lti-service/src/http/service-key-write-scope.test.ts services/lti-service/src/http/operator/service-keys.test.ts services/lti-service/src/http/operator/platforms.test.ts services/lti-service/src/http/routes/service-key-admin.test.ts services/lti-service/src/http/routes/services.test.ts services/lti-service/src/api-errors.test.ts` | For the same `(account, platform, deployment, context, resourceLink)` tuple, `epoch = 0` produces the exact pre-LA-E5-15 derived key, while `epoch = 1` appends a length-framed epoch field and produces a different key. `e5-15-r2-unit.log` |
+| AC-LA-E5-15-05 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-05` + Author Round 2 route tests: `services/lti-service/src/http/service-key-write-scope.test.ts > resource-link service-key write guards on mounted routes > POST / PUT / DELETE refuses another resource link before any AGS write` (3 cases), `POST / PUT / DELETE accepts the key resource link without an ownership GET` (3 cases), `keeps GET of another resource link readable` (1 case) | as AC-04 | Waits for a SIM Docker window (`serviceKeyWriteScope: "resource-link"` on a fresh account gives `403 SERVICE_KEY_SCOPE` on another resource link's line item and `2xx` on its own). Mounted route tests (`service-key-write-scope.test.ts`, 7 cases) and unit cache/scope tests (`auth-scope.test.ts`, 8 cases) pass now (`e5-15-r2-unit.log`). |
+| AC-LA-E5-15-06 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-06` | as AC-01 | Waits for a SIM Docker window (`LTIK-AUTH-V2` score POST with `serviceKeyWriteScope: "resource-link"` is unaffected). Verified at unit level in `http/auth-scope.test.ts > accepts the claimed lineitem without a GET and leaves other auth/account modes unchanged` (`e5-15-r2-unit.log`). |
+| AC-LA-E5-15-07 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-07` | as AC-01 | Waits for a SIM Docker window (key with `scopes: ["launch"]` on `POST /api/service-keys/revoke` gets `403 API_KEY_SCOPE_MISSING`; tenant and operator revokes each write one `service_key.revoke` audit event). Passes at unit level in `http/operator/service-keys.test.ts` and `http/routes/service-key-admin.test.ts` (`e5-15-r2-unit.log`). |
+| BD-A2-53 (`GET /operator/v1/accounts/:id/platforms`: `200` shape with no secret field) | PASS (UNIT; K1-SIM pending: Docker window) | `services/lti-service/src/http/operator/platforms.test.ts > operator platform list > returns only the account platforms and the exact public fields, without an audit event` + `returns an empty list for an account with no platforms` + `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > BD-A2-53` | as AC-04 | `GET /operator/v1/accounts/:id/platforms` returns `200 { platforms: [{ id, name, profile, issuer, clientId, active, deploymentIds }] }` scoped to that account with no keys, tokens or registration secrets (`BD-A2-53`). `e5-15-r2-unit.log`, `qa-suites-r2.log` |
+| BD-A2-53 (`GET /operator/v1/accounts/:id/platforms`: `404` unknown account) | PASS (UNIT; K1-SIM pending: Docker window) | `services/lti-service/src/http/operator/platforms.test.ts > operator platform list > returns NOT_FOUND for an unknown account without an audit event` + `requires operator authorization, including for an unknown account` + `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > BD-A2-53` | as AC-04 | Unknown account `:id` returns `404 NOT_FOUND` (`requires operator authorization` first). `e5-15-r2-unit.log` |
+| BD-A2-53 (`GET /operator/v1/accounts/:id/platforms`: closed account readable) | PASS (UNIT; K1-SIM pending: Docker window) | `services/lti-service/src/http/operator/platforms.test.ts > operator platform list > keeps a closed account readable without an audit event` + `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > BD-A2-53` | as AC-04 | A `closed` account remains readable (`200 { platforms }`) on `GET /operator/v1/accounts/:id/platforms`. `e5-15-r2-unit.log` |
+| BD-A2-53 (`GET /operator/v1/accounts/:id/platforms`: writes no audit row) | PASS (UNIT; K1-SIM pending: Docker window) | `services/lti-service/src/http/operator/platforms.test.ts > operator platform list > returns only the account platforms ... without an audit event`, `returns NOT_FOUND ... without an audit event`, `keeps a closed account readable without an audit event` + `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > BD-A2-53` | as AC-04 | Reading `/operator/v1/accounts/:id/platforms` (`200` active, `200` closed, or `404` unknown) writes 0 audit rows. `e5-15-r2-unit.log` |
+
+### R0 `npm run check` counts at `5b5b3a2` (`check.log`)
+
+| Suite | Round 1 (`d40826d`) | Round 2 (`5b5b3a2`) |
+| --- | --- | --- |
+| Vitest (`test:unit`) | 155 files; 2,498 passed, 5 skipped | 164 files; 2,625 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 243 pass, 0 fail (23 suites) | 252 pass, 0 fail (23 suites) |
+| K0 (`test:k0`) | 3 files; 121 passed | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | `F1 PASS: 20 files with hits, 74 hits` | `F1 PASS: 20 files with hits, 74 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules, 0 hits` |
+
+### Round 2 other checks
+
+- **File scope (`676b7d9` and `f4530b9`):** Fix round 1 touches `services/lti-service/src/http/{auth,auth-scope.test,service-key-write-scope.test,ttl-lru-cache,key-errors}.ts`, `services/lti-service/src/http/operator/{index,platforms,platforms.test}.ts`, `services/lti-service/src/http/routes/{service-key-admin,services.test}.ts`, and `services/lti-service/src/lti/service-keys.ts` (`B-LA-E5-15-05` dead branch removed in `f4530b9`) (`task-merges-stat.txt`).
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/qa2-r6-5b5b3a2/clone` is empty after the run (`status-after.txt`, 0 bytes).
+- **Measured time (Round 2):** Focused 8-file unit run (`e5-15-r2-unit.log`, 51 tests): `1.20 s`; QA-2 host-only suite checks (`tsc --noEmit`, `vitest list` 7 `K1-SIM` cases including `BD-A2-53`, `node --check run.mjs`): `1.7 s`.
+
+---
+
+## Round 1
+
+| Item | Value |
+| --- | --- |
+| SHA | `d40826d765649b5ece01e23d26e53ccd2df7a14b` (integration `d40826d`; holds `LA-E5-15` merge `e67819c` and QA-2 suite `d40826d`) |
+| Lane and slot | lane S2 (with RQ-2 lines in S1 and L files); no Docker (`HOST-ONLY`; `K1-SIM` rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/qa2-r5-d40826d/clone`: `git clone --no-hardlinks --no-checkout`, detached at `d40826d765649b5ece01e23d26e53ccd2df7a14b`, push URL `DISABLED`, `npm ci` at root and `tests/` |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/qa2-r5-d40826d/logs/` (umask 077): `npm-ci.log`, `check.log`, `e5-15-unit.log`, `e5-15-qa-host.log`, `task-merges-stat.txt`, `rev.txt`, `remotes.txt`, `status-after.txt` |
+
+### Round 1 acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-15-01 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-01` | `npx --prefix tests tsc --noEmit -p tests/ltiaas/tasks-ops/LA-E5-15/tsconfig.json && npx --prefix tests vitest list --config tests/ltiaas/tasks-ops/LA-E5-15/vitest.config.mts` | Waits for a SIM Docker window (`POST /api/service-keys/revoke {platformId}` → `200 {revoked: n}` with `n >= 1`, and revoked service key gives the same `401` as an unknown service key). Unit checks pass now in `services/lti-service/src/store/service-keys.test.ts` and `services/lti-service/src/http/routes/service-key-admin.test.ts` (`e5-15-unit.log`, `e5-15-qa-host.log`). |
+| AC-LA-E5-15-02 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-02` | as AC-01 | Waits for a SIM Docker window (revoke with `resourceLinkId` revokes only that resource link while another resource link on the same platform still gets `2xx`). Filter isolation passes at unit level in `store/service-keys.test.ts > combines every revoke filter, limits it to the account and counts only newly revoked rows` (`e5-15-unit.log`). |
+| AC-LA-E5-15-03 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-03` | as AC-01 | Waits for a SIM Docker window (next learner launch after revoke issues a different `services.serviceKey` that passes score POST while the old key stays `401`). Epoch advancement passes at unit level in `store/service-keys.test.ts > a revoked key stays invalid while the next launch advances the epoch exactly once` (`e5-15-unit.log`). |
+| AC-LA-E5-15-04 | PASS (UNIT) | `services/lti-service/src/store/service-keys.test.ts > service keys with the key provider (LA-E5-08) > AC-LA-E5-15-04: epoch 0 keeps the golden inputs; epoch 1 adds a length-framed epoch part` + `service keys (contract §3.3) > a revoked key stays invalid while the next launch advances the epoch exactly once` + `rolls back a failed re-issue without losing its revocation or advancing the epoch` | `npx --no-install vitest run --reporter=verbose services/lti-service/src/store/service-keys.test.ts services/lti-service/src/http/auth-scope.test.ts services/lti-service/src/http/operator/service-keys.test.ts services/lti-service/src/http/routes/service-key-admin.test.ts services/lti-service/src/api-errors.test.ts` | For the same `(account, platform, deployment, context, resourceLink)` tuple, `epoch = 0` produces the exact pre-LA-E5-15 derived key, while `epoch = 1` appends a length-framed epoch field and produces a different key. `e5-15-unit.log` |
+| AC-LA-E5-15-05 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-05` | as AC-01 | Waits for a SIM Docker window (`serviceKeyWriteScope: "resource-link"` on a fresh account gives `403 SERVICE_KEY_SCOPE` on another resource link's line item and `2xx` on its own). Unit checks for `BD-A2-47` (fast path on `claims.ags.lineitem`, guarded AGS GET, 10-min TTL / 10,000-entry LRU cache, propagation of `PLATFORM_ERROR` and `PLATFORM_RATE_LIMITED`) pass in `http/auth-scope.test.ts` (8 cases, `e5-15-unit.log`). |
+| AC-LA-E5-15-06 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-06` | as AC-01 | Waits for a SIM Docker window (`LTIK-AUTH-V2` score POST with `serviceKeyWriteScope: "resource-link"` is unaffected). Verified at unit level in `http/auth-scope.test.ts > accepts the claimed lineitem without a GET and leaves other auth/account modes unchanged` (`e5-15-unit.log`). |
+| AC-LA-E5-15-07 | pending: Docker window | `tests/ltiaas/tasks-ops/LA-E5-15/service-keys.test.ts > AC-LA-E5-15-07` | as AC-01 | Waits for a SIM Docker window (key with `scopes: ["launch"]` on `POST /api/service-keys/revoke` gets `403 API_KEY_SCOPE_MISSING`; tenant and operator revokes each write one `service_key.revoke` audit event). Unit checks pass in `http/operator/service-keys.test.ts` (`BD-A2-12` suspended/closed account revokes allowed) and `http/routes/service-key-admin.test.ts` (9 cases, `e5-15-unit.log`). |

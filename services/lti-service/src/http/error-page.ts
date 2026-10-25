@@ -1,5 +1,6 @@
 // Protocol error pages (security §2.2). API errors (JSON) use ApiError and the typed code list in @cogniate/shared.
 import { escapeHtml } from '@cogniate/shared';
+import { lmsNameOf } from '../profiles/index.ts';
 
 export { escapeHtml };
 
@@ -17,9 +18,10 @@ export const ERROR_PAGE_HEADERS: Record<string, string> = {
 
 /**
  * Error page (security §2.2): the code, the trace id and one action line. <main data-error-code data-trace-id>,
- * and the next-action sentence is in <p data-error-action>.
+ * and the next-action sentence is in <p data-error-action>. Default `lms`: the product standard channel. A test with
+ * its own profile registry must give `lms`.
  */
-export function renderErrorPage(code: string, traceId: string, action: string, detail?: string, heading = 'The launch did not work', lms = 'Moodle'): string {
+export function renderErrorPage(code: string, traceId: string, action: string, detail?: string, heading = 'The launch did not work', lms = lmsNameOf(null)): string {
   const c = escapeHtml(code);
   const t = escapeHtml(traceId);
   const extra = detail ? `\n    <p>${escapeHtml(lms)} said: <code>${escapeHtml(detail)}</code></p>` : '';

@@ -1,4 +1,7 @@
-import { MoodleCourse } from "./MoodleCourse.tsx";
+import { PUBLICATION_OPTION } from "@cogniate/channel-kernel";
+import { useChannels } from "../channels/context.tsx";
+import { createPortalSdk } from "../sdk/index.ts";
+import { useNavigate } from "react-router";
 import { Select } from "../ui/input.tsx";
 import { buttonVariants, Button } from "../ui/button.tsx";
 import { useState } from "react";
@@ -19,6 +22,8 @@ export function PublishDialog({
   onClose: () => void;
   onPublished: () => void;
 }) {
+  const { modules } = useChannels();
+  const sdk = createPortalSdk(useNavigate());
   const { data, error: loadError } = useApi<{ connections: Connection[] }>(
     "/connections",
   );
@@ -33,7 +38,7 @@ export function PublishDialog({
         connection.status === "registered" || connection.status === "connected",
     ) ?? [];
   const connection = ready.find((item) => item.id === connectionId);
-  const canCreateCourse = connection?.lms === "moodle" && connection.capabilities.courseShell && !!connection.webServices;
+  const canCreateCourse = connection?.capabilities.courseShell && !!connection.webServices;
   const versions = course.versions ?? [];
   const [versionId, setVersionId] = useState(versions.at(-1)?.id ?? "");
   const selectedVersion = versions.find((version) => version.id === versionId);
@@ -50,7 +55,7 @@ export function PublishDialog({
           connectionId: form.get("connectionId"),
           versionId: form.get("versionId"),
           ...(canCreateCourse && createCourse
-            ? { createMoodleCourse: {} }
+            ? { [PUBLICATION_OPTION]: {} }
             : {}),
         },
       });
@@ -64,11 +69,11 @@ export function PublishDialog({
   }
   if (result)
     return (
-      <Modal title="Published to Moodle" onClose={onPublished}>
+      <Modal title={`Published to ${lmsNames[result.lms]}`} onClose={onPublished}>
         <div role="status">
-          <p>This course is available in the Moodle content picker.</p>
+          <p>This course is available in the {lmsNames[result.lms]} content picker.</p>
         </div>
-        <MoodleCourse publication={result} />
+        {modules.get(result.lms)?.publicationPanels?.map((Panel, index) => <Panel key={index} publication={result} onChanged={onPublished} sdk={sdk} />)}
         <Button variant="primary" onClick={onPublished} autoFocus>Done</Button>
       </Modal>
     );
@@ -140,7 +145,7 @@ export function PublishDialog({
                 disabled={busy}
                 onChange={(event) => setCreateCourse(event.target.checked)}
               />
-              Also create an empty Moodle course
+              Also create an empty {connection ? lmsNames[connection.lms] : "LMS"} course
             </label>
           )}
           {selectedVersion?.report?.scorm?.title && (

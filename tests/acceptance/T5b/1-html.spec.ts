@@ -20,6 +20,7 @@ import {
   newHangingContext,
   openPlayer,
   packageFrame,
+  runtimeState,
   t5,
   waitForMoodle,
   waitForRow,
@@ -55,6 +56,7 @@ test('AC-T5-36 hanging hosts: every non-*.test request hangs; cg_student complet
   try {
     const user = seed().users.cg_student;
     const player = await openPlayer(context, user, cmidOf(ACT.htmlHang));
+    await expect.poll(async () => (await runtimeState(player.token)).json?.html?.progress.seenPages ?? [], { timeout: 20_000 }).toContain('index');
     await driveCourse(player, { answer: 'correct' });
     const done = Date.now();
     const left = () => Math.max(1_000, done + 60_000 - Date.now());

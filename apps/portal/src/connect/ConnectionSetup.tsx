@@ -1,5 +1,4 @@
 import { buttonVariants, Button } from "../ui/button.tsx";
-import { Notice } from "../ui/notice.tsx";
 import { useState } from "react";
 import { Link } from "react-router";
 import { ApiError, idPath } from "../api.ts";
@@ -7,18 +6,21 @@ import { useApi } from "../hooks.ts";
 import { useSession } from "../App.tsx";
 import type { Connection, Lms } from "../types.ts";
 import { ConnectionError, ErrorNotice, Loading } from "../ui.tsx";
-import { DynamicSetup } from "./DynamicSetup.tsx";
-import { ManualSetup } from "./ManualSetup.tsx";
-import { ConnectionOverview, ConnectionReady } from "./ConnectionStatus.tsx";
-import { WebServices } from "./WebServices.tsx";
+import { ConnectionOverview } from "./ConnectionStatus.tsx";
 import { DisconnectDialog } from "./DisconnectDialog.tsx";
 import { NotFound } from "../NotFound.tsx";
 import { ProviderSetup } from "./ProviderSetup.tsx";
-import { CanvasBinding } from "./canvas/CanvasBinding.tsx";
-import { Card } from "../ui/card.tsx";
+import { ConnectionCheck } from "./ConnectionCheck.tsx";
+import { ConnectionHealth } from "./ConnectionHealth.tsx";
+import { useChannels } from "../channels/context.tsx";
+import { channelOf } from "../channels/registry.ts";
+import { createPortalSdk } from "../sdk/index.ts";
+import { useNavigate } from "react-router";
 
-export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }: { id: string; lms?: Lms; opener?: string }) {
+export function ConnectionSetup({ id, lms, opener = `${lms}-manage` }: { id: string; lms: Lms; opener?: string }) {
   const { library } = useSession();
+  const { modules } = useChannels();
+  const navigate = useNavigate();
   const {
     data: connection,
     setData,
@@ -33,7 +35,7 @@ export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }
     reload();
     list.reload();
   }
-  if ((connection && connection.lms !== lms) || (error instanceof ApiError && error.status === 404)) return <NotFound />;
+  if ((connection && channelOf(connection) !== lms) || (error instanceof ApiError && error.status === 404)) return <NotFound />;
   if (!connection)
     return (
       <>
@@ -50,47 +52,10 @@ export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }
       <ErrorNotice error={error} />
       <ErrorNotice error={list.error} />
       <ConnectionError connection={connection} libraryName={library.name} />
-      {connection.status === "disabled" ? (
-        <Notice>
-          {lms === "moodle" ? "This connection is disconnected. Delete the old Cogniate tool in Moodle before you connect again."
-            : "This connection is disconnected. Connecting again does not restore its old course items."}
-        </Notice>
-      ) : lms !== "moodle" ? (
-        <>
-          {connection.status !== "pending" && <ConnectionReady connection={connection} libraryName={library.name} />}
-          <ProviderSetup key={`${lms}:${id}`} lms={lms} connection={connection} opener={opener} onCreated={changed} onChanged={changed} />
-          {lms === "canvas" && connection.capabilities.addDeployment && connection.status !== "pending" &&
-            <Card className="flex flex-col gap-5">
-              <h2>Add deployment ID</h2>
-              <CanvasBinding key={id} connection={connection} onChanged={changed} addDeployment />
-            </Card>}
-        </>
-      ) : connection.status === "pending" ? (
-        connection.method === "dynamic" ? (
-          <DynamicSetup
-            connection={connection}
-            libraryName={library.name}
-            onChanged={changed}
-          />
-        ) : (
-          <ManualSetup
-            connection={connection}
-            libraryName={library.name}
-            onRegistered={changed}
-          />
-        )
-      ) : (
-        <ConnectionReady connection={connection} libraryName={library.name} />
-      )}
-      {lms === "moodle" && connection.status !== "disabled" && (
-        <Notice>
-          To reconnect, delete the old Cogniate tool in Moodle. Then disconnect
-          this connection and connect again. Cogniate refuses every tool update.
-        </Notice>
-      )}
-      {lms === "moodle" && connection.capabilities.webServices && connection.status !== "disabled" && (
-        <WebServices key={connection.id} connection={connection} onSaved={reload} />
-      )}
+      <ProviderSetup key={`${lms}:${id}`} lms={lms} connection={connection} opener={opener} onCreated={changed} onChanged={changed} />
+      <ConnectionCheck connection={connection} />
+      <ConnectionHealth connection={connection} />
+      {connection.status !== "disabled" && modules.get(lms)?.connectionPanels?.map((Panel, index) => <Panel key={index} connection={connection} sdk={createPortalSdk(navigate, reload)} />)}
       <div className="flex flex-wrap items-center gap-3">
         <Link
           className={buttonVariants({ variant: "secondary", size: "default" })}

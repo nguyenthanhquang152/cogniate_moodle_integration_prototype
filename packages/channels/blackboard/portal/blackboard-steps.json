@@ -1,0 +1,25 @@
+{
+  "format": "cogniate-blackboard-steps/1",
+  "steps": [
+    {
+      "id": "blackboard-site",
+      "title": "Your Blackboard Learn site",
+      "verified": false
+    },
+    {
+      "id": "blackboard-register",
+      "title": "Register Cogniate in Blackboard Learn",
+      "verified": false
+    },
+    {
+      "id": "blackboard-approval",
+      "title": "Save the Blackboard values",
+      "verified": false
+    },
+    {
+      "id": "blackboard-teacher",
+      "title": "Add a Cogniate course in Blackboard",
+      "verified": false
+    }
+  ]
+}

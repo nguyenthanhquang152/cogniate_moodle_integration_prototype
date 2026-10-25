@@ -56,7 +56,9 @@ function ResultsView({ publicationId }: { publicationId: string }) {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const lmsName = publication.data ? lmsNames[publication.data.lms] : "LMS";
+  // The publication gives the channel. The rows need it, so they render only when it is known (BD-A1-65).
+  const lms = publication.data?.lms;
+  const lmsName = publication.data ? lmsNames[publication.data.lms] ?? "LMS" : "LMS";
   async function refresh() {
     setBusy("refresh");
     setError(null);
@@ -158,7 +160,7 @@ function ResultsView({ publicationId }: { publicationId: string }) {
           <p>Results appear after a learner opens this course from {lmsName}.</p>
         </Empty>
       )}
-      {!!results.data?.rows.length && publication.data && (
+      {!!results.data?.rows.length && lms !== undefined && (
         <Card spacing="results">
           <div className="overflow-x-auto">
             <table className="results-table min-w-[850px] [&_caption]:pl-3 [&_th]:max-w-[240px] [&_td]:max-w-[240px] [&_th]:wrap-anywhere [&_td]:wrap-anywhere">
@@ -179,7 +181,7 @@ function ResultsView({ publicationId }: { publicationId: string }) {
                 {results.data.rows.map((row) => (
                   <ResultTableRow
                     row={row}
-                    lms={publication.data?.lms ?? "moodle"}
+                    lms={lms}
                     key={rowKey(row)}
                     busy={!!busy}
                     onResend={(sync) => {
@@ -206,12 +208,13 @@ export function ResultTableRow({
   row,
   busy,
   onResend,
-  lms = "moodle",
+  lms,
 }: {
   row: ResultRow;
   busy: boolean;
   onResend: (sync: ScoreSync) => void;
-  lms?: Lms;
+  /** The channel of the publication. Required: no default LMS (BD-A1-65). */
+  lms: Lms;
 }) {
   const lmsName = lmsNames[lms];
   const latest = row.scoreSyncs.at(-1);

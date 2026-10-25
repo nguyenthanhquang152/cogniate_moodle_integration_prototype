@@ -14,8 +14,8 @@ export function isPlatformUsable(p: Platform, opts: ProfileOptions): boolean {
 }
 
 /** The LMS name of a stored platform for texts (security §12); a stored unknown profile keeps its LMS name. */
-export function platformLmsName(p: Platform | null): LmsName {
-  return lmsNameOf(p ? profileDefinition(p.profile) : null);
+export function platformLmsName(p: Platform | null, opts: ProfileOptions = { simulation: true }): LmsName {
+  return lmsNameOf(p ? profileDefinition(p.profile, opts) : null, opts);
 }
 
 /** The deployment of a launch or service key, or null when the platform has no such row. */

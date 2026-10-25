@@ -22,11 +22,12 @@ describe('profile registry', () => {
   it('has the exact Blackboard values of ADR-011 §6', () => {
     const bb = findProfile('blackboard', { simulation: false })!;
     expect(bb).toMatchObject({
-      lms: 'blackboard', sharing: 'shared', issuer: 'https://blackboard.com', siteUrlOn: 'deployment', serviceUrl: false, productFamily: 'blackboardlearn',
+      lms: 'blackboard', privacyFloor: 'allowlist', sharing: 'shared', issuer: 'https://blackboard.com', siteUrlOn: 'deployment', serviceUrl: false, productFamily: 'blackboardlearn',
       authenticationEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oidcauth',
       accesstokenEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken',
       jwksUrl: 'https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json',
-      flags: { deepLinkingResponseSub: true, clientAssertionAudArray: true, minimizeClaims: true, serviceOriginCheck: true },
+      flags: { deepLinkingResponseSub: true, serviceOriginCheck: true },
+      clientAssertionAud: { value: '{tokenEndpoint}', form: 'array' }, dynamicRegistration: null,
     });
     expect(profileEndpoints(bb, { clientId: 'a/b c' }).jwksUrl).toBe('https://developer.blackboard.com/api/v1/management/applications/a%2Fb%20c/jwks.json');
     expect(profileFixedHosts(bb)).toEqual(['blackboard.com', 'developer.blackboard.com']);

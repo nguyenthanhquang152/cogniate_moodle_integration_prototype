@@ -1,0 +1,67 @@
+Verdict: APPROVE
+Round: 2
+
+# LA-E5-24 — Reviewer-B
+
+## Round 1
+
+Reviewer: Codex GPT-6-Astra, Reviewer-B (can a human team own it?), 2026-10-23 UTC. Scope: QA-E2E commits `fa3ecc6a` and `4ec50888`, integrated in `29636fae`; all four drill files and `qa.md` read in full. Integration snapshot: `9b918a7e0fba8dbdf3d366e655da61646b90f812`.
+
+### Findings
+
+**B-LA-E5-24-01 — MAJOR — Failed drill diagnostics can retain a runtime bearer token.**
+
+- **Location:** `tests/e2e/ltiaas/run-la-e5-24.mjs:592` (also `:532–533` and `la-e5-24-container-step.mjs:141`).
+- **Problem:** The final `loadCapturedSecrets()` call runs only on success. A post-restore helper failure jumps past it; the `finally` block only removes the external backup. Operators cannot safely share the failed-run evidence without another secret scrub.
+- **Evidence:** The container helper records the newly issued runtime token at line 446, then makes requests under `/rt/<token>`. Its timeout error includes the complete pathname. `r.exec` saves that error in `cmd/16-e524-post-restore-verify.log` before the caller asserts exit 0. The shared runner's final redaction replaces only registered secret values; neither its error handler nor its cleanup reads this newly updated captured-secrets file. A private host self-test extracted the actual command wrapper and post-restore error/finally path, stubbed the command execution to write a synthetic captured token and return a timeout error, and applied the real `Redactor`: the added assertion failed, while the original five tests passed. Moving the capture load into `finally` made all six pass. No Docker, network request, or live drill ran in this probe.
+- **Suggested fix:** Load captured secrets on every container-step exit, including failure, before reporting or finalizing artifacts; retain backup cleanup if loading fails. Do not put bearer-bearing paths into timeout messages. Add a host regression test for a failed request after runtime-token capture, checking the final saved diagnostic rather than only the backup record.
+
+**B-LA-E5-24-02 — MINOR — The help usage points to a nonexistent entry point.**
+
+- **Location:** `tests/e2e/ltiaas/run-la-e5-24.mjs:310` (inherited help in `tests/host/core.mjs:53–54`).
+- **Problem/evidence:** This entry point passes `task: 'LA-E5-24'` to `createRunner`, which prints `node tests/host/run-la-e5-24.mjs --sha <commit>`. That file does not exist; the actual entry point is `tests/e2e/ltiaas/run-la-e5-24.mjs`. The source-header example is correct, but an operator following `--help` gets a module-not-found error.
+- **Suggested fix:** Provide drill-specific usage with the actual path and distinguish live execution from the host self-test/dry-run. If the shared help needs an entry-point parameter, request that change through its owner.
+
+**B-LA-E5-24-03 — MINOR — Two backup hashes in the QA narrative disagree with its linked evidence.**
+
+- **Location:** `docs/reviews/LA-E5-24/qa.md:69`.
+- **Problem/evidence:** The final run's AC-01 row gives database SHA-256 prefixes `ab2df16e...` and `a874f632...`. Its linked `drill-backup-manifest.json` and `drill-backup-record.json` both give `31912432...` for `lti.db` and `07f5daea...` for `cogniate.db`. The backup ID, project and sizes agree. This transcription mismatch makes an operator checking backup identity investigate the wrong hashes; it does not invalidate the manifest validation.
+- **Suggested fix:** Copy the actual prefixes from the final run, or omit the redundant hashes and link the manifest.
+
+### Verification and ownership
+
+- Reviewed against `CLAUDE.md`, base charter §§1/5, charter-LA, plan §6.1, task AC-01–06, operability §§7.1–7.3 and operator-runbook §13. The sequence matches the same-project cold-backup drill: stop, external database/content copy, record key-version IDs, write marker, stop, restore content/databases, restart, verify marker absence and learner/score flow, then remove the QA project. No storage-command or product change is included. The runbook's pending-verification wording needs the normal Docs evidence update; it is not a new code finding.
+- All six task ACs are K1-SIM; there is no UNIT AC or changed product behavior requiring an old-product mutant. The five host self-tests cover real SQLite backup/restore, damaged/missing/incomplete/mismatched backups, planted secret forms, marker removal, content restoration and timing arithmetic. They passed in `/tmp/la-review-b-2ece617d7a9a` after its own `npm ci` (`/tmp/la-e5-24-b-r1-selftest.log`). The redaction failure probe and positive control are in `/tmp/la-e5-24-b-r1-redaction-probe.log` and `/tmp/la-e5-24-b-r1-redaction-fixed-probe.log`; the temporary extended self-test is saved at `/tmp/la-e5-24-b-r1-redaction-probe.selftest.mjs`. All private mutations were restored; the clone is clean.
+- Read the existing final-run `summary.json`, backup manifest/record, secret-scan, post-restore and metrics artifacts under `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24/r2/artifacts/qa-e2e-la-drill-r2-56038618-2026-10-23T20-36-36-947Z/`: 10/10 PASS, marker absent/404, package and commit 200, simulator score 90/100, portal status `sent`, RTO 26.574 s and RPO 19.815 s. The first-run summary has seven PASS rows and one ERROR/FAIL, as disclosed. These are inspected QA evidence, not a live rerun by this reviewer.
+- The diff stays within the dispatched QA harness and QA report; no must-not-edit product/infra path or LMS-specific core path changed. Only this Reviewer-B report was written in integration. No other reviewer's file was opened; no Docker, stack, drill entry point, commit or push was executed.
+
+**Result:** CHANGES_REQUESTED — 0 BLOCKER, 1 MAJOR, 2 MINOR, 0 NIT. Fix failure-path redaction and verify the saved diagnostic before approval; the two MINOR items can be deferred under charter §5.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, Reviewer-B, 2026-10-23 UTC. Scope: QA fix `57d58bfb`, integrated in `ce5a01b7`; diff from `29636fae` across the four drill files and `qa.md` Round 3. Reviewed at integration snapshot `3655427efaab1ca626d62c2cd51ac740795f5c9e`.
+
+### Round 1 closure
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E5-24-01 (MAJOR) | Closed | `installLiveSecretRedaction` registers newly captured secrets before each use of the runner's redactor, scrubs saved diagnostics after each container step, and finalizes in the outer `finally` while preserving backup cleanup. The container helper sanitizes timeout URLs and scrubs remembered values in its error handler. The new host test covers exit 1, timeout and thrown exception, including command log, summary, terminal output and cleanup. Disabling candidate registration in a private negative control makes that regression test fail on the saved command log. |
+| B-LA-E5-24-02 (MINOR) | Closed | The entry point now handles `--help` and missing commit/checkout arguments before shared-runner initialization. Its help names `tests/e2e/ltiaas/run-la-e5-24.mjs`, distinguishes live and host-only modes, and is checked by a real `--help` subprocess in the host test. |
+| B-LA-E5-24-03 (MINOR) | Closed | The corrected full database hashes in `qa.md` match both saved Round 2 manifest and backup record. All 12 helper hashes in the three-column provenance table also match their corresponding committed blobs. |
+
+### New finding
+
+**B-LA-E5-24-04 — MINOR — The host verification statement overstates line coverage.**
+
+- **Location:** `docs/reviews/LA-E5-24/qa.md:50`.
+- **Problem:** After correctly listing the changes that the earlier live run did not exercise, the report says all those changed lines were exercised on the host. This makes the remaining verification boundary unclear to the next operator.
+- **Evidence:** The new failure-path self-test explicitly mirrors shared-runner behavior with `simulatedExec` (`la-e5-24-drill.selftest.mjs:441–518`). It exercises the redaction helper, but does not execute the live entry-point wiring at `run-la-e5-24.mjs:334–354` or the container's top-level catch. The dry-run exits at line 316 and only syntax-checks the container helper at lines 89–95. Thus the host tests support helper behavior and CLI help, not execution of every listed live/container line.
+- **Suggested fix:** Replace the blanket statement with the exact boundary: helper behavior and help exercised by host tests; live/container wiring reviewed and the container script syntax-checked; no new live drill. This is a documentation correction and does not require an unauthorized live run.
+
+### Verification and limits
+
+- `TMPDIR=/tmp node --test tests/e2e/ltiaas/la-e5-24-drill.selftest.mjs` passed **7/7** in the fresh private clone `/tmp/la-review-b-10fe84382d0a`, after its own `npm ci`; log: `/tmp/la-e5-24-b-r2-selftest.log`. The test itself invokes only the runner's early `--help` exit. The private mutation removing `redact.add` from secret synchronization produced **6 PASS / 1 expected FAIL** on B-01; log: `/tmp/la-e5-24-b-r2-no-secret-sync.log`. The mutation was restored and the private clone is clean.
+- The same-project cold-backup/restore procedure and its six K1-SIM ACs are unchanged; there are no UNIT ACs. The new code stays in the assigned QA harness/report, adds no LMS name to core paths, and changes no product or storage command. The governing documents and relevant runbook/design sections have not changed since Round 1.
+- This review closes the three original findings using source review, the permitted host tests and saved evidence. It does not claim a new live drill. No Docker, stack, dry-run drill, commit or push was executed. No other reviewer's file was opened. Only this report changed in integration; the pre-existing untracked QA slot brief was left untouched.
+
+**Result:** APPROVE — all three Round 1 findings closed; 0 BLOCKER, 0 MAJOR, 1 new MINOR, 0 NIT. B-LA-E5-24-04 can be corrected or deferred under charter §5.

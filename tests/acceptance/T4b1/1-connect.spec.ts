@@ -115,7 +115,7 @@ test.describe.serial('T4b1 connect', () => {
       ['tool_configuration_usage', 'Tool configuration usage', 'Show in activity chooser and as a preconfigured tool'],
       ['launch_container', 'Default launch container', 'New window'],
       ['ags', 'IMS LTI Assignment and Grade Services', 'Use this service for grade sync and column management'],
-      ['nrps', 'IMS LTI Names and Role Provisioning', "Use this service to retrieve members' information as per privacy settings"],
+      ['nrps', 'IMS LTI Names and Role Provisioning', 'Do not use this service'],
       ['share_name', "Share launcher's name with tool", 'Never'],
       ['share_email', "Share launcher's email with tool", 'Never'],
       ['accept_grades', 'Accept grades from the tool', 'As specified in Deep Linking definition or Delegate to teacher'],

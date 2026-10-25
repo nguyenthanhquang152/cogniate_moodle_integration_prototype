@@ -1,33 +1,7 @@
 import { admin, app, assert, cli, createConnection, expectStatus, httpsRequest, m1Test, session, sharedPlatform, unique, urls } from './client';
-
-const expectedProfiles = [
-  { id: 'standard', lms: null, sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
-    accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false },
-  ...['production', 'beta', 'test'].map((tier) => {
-    const part = tier === 'production' ? '' : tier + '.';
-    return { id: 'canvas-cloud-' + tier, lms: 'canvas', sharing: 'exclusive',
-      issuer: `https://canvas.${part}instructure.com`,
-      authenticationEndpoint: `https://sso.${part}canvaslms.com/api/lti/authorize_redirect`,
-      jwksUrl: `https://sso.${part}canvaslms.com/api/lti/security/jwks`,
-      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
-      siteUrlOn: 'platform', serviceUrl: true, simulation: false };
-  }),
-  { id: 'canvas-self-hosted', lms: 'canvas', sharing: 'exclusive', issuer: '{siteUrl}',
-    authenticationEndpoint: '{siteUrl}/api/lti/authorize_redirect', jwksUrl: '{siteUrl}/api/lti/security/jwks',
-    accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', siteUrlOn: 'platform', serviceUrl: true, simulation: false },
-  ...[false, true].map((simulation) => {
-    const domain = simulation ? 'blackboard.sim.test' : 'blackboard.com';
-    return { id: simulation ? 'blackboard-sim' : 'blackboard', lms: 'blackboard', sharing: 'shared',
-      issuer: `https://${domain}`, authenticationEndpoint: `https://developer.${domain}/api/v1/gateway/oidcauth`,
-      accesstokenEndpoint: `https://developer.${domain}/api/v1/gateway/oauth2/jwttoken`,
-      jwksUrl: `https://developer.${domain}/api/v1/management/applications/{clientId}/jwks.json`,
-      siteUrlOn: 'deployment', serviceUrl: false, simulation };
-  }),
-  { id: 'canvas-sim-cloud', lms: 'canvas', sharing: 'exclusive', issuer: 'https://canvas.sim.test',
-    authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect',
-    jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks',
-    accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', siteUrlOn: 'platform', serviceUrl: true, simulation: true },
-];
+import {
+  BASELINE_PROFILES, BASELINE_SIMULATION_PROFILES, checkProfiles, checkSimulationProfiles, registeredChannels,
+} from '../../lib/open-world.mjs';
 
 m1Test('M1-21.common.moodle-grant-refused', 'operator cannot issue approval grants for Moodle', async () => {
   const s = await session();
@@ -39,14 +13,18 @@ m1Test('M1-21.common.moodle-grant-refused', 'operator cannot issue approval gran
 
 m1Test('M1-01.common.constants', 'all production and simulation profile constants and order', async () => {
   const result = await admin('GET', '/api/providers'); expectStatus(result, 200);
-  assert.deepEqual(result.json.profiles.map((p: any) => {
-    const { label, sharedPlatform: ignored, ...values } = p;
-    assert.equal(typeof label, 'string'); return values;
-  }), expectedProfiles);
+  const s = await session(), providers = await app(s, 'GET', '/app-api/lms-providers'); expectStatus(providers, 200);
+  const registered = registeredChannels(providers.json);
+  // LD-1 open world (LA-E0-04, row 1): the 8 baseline profiles keep their values and order, extra fields are
+  // allowed, and each extra profile belongs to a registered channel.
+  checkProfiles(result.json.profiles, BASELINE_PROFILES, { registered });
+  for (const profile of result.json.profiles) assert.equal(typeof profile.label, 'string');
   for (const profile of result.json.profiles) assert.equal(profile.sharedPlatform, null);
   const health = await httpsRequest(urls.lti + '/healthz');
   expectStatus(health, 200);
-  assert.deepEqual(JSON.parse(health.body).simulation_profiles, ['blackboard-sim', 'canvas-sim-cloud']);
+  // Row 2: the 2 baseline simulation profiles in order; each extra id is the simulation profile of a registered channel.
+  checkSimulationProfiles(JSON.parse(health.body).simulation_profiles, BASELINE_SIMULATION_PROFILES,
+    { profiles: result.json.profiles, registered });
   assert.deepEqual(JSON.parse(health.body).knobs, []);
 });
 
@@ -123,7 +101,7 @@ m1Test('M1-19.common.moodle-configuration', 'Moodle export keeps all 16 keys and
     ['initiate_login_url', urls.lti + '/lti/login/cogniate'], ['redirection_uris', urls.lti + '/lti/launch/cogniate'],
     ['deep_linking', 'Yes'], ['content_selection_url', urls.lti + '/lti/launch/cogniate'],
     ['tool_configuration_usage', 'Show in activity chooser and as a preconfigured tool'], ['launch_container', 'New window'],
-    ['ags', 'Use this service for grade sync and column management'], ['nrps', "Use this service to retrieve members' information as per privacy settings"],
+    ['ags', 'Use this service for grade sync and column management'], ['nrps', 'Do not use this service'],
     ['share_name', 'Never'], ['share_email', 'Never'], ['accept_grades', 'As specified in Deep Linking definition or Delegate to teacher'],
   ];
   assert.deepEqual(rows.json.map((row: any) => [row.key, row.value]), expected);

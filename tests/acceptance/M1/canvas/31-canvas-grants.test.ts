@@ -116,7 +116,6 @@ const SCOPES = [
   'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
   'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
   'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-  'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
 ];
 export function expectedCanvasJson(libraryName: string, domain: string, key?: Json) {
   return {

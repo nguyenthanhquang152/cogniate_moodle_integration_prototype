@@ -1,0 +1,30 @@
+{
+  "id": "LA-IC-17",
+  "approval": "docs/reviews/LA-E1-07/qa.md",
+  "ld9": {
+    "epic": "E1 (LA-E1-07, lane K)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-41)",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d5-app-channel-contract-and-portal-slot-contract",
+      "docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md#34"
+    ],
+    "goldenFields": [],
+    "testChanges": [],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/acceptance/T4b1/1-connect.spec.ts:128-134",
+      "tests/acceptance/T4b1/3-security.spec.ts:116",
+      "tests/acceptance/T4b1/4-adoption.spec.ts:17-24,54,65,75",
+      "tests/acceptance/T6/2-connect.spec.ts:133,148-151",
+      "tests/acceptance/M1/canvas/41-canvas-grades.test.ts:89-90",
+      "tests/acceptance/M1/canvas/61-canvas-containment.test.ts:156-158",
+      "tests/acceptance/lib/portal.ts:28",
+      "tests/e2e/2-scenario-b.spec.ts:52",
+      "tests/ltiaas/golden/capture.golden.ts:194-200 (G1 Moodle connections stay pending; golden capture makes no app PUT /app-api/connections/:id/platform call)",
+      "tests/acceptance/lib/qa-platform.ts:43 (QA platform used by golden capture is registered directly via POST /api/platforms)"
+    ],
+    "scanResult": "0 golden changes and 0 frozen-test changes: every Moodle/standard PUT /app-api/connections/:id/platform body in the portal and frozen acceptance/e2e suites sends only the 6 documented keys (issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl), while golden capture (capture.golden.ts:194-200) leaves G1 Moodle connections pending and makes no PUT /app-api/connections/:id/platform call."
+  },
+  "changes": []
+}

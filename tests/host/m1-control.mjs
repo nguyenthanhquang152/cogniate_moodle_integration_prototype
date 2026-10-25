@@ -14,7 +14,7 @@ export function m1HostControl(r, runCommand = run) {
   const compose = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env'];
   let stopped = false;
   async function execute(req) {
-    if (!r.state.h1Verified || !/^qa-/.test(r.PROJECT)) return { code: 2, stdout: '', stderr: 'QA project guard', durationMs: 0 };
+    if (!r.state.h1Verified || !/^(?:qa[234]?|qalead)-[a-z0-9-]+$/.test(r.PROJECT)) return { code: 2, stdout: '', stderr: 'QA project guard', durationMs: 0 };
     if (req.action === 'm1-cli') {
       if (!['app:grant', 'app:binding', 'lti:shared-platform'].includes(req.script)
         || !Array.isArray(req.args) || req.args.some((a) => typeof a !== 'string' || a.includes('\0'))

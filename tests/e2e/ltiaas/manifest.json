@@ -1,0 +1,102 @@
+{
+  "suite": "LA-E7-07 K2 Browser Conformance Kit (U1-U4)",
+  "task": "LA-E7-07",
+  "requiredAcs": [
+    "AC-LA-E7-07-01",
+    "AC-LA-E7-07-02",
+    "AC-LA-E7-07-03",
+    "AC-LA-E7-07-04",
+    "AC-LA-E7-07-05",
+    "AC-LA-E1-11-04",
+    "AC-LA-E1-11-05",
+    "AC-LA-E2-05-03",
+    "AC-LA-E3-02-08",
+    "AC-LA-E3-02-09"
+  ],
+  "cases": [
+    {
+      "id": "U1.card-order",
+      "unit": "U1",
+      "file": "01-u1-cards.k2.ts",
+      "acs": ["AC-LA-E7-07-01", "AC-LA-E1-11-04", "AC-LA-E2-05-03"],
+      "title": "Integrations hub renders every registered channel card in manifest card.order order, matching GET /app-api/lms-providers"
+    },
+    {
+      "id": "U1.card-copy-and-action",
+      "unit": "U1",
+      "file": "01-u1-cards.k2.ts",
+      "acs": ["AC-LA-E7-07-01", "AC-LA-E1-11-04", "AC-LA-E2-05-03"],
+      "title": "every channel card renders its manifest card.title, card.description, card.mark, and Connect action routing to /integrations/:channelId/connect"
+    },
+    {
+      "id": "U2.step1-create-fields",
+      "unit": "U2",
+      "file": "02-u2-wizards.k2.ts",
+      "acs": ["AC-LA-E7-07-02", "AC-LA-E1-11-05", "AC-LA-E2-05-03"],
+      "title": "Step 1 of every channel renders Connection name, manifest setup.createFields, registration method radios, and enforces Site URL Rule 1"
+    },
+    {
+      "id": "U2.step2-artifacts-and-tool-rows",
+      "unit": "U2",
+      "file": "02-u2-wizards.k2.ts",
+      "acs": ["AC-LA-E7-07-02", "AC-LA-E1-11-05", "AC-LA-E2-05-03"],
+      "title": "Step 2 of every channel renders registration URL (dynamic), developer-key-json only when setup.artifacts has it, and exact tool-configuration rows (manual)"
+    },
+    {
+      "id": "U2.step3-binding-fields-and-defaults",
+      "unit": "U2",
+      "file": "02-u2-wizards.k2.ts",
+      "acs": ["AC-LA-E7-07-02", "AC-LA-E1-11-05", "AC-LA-E2-05-03"],
+      "title": "Step 3 of every channel renders its manifest setup.bindingFields, pre-fills FieldSpec.default values, and gates Approval code on operatorGrant authority"
+    },
+    {
+      "id": "U2.admin-steps-texts",
+      "unit": "U2",
+      "file": "02-u2-wizards.k2.ts",
+      "acs": ["AC-LA-E7-07-02", "AC-LA-E1-11-05", "AC-LA-E2-05-03"],
+      "title": "every channel wizard renders manifest.texts.adminSteps with {LMS} and {tool} filled and zero raw placeholder tokens"
+    },
+    {
+      "id": "U3.lti-generic.dynamic-self",
+      "unit": "U3",
+      "file": "03-u3-new-channels-flow.k2.ts",
+      "acs": ["AC-LA-E7-07-03", "AC-LA-E2-05-03"],
+      "title": "lti-generic Dynamic Registration with same-origin endpoints completes without a grant, publishes a course, picks via Deep Linking, and syncs learner score 100"
+    },
+    {
+      "id": "U3.lti-generic.dynamic-staged-foreign-host",
+      "unit": "U3",
+      "file": "03-u3-new-channels-flow.k2.ts",
+      "acs": ["AC-LA-E7-07-03", "AC-LA-E2-05-03"],
+      "title": "lti-generic Dynamic Registration with a foreign token host stages the platform, switches the wizard to operatorGrant, refuses CLI grant without --confirm-foreign-hosts, and registers with --accept-staged --confirm-foreign-hosts"
+    },
+    {
+      "id": "U3.lti-generic.manual-grant",
+      "unit": "U3",
+      "file": "03-u3-new-channels-flow.k2.ts",
+      "acs": ["AC-LA-E7-07-03", "AC-LA-E2-05-03"],
+      "title": "lti-generic manual wizard refuses a mismatched jwksUrl with GRANT_MISMATCH, registers with matching bound values, and completes publish, Deep Linking, and learner score sync"
+    },
+    {
+      "id": "U3.brightspace.manual-flow",
+      "unit": "U3",
+      "file": "03-u3-new-channels-flow.k2.ts",
+      "acs": ["AC-LA-E7-07-03", "AC-LA-E2-05-03"],
+      "title": "brightspace manual wizard shows the 9 D2L tool rows and 5 D2L defaults, registers with foreign token host + custom tokenAudience + UUID deployment, and completes Deep Linking and score sync with custom assertion aud"
+    },
+    {
+      "id": "U4.platform-storage.positive",
+      "unit": "U4",
+      "file": "04-u4-platform-storage.k2.ts",
+      "acs": ["AC-LA-E7-07-04", "AC-LA-E3-02-08"],
+      "title": "framed Canvas Cloud launch with __Host-lti_state_* stripped from POST /lti/launch/cogniate recovers state via lti.put_data and lti.get_data on https://sso.canvas.sim.test and opens the player"
+    },
+    {
+      "id": "U4.platform-storage.negative",
+      "unit": "U4",
+      "file": "04-u4-platform-storage.k2.ts",
+      "acs": ["AC-LA-E7-07-05", "AC-LA-E3-02-09"],
+      "title": "in the same cookie-stripped framed Canvas Cloud launch, lti.get_data.response from another origin or with another message_id is ignored and the frame shows STATE_COOKIE_MISSING after 1.5 s"
+    }
+  ]
+}

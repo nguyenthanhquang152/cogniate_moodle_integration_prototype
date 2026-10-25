@@ -1,3 +1,5 @@
+import { seedLegacyDispatch } from '../kernel/records/records.testkit.ts';
+import { TEST_CHANNELS } from '../testkit.ts';
 // The common grant redemption and cleanup engine (app contract §4.7 to §4.9, ADR-011 §4a, §4b), unit level: the fake
 // LTI service models deployments, binding refs, generations and the M3 §3.3 fault actions (fail_before, drop_after,
 // late write, live schedules). Black-box evidence is QA's (AC-M1-28, -29, -37, -38).
@@ -26,18 +28,14 @@ let t: TestApp;
 afterEach(async () => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); await t?.app.close(); });
 
 /** A Moodle web services client that must never be called for another LMS (no outbound call). */
-const noWs = {
-  siteInfo: () => { throw new Error('web services called'); },
-  courseByIdnumber: () => { throw new Error('web services called'); },
-  createCourse: () => { throw new Error('web services called'); },
-};
+const noWs = { allowlist: [], request: async () => { throw new Error('web services called'); } };
 
 async function setup() {
-  t = await testApp({ moodleWs: noWs });
+  t = await testApp({ outbound: noWs });
   const shared = t.lti.addSharedPlatform('blackboard-sim', BB);
   const logger = createLogger({ service: 'cogniate-app', level: 'debug', write: (l) => t.logs.push(JSON.parse(l)) });
   const cleanup = createBindingCleanup({ db: t.db, lti: t.lti.client, logger, now: () => t.clock.now });
-  const op = createOperator({ db: t.db, lti: t.lti.client, logger, cleanup, now: () => t.clock.now });
+  const op = createOperator({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger, cleanup, now: () => t.clock.now });
   const a = await t.login(THANH);
   const b = await t.login(QA_B);
   const libraryOf = (name: string) => String(t.db.prepare('SELECT id FROM library WHERE name = ?').get(name)!.id);
@@ -171,7 +169,7 @@ describe('grants and Blackboard redemption (§4.7.1, §4.8; AC-M1-28, -29 unit l
     expect((await putBb(a, conA4, 'dX', gA4.code)).status).toBe(502);
     const refused = await op.issue({ library: libA, connection: conA4.id, site: conA4.siteUrl, clientId: BB, deploymentId: 'dY', note: 'x', traceId: 't' });
     expect(refused.exitCode).toBe(1);
-    insertGrant(t.db, { libraryId: libA, connectionId: conA4.id, lms: 'blackboard', profile: 'blackboard-sim', purpose: 'initial', siteUrl: conA4.siteUrl,
+    insertGrant(t.db, { libraryId: libA, connectionId: conA4.id, channel: 'blackboard', profile: 'blackboard-sim', purpose: 'initial', siteUrl: conA4.siteUrl,
       serviceUrl: conA4.siteUrl, clientId: BB, deploymentId: 'dY', note: 'x', expiresAt: t.clock.now + 60_000 }, (await import('@cogniate/shared')).sha256Hex('Y'.repeat(43)), t.clock.now);
     expect(code(await putBb(a, conA4, 'dY', 'Y'.repeat(43)))).toBe('DEPLOYMENT_FIXED');
   });
@@ -374,7 +372,10 @@ describe('redemption faults and races (§4.7.1 outcome table; AC-M1-37 unit leve
     expect((await putCanvas(a, k1, 'dA', g1.code)).status).toBe(502);
     const platform = [...t.lti.platforms.values()].find((p) => p.profile === 'canvas-sim-cloud')!;
     expect(platform.active).toBe(true);
-    expect(code(await putCanvas(a, k2, 'dA', g2.code))).toBe('PLATFORM_IN_USE');
+    const inUse = await putCanvas(a, k2, 'dA', g2.code);
+    // LA-E1-12: the channel text name fills the M1 Canvas text byte for byte.
+    expect([code(inUse), inUse.json.details.description]).toEqual(['PLATFORM_IN_USE',
+      'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.']);
     expect((await call('DELETE', `/app-api/connections/${k1.id}`, a)).status).toBe(204);
     expect(events('binding_fenced').at(-1)).toMatchObject({ result: 'fenced' });
     const ok = await putCanvas(a, k2, 'dA', g2.code);
@@ -496,14 +497,14 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     t.db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES ('pub_s', ?, 'crs_s', 'ver_s', 'available', 0, 0)").run(con.id);
     t.db.prepare("INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title, created_at, updated_at) VALUES ('rl_s', ?, 'pub_s', 'dA', 'c', 'r', 'C', 'T', 0, 0)").run(con.id);
     t.db.prepare("INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, outcome, score_given, score_maximum, created_at, updated_at) VALUES ('att_s', 'rl_s', 'u', 'ver_s', 0, 'completed', 7, 10, 0, 0)").run();
-    t.db.prepare("INSERT INTO score_sync (id, attempt_id, resource_link_id, user_sub, payload, score_given, score_maximum, status, tries, created_at, next_try_at, updated_at) VALUES ('sync_s', 'att_s', 'rl_s', 'u', '{}', 7, 10, 'pending', 2, 0, ?, 0)").run(t.clock.now + 30_000);
-    const { createScoreSyncWorker } = await import('../worker/score-sync.ts');
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
+    seedLegacyDispatch(t.db, { id: 'sync_s', attemptId: 'att_s', tries: 2, createdAt: 0, nextTryAt: t.clock.now + 30_000 });
+    const { createDispatchHarness } = await import('../kernel/records/dispatch.testkit.ts');
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
     await worker.kick();
-    expect(t.db.prepare("SELECT status FROM score_sync WHERE id = 'sync_s'").get()?.status).toBe('pending');
+    expect(t.db.prepare("SELECT status FROM record_dispatch WHERE id = 'sync_s'").get()?.status).toBe('pending');
     t.clock.now += 30_000;
     await worker.kick();
-    expect(t.db.prepare("SELECT status, tries, last_error FROM score_sync WHERE id = 'sync_s'").get()).toEqual({ status: 'failed', tries: 2, last_error: 'CONNECTION_DISABLED' });
+    expect(t.db.prepare("SELECT status, tries, last_error FROM record_dispatch WHERE id = 'sync_s'").get()).toEqual({ status: 'failed', tries: 2, last_error: 'CONNECTION_DISABLED' });
     expect(t.lti.scores).toEqual([]);
     expect(code(await call('POST', '/app-api/score-syncs/sync_s/resend', a))).toBe('CONNECTION_NOT_READY');
     expect(code(await call('POST', '/app-api/publications/pub_s/results/refresh', a))).toBe('CONNECTION_NOT_READY');
@@ -531,7 +532,8 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     expect(rows.json.map((r: Json) => r.key)).toEqual(['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields', 'grade_service', 'membership_service', 'placement']);
     expect(rows.json[0].value).toBe(BB);
     const providers = (await call('GET', '/app-api/lms-providers', a)).json.lms;
-    expect(providers.map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
+    // Open world: the baseline entries first; new channels may follow.
+    expect(providers.slice(0, 3).map((p: Json) => p.lms)).toEqual(['moodle', 'canvas', 'blackboard']);
     expect(providers[2].profiles).toEqual([
       { id: 'blackboard', label: 'Blackboard Learn', simulation: false, ready: false, clientId: null },
       { id: 'blackboard-sim', label: 'Blackboard Learn (simulation)', simulation: true, ready: true, clientId: BB },
@@ -1139,15 +1141,17 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
-    const { blackboardProvider } = await import('../providers/blackboard.ts');
-    const parser = blackboardProvider.parsePlatformBody;
+    // A channel without app.ts gets the kernel admin-value adapter (A1 BD-A1-79), so no adapter means a channel that
+    // is not in the registry.
+    const lookup = vi.spyOn(TEST_CHANNELS, 'appAdapter').mockReturnValue(null);
+    const manifest = vi.spyOn(TEST_CHANNELS, 'channel').mockReturnValue(null);
     try {
-      delete blackboardProvider.parsePlatformBody;
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
-      blackboardProvider.parsePlatformBody = parser!;
+      lookup.mockRestore();
+      manifest.mockRestore();
     }
   });
 
@@ -1155,7 +1159,7 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
     const { con, submit, libA } = await endpoint('canvas');
     expect((await submit()).status).toBe(200);
     eraseSnapshot(con.id);
-    insertGrant(t.db, { libraryId: libA, connectionId: con.id, lms: 'canvas', profile: con.profile, purpose: 'initial', siteUrl: con.siteUrl, serviceUrl: con.serviceUrl,
+    insertGrant(t.db, { libraryId: libA, connectionId: con.id, channel: 'canvas', profile: con.profile, purpose: 'initial', siteUrl: con.siteUrl, serviceUrl: con.serviceUrl,
       clientId: 'cA', deploymentId: 'other', note: 'unreachable CLI fixture', expiresAt: t.clock.now + 60_000 }, (await import('@cogniate/shared')).sha256Hex(UNKNOWN_CODE), t.clock.now);
     t.lti.calls.length = 0;
     expect(code(await submit({ grantCode: UNKNOWN_CODE, deploymentId: 'other' }))).toBe('CONNECTION_NOT_PENDING');
@@ -1305,7 +1309,7 @@ describe('A-M1-03/04: bounded calls and cancellation at S2', () => {
     const lti = { ...t.lti.client, getProviders: remote.getProviders, getPlatform: remote.getPlatform, findPlatforms: remote.findPlatforms };
     if (kind === 'canvas') lti.createProviderPlatform = async () => { throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', ''); };
     if (kind === 'add_deployment') lti.addDeployment = async () => { throw new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', ''); };
-    const engine = createRedemptionEngine({ db: t.db, lti, logger, now: () => t.clock.now });
+    const engine = createRedemptionEngine({ urls: TEST_URLS, channels: TEST_CHANNELS, db: t.db, lti, logger, now: () => t.clock.now });
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     let settled = false;
     const pending = engine.redeem({ connectionId: con.id, libraryId: libA, purpose: kind === 'add_deployment' ? kind : 'initial',
@@ -1399,5 +1403,41 @@ describe('A-M1-05/06: HTTP-correlated refusals and committed success audit', () 
     expect(t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(con.id)).toEqual(approvals);
     expect(t.db.prepare('SELECT * FROM fail_phase2_commit').all()).toEqual([]);
     expect(attempts(con.id).at(-1)?.state).toBe('open');
+  });
+});
+
+
+describe('LA-E1-06 cleanup target kinds', () => {
+  it('suspend of an initial and an add-deployment attempt fences one exclusive platform', async () => {
+    const { con, op, submit } = await endpoint('add_deployment');
+    expect((await submit()).status).toBe(200);
+    const platformId = getConnectionAnyLibrary(t.db, con.id)!.ltiPlatformId!;
+    t.lti.calls.length = 0;
+    const result = await op.suspend(con.id, 'cleanup', 't');
+    expect(result.exitCode).toBe(0);
+    expect(t.lti.calls.filter((c) => c.startsWith('PATCH'))).toEqual([expect.stringContaining(`PATCH platform ${platformId} `)]);
+    expect(t.lti.platforms.get(platformId)?.active).toBe(false);
+  });
+
+  it('revoke of an unapproved add-deployment grant switches off only its deployment', async () => {
+    const { con, op, g, submit } = await endpoint('add_deployment');
+    t.lti.faults.push({ op: 'PATCH deployment', action: 'fail_before' });
+    expect((await submit()).status).toBe(502);
+    const platformId = getConnectionAnyLibrary(t.db, con.id)!.ltiPlatformId!;
+    const added = deployment(platformId, 'dB')!;
+    // Model a remote activation with no local approval, as after a lost activation answer.
+    added.active = true;
+    t.lti.calls.length = 0;
+    expect((await op.revoke(g.id, 't')).exitCode).toBe(0);
+    expect(t.lti.calls.filter((c) => c.startsWith('PATCH'))).toEqual([expect.stringContaining(`PATCH deployment ${platformId} dB `)]);
+    expect(added.active).toBe(false);
+    expect(t.lti.platforms.get(platformId)?.active).toBe(true);
+    expect(deployment(platformId, 'dA')?.active).toBe(true);
+  });
+
+  it('a pending shared connection with no attempt keeps the frozen no-reservation line', async () => {
+    const { op, a } = await setup();
+    const con = await bbConnection(a);
+    expect((await op.suspend(con.id, 'cleanup', 't')).lines).toContain('Binding: Blackboard: no reservation');
   });
 });

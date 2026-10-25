@@ -1,5 +1,6 @@
 // NRPS 2.0 membership service; contract §3.7. Only identifiers, roles and status leave this client.
-import type { OutboundClient } from '@cogniate/shared';
+import type { Logger, OutboundClient } from '@cogniate/shared';
+import { createLogger } from '@cogniate/shared';
 import { z } from 'zod';
 import { ApiError } from '../api-errors.ts';
 import { isAllowedServiceUrl, withQuery } from '../lti/service-url.ts';
@@ -21,13 +22,20 @@ export interface NrpsContext {
   platform: Platform;
   nrpsClaim: Record<string, unknown> | null;
   traceId: string;
+  /** The deployment of the launch or service key, for the client assertion (LA-ADR-02 D2 assertionDeploymentId). */
+  deploymentId?: string;
 }
 
 export interface MembershipsQuery { role?: string; limit?: number; resourceLinkId?: string; url?: string }
 
-export function createNrpsClient(deps: { outbound: OutboundClient; tokens: TokenClient }) {
+export function createNrpsClient(deps: { outbound: OutboundClient; tokens: TokenClient; logger?: Logger }) {
+  const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   return {
     async listMemberships(ctx: NrpsContext, q: MembershipsQuery) {
+      const versions = ctx.nrpsClaim?.service_versions;
+      if (versions !== undefined && (!Array.isArray(versions) || !versions.includes('2.0'))) {
+        throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch does not support NRPS 2.0.');
+      }
       const base = ctx.nrpsClaim?.context_memberships_url;
       if (typeof base !== 'string' || !base) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no NRPS URL.');
       // Check the raw URL before parsing it or asking for a platform token.
@@ -35,7 +43,7 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
       if (!isAllowedServiceUrl(candidate, base)) throw new ApiError('INVALID_URL_PARAMETER');
       // NRPS accepts both a short role name and a full URI. Pass either unchanged (NRPS §2.4.1).
       const url = q.url ?? withQuery(base, { role: q.role, limit: q.limit, rlid: q.resourceLinkId });
-      const token = await deps.tokens.getToken(ctx.platform, [NRPS_SCOPE], ctx.traceId);
+      const token = await deps.tokens.getToken(ctx.platform, [NRPS_SCOPE], ctx.traceId, { deploymentId: ctx.deploymentId });
       let res;
       try {
         res = await deps.outbound.request(url, {
@@ -43,7 +51,8 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
           headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.ims.lti-nrps.v2.membershipcontainer+json' },
         });
       } catch (err) { throw outboundFailureError(err); }
-      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { echoMessage: false }); // Roster errors must not echo personal data.
+      // Roster errors must not echo personal data.
+      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { echoMessage: false, context: { logger, platformId: ctx.platform.id, traceId: ctx.traceId } });
       let json: unknown;
       try { json = res.json(); } catch { throw badPlatformDataError('memberships are not JSON'); }
       const parsed = Memberships.safeParse(json);

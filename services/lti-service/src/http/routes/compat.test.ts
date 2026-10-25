@@ -54,6 +54,28 @@ describe('T3c compat routes with real API authorization', () => {
   });
   afterEach(async () => { await h.app.close(); h.db.close(); });
 
+  it('BD-A2-83: the scope choice and the create preflight use the platform grant; a grant refusal is not stored for the key', async () => {
+    const grant = (scopes: string[] | null) => h.db.prepare('UPDATE platform SET granted_scopes = ? WHERE id = ?').run(scopes ? JSON.stringify(scopes) : null, h.platform.id);
+    const headers = auth();
+    // The launch has lineitem.readonly and lineitem; the platform granted only lineitem: the read uses lineitem.
+    grant([AGS_SCOPES.lineitem]);
+    expect((await h.app.inject({ url: `/api/lineitems/${enc(ITEM)}`, headers })).statusCode).toBe(200);
+    expect(new URLSearchParams(String(calls[0]!.req?.body)).get('scope')).toBe(AGS_SCOPES.lineitem);
+    // Only score granted: the create is refused before the idempotency claim, with no outbound call.
+    grant([AGS_SCOPES.score]);
+    calls = [];
+    const post = () => h.app.inject({ method: 'POST', url: '/api/lineitems', headers: { ...headers, 'idempotency-key': 'grant-key' }, payload: item });
+    const refused = await post();
+    expect([refused.statusCode, refused.json().details.message, refused.json().details.description])
+      .toEqual([403, 'SERVICE_NOT_AVAILABLE', 'The platform did not grant the scope for this call.']);
+    expect(calls).toEqual([]);
+    // After a new grant, the same key runs the create: the 403 was not stored.
+    grant(null);
+    const created = await post();
+    expect(created.statusCode).toBe(201);
+    expect(calls.map((c) => c.url)).toContain(BASE);
+  });
+
   it('normalizes only leading slashes and always reports Basic Outcomes unavailable, independently of AGS', async () => {
     for (const over of [{}, { [CLAIM.ags]: undefined, [CLAIM.nrps]: undefined }]) {
       const headers = auth(over);
@@ -238,6 +260,37 @@ describe('T3c compat routes with real API authorization', () => {
     expect(calls).toEqual([]);
   });
 
+  it.each([true, false])('all Deep Linking routes sign cancellation with accept_multiple %s (LA-E3-04 AC-07)', async (accept_multiple) => {
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN, accept_types: ['ltiResourceLink'], accept_multiple, data: 'cancel-data' } }, 'LtiDeepLinkingRequest');
+    for (const suffix of ['', '/message', '/form']) {
+      const response = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [] } });
+      expect(response.statusCode, suffix).toBe(200);
+      const body = response.json();
+      const jwt = suffix === '/form' ? /name="JWT" value="([^"]+)"/.exec(body.form)![1]! : body.message;
+      const { payload } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(h.db, 'cogniate') }), { issuer: CLIENT_ID, audience: ISSUER });
+      expect(payload[DL_CLAIM.contentItems]).toEqual([]);
+      expect(payload[DL_CLAIM.data]).toBe('cancel-data');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('all Deep Linking routes refuse line items when accept_lineitem is false and accept the ungraded item (LA-E3-04 AC-07)', async () => {
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN, accept_types: ['ltiResourceLink'], accept_lineitem: false } }, 'LtiDeepLinkingRequest');
+    const contentItem = { type: 'ltiResourceLink', title: 'Ungraded', url: LAUNCH };
+    for (const suffix of ['', '/message', '/form']) {
+      const refused = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [{ ...contentItem, lineItem: item }] } });
+      expect([refused.statusCode, refused.json().details.message], suffix).toEqual([400, 'INVALID_CONTENT_ITEM']);
+      expect(refused.body).toContain('the platform does not accept line items');
+      const accepted = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [contentItem] } });
+      expect(accepted.statusCode, suffix).toBe(200);
+      const body = accepted.json();
+      const jwt = suffix === '/form' ? /name="JWT" value="([^"]+)"/.exec(body.form)![1]! : body.message;
+      const { payload } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(h.db, 'cogniate') }), { issuer: CLIENT_ID, audience: ISSUER });
+      expect(payload[DL_CLAIM.contentItems]).toEqual([contentItem]);
+    }
+    expect(calls).toEqual([]);
+  });
+
   it.each([
     'javascript:alert(document.domain)',
     'data:text/html,<script>alert(1)</script>',
@@ -277,7 +330,7 @@ describe('T3c compat routes with real API authorization', () => {
     const service = await serviceAuth(headers);
     const dl = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN } }, 'LtiDeepLinkingRequest');
     for (const suffix of ['form', 'message']) {
-      for (const [credential, expected, payload] of [[headers, 403, { contentItems: [item] }], [service, 401, {}], [dl, 400, { contentItems: [] }]] as const) {
+      for (const [credential, expected, payload] of [[headers, 403, { contentItems: [item] }], [service, 401, {}], [dl, 400, { contentItems: null }]] as const) {
         const r = await h.app.inject({ method: 'POST', url: `/api/deeplinking/${suffix}`, headers: credential, payload });
         expect(r.statusCode).toBe(expected);
       }
@@ -312,6 +365,31 @@ describe('T3c compat routes with real API authorization', () => {
     const r = await h.app.inject({ method: 'PUT', url: `/api/lineitems/${enc(ITEM)}`, headers: auth(), payload });
     expect(r.statusCode).toBe(201);
     expect(JSON.parse(String(calls.at(-1)!.req!.body))).toEqual(payload);
+  });
+
+  it('keeps URL-keyed line item members on POST, PUT, GET and list (LA-E3-11 AC-05)', async () => {
+    const headers = auth();
+    const extensions = { 'https://platform.test/lineitem': { nested: [1, 'two', true] }, 'https://platform.test/optional': null };
+    const payload = { ...item, ...extensions };
+    const stored = { id: ITEM, ...payload };
+    for (const credential of [headers, await serviceAuth(headers)]) {
+      for (const method of ['POST', 'PUT'] as const) {
+        answer = () => response(201, { id: ITEM, ...JSON.parse(String(calls.at(-1)!.req!.body)), unknown: 'drop this' });
+        const result = await h.app.inject({ method, url: method === 'POST' ? '/api/lineitems' : `/api/lineitems/${enc(ITEM)}`,
+          headers: credential, payload: { ...payload, unknown: 'drop this', 'http://platform.test/extension': 'drop this too' } });
+        expect(result.statusCode).toBe(201);
+        expect(JSON.parse(String(calls.at(-1)!.req!.body))).toEqual(payload);
+        expect(result.json()).toEqual(stored);
+      }
+      answer = () => response(200, { ...stored, unknown: 'drop this', 'http://platform.test/extension': 'drop this too' });
+      const read = await h.app.inject({ url: `/api/lineitems/${enc(ITEM)}`, headers: credential });
+      expect(read.statusCode).toBe(200);
+      expect(read.json()).toEqual(stored);
+      answer = () => response(200, [stored]);
+      const list = await h.app.inject({ url: '/api/lineitems', headers: credential });
+      expect(list.statusCode).toBe(200);
+      expect(list.json()).toEqual({ lineItems: [stored] });
+    }
   });
 
   it('all writes reject readonly or missing scopes before any outbound attempt', async () => {

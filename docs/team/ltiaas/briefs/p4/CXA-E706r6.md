@@ -1,0 +1,13 @@
+# Review dispatch: Reviewer-A (Codex, same session), one finding re-check (QA kit)
+
+Item 1: LA-E7-06, re-check of A-LA-E7-06-08 only (the product owner allowed one narrow fix after your round 5; Reviewer-B approved round 5 with 0 open). QA-K's fix: la-qa acbc0feb, integration e17a7a44: verifyBilateralCapabilities compares the GET /app-api/lms-providers map with the channel-level keys only (every catalog key except the profile-level traits platform.sharing and site.serviceOrigin, parsed from LA-ADR-01 D3), and the connection DTO with every key of its selected profile, both directions, exact values; new K0 probes (kit K0 25/25). QA-K replayed your round 5 probe read only: the C1 check now gets no errors for the real 15-key provider and 17-key Canvas connection maps. Diff: `git diff 1698489b e17a7a44 -- tests/ltiaas/kit docs/reviews/LA-E7-06/qa.md`.
+Rerun your C1 probe and the K0 kit check; say CLOSED or OPEN for A-08 with evidence, and note any new defect in the changed lines only. Never start Docker. Add "## Round 6 (A-08 re-check)" to docs/reviews/LA-E7-06/reviewer-a.md; keep the first lines "Verdict:" and "Round:" current.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===

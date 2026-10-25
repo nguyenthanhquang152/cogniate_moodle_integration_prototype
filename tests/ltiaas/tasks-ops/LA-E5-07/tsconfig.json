@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./**/*.ts", "../LA-E5-01/operator.ts", "../LA-E5-02/audit-client.ts"]
+}

@@ -1,4 +1,5 @@
 import { GraduationCap } from "lucide-react";
+import type { ChannelManifest } from "@cogniate/channel-kernel";
 import { cn } from "./ui/utils.ts";
 
 const colors = {
@@ -12,26 +13,29 @@ const colors = {
   purple: "bg-[#f9f7fc] text-[#6543dc] text-[35px] tracking-[-2px]",
 };
 export function IntegrationLogo({
-  name = "Moodle",
-  mark = "m",
+  name = "",
+  mark = "",
+  icon,
   color = "orange",
   large = false,
 }: {
   name?: string;
   mark?: string;
-  color?: keyof typeof colors;
+  icon?: ChannelManifest["card"]["icon"];
+  color?: string;
   large?: boolean;
 }) {
   return (
     <span
       aria-hidden="true"
+      title={name}
       className={cn(
         "inline-grid shrink-0 place-items-center font-bold",
         large ? "size-14 rounded-[14px]" : "size-[42px] rounded-[10px]",
-        colors[color],
+        colors[color as keyof typeof colors] ?? colors.blue,
       )}
     >
-      {name === "Moodle" ? <GraduationCap size={28} /> : mark}
+      {icon === "graduation-cap" ? <GraduationCap size={28} /> : mark}
     </span>
   );
 }

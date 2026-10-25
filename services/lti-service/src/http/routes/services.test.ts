@@ -57,9 +57,9 @@ async function setup() {
     const who = String(req.headers['x-test-caller']);
     if (who === 'service') {
       if (!schemes.includes('service')) throw new ApiError('INVALID_AUTHORIZATION_HEADER');
-      return { scheme: 'service', account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
+      return { scheme: 'service', serviceKeyHash: 'unit-service-key-hash', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
     }
-    return { scheme: 'ltik', account, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
+    return { scheme: 'ltik', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
   };
   const app = Fastify({ maxParamLength: 2048 });
   app.decorateRequest('traceId', 'trace-test');
@@ -116,6 +116,22 @@ describe('T3a routes', () => {
     expect(s.calls).toEqual([]);
   });
 
+  it('refuses a ninth extension or a value over 4 KB before any outbound call (LA-E3-11 AC-03)', async () => {
+    const s = await setup();
+    const score = { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded' };
+    const tooMany = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`https://platform.test/ext/${i}`, i]));
+    for (const extra of [tooMany, { 'https://platform.test/ext': 'x'.repeat(4095) }, { 'https://platform.test/ext': 'é'.repeat(2048) }]) {
+      for (const caller of ['rl', 'service']) {
+        const r = await s.app.inject({ method: 'POST', url: `/api/lineitems/${enc(LINE_ITEM)}/scores`,
+          headers: { 'x-test-caller': caller }, payload: { ...score, ...extra } });
+        expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+        expect(s.calls).toEqual([]);
+      }
+    }
+    await s.app.close();
+    s.db.close();
+  });
+
   it('GET line items, one line item and scores; a bad limit -> 400', async () => {
     const s = await setup();
     s.answers.push(() => s.res(200, [{ id: LINE_ITEM, label: 'QA DL', scoreMaximum: 100 }]));
@@ -140,11 +156,11 @@ describe('T3a routes', () => {
 
   it('serviceKeyForLaunch: AGS + context + resource link -> a stable key; a deep-linking launch -> none', async () => {
     const s = await setup();
-    const k1 = serviceKeyForLaunch(s.db, MASTER_KEY, s.rlLaunch, 1);
-    const k2 = serviceKeyForLaunch(s.db, MASTER_KEY, { ...s.rlLaunch, id: 'lch-2', claims: { ...s.rlLaunch.claims, sub: 'other-user' } }, 2);
+    const k1 = (await serviceKeyForLaunch(s.db, MASTER_KEY, s.rlLaunch, 1));
+    const k2 = (await serviceKeyForLaunch(s.db, MASTER_KEY, { ...s.rlLaunch, id: 'lch-2', claims: { ...s.rlLaunch.claims, sub: 'other-user' } }, 2));
     expect(k1).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(k2).toBe(k1);
     expect(findServiceKey(s.db, 'cogniate', k1!)).toMatchObject({ contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS });
-    expect(serviceKeyForLaunch(s.db, MASTER_KEY, s.dlLaunch, 3)).toBeUndefined();
+    expect((await serviceKeyForLaunch(s.db, MASTER_KEY, s.dlLaunch, 3))).toBeUndefined();
   });
 });
