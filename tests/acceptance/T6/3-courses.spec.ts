@@ -129,6 +129,7 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     await page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first().click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('Loading…')).toHaveCount(0);
     await expect(dialog, 'the registered/connected connection').toContainText('Dev Moodle');
     const text = (await dialog.innerText()).replace(/\s+/g, ' ');
     expect(text, 'the registered/connected connection').toContain('Dev Moodle');

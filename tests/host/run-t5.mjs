@@ -101,7 +101,7 @@ process.on('exit', unpauseNow);
 const ACTIONS = {
   'p5-remove-failed-sync': async (req) => ({ code: 0, fixture: await removeP5FailedSync(r, req.syncId) }),
   'p2-app-restart': async () => {
-    if (!r.state.h1Verified || !/^qa-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) return { code: 9 };
+    if (!r.state.h1Verified || !/^(?:qa|qalead)-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) return { code: 9 };
     let stoppedAt;
     let startedAt;
     try {
@@ -117,13 +117,13 @@ const ACTIONS = {
     return { code: 0, restart: { stoppedAt, startedAt } };
   },
   'moodle-pause': async () => {
-    if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+    if (!/^(?:qa|qalead)-/.test(r.PROJECT)) return { code: 9 };
     const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });
     if (res.code === 0) moodlePaused = true;
     return res;
   },
   'moodle-unpause': async () => {
-    if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+    if (!/^(?:qa|qalead)-/.test(r.PROJECT)) return { code: 9 };
     const res = await r.exec('compose-unpause-moodle', 'docker', [...COMPOSE, 'unpause', 'moodle'], { timeoutMs: 60_000 });
     if (res.code === 0) moodlePaused = false;
     return res;

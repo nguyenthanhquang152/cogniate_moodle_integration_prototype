@@ -90,7 +90,7 @@ const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? 'qa-t1-r1';
 const PUBLIC_PORT = process.env.PUBLIC_PORT ?? '8443';
 const STACK_SUBNET = process.env.STACK_SUBNET ?? '172.29.0.0/16';
 
-if (!/^qa-[a-z0-9-]+$/.test(PROJECT)) {
+if (!/^(?:qa|qalead)-[a-z0-9-]+$/.test(PROJECT)) {
   console.error(`COMPOSE_PROJECT_NAME must start with "qa-" (got "${PROJECT}"). QA never runs on another project.`);
   process.exit(2);
 }

@@ -24,13 +24,13 @@ export function createHostControl(r, extraActions = {}) {
   process.on('exit', unpauseNow);
   const actions = {
     'moodle-pause': async () => {
-      if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+      if (!/^(?:qa|qalead)-/.test(r.PROJECT)) return { code: 9 };
       const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });
       if (res.code === 0) paused = true;
       return res;
     },
     'moodle-unpause': async () => {
-      if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+      if (!/^(?:qa|qalead)-/.test(r.PROJECT)) return { code: 9 };
       const res = await r.exec('compose-unpause-moodle', 'docker', [...COMPOSE, 'unpause', 'moodle'], { timeoutMs: 60_000 });
       if (res.code === 0) paused = false;
       return res;

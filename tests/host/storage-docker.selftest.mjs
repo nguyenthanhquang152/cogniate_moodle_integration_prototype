@@ -97,17 +97,17 @@ test('HARNESS ONLY: QA container arguments follow the §11 table exactly', () =>
 });
 
 test('HARNESS ONLY: A-S-14 identity binding — the bound table matches; any one difference blocks', async () => {
-  const observed = { os: { version: '27.0.1', arch: 'arm64' }, cli: { version: '29.9.1', sha256: BOUND_IDENTITY.cli.sha256 },
-    compose: { version: 'v5.6.0', sha256: BOUND_IDENTITY.compose.sha256 } };
+  const observed = { os: { version: '27.0.1', arch: 'arm64' }, cli: { version: '29.9.2', sha256: BOUND_IDENTITY.cli.sha256 },
+    compose: { version: 'v5.6.1', sha256: BOUND_IDENTITY.compose.sha256 } };
   assert.deepEqual(compareIdentity(observed), { match: true, differences: [] }, 'A leading v of the Compose version is not significant');
   for (const [path, value] of [['os.version', '27.0.2'], ['os.arch', 'x86_64'], ['cli.version', '29.8.2'], ['cli.sha256', '0'.repeat(64)],
-    ['compose.version', '5.6.1'], ['compose.sha256', '1'.repeat(64)]]) {
+    ['compose.version', '5.6.0'], ['compose.sha256', '1'.repeat(64)]]) {
     const copy = JSON.parse(JSON.stringify(observed)); const [a, b] = path.split('.'); copy[a][b] = value;
     const result = compareIdentity(copy);
     assert.equal(result.match, false, path); assert.equal(result.differences.length, 1);
   }
-  const answers = { 'sw_vers -productVersion': '27.0.1', 'uname -m': 'arm64', "docker version --format {{.Client.Version}}": '29.9.1',
-    'docker compose version --short': '5.6.0', 'docker info --format {{json .ClientInfo.Plugins}}': JSON.stringify([{ Name: 'compose', Path: '/plug' }]) };
+  const answers = { 'sw_vers -productVersion': '27.0.1', 'uname -m': 'arm64', "docker version --format {{.Client.Version}}": '29.9.2',
+    'docker compose version --short': '5.6.1', 'docker info --format {{json .ClientInfo.Plugins}}': JSON.stringify([{ Name: 'compose', Path: '/plug' }]) };
   const exec = async (cmd, args) => ({ code: 0, stdout: answers[[cmd, ...args].join(' ')] ?? '' });
   const read = await readClientIdentity(exec, { which: async () => '/usr/local/bin/docker', realpath: (p) => p + '.real',
     hash: (p) => (p === '/usr/local/bin/docker.real' ? BOUND_IDENTITY.cli.sha256 : BOUND_IDENTITY.compose.sha256) });

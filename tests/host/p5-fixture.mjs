@@ -10,7 +10,7 @@ import { StorageLane } from './storage-lane.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export async function removeP5FailedSync(r, syncId) {
-  if (!r.state.h1Verified || !/^qa-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) {
+  if (!r.state.h1Verified || !/^(?:qa|qalead)-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) {
     throw new Error('P5 requires a verified fresh QA clone');
   }
   if (typeof syncId !== 'string' || !/^sync_[A-Za-z0-9_-]+$/.test(syncId)) throw new Error('Invalid sync id');

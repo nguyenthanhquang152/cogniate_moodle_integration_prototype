@@ -1,12 +1,42 @@
 // AC-M2-01: three LMS cards; each card shows only its own LMS's newest status (also with equal names and times);
 // the Moodle card and its flow are unchanged.
+import type { Page } from '@playwright/test';
 import { THANH } from '../../acceptance/lib/app';
 import {
   APP, BLACKBOARD, CLOUD, app, canvasClientId, canvasDeploymentId, issueGrant, ok, session, sharedPlatform, unique, urls,
 } from '../../acceptance/M1/canvas/browser';
 import { TEXT, button, card, expect, integrations, m2Case, manageControl, portalSignIn, shot } from './lib/m2';
+import { checkCards, extraChannelNames } from '../../acceptance/lib/open-world.mjs';
 
 const squash = (t: string) => t.replace(/\s+/g, ' ').trim();
+/** The visible cards of the grid that holds the Moodle card (the "LMS Publishing" filter), in page order, after loading settles. */
+const lmsCardTexts = async (page: Page) => {
+  const read = () => page.evaluate((moodleText) => {
+    const all = Array.from(document.querySelectorAll('body *'));
+    let cell = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
+    while (cell && cell.parentElement && getComputedStyle(cell.parentElement).display !== 'grid') cell = cell.parentElement;
+    if (!cell || !cell.parentElement) return [];
+    return Array.from(cell.parentElement.children)
+      .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 0)
+      .map((c) => {
+        const text = (c.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const article = c.matches('article[data-channel-id]') ? c : c.querySelector('article[data-channel-id]');
+        const channel = article ? article.getAttribute('data-channel-id') : null;
+        const controls = Array.from(c.querySelectorAll('a, button, [role="button"], [role="link"]'))
+          .filter((el) => /^(?:Connect|Manage)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()));
+        const hasLoadingLeaf = Array.from(c.querySelectorAll('*')).some(
+          (el) => el.children.length === 0 && /^Loading(?:…|\.\.\.)$/i.test((el.textContent ?? '').replace(/\s+/g, ' ').trim()),
+        );
+        const loading = controls.length === 0 || hasLoadingLeaf || /^(?:[A-Za-z0-9]{1,4}\s*)?Loading(?:…|\.\.\.)/.test(text);
+        return { text, channel, loading };
+      });
+  }, TEXT.moodleCard);
+  await expect.poll(async () => {
+    const cards = await read();
+    return cards.length > 0 && cards.every((c) => !c.loading);
+  }, { message: 'LMS Publishing cards finished loading' }).toBe(true);
+  return read();
+};
 
 m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Blackboard cards with their texts and initials', async ({ page }) => {
   await sharedPlatform();
@@ -15,6 +45,11 @@ m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Bl
   await expect(page.getByRole('heading', { name: 'Blackboard', exact: true })).toBeVisible();
   const moodle = card(page, TEXT.moodleCard), canvas = card(page, TEXT.canvasCard), bb = card(page, TEXT.blackboardCard);
   for (const c of [moodle, canvas, bb]) await expect(c).toBeVisible();
+  // LD-1 open world (LA-E0-04, row 6; BD-A1-119): the 3 baseline cards with their texts and data-channel-id, in this
+  // order; every channel card carries article[data-channel-id] matching GET /app-api/lms-providers; any card without
+  // data-channel-id is the G-BASE static Kajabi card.
+  const providers = await app(await session('A'), 'GET', '/app-api/lms-providers'); ok(providers, 200, 'lms-providers');
+  checkCards(await lmsCardTexts(page), [TEXT.moodleCard, TEXT.canvasCard, TEXT.blackboardCard], { names: extraChannelNames(providers.json) });
   await expect(canvas.getByText('Cv', { exact: true })).toBeVisible();
   await expect(bb.getByText('Bb', { exact: true })).toBeVisible();
   await shot(page, 'm2-01-cards');

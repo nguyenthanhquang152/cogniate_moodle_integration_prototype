@@ -3,9 +3,11 @@
 // Moodle action by its content: the labels and the words of its text.
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { REPO_ROOT } from '../../acceptance/lib/paths';
 
-export const STEPS_FILE = path.join(REPO_ROOT, 'apps', 'portal', 'src', 'connect', 'moodle-steps.json');
+export const STEPS_FILE = path.join(REPO_ROOT, 'packages', 'channels', 'moodle', 'portal', 'moodle-steps.json');
+export const MANIFEST_FILE = path.join(REPO_ROOT, 'packages', 'channels', 'moodle', 'manifest.ts');
 
 export interface MoodleStep {
   id: string;
@@ -26,18 +28,28 @@ export interface StepsFile {
 
 export function readSteps(): StepsFile {
   const raw = JSON.parse(fs.readFileSync(STEPS_FILE, 'utf8')) as Partial<StepsFile>;
-  const norm = (list: unknown): MoodleStep[] =>
-    (Array.isArray(list) ? list : []).map((s) => {
+  const manifestSrc = fs
+    .readFileSync(MANIFEST_FILE, 'utf8')
+    .replace(/^import\s+type\s+[^\n]+\n/gm, '')
+    .replace(/\bsatisfies\s+\w+/g, '')
+    .replace(/export\s+default\s+manifest\s*;?/, 'manifest;');
+  const manifest = vm.runInNewContext(manifestSrc) as { names?: { text?: string }; texts?: { adminSteps?: unknown[] } };
+  const lms = String(manifest?.names?.text ?? 'Moodle');
+  const adminSteps = (Array.isArray(manifest?.texts?.adminSteps) ? manifest.texts.adminSteps : []).map((t) =>
+    String(t ?? '').replaceAll('{LMS}', lms).replaceAll('{tool}', 'Cogniate ({libraryName})'),
+  );
+  const norm = (list: unknown, texts?: string[]): MoodleStep[] =>
+    (Array.isArray(list) ? list : []).map((s, i) => {
       const o = s as Partial<MoodleStep>;
       return {
         id: String(o.id ?? ''),
-        text: String(o.text ?? ''),
+        text: String(o.text ?? texts?.[i] ?? ''),
         menuPath: Array.isArray(o.menuPath) ? o.menuPath.map(String) : [],
         labels: Array.isArray(o.labels) ? o.labels.map(String) : [],
         optional: Boolean(o.optional),
       };
     });
-  return { format: String(raw.format ?? ''), moodleRelease: String(raw.moodleRelease ?? ''), dynamic: norm(raw.dynamic), manual: norm(raw.manual) };
+  return { format: String(raw.format ?? ''), moodleRelease: String(raw.moodleRelease ?? ''), dynamic: norm(raw.dynamic, adminSteps), manual: norm(raw.manual) };
 }
 
 /** Maps a step to the Moodle action that a person does for it. Order of the rules matters (see comments). */

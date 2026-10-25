@@ -20,9 +20,12 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { playwrightResults, verifyResults } from '../../acceptance/M1/common/coverage.mjs';
 import { createRunner } from '../../host/core.mjs';
-import { run, walkFiles } from '../../host/lib.mjs';
+import { httpsLoopback, run, walkFiles } from '../../host/lib.mjs';
 import { m1HostControl } from '../../host/m1-control.mjs';
 import { readM2Manifest } from '../M2/coverage.mjs';
+import {
+  BASELINE_SIMULATION_PROFILES, appLmsProviders, checkSimulationProfiles, registeredChannels, seedPortalUser,
+} from '../../acceptance/lib/open-world.mjs';
 
 const testsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const options = { 'test-sha': { type: 'string' }, 'harness-only': { type: 'boolean', default: false } };
@@ -121,7 +124,14 @@ await r.main(async () => {
   r.loadStackFiles(); await r.checkProject(); assert.ok(r.state.h1Verified, 'QA project guard');
   const lti = await r.healthz(r.state.urls.lti), appHealth = await r.healthz(r.state.urls.app);
   assert.equal(lti?.profile, 'acceptance'); assert.equal(appHealth?.profile, 'acceptance');
-  assert.deepEqual(lti?.simulation_profiles, ['blackboard-sim', 'canvas-sim-cloud']);
+  // LD-1 open world (LA-E0-04, row 2): the 2 baseline simulation profiles in order; each extra id is the simulation
+  // profile of a registered channel (GET /api/providers, GET /app-api/lms-providers).
+  const apiKey = fs.readFileSync(path.join(r.CLONE, 'infra/.secrets/lti-api-key.cogniate'), 'utf8').trim(); r.redact.add(apiKey);
+  const providers = await httpsLoopback(r.state.urls.lti + '/api/providers', { ca: r.state.ca, headers: { authorization: 'Bearer ' + apiKey } });
+  assert.equal(providers.status, 200, 'GET /api/providers');
+  const lmsProviders = await appLmsProviders(httpsLoopback, { appUrl: r.state.urls.app, ca: r.state.ca, user: seedPortalUser(r.state.rawSeed) });
+  checkSimulationProfiles(lti?.simulation_profiles, BASELINE_SIMULATION_PROFILES,
+    { profiles: JSON.parse(providers.body).profiles, registered: registeredChannels(lmsProviders) });
   assert.deepEqual([lti?.knobs, appHealth?.knobs], [[], []]);
   const services = (await run('docker', [...compose, 'ps', '--services', '--status', 'running'], { cwd: r.CLONE, env: r.STACK_ENV })).stdout;
   for (const name of ['lms-sim', 'lti-gate']) assert.ok(services.split('\n').includes(name), `${name} runs`);
