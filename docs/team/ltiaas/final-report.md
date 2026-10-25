@@ -136,4 +136,9 @@ Branch disposition:
 - la-qa's 180 commits are QA history that was copied into integration by path; integration holds every file. It is kept as the tag `archive/la-qa`.
 - la-walk is the LA-E8-02 walkthrough scratch branch. Its spec says "never merged", so it is kept as the tag `archive/la-walk`.
 
-The post-merge facts (the PR URL, the merge commit, the origin/main check, the tags and the worktree removal) are recorded on the board in the release-record follow-up.
+Post-merge facts (2026-10-25):
+- PR #2 (https://github.com/nguyenthanhquang152/cogniate_moodle_integration_prototype/pull/2) merged at 06:00:57Z as the merge commit `74dc2811` (parents `78971b03`, the old main, and `a5d25ced`, the candidate). `git fetch` shows origin/main = `74dc2811`. Its tree equals the candidate tree, and its tests tree is `023ecdab`.
+- The archive tags are pushed: `archive/la-qa` points to `091c35c7`, and `archive/la-walk` points to `d6196d52`.
+- Sessions: every run dispatch is settled. The six idle LA Antigravity sessions in la-qa were exited; their conversations stay resumable outside the repo.
+- Worktrees: the 11 linked LA worktrees (la-docs, la-k, la-l, la-l2, la-p, la-qa, la-r, la-s1, la-s2, la-walk, ltiaas-milestone) were removed via Orca (`orca worktree rm`). First, their ignored, non-rebuildable content was copied and verified identical: la-qa tests/host/artifacts (1273 files), la-r/.tmp and ltiaas-milestone/.tmp. The copies are in ~/cogniate-qa-runs/LA/ARCHIVE/worktree-ignored. Orca deleted 7 of the merged local branches; each was recreated at its recorded SHA, so all 11 local branches remain. The main-2 checkout (main) and the primary checkout feat/moodle-lti-prototype, with its .git, are kept.
+- The local run evidence stays under ~/cogniate-qa-runs/LA, including the gate-source clones.
