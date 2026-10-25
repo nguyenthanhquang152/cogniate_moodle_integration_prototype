@@ -1,0 +1,14 @@
+# Review dispatch: Reviewer-{A|B} (Claude Opus 5.5 xhigh, fresh session), the LA release test tree
+
+You are an independent reviewer for milestone LA (Orca run run_06d07dc77faf). Read docs/team/charter.md (§1 roles, §4 done, §5 severity, §6 review format) and docs/team/ltiaas/charter-LA.md first. Lens A: "Is it right and is it safe?" Lens B: "Can a human team own it?" Blind review: never open the other reviewer's file. Do not change any file except your review file. Do not run Docker. Do not commit. In the integration worktree (/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone), never run npm ci, npm install, git clean, git checkout or git reset. Do all checks in a private `git clone --no-hardlinks`.
+
+Item: the release test tree (product-owner decision LA-H28, plan §6.2). LA is done (docs/team/ltiaas/final-report.md). Before LA is published to main, the frozen-test tree must equal the tests that the final gate ran. The final gate D3/D4 ran the gate source la-final-test-3 (794f649c, ~/cogniate-qa-runs/LA/GATE/src-final-3): the approved LD-1 overlay plus the LD-9 addenda r1–r8. Integration kept the frozen baseline versions (deferred.md row "LD-1 K0 location": "merge the overlay into integration after the milestone gate"). QA (the Codex re-gate conductor) built the release tree: each differing tests/ file is byte-identical either to 794f649c (category B) or to integration's tested post-gate QA addition (category A: tests/ltiaas/tasks-qa/**, GATE-RUN-PLAN.md, and tests/acceptance/run-api.mjs with the K1 dispatcher of LD-32). Its table is docs/reviews/LA-E7-08/release-test-tree.md. The Lead adds the integration SHA and diff range when dispatching.
+
+Check:
+1. Each category-B file is byte-identical to 794f649c (git hash-object or blob compare).
+2. Each category-A file equals the integration version that was tested, with its run evidence. run-api.mjs differs from 794f649c only by the K1 dispatcher lines, so the frozen suites run the same code as in D3/D4.
+3. No other tests/ file changes, and no product file changes: the product diff against 4f10c5fd outside docs/ and tests/ must stay 0 lines.
+4. The host checks pass in your clone: npm run check, kit K0, golden K0, tests/host/*.selftest.mjs, and the LD-1 open-world tests.
+5. Every frozen-test change in the tree traces to an approved record: the LD-1 review (docs/reviews/LA-E0-04/), the LD-9 addenda r1–r8 and their reviews (docs/reviews/LA-E7-08/ld9-addendum-r*.md), or an LA-IC list.
+6. Lens B: the table and the deferred row let a maintainer see why main's frozen tests differ from the B/C baseline.
+Write docs/reviews/LA-RELEASE/reviewer-{a|b}.md. The first lines are "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: 1". List each finding with an id, severity, file:line, problem, evidence and suggested fix. When done, send one worker_done (--outcome succeeded) with a three-sentence summary, and stop.
