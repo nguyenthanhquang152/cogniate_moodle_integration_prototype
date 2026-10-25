@@ -1,0 +1,6 @@
+QA re-gate conductor (Codex, same session; new dispatch): release table fix, one file, docs only, host only. Work in la-qa (merge quang/ltiaas-milestone first). Change ONLY docs/reviews/LA-E7-08/release-test-tree.md. Do not touch anything under tests/: the reviewed release tests tree 023ecdab must stay byte-identical.
+Findings (docs/reviews/LA-RELEASE/reviewer-a.md A-LA-REL-01, reviewer-b.md B-LA-REL-01 and B-LA-REL-03; both reviews are APPROVE with these MINORs):
+1. Seven rows name the wrong approval record. For example, the three NRPS frozen-test changes are LA-IC-04, not LA-IC-23, and some rows have no record. Map every row to its real record: the LD-1 review (docs/reviews/LA-E0-04/), the LD-9 addendum round and file (docs/reviews/LA-E7-08/ld9-addendum-r*.md), or the LA-IC list (LA-ADR-04 D8; tests/ltiaas/golden/expected/LA-IC-*.json and the LD-9 records). Take each mapping from the records, not from memory.
+2. Line 12, the approval basis: add LA-E0-04 (LD-1) and the LA-IC lists.
+3. Add a short scope paragraph with links: this table covers the tests/ difference between the tested gate tree and integration. The full main-vs-B/C test delta is the LD-1 overlay, the LD-9 addenda r1–r8, and the LA-IC lists; link each record.
+Commit in la-qa ("QA: release table record fixes (A-LA-REL-01, B-LA-REL-01/-03)"). Send worker_done with the SHA, and stop.
