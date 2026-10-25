@@ -1,4 +1,4 @@
-Verdict: PENDING host verification
+Verdict: PASS after documented QA dependency setup; initial setup error retained
 Round: 1
 
 # LA release test tree
@@ -17,7 +17,7 @@ D3/D4 summary paths use `/Users/quangnguyen/cogniate-qa-runs/LA/RUN-D3/artifacts
 
 - **M1:** D3 `qalead-la-140-4f10c5fd-2026-10-24T21-07-50-922Z`; D4 `qalead-la-162-4f10c5fd-2026-10-24T20-41-29-861Z` (394 functional cases each).
 - **M2:** D3 `qalead-la-138-4f10c5fd-2026-10-24T20-34-52-623Z`; D4 `qalead-la-152-4f10c5fd-2026-10-24T20-38-16-340Z` (64 functional cases each).
-- **T7:** D3 `qalead-la-130-4f10c5fd-2026-10-24T19-31-11-287Z`; D4 `qalead-la-153-4f10c5fd-2026-10-24T21-33-32-449Z` (three passes each).
+- **T7:** D3 `qalead-la-130-4f10c5fd-2026-10-24T19-31-11-287Z`; D4 `qalead-la-153-4f10c5fd-2026-10-24T21-33-32-449Z` (three runs each; each run has 17 PASS and 1 expected demo SKIP).
 - **T4b:** D3 `qalead-la-134-4f10c5fd-2026-10-24T19-53-27-991Z`; D4 `qalead-la-157-4f10c5fd-2026-10-24T21-55-12-922Z`.
 - **T5:** D3 `qalead-la-135-4f10c5fd-2026-10-24T19-59-20-067Z`; D4 `qalead-la-163-4f10c5fd-2026-10-24T22-18-06-366Z` (authorized recovery).
 - **T6:** D3 `qalead-la-142-4f10c5fd-2026-10-24T20-27-15-669Z`; D4 `qalead-la-159-4f10c5fd-2026-10-24T22-35-26-435Z`.
@@ -27,7 +27,7 @@ D3/D4 summary paths use `/Users/quangnguyen/cogniate-qa-runs/LA/RUN-D3/artifacts
 - **E513:** `qa3-la-e513-r2-4064df6d-2026-10-24T15-43-19-547Z`; raw summary under `/Users/quangnguyen/cogniate-qa-runs/LA/qa3-la-e513-r2/clone/tests/host/artifacts/`.
 - **E604:** Host K0 in the `qa3-la-e404-r1` clone: `/Users/quangnguyen/cogniate-qa-runs/LA/qa3-la-e404-r1/logs/e6-04-k0-final-pass.log` (4/4 PASS); no Docker run ID.
 - **Carry:** Slot 3F `qalead-la-61-a8bbac53-2026-10-24T05-33-10-379Z` and `qalead-la-62-a8bbac53-2026-10-24T05-38-09-094Z` (12/6 manifest cases), carried under plan §10(c).
-- **Host:** Approved gate source and r8 host checks ([r8 §6](./ld9-addendum-r8.md)); release host checks below. No new Docker execution is claimed.
+- **Host:** Approved gate source and r8 host checks ([r8 §3.2](./ld9-addendum-r8.md)); release host checks below. No new Docker execution is claimed.
 
 All 13 category-A task files match their retained run-clone files byte for byte (`task-clone-parity.json`). The integration dispatcher matches both retained kit clones. The table uses Git blob hashes, not worktree timestamps.
 
@@ -35,7 +35,7 @@ All 13 category-A task files match their retained run-clone files byte for byte 
 
 | File | Source (A or B) | Blob hash | Tested evidence (run IDs above) | Reason |
 | --- | --- | --- | --- | --- |
-| `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts` | B | `22f05527de198464e44836ee425d1c633b2cea93` | M1 / M2 | LD-1 open-world profiles and approved LA-IC-14 registration assertions. |
+| `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts` | B | `22f05527de198464e44836ee425d1c633b2cea93` | M1 | LD-1 open-world profiles and approved LA-IC-14 registration assertions. |
 | `tests/acceptance/M1/canvas/21-canvas-protocol.test.ts` | B | `36a3ffa818b0721a722996c71438bfdff06b74e3` | M1 | Approved LA-IC-04/06 protocol assertions. |
 | `tests/acceptance/M1/canvas/31-canvas-grants.test.ts` | B | `9ee312128498870b83d842275d9fdca74cddd430` | M1 | Approved candidate grant assertions retained from the gate. |
 | `tests/acceptance/M1/common/00-profiles.test.ts` | B | `542ca5d3110e74eb1baddc1d903e262426cc1221` | M1 | LD-1 open-world profiles, r5 oracle and LA-IC-23 NRPS value. |
@@ -93,4 +93,33 @@ The selected blob is `5ee913e0ceb7e6b6d0d5629163a562bd7f922b50`, identical at `9
 
 ## Fresh-clone verification
 
-Pending. Commit this exact assembly, then use a fresh `git clone --no-hardlinks` and `npm ci` before the required checks. Record the reconciled commit, tests tree, logs, exit codes and counts here. A failed check stops the task; it does not authorize a test change.
+Reconciled test commit: **`5821ab31cac9a98652a6c3ff7d59fbdfdb7df578`**. Tests tree: **`023ecdab70eea5fa689f6da736b6fb236f32b64c`**. The verification report commit changes only this document; it does not change the checked tests tree.
+
+Fresh clone: `/Users/quangnguyen/cogniate-qa-runs/LA/RELEASE/test-tree-20261025T050300Z/clone`. Created with `git clone --no-hardlinks --no-checkout`, then detached at the reconciled commit. Node `24.21.0`; npm `11.19.0`. All times below are UTC on **2026-10-25**. `check-results.json` in the evidence directory records exact argument lists, environment overrides, start/end times and exit codes. All host tests use local or mocked operations; no Docker or live provider check was run.
+
+| Command | Start–end (UTC) | Wall time | Exit | Result | Log relative to evidence directory |
+| --- | --- | --- | --- | --- | --- |
+| `npm ci` | 05:05:04.641–05:05:06.607 | 1.966 s | 0 | PASS; root dependencies installed. | `logs/npm-ci.log` |
+| `npm run check` | 05:05:06.607–05:06:46.643 | 100.036 s | 0 | PASS: lint and typecheck; 204 unit files, 3,324 tests PASS and 5 SKIP; 255 infra tests PASS; 151 K0 tests PASS, including the LD-1 TypeScript suite; F1 0 hits; F5 6 rules, 0 hits. | `logs/npm-check.log` |
+| `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | 05:06:46.644–05:06:47.887 | 1.243 s | 0 | 33/33 PASS. | `logs/kit-k0.log` |
+| `node --test tests/ltiaas/golden/golden.k0.test.mjs` | 05:06:47.888–05:06:48.542 | 0.655 s | 0 | 12/12 PASS. | `logs/golden-k0.log` |
+| `node --test tests/host/*.selftest.mjs` (all 15 files) | 05:06:48.543–05:18:14.555 | 686.012 s | 0 | 155/155 PASS; 0 skips. | `logs/host-selftests.log` |
+| `node --test tests/ltiaas/k0/ld1/open-world.test.mjs` | 05:18:14.556–05:18:14.644 | 0.089 s | 0 | 46/46 PASS; 0 skips. | `logs/ld1-node.log` |
+| `node tests/e2e/host/run-m2.mjs --harness-only` (initial) | 05:18:14.645–05:18:16.489 | 1.844 s | 1 | STOP: 6/6 preliminary tests PASS, then Playwright ENOENT before discovery; retained exit 1. | `logs/m2-harness.log` |
+| `npm ci --prefix tests` | 05:19:53.642–05:19:54.710 | 1.068 s | 0 | PASS; separate QA project installed under Lead authorization; lockfile unchanged. | `logs/npm-ci-tests.log` |
+| `node tests/e2e/host/run-m2.mjs --harness-only` (after setup) | 05:19:54.711–05:19:57.868 | 3.157 s | 0 | PASS: 6/6 self-tests; all 64 M2 browser cases discovered; T7 selection unchanged. | `logs/m2-harness-after-setup.log` |
+| `node tests/e2e/ltiaas/run-k2.mjs --harness-only` | 05:19:57.868–05:20:02.668 | 4.800 s | 0 | PASS: 7/7 self-tests; 12 K2 cases plus 2 R2-sim cases discovered; T7/M2/T6/T5a/T8 selections unchanged. | `logs/k2-harness.log` |
+
+**Setup finding retained:** The initial M2 command stopped at `tests/e2e/host/run-m2.mjs:45:10` with `spawn /Users/quangnguyen/cogniate-qa-runs/LA/RELEASE/test-tree-20261025T050300Z/clone/tests/node_modules/.bin/playwright ENOENT` (`-1 !== 0`). K2 did not start in that attempt. Escalation `msg_1ca14f2edf31` reported it. The Lead's `msg_e1236eacbff1` identified the documented separate QA project setup in `infra/README.md:324` and authorized `npm ci --prefix tests`, followed by the two discovery checks. The first M2 result remains exit 1; the after-setup result is a separate invocation. No test was changed to obtain PASS.
+
+For a new clone, install both dependency projects before discovery: `npm ci` and `npm ci --prefix tests`. The tests lockfile stayed byte-identical across the install and discovery checks:
+
+- `tests/package-lock.json` Git blob: `e7d47cf7dce533086046df3d62d7fea903f3bb8d`.
+- SHA-256 before and after: `213718dd93bffd95041508dcfdc655f19201b3192d5f7d13b494b7e1d69356bc`.
+- Proof: `tests-lock-proof.json`; final clone status is empty in `final-clone-state.json`.
+
+## Final source proof
+
+`git diff 5821ab31cac9a98652a6c3ff7d59fbdfdb7df578 794f649c3ebacf1a1b3ac599cffffe338dd7373d -- tests` contains **exactly the 15 category-A files** in the selection table. All **34 category-B files** have the gate blob hash. All **49 selected files** have their chosen A/B hash in the reconciled commit. `source-proof.json` records each comparison; `reconciled-gate-stat.txt` records the remaining delta.
+
+The kit tree remains `d7e50b5dea56382f849b213f006b73bcf5eb71aa`; the golden tree remains `1909e58f79e5214e7bb349a92811255391aa191c`. Both equal the gate. The diff from source A to the reconciled commit is empty outside tests/docs. The fresh clone has empty `git status --porcelain` output after all checks. This result is ready for independent review and Lead integration; it does not publish or change main.
