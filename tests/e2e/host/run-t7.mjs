@@ -61,7 +61,7 @@ const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? '';
 const PUBLIC_PORT = process.env.PUBLIC_PORT ?? '8543';
 const STACK_SUBNET = process.env.STACK_SUBNET ?? '172.31.0.0/16';
 const FIXTURES = process.env.COURSE_FIXTURES_DIR ?? path.join(SOURCE, 'docs', 'raw', 'data', 'courses');
-if (!/^qa-e2e[a-z0-9-]*$/.test(PROJECT)) {
+if (!/^(?:qa-e2e|qalead-la)[a-z0-9-]*$/.test(PROJECT)) {
   console.error(`COMPOSE_PROJECT_NAME must start with "qa-e2e" (got "${PROJECT}").\n\n${HELP}`);
   process.exit(2);
 }

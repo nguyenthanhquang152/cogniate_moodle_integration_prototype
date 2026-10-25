@@ -73,8 +73,8 @@ ${extraHelp}`;
   const PROJECT = process.env.COMPOSE_PROJECT_NAME ?? defaultProject;
   const PUBLIC_PORT = process.env.PUBLIC_PORT ?? '8443';
   const STACK_SUBNET = process.env.STACK_SUBNET ?? '172.29.0.0/16';
-  if (!/^qa[234]?-[a-z0-9-]+$/.test(PROJECT)) {
-    console.error(`COMPOSE_PROJECT_NAME must match /^qa[234]?-[a-z0-9-]+$/ (got "${PROJECT}"). QA never runs on another project.`);
+  if (!/^(?:qa[234]?|qalead)-[a-z0-9-]+$/.test(PROJECT)) {
+    console.error(`COMPOSE_PROJECT_NAME must match /^(?:qa[234]?|qalead)-[a-z0-9-]+$/ (got "${PROJECT}"). QA never runs on another project.`);
     process.exit(2);
   }
   if (!opt.sha && !opt.checkout) {

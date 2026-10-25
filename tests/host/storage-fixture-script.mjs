@@ -386,9 +386,9 @@ export async function p5Delete(appRoot, syncId) {
   try {
     db.exec('PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
     try {
-      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('score_sync','score_syncs')").all();
-      if (tables.length !== 1) throw new Error('Expected one score-sync table');
-      const table = tables[0].name;
+      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('record_dispatch','score_sync','score_syncs')").all().map((t) => t.name);
+      const table = tables.includes('record_dispatch') ? 'record_dispatch' : tables.find((n) => n === 'score_sync' || n === 'score_syncs');
+      if (!table) throw new Error('Expected record_dispatch or score-sync table');
       const row = db.prepare(`SELECT id, status FROM ${table} WHERE id=?`).get(syncId);
       if (row?.status !== 'failed') throw new Error('P5 higher row must already be failed');
       const deleted = db.prepare(`DELETE FROM ${table} WHERE id=? AND status='failed'`).run(syncId);

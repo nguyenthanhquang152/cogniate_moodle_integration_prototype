@@ -101,7 +101,7 @@ m1Test('M1-19.common.moodle-configuration', 'Moodle export keeps all 16 keys and
     ['initiate_login_url', urls.lti + '/lti/login/cogniate'], ['redirection_uris', urls.lti + '/lti/launch/cogniate'],
     ['deep_linking', 'Yes'], ['content_selection_url', urls.lti + '/lti/launch/cogniate'],
     ['tool_configuration_usage', 'Show in activity chooser and as a preconfigured tool'], ['launch_container', 'New window'],
-    ['ags', 'Use this service for grade sync and column management'], ['nrps', "Use this service to retrieve members' information as per privacy settings"],
+    ['ags', 'Use this service for grade sync and column management'], ['nrps', 'Do not use this service'],
     ['share_name', 'Never'], ['share_email', 'Never'], ['accept_grades', 'As specified in Deep Linking definition or Delegate to teacher'],
   ];
   assert.deepEqual(rows.json.map((row: any) => [row.key, row.value]), expected);

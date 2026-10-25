@@ -103,7 +103,7 @@ export const hex16 = () => crypto.randomBytes(8).toString('hex');
 export function fixtureArgs(spec) {
   const { kind, project, imageId, hostUid, hostGid, runTag = hex16() } = spec;
   if (!QA_KINDS.includes(kind)) throw new Error('Unknown QA container kind ' + kind);
-  if (!/^qa-[a-z0-9-]+$/.test(project ?? '')) throw new Error('QA containers run only in a qa- lane');
+  if (!/^(?:qa[234]?|qalead)-[a-z0-9-]+$/.test(project ?? '')) throw new Error('QA containers run only in a qa- lane');
   if (!/^sha256:[0-9a-f]{64}$/.test(imageId ?? '')) throw new Error('QA image must be pinned by its recorded image id');
   if (!/^\d+$/.test(String(hostUid)) || !/^\d+$/.test(String(hostGid))) throw new Error('HOST_UID and HOST_GID required');
   assertHex16(runTag);
@@ -172,8 +172,8 @@ export async function qaContainers(docker, project) {
 
 export const BOUND_IDENTITY = {
   os: { version: '27.0.1', arch: 'arm64' },
-  cli: { version: '29.9.1', sha256: '678271184175b40dfc4bd6f4582be00ae1538b0d1e031181f52ceedfae9af5fb' },
-  compose: { version: '5.6.0', sha256: '1ec06408b809655f1d60659000173edaa412eab5359035f87833065883bbf605' },
+  cli: { version: '29.9.2', sha256: '6bbc39e9f2950720216f64c22d6e38afdd86a4672eee0d4e4389263c40ebd3e3' },
+  compose: { version: '5.6.1', sha256: '31664b8ce83f3900ed3c52b8c2276706832793a0a379d9661defd6f88b386def' },
 };
 const sha256OfFile = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 /** Reads the three bound identities the §17 way. `exec(cmd, args)` resolves { code, stdout }. */

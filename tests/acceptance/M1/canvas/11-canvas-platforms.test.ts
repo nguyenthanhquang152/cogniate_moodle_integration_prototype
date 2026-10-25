@@ -215,7 +215,7 @@ m1Test('M1-07.canvas.conditional-delete', 'a conditional DELETE with another ref
 });
 
 // ---------------------------------------------------------------- AC-M1-15 Canvas connections
-const CANVAS_CAPABILITIES = { dynamicRegistration: false, operatorApproval: true, webServices: false,
+const CANVAS_CAPABILITIES = { dynamicRegistration: true, operatorApproval: true, webServices: false,
   courseShell: false, addDeployment: true, canvasConfiguration: true };
 m1Test('M1-15.canvas.dto', 'a Canvas connection is pending, manual, has the Canvas capabilities and no grant field', async () => {
   const s = await session(), c = await canvasConnection(s);
@@ -237,8 +237,16 @@ m1Test('M1-15.canvas.default-profile', 'a Canvas connection without profile gets
   const r = await app(s, 'POST', '/app-api/connections', { name: unique('Canvas default'), siteUrl: CLOUD.siteA, method: 'manual', lms: 'canvas' });
   expectStatus(r, 201); assert.equal(r.json.profile, 'canvas-cloud-production'); assert.equal(r.json.lms, 'canvas');
 });
+m1Test('M1-15.canvas.dynamic-refused', 'Canvas connection create accepts dynamic registration as pending with a registration URL (LA-IC-14)', async () => {
+  const s = await session();
+  const r = await app(s, 'POST', '/app-api/connections', { name: unique('dynamic'), siteUrl: CLOUD.siteA,
+    method: 'dynamic', lms: 'canvas', profile: CLOUD.profile });
+  expectStatus(r, 201);
+  assert.equal(r.json.status, 'pending');
+  assert.equal(r.json.method, 'dynamic');
+  assert.match(String(r.json.registrationUrl ?? ''), /\/lti\/register\/cogniate\?ref=[A-Za-z0-9_-]{43}$/);
+});
 for (const [variant, body, status, code, detail] of [
-  ['dynamic-refused', { method: 'dynamic' }, 422, 'CAPABILITY_NOT_SUPPORTED', ['capability', 'dynamicRegistration']],
   ['profile-mismatch', { profile: 'blackboard' }, 400, 'INVALID_REQUEST', ['field', 'profile']],
   ['lms-unknown', { lms: 'other' }, 400, 'INVALID_REQUEST', ['field', 'lms']],
 ] as const) {
@@ -254,7 +262,7 @@ m1Test('M1-15.canvas.lms-providers', 'lms-providers lists the Canvas methods, ca
   const s = await session(), r = await app(s, 'GET', '/app-api/lms-providers'); expectStatus(r, 200);
   const { checkLmsEntries } = await import('../../lib/open-world.mjs'); checkLmsEntries(r.json.lms); // LD-1 open world, row 7 (LA-E0-04)
   const canvas = r.json.lms.find((l: Json) => l.lms === 'canvas');
-  assert.deepEqual(canvas.methods, ['manual']);
+  assert.deepEqual(canvas.methods, ['manual', 'dynamic']);
   assert.deepEqual(canvas.capabilities, CANVAS_CAPABILITIES);
   assert.deepEqual(canvas.profiles.map((p: Json) => [p.id, p.simulation, p.ready, p.clientId]), [
     ['canvas-cloud-production', false, true, null], ['canvas-cloud-beta', false, true, null],
