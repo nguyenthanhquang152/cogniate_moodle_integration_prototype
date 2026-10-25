@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA release test tree: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -131,3 +131,64 @@ All of these records have a final APPROVE from both reviewers (r5 through the LA
 
 - I did not run Docker, so I did not re-run any K1-SIM, M1, M2, T7 or kit suite. I relied on the D3/D4 run ids for them.
 - I did not re-verify each hunk of the large LD-1 files (`open-world.*`, `k0/ld1/*`) line by line. I proved that they equal `la-final-test-1`, which LA-E0-04 Round 4 approved and verified live.
+
+## Round 2
+
+- Item: QA's record fix (la-qa `091c35c7`, integration `ef315afb`) and the Lead's deferred-row close (`9f31e7bf`). Diff: `git diff 7ad8d1a2 ef315afb -- docs/reviews/LA-E7-08/release-test-tree.md docs/team/ltiaas/deferred.md`. Host only; no Docker; no commit. I changed only this file.
+- Result: **0 BLOCKER, 0 MAJOR, 0 MINOR open; 1 new NIT.** A-LA-REL-01 and A-LA-REL-02 are closed.
+
+### Tree unchanged
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tests tree | PASS | `git rev-parse ef315afb:tests` = `877a2717:tests` = `023ecdab70eea5fa689f6da736b6fb236f32b64c`. |
+| No `tests/` change | PASS | `git diff --name-only 7ad8d1a2 ef315afb -- tests` is empty. `52a9d8b4..877a2717` changes only `docs/` (the table, `deferred.md`, the two release reviews and three briefs). |
+| No product change | PASS | `git diff 4f10c5fd ef315afb -- . ':!docs' ':!tests' \| wc -l` = 0. |
+
+### Links
+
+I resolved every reference definition in the new table at `ef315afb` with a script (`git show <rev>:<path>`, then the GitHub heading slugs of the target). All 51 targets exist. All 15 anchors exist (`#round-2`, `#round-3`, `#round-4`, `#decisions-by-part`, `#d8-intended-behaviour-changes-ids-la-ic-nn`, `#12-who-writes-what-and-file-ownership`). No reference is undefined. Script: `~/cogniate-qa-runs/LA/RELEASE-REVIEW/reviewer-a-20261025T053341Z/bin/linkcheck.mjs`.
+
+### Each changed row against its record
+
+| Row | New reason | Record check | Result |
+| --- | --- | --- | --- |
+| Approval basis (`:12`) | LA-E0-04 A/B/QA; LD-9 r1–r8; LA-IC lists; runner guard; LD-32. The deferred row "is not an approval" | Matches the round-1 traceability table | PASS |
+| LD-9 record table (`:21-29`) | rounds: r1 patch r2 / procedure r3, r2 r2, r3 r1, r4 r1, r5 r3 (LA-E0-04 R4), r6 r2, r7 r1, r8 r3 | Same as the verdict and round headers of the 14 addendum review files and LA-E0-04 | PASS |
+| r8 note (`:31`) | r8 §1.2 wrongly labels `31-canvas-grants` LA-IC-09, `run-api.mjs` LA-IC-22, and adds LA-IC-04 to `21-canvas-protocol`; r8 stays unchanged | `ld9-addendum-r8.md:68`, `:74` and the §1.2 list | PASS |
+| `11-canvas-platforms` | LD-1; LA-IC-14; r1 round 2 WE-F3 | `LA-IC-14.json` (3 entries); r1 WE-F3 | PASS |
+| `21-canvas-protocol` | LA-IC-06; r2 round 2; no NRPS change | r2 `M1-08.canvas.login-redirect`; hunk has no scope | PASS |
+| `31-canvas-grants` | LA-IC-04 `frozenTestsTouched`; LA-E3-07 A/B | `LA-IC-04.json`; LA-E3-07 A and B APPROVE | PASS |
+| `00-profiles` | LD-1, r5, LA-IC-04 NRPS row | `LA-IC-04.json` entry 2; LA-IC-01 rows 1–2 | PASS |
+| `90-simulation-gates` | LD-1 row 8 | `LA-IC-01.json` entry 2 ("LD-1 row 8") | PASS |
+| `99-logs` | LA-IC-22; r1 round 2 WE-F2 | r1 WE-F2 | PASS |
+| `T4b1/1-connect` | LA-IC-04 | `LA-IC-04.json` entry 3 | PASS |
+| `T5b/1-html` | r4 WE-F10 (BD-A1-116) | `ld9-addendum-r4.md:1`, `:7` | PASS |
+| `T6/2-connect`, `portal.ts`, `steps.ts` | LA-IC-23; r3 WE-F7 hunks 3, 2, 1; no scope or B/C change | `ld9-addendum-r3.md:339-341` (hunk 1 `steps.ts`, hunk 2 `portal.ts`, hunk 3 `2-connect`) | PASS |
+| `T6/3-courses`, `T8/2-shell` | r3 WE-F8 + r4 WE-F11 / r7 WE-F13; r8 §2.5 / §2.1 | `ld9-addendum-r3.md:342`, `:344`; r4; r7; r8 §2.1, §2.5 | PASS |
+| `acceptance/lib/open-world.*`, `ltiaas/lib/open-world.*`, `k0/ld1/*` | LD-1 + r5; LA-E0-04 R4 | same as round 1 | PASS |
+| `01-cards`, `run-m2`, `run-m1` | LD-1 rows 6, 2, 3 | `LA-IC-01.json` entries 6, 5, 4 | PASS |
+| `run-t7`, `m1-control` | runner guard; r8 §2.4 / §2.2 | LA-E0-04 reviewer-b H17–H30; r8 | PASS |
+| `core`, `host-control`, `p5-fixture`, `run-t1`, `run-t5`, `storage-handoff` | LA-E0-04 runner-prefix approval (AC-LA-E7-08-05) | `LA-E0-04/reviewer-b.md:24` | PASS |
+| `m1-migration` | LA-E0-04 H21; r1 WE-F5; LD-24 / r5 | `LA-E0-04/reviewer-b.md:25` (H21) | PASS |
+| `storage-docker(.selftest)` | r6 round 2; prefix guard | r6 | PASS |
+| `storage-fixture-script` | LA-IC-09; LA-E0-04 H29 under LD-6 | `LA-E0-04/reviewer-b.md:23` (H29) | PASS |
+| `run-api.mjs`, `GATE-RUN-PLAN.md` | TEST-STRATEGY §1.2 selector / LD-32; r8 round 3 | `TEST-STRATEGY.md:62`; plan LD-32 | PASS |
+| 13 `tasks-qa` rows | LA-E4-04, LA-E5-13, LA-E6-04 A/B and QA | A and B APPROVE in all three tasks; QA PASS in all three | PASS |
+
+The blob hash column did not change. The scope paragraph (`:16-18`) now says that the table covers the 49-file gate-to-integration delta, not the full main-versus-B/C delta, and points to the records for the rest. This answers the lens-B question of round 1.
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-REL-01 (MINOR) | **Closed** | All 7 rows and the approval basis are correct (table above). |
+| A-LA-REL-02 (MINOR) | **Closed** | `deferred.md:98` now says "Closed: … merged into integration as the reviewed release test tree (52a9d8b4, tests tree 023ecdab …)". The optional sentence about the `LA-IC-01.json` "Pending on integration" entries is not in the table. That is acceptable: the closed row tells a reader that the overlay landed, and the golden record must keep the gate text. |
+| A-LA-REL-03..05 (NIT) | Deferred to LG | `deferred.md:111` |
+
+### A-LA-REL-06 (NIT): the two new deferred rows are outside the table
+
+- **Where:** `docs/team/ltiaas/deferred.md:109-111`.
+- **Problem:** A blank line (`:109`) ends the table, so rows `:110` (B-LA-REL-04) and `:111` (LA-RELEASE NITs) have no header row. Markdown shows them as plain text with `|` characters, not as table rows. The file also has no newline at the end.
+- **Evidence:** `git show ef315afb:docs/team/ltiaas/deferred.md | sed -n 108,111p`; the last byte of the file is `|`.
+- **Suggested fix:** The Lead removes the blank line `:109` and adds a final newline. This is not blocking.

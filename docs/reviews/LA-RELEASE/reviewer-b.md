@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA release test tree — Reviewer-B
 
@@ -153,3 +153,58 @@ A maintainer who follows row 41 or 44 to LA-IC-23 finds the Moodle steps data, n
 - The dispatcher proof is exact, and it is correct.
 - QA kept the first M2 ENOENT failure as a failure. It recorded the authorized `npm ci --prefix tests` step separately, and it gives the two-install setup for a new clone.
 - Row 63 (`run-t1.mjs`) says that D3/D4 had no T1 invocation, and it does not claim coverage for it.
+
+## Round 2
+
+Reviewer-B: Claude Opus 5.5, xhigh, same session, new dispatch. Scope: the table fix only. I reviewed QA la-qa `091c35c7` (integration `ef315afb`) and the Lead's deferred.md commit `9f31e7bf`, with `git diff 7ad8d1a2 ef315afb -- docs/reviews/LA-E7-08/release-test-tree.md docs/team/ltiaas/deferred.md`. I worked host only, in the same private clone, and fetched the new commits into it. I ran no Docker, made no commit, and did not open Reviewer-A's file.
+
+**Result:** APPROVE. 0 BLOCKER, 0 MAJOR, 0 MINOR open; 2 new NIT. B-LA-REL-01, -02 and -03 are closed. I accept the deferral of B-LA-REL-04 and of the round-1 NITs.
+
+### Tree and scope checks
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Tests tree unchanged | PASS | `git rev-parse ef315afb:tests` and `877a2717:tests` (current HEAD) = `023ecdab70eea5fa689f6da736b6fb236f32b64c`. |
+| No file under tests/ changed | PASS | `git diff --name-only 52a9d8b4 877a2717` lists only docs/ files. `7ad8d1a2..ef315afb` changes 3 files: the table, deferred.md and the brief `QA-RG-release-f1.md`. |
+| Product diff against `4f10c5fd` | PASS | `git diff 4f10c5fd 877a2717 -- . ':!docs' ':!tests' \| wc -l` → 0. |
+| Host checks | Carried over | The tests tree and the product are byte-identical to round 1, so the round-1 host results still apply. I did not repeat them. |
+| Links | PASS | A script resolved all 52 reference definitions in the new table at `ef315afb` (file and GitHub heading anchor). All files exist and all anchors match. No reference is undefined or unused. I checked that `[release-a]` exists, but I did not read it. |
+
+### Closure of round-1 findings
+
+- **B-LA-REL-01 — CLOSED.**
+  - Rows 59, 60 and 63 (`31-canvas-grants`, `00-profiles`, `T4b1/1-connect`) now cite LA-IC-04 `frozenTestsTouched`. This matches `tests/ltiaas/golden/expected/LA-IC-04.json` items [0..2] and LA-ADR-04:135. The rows also link LA-E3-07 A and B (both `Verdict: APPROVE`, round 1). LA-E0-04 Reviewer-B "Decisions by part" also approves the same hunks H04, H07 and H10.
+  - Rows 65, 70 and 75 (`T6/2-connect`, `lib/portal.ts`, `e2e/lib/steps.ts`) now say "LA-IC-23 Moodle steps data source", and the r3 hunks are right. ld9-addendum-r3.md:339-341 gives hunk 1 = `steps.ts`, hunk 2 = `portal.ts` and hunk 3 = `T6/2-connect.spec.ts`.
+  - The row 65 claim "No B/C merge" is correct: r8 §2 lists only five overlap files, and this file is not one of them.
+  - Row 58 (`21-canvas-protocol`) now says "LA-IC-06 … r2 round 2. No NRPS change". `git diff 4f10c5fd ef315afb` on that file shows only the platform-storage login change (200 with `lti-storage-data`, then the authorize form post). This matches r2 (`M1-08.canvas.login-redirect`). The round-1 label "LA-IC-04/06" was wrong, and this round corrects it.
+  - The paragraph at line 31 records r8's wrong labels and leaves the historical r8 unchanged.
+- **B-LA-REL-03 — CLOSED.**
+  - The new "Scope and approval records" section says that the table covers only the 49-file gate↔integration delta, and that it is not the main↔B/C delta.
+  - It names the other parts of the delta with links: the runner guards, the TEST-STRATEGY §1.2 selector including the task lookup and the parsing change, LD-32, and the simulator modules from LA-E7-02 and LA-E7-05. All four of those reviews say APPROVE.
+  - The LD-9 record table gives the round of each addendum, and each round matches the verdict header of its review files: r1 round 3, r2 round 2, r3 round 1, r4 round 1, r5 via LA-E0-04 round 4 (A and B APPROVE), r6 round 2, r7 round 1 and r8 round 3.
+  - The LA-IC-01 link is correct: `LA-IC-01.json` `frozenTestsTouched` names the LD-1 files.
+  - The row records also check out:
+    - `[guard]` → LA-E0-04 Reviewer-B "Decisions by part". It approves H17–20, H22 and H25–28, H30 for all 9 guard files, H21 (`m1-migration.mjs`) and H29 (`storage-fixture-script.mjs`, LD-6 / LA-IC-09).
+    - LD-1 rows 2, 3, 6 and 8 map to `run-m2.mjs`, `run-m1.mjs`, `01-cards.m2.ts` and `90-simulation-gates.test.ts`, as TEST-STRATEGY §4.3 says.
+    - The task-suite rows link LA-E4-04, LA-E5-13 and LA-E6-04. All of those reviews say APPROVE, and each qa.md says PASS.
+- **B-LA-REL-02 — CLOSED by the Lead.** `deferred.md:98` now ends "Closed: … merged into integration as the reviewed release test tree (52a9d8b4, tests tree 023ecdab; …)". The table line 12 now says that the deferred row "explains the planned merge; it is not an approval", and it names LA-E0-04 A, B and QA as the LD-1 approval.
+- **B-LA-REL-04 — DEFERRED, and I accept it.** The deferred row's reason is sound: the plan is part of the reviewed release tests tree, so nobody edits it before the merge. The row names the r8 round-3 sections of both reviewers, and that is enough to tell this finding apart from the round-2 A-LA-E7-08-LD9-R8-04.
+- **B-LA-REL-05..08 — DEFERRED to LG, and I accept it.** All four appear in the "LA-RELEASE NITs" row.
+
+### New findings
+
+#### B-LA-REL-09 — NIT — The two new deferred rows are cut off from the table
+
+**File:line:** `docs/team/ltiaas/deferred.md:109-111`.
+
+**Problem:** A blank line (109) stands between the WE-F14 row and the two new rows. In GitHub Markdown, a table ends at a blank line. Rows without a header and a delimiter row show as plain text with visible `|` characters. The file also has no newline at the end.
+
+**Suggested fix (Lead):** Delete line 109, and end the file with a newline.
+
+#### B-LA-REL-10 — NIT — The table has no note that it changed after the review
+
+**File:line:** `docs/reviews/LA-E7-08/release-test-tree.md:1-2`.
+
+**Problem:** The header still says `Round: 1`, and the file has no note that QA corrected the record mappings after the release review (la-qa `091c35c7`, for A-LA-REL-01 and B-LA-REL-01/-03). The old rows exist only in git history (`7ad8d1a2`). Line 31 mentions "corrected row mappings", but only as a correction of r8.
+
+**Suggested fix (QA, LG or the next edit of this file):** Add one line, for example "Round 2 (091c35c7): record mappings and scope corrected for A-LA-REL-01 and B-LA-REL-01/-03; no tests/ byte changed." Or update the `Round:` line.
