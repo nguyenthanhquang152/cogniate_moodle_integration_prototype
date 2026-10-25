@@ -121,4 +121,19 @@ LA-H3 (real test sites) stays open, so the live Canvas, Blackboard and D2L rows 
 
 ## 10. Closure
 
-The milestone is done (2026-10-25). Nothing is left in LA. The product owner has the open decisions in §7 and the LG items in deferred.md. A push or a merge to main needs the product owner's authorization.
+The milestone is done (2026-10-25). Nothing is left in LA. The product owner has the open decisions in §7 and the LG items in deferred.md.
+
+## 11. Release to main (LA-H28)
+
+The product owner authorized the release directly in the Lead chat (plan §6.2 LA-H28): push, a PR into main, the merge, an origin/main check, archive tags, and removal of the linked LA worktrees.
+
+Before the release, one unclosed item was closed. The approved LD-1 overlay and the LD-9 addenda r1–r8 existed only in the gate sources, so integration's frozen tests were not the tests that the final gate ran. QA built the release test tree: each of the 49 differing files is byte-identical to the tested gate tree la-final-test-3 (34 files) or to integration's tested post-gate QA addition (15 files). See [release-test-tree.md](../../reviews/LA-E7-08/release-test-tree.md). The tests tree is `023ecdab`. Two independent Claude Opus 5.5 xhigh reviewers approve it (docs/reviews/LA-RELEASE/). The deferred row "LD-1 K0 location" is closed.
+
+The release candidate checks: the product diff against `4f10c5fd` outside docs/ and tests/ is 0 lines. The Lead's fresh-clone check on `52a9d8b4` passes `npm run check` (3324 unit tests, K0 151), kit K0, golden K0, the host self-tests and `npm ci --prefix tests`. Later commits change docs only, and the tests tree stays `023ecdab`.
+
+Branch disposition:
+- The 8 author lanes and la-docs are fully contained in integration.
+- la-qa's 180 commits are QA history that was copied into integration by path; integration holds every file. It is kept as the tag `archive/la-qa`.
+- la-walk is the LA-E8-02 walkthrough scratch branch. Its spec says "never merged", so it is kept as the tag `archive/la-walk`.
+
+The post-merge facts (the PR URL, the merge commit, the origin/main check, the tags and the worktree removal) are recorded on the board in the release-record follow-up.
