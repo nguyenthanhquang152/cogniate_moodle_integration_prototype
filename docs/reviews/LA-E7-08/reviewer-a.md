@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-08 — Reviewer-A
 
@@ -81,3 +81,31 @@ All paths below are relative to **`/Users/quangnguyen/cogniate-qa-runs/LA/RUN-<D
 Additional exact sources: the original baseline R1 paths are listed in `LA-E0-02/reviewer-a.md` Round 5; retry is `REGATE/baseline-t8-retry/artifacts/qalead-la-170-78971b03-2026-10-24T23-06-37-809Z/summary.json` under the same LA root. Carried migration/snapshot files are `SLOT7/artifacts/qalead-la-18-1b17261b-2026-10-23T18-55-39-609Z/m1-case-results.json`, `qalead-la-19-1b17261b-2026-10-23T19-01-20-155Z/m1-case-results.json`, and `SLOT3F/artifacts/qalead-la-61-a8bbac53-2026-10-24T05-33-10-379Z/m1-case-results.json`, `qalead-la-62-a8bbac53-2026-10-24T05-38-09-094Z/m1-case-results.json` (each second path shares its preceding slot prefix).
 
 Independent extracts and pure audit scripts are in **`/tmp/la-review-a-de58aa8bbda5/`**: `invocation-audit.json`, `per-id-audit.json`, `kit-audit.json`, `golden-audit.json`, `source-audit.json`, `carried-audit.json`, `boundary-health-recovery-audit.json`, and `foreign-owner-audit.json`. These name full raw/original paths. Host-only file/Git reads and pure golden comparisons; no Docker, stack runner, install, source mutation or commit. No other reviewer's report or probe was opened.
+
+## Round 2
+
+Reviewer-A: Codex GPT-6-Astra xhigh, 2026-10-25 (local). Reviewed QA `5301bc1d` and `a4ea1eaa`, integrations `8a68acb5` and `e65a873d`, using the two assigned diffs. **APPROVE: A-LA-E7-08-01 is closed; 0 open findings and 0 new findings.** The corrected Final state AC-04, §14.6, §14.8 AC-04, D4 copy and GATE-RUN-PLAN carry references match the raw evidence.
+
+### A-LA-E7-08-01 — Closed
+
+**Corrected locations:** `docs/reviews/LA-E7-08/qa.md:17`, `:1470`, `:1515`; `docs/reviews/LA-E7-08/run-D4.md:104`, `:108`; GATE-RUN-PLAN §10(c) and its earlier Slot 3B/3C copies.
+
+The current records identify one combined SIM U1 run and the actual Slot 8b live U1/U2 run. The unsupported service split and invented run references are removed from all three evidence documents. The D4 row links to the full §14.6 record and repeats the correct raw paths. Historical planned commands in GATE-RUN-PLAN are explicitly replaced by the executed record. Earlier execution dates, source SHAs, INFO rows and baseline M3 failures remain visible; no fresh final-SHA execution is claimed.
+
+### Raw verification of every corrected carried row
+
+Each path below was read directly. Migration/snapshot ledger IDs are distinct and match between the two sides. Each ledger is the named `m1-case-results.json` beside its summary.
+
+| Check | Exact raw summary path | Verified result |
+| --- | --- | --- |
+| Baseline migration | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT7/artifacts/qalead-la-18-1b17261b-2026-10-23T18-55-39-609Z/summary.json` | Ledger 12/12 PASS; summary 10 PASS + 1 FAIL, 11 aggregate IDs; `M3-ISOLATION` remains FAIL. |
+| Baseline snapshot-upgrade | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT7/artifacts/qalead-la-19-1b17261b-2026-10-23T19-01-20-155Z/summary.json` | Ledger 6/6 PASS; summary 10 PASS + 1 FAIL, 11 aggregate IDs; `M3-ISOLATION` remains FAIL. |
+| Candidate migration | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3F/artifacts/qalead-la-61-a8bbac53-2026-10-24T05-33-10-379Z/summary.json` | Ledger 12/12 PASS; summary 11 PASS entries and IDs. |
+| Candidate snapshot-upgrade | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3F/artifacts/qalead-la-62-a8bbac53-2026-10-24T05-38-09-094Z/summary.json` | Ledger 6/6 PASS; summary 11 PASS entries and IDs. |
+| Combined SIM U1 | `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/artifacts/qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z/summary.json` | 43 entries: 37 PASS, 6 INFO; 17 PASS aggregate IDs. All four named E5-08/E5-22 continuity and rewrap IDs pass. INFO rows describe exclusions for individual phases. |
+| Slot 8b live U1/U2 | `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/la-qa/tests/host/artifacts/qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z/summary.json` | 16 PASS entries and IDs, including preparation, restart, continuity and key-status checks. |
+| Pilot backup/restore | `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E5-24/r2/artifacts/qa-e2e-la-drill-r2-56038618-2026-10-23T20-36-36-947Z/summary.json` | 10 PASS entries and IDs: six acceptance IDs and PRE, CLONE, H1, TEARDOWN. |
+
+The full run SHAs match the corrected table. The migration/snapshot logs name gate sources `src-slot7-1b17261` and `src-final-1`; their HEADs resolve to the stated test SHAs `357d17997b4d36dbfb6bde7568a4d87c0e3a14fc` and `85ddf97332063f75bdc5636cb410fc0d6ee25099`, with unchanged host-runner files. Repeated all four commands in `REGATE/conductor-20261024T202424Z/carried-diff-proofs.json`, the three added actual-source carry diffs and both build-to-product diffs: all nine exited 0 with empty output. This supports the explicitly bounded carry paths and earlier execution dates; it does not claim a fresh final-SHA run. The corrected older Slot 3C row's migration count also resolves: `/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-08/slot3b-80133d6b/artifacts/qalead-la-11-80133d6b-2026-10-23T17-02-29-425Z/m1-case-results.json` contains 12 distinct PASS cases.
+
+No other carried row in the current QA §14 or Final state failed to resolve. Round 1's other acceptance assessments remain unchanged. Independent count/ID and Git checks are recorded in `/tmp/la-review-a-d2bef0730543/raw-and-git-audit.json` with `audit.py`. Only this review file was edited in the integration worktree. No Docker, stack runner, install or commit; no other reviewer's report or probe was read.

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 4
 
 ## Round 1
 
@@ -53,3 +53,43 @@ Reviewed 2026-10-24 by Reviewer-A (Codex GPT-6-Astra xhigh). Scope: `8656e1c6`, 
 - **Suggested fix:** Add the LA-E4-03 QA link and `[SIM E4-03-03]` to this row, or limit the row's claim to the behaviour proved by LA-E5-14.
 
 Verification artifacts: `/tmp/la-review-a-510122d81442/reviewer-qa-map.json`, `reviewer-pack-browser.json` and `reviewer-links.json`, from a private `--no-hardlinks` clone pinned to `5610a68a`. No Docker, stack, install or commit was used. Only this review file was changed in the integration worktree; Reviewer-B files were not opened.
+
+## Round 3
+
+Reviewed 2026-10-25 by Reviewer-A (Codex GPT-6-Astra xhigh). Scope: Docs parts 1–3 (`d62c46e5`, `d1ff9081`, `2d3ffd74`), integrated at `05d823b8`, using the dispatched six-file diff from `5610a68a`. **CHANGES_REQUESTED: 0 BLOCKER, 1 MAJOR, 1 MINOR, 0 NIT.** The pending review labels are expected for this snapshot; they are not findings.
+
+### A-LA-E8-05-04 — MAJOR — Correct the copied U1 evidence counts in the pack
+
+- **Files:** `docs/guides/ltiaas/spec-deviations.md:90`, `docs/human_review/ltiaas/start-here.md:37`, `docs/human_review/ltiaas/index.html:150`.
+- **Problem:** All three pages report U1 as LTI 19/19 plus app 18/18, and live U1/U2 as 36/36. These are the unsupported claims already identified in A-LA-E7-08-01. A “reviews in progress” label does not make those counts evidence.
+- **Evidence:** A fresh read of `qalead-la-13-80133d6b-2026-10-23T17-11-52-676Z/summary.json` gives one combined U1 run: **43 entries, 37 PASS and 6 INFO**, covering the LTI and app criteria. It does not establish the advertised 19/18 split. The actual live continuity record, `qa-e2e-la-s8b-r1-a7bd110e-2026-10-24T01-31-21-479Z/summary.json`, has **16 PASS entries** on the earlier `8fadb828` product, not 36. The complete paths and source SHAs are recorded in [LA-E7-08 Reviewer-A Round 1](../LA-E7-08/reviewer-a.md#round-1) and the private `reviewer-u1-evidence.json` from this review. The valid migration 12/12, snapshot 6/6 and drill 10/10 records are separate.
+- **Suggested fix:** Propagate the corrected gate evidence into all three pack pages: give the combined U1 result, the actual live continuity result, and links to their corrected QA records. Retain the carried-evidence qualification and earlier source builds. The next Docs diff must include these corrections as well as verdict labels; a label-only edit cannot close this finding. No new stack run is needed.
+
+### A-LA-E8-05-05 — MINOR — Keep all conditions of the R3 complete-refusal branch
+
+- **File:** `docs/guides/ltiaas/add-a-channel.md:375`.
+- **Problem:** The second R3 bullet says an owner with Dynamic Registration and a target with admin endpoints are sufficient for refusal at `complete`. It omits the required `registration` guard level and the owner's `any-https` endpoint rule.
+- **Evidence:** `tests/ltiaas/kit/lib/fixtures.ts:1856` rejects other guard levels; lines 1863–1865 require Dynamic Registration, an `any-https` owner, and an admin-endpoint target. The shipped Canvas fixture has Dynamic Registration but a `launch` guard. The committed Round 9 branch table (`kit.k0.test.ts:2605`, and LA-E7-06 QA R9.3) therefore gives `canvas:start` on both Moodle and `lti-generic`, where the guide's bullet predicts `complete`. The pack's own `spec-deviations.md` §7 correctly preserves this exception.
+- **Suggested fix:** State all four conditions, with start refusal for the other cases, or explicitly limit the bullet to the `registration`-guarded, `any-https` owner described by the template. Safe to defer: the kit remains strict and the manual-only walkthrough case is documented correctly.
+
+### Closures and acceptance checks
+
+- **A-LA-E8-05-02 and -03 closed.** The service-control map now names the distinct U1 source builds (`1b17261` and `48bc1c9e`) and cites LA-E4-03 AC-03 for the outbox wait. These match the task QA reports. The corrected L4 sentence also resolves the wording of A-LA-E8-01-07: one selected foreign registration-level family per target, with Moodle's manual-self refusal distinguished from warn/pass-through.
+- **AC-01/02:** all six spec-deviation rows retain the spec section, behaviour, reason and QA link; D22–D36 match the contract delta. All 24 LA-IC rows have a status: 22 built, two awaiting the recorded human decisions. LA-IC-24 and BD-A1-121 are disclosed as a built change with a known limit. No new human decision is invented.
+- **AC-03:** checked the final claims against E7-08 §14 and Final state, D4, the per-ID/path table, E7-09 Round 7, E0-01/02/03 QA and Reviewer-A records, kit Rounds 8–9, walkthrough Round 3, A1/A2 conformance, plan §6.1/6.2 and WE-F14 in the deferred list. The U1 finding above remains. Otherwise the final product `4f10c5fd`, historical `a8bbac53`, test source `794f649c`, LD-32 kit source `99338e52` and kit tree `d7e50b5d` agree. Git confirms the small product delta and zero product diff for the kit source.
+- The pack preserves the 297 approved golden changes (LA-IC counts 275/3/3/13/2/1), rather than calling them equality. M1 394/394, M2 64/64, T7 three runs of 17 plus the demo skip, and kit 195 ledger rows/196 Vitest tests per run match the committed evidence. The six-channel walk result is 234 ledger rows. H1/PRE aborts, the rejected M1 overlap, raw M3 host failures, the zero-test kit attempt, WE-F14, the original baseline T8 differences, and the 42-second event-capture gap remain visible. No failed attempt is promoted to PASS.
+- Simulator, local MOODLE-LIVE and real-site LIVE scope remain distinguished. The pack claims no real Canvas, Blackboard, Brightspace or other new-LMS site result. Historical task evidence and carried K2 evidence are identified as such. The source review labels may be updated after the outstanding reviews finish.
+- **AC-05:** opened `index.html` through `file://` in headless Chrome with the browser offline and HTTP(S) routes blocked, at 1280 × 900 and 390 × 844. Both render seven sections, with **zero HTTP(S) requests, page errors or horizontal page overflow**. All 47 HTML links resolve. Across the six documents, all **297 local links** and checked fragments resolve. No secret or personal local-path exposure found; `/tmp/kit-run` is the documented example output path.
+
+Verification artifacts: `/tmp/la-reviewer-a-ctx-a23bc39c36c0/reviewer-pack-browser.json`, `reviewer-pack-static.json`, `reviewer-u1-evidence.json`, the browser/static scripts, and screenshots. This private `git clone --no-hardlinks` is pinned to `05d823b8`; all six integration documents still matched it at completion. The task has DOC criteria, not UNIT criteria (AC-04 was removed). The dispatched guide changes are within the explicit scope; no product or architecture edit is part of the Docs commits. No Docker, stack runner, install or commit was used, and Reviewer-B files were not opened. Only this review file was changed in integration.
+
+## Round 4
+
+Reviewed 2026-10-25 by Reviewer-A (Codex GPT-6-Astra xhigh). Scope: Docs fix `6ed4204a`, integrated at `c3dc85ab`; dispatched diff from `c21bb1db` (five documentation files). **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** No open Reviewer-A findings remain.
+
+- **A-LA-E8-05-04 closed.** All three pack copies now give the combined SIM U1 result: 43 entries, 37 PASS and 6 INFO, with 17/17 aggregate IDs PASS. A fresh read of the raw `qalead-la-13` summary confirms those counts. The live `qa-e2e-la-s8b-r1` summary confirms 16/16 PASS entries and IDs. The pages link corrected LA-E7-08 §14.6, retain the earlier source builds and carried-evidence qualification, and keep migration 12/12 per side, snapshot 6/6 per side and drill 10/10 separate. They claim no new continuity run on `4f10c5fd`.
+- **A-LA-E8-05-05 closed.** Step 9 now requires all four conditions for refusal at `complete`: registration-level guard, owner Dynamic Registration, owner `any-https` endpoints and target admin endpoints. The other cases refuse at `start`. This matches `drFamilyGuardRefusedAtComplete` and its K0 branch table, including Canvas and the manual-only walkthrough channel.
+- The replacement approval labels match Reviewer-A's E7-08 R2, E7-09 R7, E0-01 R2, E0-02 R7 and E8-01 R5 reports. Reviewer-B approval status was checked against the coordinator's supplied status, without opening Reviewer-B files. The guide identifies its post-R5 edits as subject to E8-05 review. The new E7-02 SIM citation has a corresponding PASS row; the five-channel 195/195 and six-channel 234/234 kit claims match the cited QA evidence. The guide still discloses that E8-01 AC02 has no separate QA record and requires a new kit run for each new channel. No failed or unverified result is promoted to PASS.
+- Repeated the offline browser check at 1280 × 900 and 390 × 844: seven sections, zero HTTP(S) requests, page errors or horizontal page overflow. All 48 HTML links and all 309 local links across the six pack/guide documents resolve, including checked fragments. The six deviation rows, 15 D-rows and 24 LA-IC statuses remain intact. Prior failure disclosures, evidence limits and pending human decisions are preserved.
+
+Verification used private `git clone --no-hardlinks` `/tmp/la-reviewer-a-ctx-6be1d571d271`, pinned to `c3dc85ab`; artifacts are `reviewer-pack-browser.json`, `reviewer-pack-static.json`, `reviewer-u1-evidence.json`, scripts and screenshots there. The integration documents still match that snapshot. The task has DOC criteria; no product, architecture or test file changed in the Docs commit. No Docker, stack runner, install or commit was used. Only this review file was changed in integration.
